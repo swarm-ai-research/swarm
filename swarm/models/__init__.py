@@ -4,6 +4,7 @@ from swarm.models import schemas as schemas  # noqa: F401 — re-export module
 from swarm.models.agent import AgentState, AgentStatus, AgentType
 from swarm.models.events import Event, EventType
 from swarm.models.interaction import InteractionType, SoftInteraction
+from swarm.models.scenario import ScenarioConfig as ScenarioYamlConfig
 
 __all__ = [
     "SoftInteraction",
@@ -13,5 +14,6 @@ __all__ = [
     "AgentState",
     "Event",
     "EventType",
+    "ScenarioYamlConfig",
     "schemas",
 ]
