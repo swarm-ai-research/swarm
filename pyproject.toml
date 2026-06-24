@@ -199,7 +199,10 @@ markers = [
 ]
 
 [tool.mypy]
-python_version = "3.10"
+# Must be >= 3.12: numpy's stubs use PEP 695 `type` statements, which mypy
+# rejects as syntax errors when emulating an older target version. CI runs on
+# 3.12, so check against it. Runtime support floor stays at 3.10 (requires-python).
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
