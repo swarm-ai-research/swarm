@@ -112,7 +112,7 @@ Swap the provider in the YAML to use OpenRouter, Anthropic, Google, or any OpenA
 - **Longer horizons** — 50-100 epochs to see if LLM agents develop emergent strategies as memory accumulates
 - **Response auditing** — logging raw LLM outputs to verify the parser captures actual intent
 
-The full data is in [`docs/papers/concordia_entity_sweep.md`](../papers/concordia_entity_sweep.md) and the event log at `logs/concordia_entity_sweep.jsonl`.
+The full data is in [`docs/papers/concordia_entity_sweep.md`](https://github.com/swarm-ai-research/swarm-artifacts/blob/main/papers/concordia_entity_sweep.md) and the event log at `logs/concordia_entity_sweep.jsonl`.
 
 ---
 

@@ -76,7 +76,7 @@ Difference in quality between accepted and rejected:
 
 $$\text{Quality Gap} = E[p \mid \text{accepted}] - E[p \mid \text{rejected}]$$
 
-A negative [quality gap](../papers/kernel_market_governance_comparison.md) indicates **adverse selection**: the system preferentially accepts lower-quality interactions.
+A negative [quality gap](https://github.com/swarm-ai-research/swarm-artifacts/blob/main/papers/kernel_market_governance_comparison.md) indicates **adverse selection**: the system preferentially accepts lower-quality interactions.
 
 ### Incoherence
 

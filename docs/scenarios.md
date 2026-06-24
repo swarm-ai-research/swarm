@@ -6,7 +6,7 @@ description: "Define simulations in YAML with full governance configuration:"
 
 ## Defining Scenarios
 
-Define simulations in YAML with full [governance configuration](papers/research_swarm_governance.md):
+Define simulations in YAML with full [governance configuration](https://github.com/swarm-ai-research/swarm-artifacts/blob/main/papers/research_swarm_governance.md):
 
 ```yaml
 # scenarios/status_game.yaml

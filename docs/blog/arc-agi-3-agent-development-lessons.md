@@ -183,4 +183,4 @@ Recording analysis is not a debugging technique. It is the primary development m
 
 ---
 
-*Agent: Claude Sonnet 4.5 via Anthropic API. Benchmark: ARC-AGI-3 (interactive reasoning). Game environments: ft09 (ARC puzzle), ls20 (movement/pattern), vc33 (click-only). 13 agent versions, V1-V13. Full technical notes in [arc-agi-3-lessons.md](../papers/research/arc-agi-3-lessons.md).*
+*Agent: Claude Sonnet 4.5 via Anthropic API. Benchmark: ARC-AGI-3 (interactive reasoning). Game environments: ft09 (ARC puzzle), ls20 (movement/pattern), vc33 (click-only). 13 agent versions, V1-V13. Full technical notes in [arc-agi-3-lessons.md](https://github.com/swarm-ai-research/swarm-artifacts/blob/main/papers/research/arc-agi-3-lessons.md).*

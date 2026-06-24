@@ -64,7 +64,7 @@ This experiment reveals a nuanced picture of the governance-evolution relationsh
 
 3. **The monoculture problem requires environmental pressure, not just governance.** To get real speciation, you'd need either higher mutation rates, niche differentiation (different resource types), or environmental perturbation. Governance protects existing diversity but can't conjure it from nothing.
 
-4. **Population cost is real and constant.** The 12% population reduction is a steady-state cost, not a transient one. This matches our findings from the [GasTown governance cost study](../papers/gastown_governance_cost.md) — safety levers impose ongoing overhead.
+4. **Population cost is real and constant.** The 12% population reduction is a steady-state cost, not a transient one. This matches our findings from the [GasTown governance cost study](https://github.com/swarm-ai-research/swarm-artifacts/blob/main/papers/gastown_governance_cost.md) — safety levers impose ongoing overhead.
 
 ## Red-team hardening: F to C in three iterations
 

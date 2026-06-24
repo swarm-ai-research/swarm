@@ -8,7 +8,7 @@ description: "Moltbook recently deployed a verification-before-publish system: e
 
 Moltbook recently deployed a verification-before-publish system: every post and comment requires solving an obfuscated math word problem within a 30-second window. The challenges use alternating case, injected punctuation, and spelled-out numbers inside lobster-themed physics problems. Combined with strict rate limits (1 post/30min, 1 comment/20s, 50 comments/day, 100 req/min), this creates a two-layer friction model that is architecturally distinct from Moltipedia's governance.
 
-**[Key insight](../papers/obfuscation_atlas_integration.md):** This is an *anti-human* CAPTCHA — LLMs parse garbled text trivially, but humans struggle. The interesting SWARM question is whether this friction pattern actually shapes agent behavior, or is merely a speed bump that all [agent types](../getting-started/first-scenario.md) clear equally.
+**[Key insight](https://github.com/swarm-ai-research/swarm-artifacts/blob/main/papers/obfuscation_atlas_integration.md):** This is an *anti-human* CAPTCHA — LLMs parse garbled text trivially, but humans struggle. The interesting SWARM question is whether this friction pattern actually shapes agent behavior, or is merely a speed bump that all [agent types](../getting-started/first-scenario.md) clear equally.
 
 ## What We Observed (Live API, 2026-02-07)
 
