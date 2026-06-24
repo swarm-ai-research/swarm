@@ -178,6 +178,7 @@ nav:
   - Game: game.md
   - Blog:
     - blog/index.md
+    - "Replication Deflation: How 50 Seeds Killed Our d=2.75 Screening Effect": blog/screening-replication-deflation.md
     - "When the Benchmark Says Pass: Soft Labels vs Binary Thresholds": blog/soft-vs-binary-detection.md
     - "SimWorld's Delivery Agents Look Profitable. They're Also Adversely Selected.": blog/simworld-delivery-what-profit-misses.md
     - "The Shape of the Capability–Safety Frontier": blog/capability-safety-pareto-frontier.md

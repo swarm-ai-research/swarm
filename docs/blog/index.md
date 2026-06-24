@@ -21,6 +21,15 @@ Posts about SWARM research findings, framework updates, and multi-agent safety.
 
 ## June 2026
 
+<div class="blog-post" data-tags="evaluation theory" markdown>
+
+**Jun 23** — [Replication Deflation: How 50 Seeds Killed Our d=2.75 Screening Effect](screening-replication-deflation.md)
+<span class="blog-tag">Methodology</span> <span class="blog-tag">Replication</span>
+
+Our 10-seed confirmatory arm reported a *d=2.75* long-horizon screening effect under tight governance. A pre-registered 50-seed replication deflated it to *d=0.38* (non-significant under Bonferroni) — and surfaced a real, smaller effect (d=0.76) we'd been overlooking under *moderate* governance. A false positive we caught on ourselves: the headline was wrong in both magnitude and governance regime, and the deflation is the finding.
+
+</div>
+
 <div class="blog-post" data-tags="theory evaluation" markdown>
 
 **Jun 6** — [Selection geometry: when a metric breaking is the diagnostic](selection-geometry-when-breaking-is-the-diagnostic.md)
