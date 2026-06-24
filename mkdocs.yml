@@ -85,6 +85,11 @@ plugins:
       enable_creation_date: true
       fallback_to_build_date: true
       enable_git_follow: false
+      # Decouple this plugin's git-history warnings (shallow-clone / git-follow
+      # quirks) from `mkdocs --strict`. The strict gate exists to catch broken
+      # links and nav, not flaky date-resolution noise. Real link/nav warnings
+      # come from mkdocs core and still abort the build.
+      strict: false
   - rss:
       match_path: "blog/.*"
       date_from_meta:
