@@ -253,4 +253,4 @@ class AgentVeilConfig:
 - [Bridge Architecture](index.md) — How SWARM bridges work
 - `swarm.bridges.ai_scientist` — Reference bridge implementation (config/events/mapper/policy/bridge pattern); see source under `swarm/bridges/ai_scientist/`
 - [Proxy Computer](../concepts/metrics.md) — How observables become `p`
-- [SoftInteraction model](../../swarm/models/interaction.py) — The core data structure
+- [SoftInteraction model](https://github.com/swarm-ai-research/swarm/blob/main/swarm/models/interaction.py) — The core data structure

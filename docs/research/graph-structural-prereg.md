@@ -2,7 +2,7 @@
 
 **Status:** pre-registered, not yet run
 **Date:** 2026-06-04
-**Issue:** [`distributional-agi-safety-sk95`](../../.beads/issues.jsonl) (follows merged `2yw2` / PR #492)
+**Issue:** [`distributional-agi-safety-sk95`](https://github.com/swarm-ai-research/swarm/blob/main/.beads/issues.jsonl) (follows merged `2yw2` / PR #492)
 
 ## Motivation
 

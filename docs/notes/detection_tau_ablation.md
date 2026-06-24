@@ -26,7 +26,7 @@ The default τ*=0.50 used everywhere else in this work sits **far below** the ac
 | 0.09 | 0.885 | 0.619 | 0.900 | 0.70 | **−0.015** |
 | 0.15 | 0.952 | 0.876 | 0.979 | 0.60 | **−0.027** |
 
-![Binary AUROC vs τ*; dashed lines are the threshold-free soft AUROC](../../runs/tau_ablation/tau_ablation.png)
+![Binary AUROC vs τ*; dashed lines are the threshold-free soft AUROC](figures/tau_ablation.png)
 <!-- figure regenerated to runs/tau_ablation/ (gitignored); archive to swarm-artifacts if needed -->
 
 ## What this means

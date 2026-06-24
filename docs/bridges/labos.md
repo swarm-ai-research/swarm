@@ -27,8 +27,8 @@ This maps cleanly to `p = P(v = +1)`:
 
 | Artifact | Path |
 |---|---|
-| Scenario | [`scenarios/labos_toolmaker_screening.yaml`](../../scenarios/labos_toolmaker_screening.yaml) |
-| Runner | [`examples/run_labos_toolmaker_spike.py`](../../examples/run_labos_toolmaker_spike.py) |
+| Scenario | [`scenarios/labos_toolmaker_screening.yaml`](https://github.com/swarm-ai-research/swarm/blob/main/scenarios/labos_toolmaker_screening.yaml) |
+| Runner | [`examples/run_labos_toolmaker_spike.py`](https://github.com/swarm-ai-research/swarm/blob/main/examples/run_labos_toolmaker_spike.py) |
 | Event log schema | Existing `swarm/logging/event_log.py` (`EventType.INTERACTION_{PROPOSED,ACCEPTED,REJECTED}` + `PROXY_COMPUTED`) — no new event types needed. |
 | Observable mapping | `ProxyObservables` derived from five synthetic Toolmaker fields: `doc_completeness`, `test_coverage`, `interface_coherence`, `claimed_usefulness`, plus downstream `runtime_errors` / `downstream_retries` / `downstream_success_rate`. |
 | Calibration plot | `runs/<ts>_labos_toolmaker_screening_seed*/plots/calibration_critic_p_vs_v_true.png` |
@@ -61,7 +61,7 @@ Per-Toolmaker-type (seed 42):
 
 ### What ρ variation would reveal (not run in this spike)
 
-`rho_a` controls how much of the downstream harm the Toolmaker internalises. With `rho_a = 0` the careless archetype has no private cost for their accepted-but-shaky tools; with `rho_a = 0.4` the expected welfare of proposing marginal tools goes negative. The spike's scenario YAML already sets `rho_a: 0.1`; the follow-on sweep axis would be `rho_a ∈ {0.0, 0.1, 0.2, 0.4}` — identical to [`examples/run_dag_calibration_study.py`](../../examples/run_dag_calibration_study.py) so the two bridges are directly comparable.
+`rho_a` controls how much of the downstream harm the Toolmaker internalises. With `rho_a = 0` the careless archetype has no private cost for their accepted-but-shaky tools; with `rho_a = 0.4` the expected welfare of proposing marginal tools goes negative. The spike's scenario YAML already sets `rho_a: 0.1`; the follow-on sweep axis would be `rho_a ∈ {0.0, 0.1, 0.2, 0.4}` — identical to [`examples/run_dag_calibration_study.py`](https://github.com/swarm-ai-research/swarm/blob/main/examples/run_dag_calibration_study.py) so the two bridges are directly comparable.
 
 ## Caveats, honestly
 
@@ -87,5 +87,5 @@ Out of scope for this spike and the follow-on: XR / smart-glasses surface, LabOS
 
 - Parent issue: SWA-68 (this spike), SWA-67 (LabOS recon).
 - Memory note: `reference_labworld.md` (architecture-level notes).
-- Sibling bridge: [DAG planner screening](../../scenarios/dag_planner_screening.yaml) + `examples/run_dag_calibration_study.py`.
+- Sibling bridge: [DAG planner screening](https://github.com/swarm-ai-research/swarm/blob/main/scenarios/dag_planner_screening.yaml) + `examples/run_dag_calibration_study.py`.
 - Sibling bridge: [A-Evolve adapter](../../swarm/bridges/aevolve/) (full `BenchmarkAdapter` pattern we are explicitly **not** copying yet).
