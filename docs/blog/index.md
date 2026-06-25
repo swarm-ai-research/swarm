@@ -21,6 +21,15 @@ Posts about SWARM research findings, framework updates, and multi-agent safety.
 
 ## June 2026
 
+<div class="blog-post" data-tags="theory governance" markdown>
+
+**Jun 24** — [Dynamic Toxicity Failure Modes: One Mechanism Out of Six Does All the Damage](dynamic-toxicity-failure-modes.md)
+<span class="blog-tag">Governance</span> <span class="blog-tag">Theory</span>
+
+We tested six dynamic toxicity feedback loops (trust erosion, contagion, proxy calibration drift, and aggressive/combined variants) against a static baseline, 42 seeds each. Five were harmless. One — *proxy calibration drift* — deterministically collapsed net welfare from +2.87 to −1.54, and did it while private surplus stayed positive (+5.72) the whole way down. Volume metrics say "PASS" while welfare is destroyed; detector durability under drift matters more than peak accuracy.
+
+</div>
+
 <div class="blog-post" data-tags="evaluation theory" markdown>
 
 **Jun 23** — [Replication Deflation: How 50 Seeds Killed Our d=2.75 Screening Effect](screening-replication-deflation.md)
