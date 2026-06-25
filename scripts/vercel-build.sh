@@ -15,6 +15,10 @@ uv pip install --python "$VENV/bin/python" \
 
 (cd viz && npm install && npm run build:deploy)
 
+# Intentionally NOT --strict here: link/nav integrity is gated by CI
+# (.github/workflows/ci.yml, `mkdocs build --strict`) before code reaches main,
+# so production deploys stay resilient and aren't blocked by a late non-fatal
+# warning. Keep the gate in CI, keep deploys lenient.
 "$VENV/bin/mkdocs" build
 
 # gitlawb dashboard backfill snapshot.

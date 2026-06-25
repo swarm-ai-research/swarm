@@ -112,6 +112,10 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Full history so git-revision-date-localized resolves accurate
+          # "last updated" dates instead of falling back to the build date.
+          fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -129,10 +133,13 @@ jobs:
             mkdocs-git-revision-date-localized-plugin \
             mkdocs-rss-plugin
       - name: Build static site
-        # No --strict: pre-existing broken image links in papers/ are tolerated.
-        # The committed docs/bridges/gitlawb_snapshot.json is copied into site/,
-        # so the dashboard's same-origin backfill works without network access.
-        run: mkdocs build
+        # --strict gates on broken internal links and nav regressions. The
+        # git-revision-date plugin's git-history warnings are decoupled via its
+        # own `strict: false` (see mkdocs.yml), so only real link/nav breakage
+        # fails the build. The committed docs/bridges/gitlawb_snapshot.json is
+        # copied into site/, so the dashboard's same-origin backfill works
+        # without network access.
+        run: mkdocs build --strict
       - name: Serve built site
         run: |
           python -m http.server 8000 --directory site &> /tmp/http.log &
