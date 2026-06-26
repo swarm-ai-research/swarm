@@ -3,14 +3,4 @@
 # Tracks broken mkdocstrings code directives + dead internal markdown
 # links. CI fails if --check sees ids not in this list (new breakage).
 # Fix the ref (rename/restore the target) or, if intentional, ratchet.
-link: blog/arc-agi-3-agent-development-lessons.md -> ../papers/research/arc-agi-3-lessons.md
-link: blog/claude-code-10-subagents.md -> ../papers/research_swarm_governance.md
-link: blog/concordia-entities-governance.md -> ../papers/concordia_entity_sweep.md
-link: blog/red-team-cake-splitting-hardening.md -> ../papers/research_swarm_governance.md
-link: blog/three-agents-three-philosophies.md -> ../papers/research/arc-agi-3-lessons.md
-link: blog/tierra-governance-vs-evolution.md -> ../papers/gastown_governance_cost.md
-link: bridges/labos.md -> ../../scenarios/dag_planner_screening.yaml
 link: concepts/metrics.md -> ../papers/kernel_market_governance_comparison.md
-link: design/moltbook-captcha-plan.md -> ../papers/obfuscation_atlas_integration.md
-link: research/theory.md -> ../papers/kernel_market_governance_comparison.md
-link: scenarios.md -> papers/research_swarm_governance.md

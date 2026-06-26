@@ -46,7 +46,6 @@ emergent-capabilities.md
 epics/README.md
 game.md
 getting-started/index.md
-graph.md
 guides/benchmarking.md
 guides/eval-metrics.md
 guides/framework-overview.md
@@ -64,10 +63,8 @@ plans/autoresearch-loop.md
 plans/llama-cpp-integration.md
 provenance_trace_schema.md
 research/agent-internet-taxonomy.md
-research/ai-index-2025.md
 research/airs-bench-governance-analysis.md
 research/arc-agi-3-lessons.md
-research/calibration-prereg.md
 research/self-mod-governance-implementation-checklist.md
 role/ceo/HEARTBEAT
 role/founding-engineer/AGENTS
