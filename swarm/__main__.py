@@ -450,9 +450,41 @@ def cmd_evolve(args: argparse.Namespace) -> int:
 
 def cmd_autoresearch(args: argparse.Namespace) -> int:
     """Run an automated objective -> mutate -> evaluate loop."""
+    from typing import cast
+
     from swarm.analysis.autoresearch import cmd_autoresearch as _run_autoresearch
 
-    return _run_autoresearch(args)
+    return cast(int, _run_autoresearch(args))
+
+
+def cmd_diff(args: argparse.Namespace) -> int:
+    """Compare two exported run directories."""
+    import json
+
+    from swarm.analysis.run_diff import (
+        DEFAULT_METRICS,
+        compare_run_files,
+        format_markdown_table,
+        rows_to_dicts,
+    )
+
+    metrics_arg = getattr(args, "metrics", None)
+    if metrics_arg:
+        metrics = [item.strip() for item in metrics_arg.split(",") if item.strip()]
+    else:
+        metrics = list(DEFAULT_METRICS)
+
+    try:
+        rows = compare_run_files(args.run_a, args.run_b, metrics=metrics)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json_output:
+        print(json.dumps(rows_to_dicts(rows), indent=2, sort_keys=True))
+    else:
+        print(format_markdown_table(rows, precision=args.precision))
+    return 0
 
 
 def cmd_list(args: argparse.Namespace) -> int:
@@ -838,6 +870,30 @@ def main() -> int:
     autoresearch_parser.add_argument("--export-root", default="runs/autoresearch", help="Directory for autoresearch outputs")
     autoresearch_parser.add_argument("--auto-commit", action="store_true", help="Commit summary artifact at end of run")
 
+    # diff
+    diff_parser = subparsers.add_parser(
+        "diff", help="Compare two exported run directories"
+    )
+    diff_parser.add_argument("run_a", type=Path, help="Baseline run directory")
+    diff_parser.add_argument("run_b", type=Path, help="Comparison run directory")
+    diff_parser.add_argument(
+        "--metrics",
+        default=None,
+        help="Comma-separated metric names to compare",
+    )
+    diff_parser.add_argument(
+        "--precision",
+        type=int,
+        default=4,
+        help="Number of decimal places in Markdown output",
+    )
+    diff_parser.add_argument(
+        "--json",
+        dest="json_output",
+        action="store_true",
+        help="Emit machine-readable JSON instead of Markdown",
+    )
+
     # evolve
     evolve_parser = subparsers.add_parser("evolve", help="Evolve governance configurations")
     evolve_parser.add_argument("scenario", help="Path to YAML scenario file")
@@ -887,6 +943,8 @@ def main() -> int:
         return cmd_agents(args)
     elif args.command == "autoresearch":
         return cmd_autoresearch(args)
+    elif args.command == "diff":
+        return cmd_diff(args)
     elif args.command == "sandbox":
         if args.sandbox_cmd:
             # Strip leading "--" from exec remainder
