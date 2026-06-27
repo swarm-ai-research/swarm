@@ -22,6 +22,7 @@ Architecture:
     SoftInteraction -> EventLog (incl. ATTESTATION_SUBMITTED) -> metrics
 """
 
+from swarm.bridges.agentveil.bridge import AgentVeilBridge
 from swarm.bridges.agentveil.client import (
     AttestationReceipt,
     AVPClient,
@@ -41,6 +42,7 @@ from swarm.bridges.agentveil.mapper import AVPMapper
 from swarm.bridges.agentveil.policy import AVPPolicy, PolicyDecision, PolicyResult
 
 __all__ = [
+    "AgentVeilBridge",
     "AttestationReceipt",
     "AttestationEvent",
     "AgentVeilConfig",

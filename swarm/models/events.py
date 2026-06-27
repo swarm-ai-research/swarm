@@ -164,6 +164,11 @@ class EventType(Enum):
     RECEIPT_SEALED = "receipt_sealed"
     RECEIPT_VERIFIED = "receipt_verified"
     RECEIPT_REJECTED = "receipt_rejected"
+    # AgentVeil bridge write-back attestations (failure-mode D4 — never hidden):
+    # every AVP attestation submission/suppression is mirrored here so the
+    # core JSONL log fully replays the AVP-visible side-effects of a run.
+    ATTESTATION_SUBMITTED = "attestation_submitted"
+    ATTESTATION_SUPPRESSED = "attestation_suppressed"
     RELAY_MESSAGE_SENT = "relay_message_sent"
     RELAY_MESSAGE_ACKNOWLEDGED = "relay_message_acknowledged"
     # Hardware trust events
