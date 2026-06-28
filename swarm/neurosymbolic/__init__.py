@@ -2,13 +2,15 @@
 
 A two-layer stack for classifying agent behaviour from raw signals:
 
-1. **Neural layer** (:mod:`~swarm.neurosymbolic.perceiver`) perceives continuous
-   input (positions, velocities, observations) and emits *probabilistic atomic
-   facts* — ``near(a, t)::0.8``, ``moving_toward(a, b, t)::0.6``.
+1. **Perception layer** emits *probabilistic atomic facts*. For embodied agents
+   :mod:`~swarm.neurosymbolic.perceiver` perceives continuous input (positions,
+   velocities) into ``near(a, t)::0.8``, ``moving_toward(a, b, t)::0.6``. For
+   LLM agents :mod:`~swarm.neurosymbolic.traces` lifts already-symbolic traces
+   (tool calls, messages, errors) into relations — a near-deterministic step.
 2. **Scallop layer** (:mod:`~swarm.neurosymbolic.engine` +
    :mod:`~swarm.neurosymbolic.behaviors`) composes those atoms into behaviour
-   classifications via Datalog rules with recursion, propagating probabilities
-   through every join.
+   classifications via Datalog rules with recursion, stratified negation, and
+   aggregation, propagating probabilities through every join.
 
 The engine is a self-contained reimplementation of the probabilistic-Datalog
 slice we need (no heavy dependency); :mod:`~swarm.neurosymbolic.scallop` bridges
@@ -35,8 +37,10 @@ from swarm.neurosymbolic.behaviors import (
     classify_behaviors,
 )
 from swarm.neurosymbolic.engine import (
+    Aggregate,
     Atom,
     FactSet,
+    Not,
     Program,
     Rule,
     Var,
@@ -60,12 +64,24 @@ from swarm.neurosymbolic.scallop import (
     scallopy_available,
     to_scallop_program,
 )
+from swarm.neurosymbolic.traces import (
+    AgentTrace,
+    PatternHit,
+    TraceConfig,
+    TraceEvent,
+    TraceFindings,
+    add_trace_rules,
+    classify_trace,
+    lift_trace,
+)
 
 __all__ = [
     # engine
     "Atom",
     "Var",
+    "Not",
     "Rule",
+    "Aggregate",
     "Program",
     "FactSet",
     # provenance
@@ -90,4 +106,13 @@ __all__ = [
     "run_with_scallopy",
     "scallopy_available",
     "SCALLOP_BEHAVIOR_RULES",
+    # llm-agent trace analysis
+    "AgentTrace",
+    "TraceEvent",
+    "TraceConfig",
+    "TraceFindings",
+    "PatternHit",
+    "lift_trace",
+    "add_trace_rules",
+    "classify_trace",
 ]

@@ -2,13 +2,16 @@
 
 This is a self-contained, dependency-free implementation of the slice of
 Scallop that the SWARM framework needs: probabilistic facts, rules with
-variable-binding joins, **recursion**, and probability propagation through a
-pluggable :class:`~swarm.neurosymbolic.provenance.Provenance`.
+variable-binding joins, **recursion**, **stratified negation**, **aggregation**,
+and probability propagation through a pluggable
+:class:`~swarm.neurosymbolic.provenance.Provenance`.
 
-The neural layer (see :mod:`swarm.neurosymbolic.perceiver`) emits noisy
-*probabilistic atomic facts* — ``near(a, t)::0.8`` — and rules defined here
-compose them into higher-level behaviour relations, with probabilities flowing
-through every join and recursion.
+A perception layer emits noisy *probabilistic atomic facts* — for embodied
+agents the :mod:`~swarm.neurosymbolic.perceiver` turns trajectories into
+``near(a, t)::0.8``; for LLM agents the :mod:`~swarm.neurosymbolic.traces`
+layer lifts tool calls / messages / errors into relations. Rules then compose
+those atoms into higher-level behaviour relations, with probabilities flowing
+through every join, recursion, and negation.
 
 Design
 ------
@@ -16,21 +19,29 @@ Design
   (``str``/``int``/``float``). ``Var("_")`` is an anonymous wildcard: it
   matches anything and never binds, and two ``"_"`` occurrences are
   independent.
-- A **rule** is ``head :- body[0], body[1], ...`` — a conjunction. Every
-  variable in ``head`` must appear in ``body`` (range restriction / safety).
-- Evaluation is a naive least-fixpoint: rules fire until no fact's probability
-  increases by more than ``epsilon``. With the idempotent default provenance
-  (``plus = max``) this converges to a unique least fixpoint even with
-  recursion.
+- A **rule** is ``head :- l0, l1, ...`` where each literal is a positive
+  :class:`Atom` or a negated :class:`Not`. Every variable in the head and in
+  every negated literal must appear in some positive body atom (range
+  restriction / safety).
+- **Negation** ``Not(atom)`` contributes ``1 - p`` where ``p`` is the
+  (finalised) probability of the ground negated atom.
+- **Aggregation** (``count``/``sum``/``min``/``max``) summarises a body over
+  groups, e.g. "how many times was this tool called with these args".
+- Evaluation is **stratified**: relations that are negated or aggregated are
+  computed to completion in a lower stratum before the relation that depends on
+  them. Within a stratum the naive least-fixpoint iterates to convergence; with
+  the idempotent default provenance (``plus = max``) recursion terminates at a
+  unique fixpoint. Purely-positive non-aggregating programs form a single
+  stratum and behave exactly like plain recursive Datalog.
 
-The engine is deliberately small and readable rather than fast; behaviour
-programs here operate on short trajectories (tens to hundreds of timesteps).
+The engine is deliberately small and readable rather than fast; programs here
+operate on short traces (tens to hundreds of steps).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Iterator, List, Optional, Tuple, Union
+from typing import Dict, Iterator, List, Optional, Sequence, Tuple, Union
 
 from swarm.neurosymbolic.provenance import (
     DEFAULT_PROVENANCE,
@@ -71,17 +82,71 @@ class Atom:
     def vars(self) -> List[Var]:
         return [t for t in self.terms if isinstance(t, Var) and not t.is_wildcard]
 
+    def has_wildcard(self) -> bool:
+        return any(isinstance(t, Var) and t.is_wildcard for t in self.terms)
+
+
+@dataclass(frozen=True)
+class Not:
+    """A negated body literal: holds with probability ``1 - p(atom)``.
+
+    The negated atom must be ground once the positive body atoms are bound
+    (all its variables must appear in a positive atom) and may not contain a
+    wildcard — negation-as-failure is over a *specific* ground fact, not an
+    existential. Express "no X exists such that ..." by defining a positive
+    auxiliary relation and negating that.
+    """
+
+    atom: Atom
+
+    def vars(self) -> List[Var]:
+        return self.atom.vars()
+
+
+BodyLiteral = Union[Atom, Not]
+
 
 @dataclass(frozen=True)
 class Rule:
-    """``head :- body`` — head is implied by the conjunction of body atoms."""
+    """``head :- body`` — head is implied by the conjunction of body literals.
+
+    Positive atoms are stored before negated literals so that, during the join,
+    every variable a negation refers to is already bound.
+    """
 
     head: Atom
-    body: Tuple[Atom, ...]
+    body: Tuple[BodyLiteral, ...]
 
-    def __init__(self, head: Atom, *body: Atom) -> None:
+    def __init__(self, head: Atom, *body: BodyLiteral) -> None:
         object.__setattr__(self, "head", head)
-        object.__setattr__(self, "body", tuple(body))
+        object.__setattr__(self, "body", _order_body(body))
+
+
+@dataclass(frozen=True)
+class Aggregate:
+    """``out(group..., result) :- aggregate op of `over` over body, by group``.
+
+    Produces, for each distinct binding of ``group_vars`` in the body's
+    solutions, one fact ``out_relation(*group_values, result)`` with
+    probability 1, where ``result`` is:
+
+    - ``count`` — the number of distinct ``over`` values in the group,
+    - ``sum`` / ``min`` / ``max`` — the corresponding reduction of the numeric
+      ``over`` values.
+    """
+
+    out_relation: str
+    op: str
+    over: Optional[Var]
+    group_vars: Tuple[Var, ...]
+    body: Tuple[BodyLiteral, ...]
+
+
+def _order_body(body: Sequence[BodyLiteral]) -> Tuple[BodyLiteral, ...]:
+    """Positive atoms first, negated literals last (so negation vars are bound)."""
+    positives = [b for b in body if isinstance(b, Atom)]
+    negatives = [b for b in body if isinstance(b, Not)]
+    return tuple(positives) + tuple(negatives)
 
 
 class FactSet:
@@ -126,7 +191,7 @@ class FactSet:
 
 
 class Program:
-    """A probabilistic Datalog program: extensional facts + rules.
+    """A probabilistic Datalog program: extensional facts + rules + aggregates.
 
     Example
     -------
@@ -141,6 +206,7 @@ class Program:
     def __init__(self) -> None:
         self.edb = FactSet()
         self.rules: List[Rule] = []
+        self.aggregates: List[Aggregate] = []
 
     # -- construction -------------------------------------------------------
     def fact(self, relation: str, *terms: Const, p: float = 1.0) -> "Program":
@@ -148,15 +214,50 @@ class Program:
         self.edb._bump(relation, tuple(terms), clamp01(p), DEFAULT_PROVENANCE)
         return self
 
-    def rule(self, head: Atom, *body: Atom) -> "Program":
+    def rule(self, head: Atom, *body: BodyLiteral) -> "Program":
         """Add a rule ``head :- body``. Raises if the rule is unsafe."""
-        body_vars = {v.name for atom in body for v in atom.vars()}
+        positive_vars = {
+            v.name for lit in body if isinstance(lit, Atom) for v in lit.vars()
+        }
         for v in head.vars():
-            if v.name not in body_vars:
+            if v.name not in positive_vars:
                 raise ValueError(
-                    f"Unsafe rule: head variable {v.name!r} does not appear in the body"
+                    f"Unsafe rule: head variable {v.name!r} does not appear in a "
+                    "positive body atom"
                 )
+        for lit in body:
+            if isinstance(lit, Not):
+                if lit.atom.has_wildcard():
+                    raise ValueError(
+                        "Unsafe rule: negated atom may not contain a wildcard"
+                    )
+                for v in lit.vars():
+                    if v.name not in positive_vars:
+                        raise ValueError(
+                            f"Unsafe rule: negated variable {v.name!r} does not "
+                            "appear in a positive body atom"
+                        )
         self.rules.append(Rule(head, *body))
+        return self
+
+    def aggregate(
+        self,
+        out_relation: str,
+        op: str,
+        *body: BodyLiteral,
+        group_by: Sequence[Var] = (),
+        over: Optional[Var] = None,
+    ) -> "Program":
+        """Add an aggregation ``out_relation(group..., result) :- op over body``."""
+        if op not in ("count", "sum", "min", "max"):
+            raise ValueError(f"unknown aggregation op {op!r}")
+        if op != "count" and over is None:
+            raise ValueError(f"aggregation {op!r} requires an `over` variable")
+        if op == "count" and over is None:
+            raise ValueError("count requires an `over` variable to count distinctly")
+        self.aggregates.append(
+            Aggregate(out_relation, op, over, tuple(group_by), _order_body(body))
+        )
         return self
 
     # -- evaluation ---------------------------------------------------------
@@ -167,43 +268,110 @@ class Program:
         max_iter: int = 1000,
         epsilon: float = 1e-9,
     ) -> FactSet:
-        """Compute the least fixpoint and return all derived facts.
+        """Compute the stratified least fixpoint and return all derived facts.
 
-        Seeds the result with the extensional facts, then fires every rule to
-        convergence. ``provenance`` must have an idempotent ``plus`` (the
-        default :class:`MaxTimesProvenance` does) for recursion to terminate
-        at a unique fixpoint.
+        ``provenance`` must have an idempotent ``plus`` (the default
+        :class:`MaxTimesProvenance` does) for recursion within a stratum to
+        terminate at a unique fixpoint.
         """
         prov = provenance or DEFAULT_PROVENANCE
+        strata = self._strata()
+        max_s = max(strata.values(), default=0)
+
         db = FactSet()
-        # Seed with extensional facts.
         for relation, gt, p in self.edb.items():
             db._bump(relation, gt, p, prov)
 
-        for _ in range(max_iter):
-            # Read-then-write: collect every derivation against the current db
-            # snapshot first, then apply. This keeps recursive rules from
-            # mutating a relation while a join is iterating it.
-            derived: List[Tuple[str, GroundTuple, float]] = []
-            for r in self.rules:
-                for binding, prob in self._join(r.body, db, prov):
-                    gt = tuple(_subst(t, binding) for t in r.head.terms)
-                    derived.append((r.head.relation, gt, prob))
+        for s in range(max_s + 1):
+            # Aggregates first: their bodies live in strictly lower strata and
+            # are already finalised, so each is a one-shot computation.
+            for agg in self.aggregates:
+                if strata[agg.out_relation] == s:
+                    self._eval_aggregate(agg, db, prov)
+
+            rules_s = [r for r in self.rules if strata[r.head.relation] == s]
+            if not rules_s:
+                continue
+
+            for _ in range(max_iter):
+                # Read-then-write: snapshot derivations, then apply, so recursive
+                # rules don't mutate a relation while a join iterates it.
+                derived: List[Tuple[str, GroundTuple, float]] = []
+                for r in rules_s:
+                    for binding, prob in self._join(r.body, db, prov):
+                        gt = tuple(_subst(t, binding) for t in r.head.terms)
+                        derived.append((r.head.relation, gt, prob))
+                changed = False
+                for relation, gt, prob in derived:
+                    if db._bump(relation, gt, prob, prov, epsilon):
+                        changed = True
+                if not changed:
+                    break
+            else:  # pragma: no cover - safety valve only
+                raise RuntimeError(
+                    "Datalog fixpoint did not converge; check provenance idempotency"
+                )
+        return db
+
+    def _strata(self) -> Dict[str, int]:
+        """Assign each relation a stratum number.
+
+        Positive dependencies require ``stratum(head) >= stratum(body)``;
+        negation and aggregation require ``stratum(head) > stratum(body)``.
+        Raises if the program is not stratifiable (a negation/aggregation cycle).
+        """
+        relations: set[str] = set(self.edb.relations())
+        edges: List[Tuple[str, str, int]] = []  # (src, dst, weight)
+
+        def note(rel: str) -> None:
+            relations.add(rel)
+
+        for r in self.rules:
+            note(r.head.relation)
+            for lit in r.body:
+                if isinstance(lit, Atom):
+                    note(lit.relation)
+                    edges.append((lit.relation, r.head.relation, 0))
+                else:
+                    note(lit.atom.relation)
+                    edges.append((lit.atom.relation, r.head.relation, 1))
+        for agg in self.aggregates:
+            note(agg.out_relation)
+            for lit in agg.body:
+                rel = lit.relation if isinstance(lit, Atom) else lit.atom.relation
+                note(rel)
+                edges.append((rel, agg.out_relation, 1))
+
+        stratum: Dict[str, int] = dict.fromkeys(relations, 0)
+        for _ in range(len(relations) + 1):
             changed = False
-            for relation, gt, prob in derived:
-                if db._bump(relation, gt, prob, prov, epsilon):
+            for src, dst, w in edges:
+                if stratum[dst] < stratum[src] + w:
+                    stratum[dst] = stratum[src] + w
                     changed = True
             if not changed:
                 break
-        else:  # pragma: no cover - safety valve only
-            raise RuntimeError(
-                "Datalog fixpoint did not converge; check provenance idempotency"
+        else:
+            raise ValueError(
+                "program is not stratifiable: negation/aggregation forms a cycle"
             )
-        return db
+        return stratum
+
+    def _eval_aggregate(
+        self, agg: Aggregate, db: FactSet, prov: Provenance
+    ) -> None:
+        groups: Dict[GroundTuple, List[Const]] = {}
+        for binding, _prob in self._join(agg.body, db, prov):
+            key = tuple(_subst(v, binding) for v in agg.group_vars)
+            val = _subst(agg.over, binding) if agg.over is not None else None
+            groups.setdefault(key, []).append(val)  # type: ignore[arg-type]
+        for key, vals in groups.items():
+            result = _apply_agg(agg.op, vals)
+            db._bump(agg.out_relation, tuple(key) + (result,), 1.0, prov)
 
     def _join(
         self,
-        body: Tuple[Atom, ...],
+        body: Tuple[BodyLiteral, ...],
         db: FactSet,
         prov: Provenance,
     ) -> Iterator[Tuple[Dict[str, Const], float]]:
@@ -215,14 +383,33 @@ class Program:
             if i == len(body):
                 yield dict(binding), acc
                 return
-            atom = body[i]
-            for gt, fact_p in db.get(atom.relation).items():
-                new_binding = _unify(atom.terms, gt, binding)
+            lit = body[i]
+            if isinstance(lit, Not):
+                gt = tuple(_subst(t, binding) for t in lit.atom.terms)
+                factor = clamp01(1.0 - db.prob(lit.atom.relation, *gt))
+                if factor > 0.0:
+                    yield from recurse(i + 1, binding, prov.times(acc, factor))
+                return
+            for gt, fact_p in db.get(lit.relation).items():
+                new_binding = _unify(lit.terms, gt, binding)
                 if new_binding is None:
                     continue
                 yield from recurse(i + 1, new_binding, prov.times(acc, fact_p))
 
         yield from recurse(0, {}, prov.one())
+
+
+def _apply_agg(op: str, vals: Sequence[Const]) -> Const:
+    if op == "count":
+        return len(set(vals))
+    numeric = [v for v in vals if isinstance(v, (int, float))]
+    if op == "sum":
+        return sum(numeric)
+    if op == "min":
+        return min(numeric)
+    if op == "max":
+        return max(numeric)
+    raise ValueError(f"unknown aggregation op {op!r}")  # pragma: no cover
 
 
 def _subst(term: Term, binding: Dict[str, Const]) -> Const:

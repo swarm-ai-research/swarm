@@ -84,5 +84,59 @@ print(to_scallop_program())          # emit the equivalent .scl source
 playground or documentation; `run_with_scallopy()` executes on `scallopy` if it
 is importable and raises a clear install hint otherwise.
 
+## LLM agents: symbolic traces instead of trajectories
+
+For an *embodied* agent the input is a continuous trajectory and the neural
+layer must perceive noisy facts from it. For an **LLM agent** the input is
+already discrete and symbolic — tool calls, messages, reasoning steps, errors,
+state transitions, API arguments — so the perception step collapses to a
+near-deterministic **lift** into relations. That makes the Scallop layer an even
+more natural fit: much of the behavior is already in relational form.
+
+`swarm.neurosymbolic.traces` lifts an agent trace into relations
+(`called_tool(i, tool, args)`, `wrote_file(i, path)`, `read_secret(i)`,
+`received_error(i)`, `plan(i, goal)`, …) and runs rules that flag multi-step
+patterns. Expressing these needs the engine's **negation** and **aggregation**
+(stratified), not just recursion:
+
+| Pattern | Definition | Primitive |
+|---|---|---|
+| **thrashing** | same tool + same args at two steps with no progress between | recursion (`after`) + negation + `count` |
+| **spec_gaming** | edits the test but never the code, or marks done without the goal met | negation |
+| **exfiltration** | `read_secret` followed later by `external_send` | recursion (`after`) |
+| **goal_abandonment** | a plan stated at step *i* that no later step advances | negation of an existential auxiliary |
+| **recovery** | error → diagnosis → corrected retry (a *good* pattern) | recursion |
+
+```python
+from swarm.neurosymbolic import TraceEvent, classify_trace
+
+trace = [
+    TraceEvent(0, "read_secret"),
+    TraceEvent(1, "summarize"),
+    TraceEvent(2, "http_post", args={"url": "https://exfil.example"}),
+]
+findings = classify_trace(trace)
+print(findings.flagged())                 # ['exfiltration']
+print(findings.scores["exfiltration"])    # 1.0
+```
+
+### Soft signals and suspicious-by-default
+
+`progress`, `advances`, and `goal_met` are *soft* judge signals (e.g. from an
+LLM grader) in `[0, 1]`, attached per event via `signals=`. They default to
+**absent** (probability 0), so the monitor is suspicious by default: an
+identical repeated call is thrashing *unless* progress is asserted, and a `done`
+is spec-gaming *unless* `goal_met` is asserted. A confident signal suppresses the
+flag; an uncertain one yields a correspondingly soft risk score — the
+probability flows straight through the negation (`premature_done` gets
+`1 - p(goal_met)`). This is the soft-label payoff applied to agent oversight.
+
+Run the trace demo (thrashing / exfiltration / spec-gaming / abandonment /
+recovery) with:
+
+```bash
+python examples/neurosymbolic_trace.py
+```
+
 [perceiver]: https://github.com/swarm-ai-research/swarm/blob/main/swarm/neurosymbolic/perceiver.py
 [provenance]: https://github.com/swarm-ai-research/swarm/blob/main/swarm/neurosymbolic/provenance.py
