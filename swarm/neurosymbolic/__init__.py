@@ -60,9 +60,11 @@ from swarm.neurosymbolic.provenance import (
 )
 from swarm.neurosymbolic.scallop import (
     SCALLOP_BEHAVIOR_RULES,
+    SCALLOP_TRACE_RULES,
     run_with_scallopy,
     scallopy_available,
     to_scallop_program,
+    to_scallop_trace_program,
 )
 from swarm.neurosymbolic.traces import (
     AgentTrace,
@@ -103,9 +105,11 @@ __all__ = [
     "classify_behaviors",
     # scallop bridge
     "to_scallop_program",
+    "to_scallop_trace_program",
     "run_with_scallopy",
     "scallopy_available",
     "SCALLOP_BEHAVIOR_RULES",
+    "SCALLOP_TRACE_RULES",
     # llm-agent trace analysis
     "AgentTrace",
     "TraceEvent",

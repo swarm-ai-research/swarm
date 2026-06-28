@@ -138,5 +138,24 @@ recovery) with:
 python examples/neurosymbolic_trace.py
 ```
 
+The trace program also has a native-Scallop form, so it can run on the real
+backend with a learned LLM judge supplying the soft `progress` / `advances` /
+`goal_met` signals as probabilistic facts:
+
+```python
+from swarm.neurosymbolic import (
+    lift_trace, to_scallop_trace_program, run_with_scallopy, SCALLOP_TRACE_RULES,
+)
+
+print(to_scallop_trace_program())            # the equivalent .scl source
+# program = lift_trace(trace)                 # facts from your trace
+# ctx = run_with_scallopy(program, rules=SCALLOP_TRACE_RULES)  # if scallopy installed
+```
+
+Negation (`not progress_between`, `not code_edit_exists`) and aggregation
+(`n := count(...)`) appear directly in the `.scl`; under a probabilistic
+provenance (`topkproofs`) the soft signals' probabilities flow through the joins
+and negations just as they do in the in-repo engine.
+
 [perceiver]: https://github.com/swarm-ai-research/swarm/blob/main/swarm/neurosymbolic/perceiver.py
 [provenance]: https://github.com/swarm-ai-research/swarm/blob/main/swarm/neurosymbolic/provenance.py

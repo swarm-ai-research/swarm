@@ -10,7 +10,11 @@ probabilities flowing through.
 
 from __future__ import annotations
 
-from swarm.neurosymbolic import TraceEvent, classify_trace
+from swarm.neurosymbolic import (
+    TraceEvent,
+    classify_trace,
+    to_scallop_trace_program,
+)
 
 
 def _thrashing() -> list[TraceEvent]:
@@ -72,6 +76,9 @@ def main() -> None:
             steps = hit.steps if hit else ()
             detail = f"  ({hit.detail})" if hit and hit.detail else ""
             print(f"  {pattern:<16} {score:.2f}  steps={steps}{detail}")
+
+    print("\n--- equivalent native Scallop program ---")
+    print(to_scallop_trace_program())
 
 
 if __name__ == "__main__":

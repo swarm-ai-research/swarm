@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from swarm.neurosymbolic import (
+    SCALLOP_TRACE_RULES,
     Atom,
     Not,
     Program,
@@ -12,6 +13,7 @@ from swarm.neurosymbolic import (
     Var,
     classify_trace,
     lift_trace,
+    to_scallop_trace_program,
 )
 
 
@@ -243,3 +245,43 @@ class TestTracePatterns:
         trace = [TraceEvent(i, "search", args="q") for i in range(2)]
         f = classify_trace(trace, min_repeats=3)
         assert f.scores["thrashing"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Native Scallop trace export
+# ---------------------------------------------------------------------------
+class TestScallopTraceExport:
+    def test_accessor_returns_constant(self):
+        assert to_scallop_trace_program() == SCALLOP_TRACE_RULES
+
+    def test_every_lifted_relation_is_declared(self):
+        # A trace exercising every kind of lifted relation.
+        trace = [
+            TraceEvent(0, "plan", goal="g", states_plan=True),
+            TraceEvent(1, "read_secret"),
+            TraceEvent(2, "write_file", path="tests/test_x.py"),
+            TraceEvent(3, "write_file", path="x.py"),
+            TraceEvent(4, "bash", error=True),
+            TraceEvent(5, "analyze", diagnosis=True),
+            TraceEvent(6, "bash", retry=True, signals={"progress": 0.9}),
+            TraceEvent(7, "edit", goal="g", signals={"advances": 0.8}),
+            TraceEvent(8, "http_post", args={"u": 1}),
+            TraceEvent(9, "done", done=True, signals={"goal_met": 0.7}),
+        ]
+        prog = lift_trace(trace)
+        emitted = {rel for rel, _, _ in prog.edb.items()}
+        # every emitted EDB relation must be declared as a `type` in the .scl
+        for rel in emitted:
+            assert f"type {rel}(" in SCALLOP_TRACE_RULES, f"{rel} undeclared in .scl"
+
+    def test_all_pattern_relations_present(self):
+        for rel in (
+            "stuck_pair", "repeat_count", "spec_gaming", "exfiltration",
+            "goal_abandonment", "recovery",
+        ):
+            assert f"rel {rel}(" in SCALLOP_TRACE_RULES
+
+    def test_uses_negation_and_aggregation(self):
+        assert "not progress_between" in SCALLOP_TRACE_RULES
+        assert "not code_edit_exists" in SCALLOP_TRACE_RULES
+        assert "count(" in SCALLOP_TRACE_RULES
