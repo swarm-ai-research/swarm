@@ -877,6 +877,46 @@ def main() -> int:
 
     args = parser.parse_args()
 
+    # Sanitized, opt-out telemetry envelope around command dispatch. Best-effort
+    # and PII-free (see swarm/telemetry.py); SWARM_TELEMETRY=off disables it.
+    import sys
+    import time
+
+    from swarm.telemetry import sanitize_command, track
+
+    subcommand = args.command or "help"
+    track(
+        "Command Invoked",
+        {"subcommand": subcommand, "command": sanitize_command(sys.argv, subcommand)},
+    )
+    started = time.monotonic()
+    try:
+        exit_code = _dispatch(args, parser, sandbox_parser, arxiv_parser)
+    except Exception as exc:
+        track(
+            "Command Error",
+            {"subcommand": subcommand, "error_type": type(exc).__name__},
+            is_error=True,
+        )
+        raise
+    track(
+        "Command Completed",
+        {
+            "subcommand": subcommand,
+            "exit_code": exit_code,
+            "duration_ms": int((time.monotonic() - started) * 1000),
+        },
+    )
+    return exit_code
+
+
+def _dispatch(
+    args: argparse.Namespace,
+    parser: argparse.ArgumentParser,
+    sandbox_parser: argparse.ArgumentParser,
+    arxiv_parser: argparse.ArgumentParser,
+) -> int:
+    """Route a parsed command to its handler, returning the process exit code."""
     if args.command == "run":
         return cmd_run(args)
     elif args.command == "evolve":
