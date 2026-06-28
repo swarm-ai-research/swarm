@@ -4,10 +4,13 @@ import json
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Tuple
 
 from swarm.models.events import Event, EventType
 from swarm.models.interaction import InteractionType, SoftInteraction
+
+if TYPE_CHECKING:
+    from swarm.logging.projection import Checkpoint, EventEnvelope, Reducer
 
 
 class EventLog:
@@ -71,6 +74,49 @@ class EventLog:
                 line = line.strip()
                 if line:
                     yield Event.from_dict(json.loads(line))
+
+    def iter_envelopes(
+        self, *, start_seq: int = 0, until_seq: Optional[int] = None
+    ) -> "Iterator[EventEnvelope]":
+        """Replay events tagged with monotonic sequence numbers.
+
+        Each event is wrapped in an :class:`EventEnvelope` whose ``seq`` is its
+        0-indexed position in the log. Sequence numbers are derived at replay
+        time, so the on-disk JSONL is unchanged and older logs stay readable.
+
+        Args:
+            start_seq: Skip envelopes with ``seq < start_seq`` (e.g. to resume
+                past a checkpoint). The yielded ``seq`` is still the absolute
+                log position.
+            until_seq: Stop after yielding the envelope with this ``seq``
+                (inclusive). ``None`` yields to the end of the log.
+        """
+        from swarm.logging.projection import EventEnvelope
+
+        for seq, event in enumerate(self.replay()):
+            if seq < start_seq:
+                continue
+            if until_seq is not None and seq > until_seq:
+                break
+            yield EventEnvelope(seq=seq, event=event)
+
+    def project(
+        self,
+        reducer: "Reducer[Any]",
+        *,
+        until_seq: Optional[int] = None,
+        resume: "Optional[Checkpoint[Any]]" = None,
+    ) -> "Tuple[Any, Checkpoint[Any]]":
+        """Fold the log into a projection state via ``reducer``.
+
+        Reconstructs intermediate state at any checkpoint: pass ``until_seq``
+        to stop at a given position, or ``resume`` to continue a prior
+        checkpoint without re-folding earlier events. Returns
+        ``(state, checkpoint)``.
+        """
+        start_seq = 0 if resume is None else resume.last_seq + 1
+        envelopes = self.iter_envelopes(start_seq=start_seq, until_seq=until_seq)
+        return reducer.replay(envelopes, until_seq=until_seq, resume=resume)
 
     def replay_filtered(
         self,
