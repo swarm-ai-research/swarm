@@ -137,8 +137,11 @@ def _best_runs(
 ) -> List[Episode]:
     """Collect qualifying runs ``relation(agent, target, start, end)``.
 
-    Keeps, per ``(target, start)``, the longest run that reaches at least
-    ``min_length``, recording its probability.
+    Keeps, per ``(target, start)``, the *highest-probability* run that reaches at
+    least ``min_length``. A run's probability is the product of its step
+    probabilities, so extending a run can only keep or lower its probability;
+    preferring the longest run would discard a more-confident shorter episode
+    just because another step was observed. We keep the most confident instead.
     """
     best: Dict[Tuple[str, int], Episode] = {}
     for gt, p in db.get(relation).items():
@@ -151,7 +154,7 @@ def _best_runs(
             continue
         key = (target, start)
         prev = best.get(key)
-        if prev is None or end > prev.end:
+        if prev is None or float(p) > prev.probability:
             best[key] = Episode(target, start, end, float(p))
     return sorted(best.values(), key=lambda e: e.probability, reverse=True)
 

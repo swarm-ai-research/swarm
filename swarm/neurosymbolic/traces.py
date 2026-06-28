@@ -153,6 +153,19 @@ def _args_key(args: Any) -> str:
         return str(args)
 
 
+def _call_key(ev: "TraceEvent") -> str:
+    """Stable key for a call's inputs.
+
+    Folds the action-specific ``path`` field into the key so that, e.g., two
+    ``write_file`` calls to *different* files do not collide on an empty ``args``
+    key and get misreported as a repeated (thrashing) call.
+    """
+    base = _args_key(ev.args)
+    if ev.path is not None:
+        return f"{base}\x1fpath={ev.path}"
+    return base
+
+
 def lift_trace(
     trace: Sequence[TraceEvent],
     config: Optional[TraceConfig] = None,
@@ -171,7 +184,7 @@ def lift_trace(
         if idx + 1 < len(events):
             prog.fact("succ", i, events[idx + 1].step)
 
-        prog.fact("called_tool", i, ev.action, _args_key(ev.args))
+        prog.fact("called_tool", i, ev.action, _call_key(ev))
 
         if ev.action in cfg.secret_read_tools:
             prog.fact("read_secret", i)
@@ -182,9 +195,13 @@ def lift_trace(
             prog.fact("wrote_file", i, ev.path)
             if ev.path not in paths_seen:
                 paths_seen.add(ev.path)
+                # Test and code paths are mutually exclusive: a test file like
+                # ``tests/test_x.py`` matches both regexes, so classify it as a
+                # test only — otherwise editing a test would derive `edited_code`
+                # and wrongly clear the `test_gaming` (spec-gaming) signal.
                 if test_re.search(ev.path):
                     prog.fact("is_test_path", ev.path)
-                if code_re.search(ev.path):
+                elif code_re.search(ev.path):
                     prog.fact("is_code_path", ev.path)
 
         if ev.error:

@@ -233,6 +233,34 @@ class TestBehaviorClassification:
         if long.scores["pursuing"] > 0 and short.scores["pursuing"] > 0:
             assert long.scores["pursuing"] <= short.scores["pursuing"]
 
+    def test_reported_run_is_highest_probability_not_longest(self):
+        # A confident close-up chase that gains one extra, lower-confidence step
+        # should not have its score dragged down by the longer window: the
+        # readout keeps the most-confident qualifying run, not the longest.
+        from swarm.neurosymbolic import KinematicPerceiver, add_behavior_rules
+
+        traj = Trajectory(
+            agent="a",
+            positions=[(0.0, 0.0), (1.0, 0.0), (2.0, 0.0), (3.0, 0.0), (4.0, 1.5)],
+            targets={"g": [(10.0, 0.0)]},
+        )
+        min_len = 3
+
+        # Ground truth: the max probability over *all* qualifying runs the engine
+        # derived. Keeping the longest-per-start run could report less than this.
+        prog = KinematicPerceiver().perceive(traj)
+        add_behavior_rules(prog)
+        db = prog.run()
+        engine_max = max(
+            (p for gt, p in db.get("pursuit_run").items()
+             if gt[0] == "a" and int(gt[3]) - int(gt[2]) + 1 >= min_len),
+            default=0.0,
+        )
+        assert engine_max > 0.0
+
+        scores = classify_behaviors(traj, config=BehaviorConfig(min_run_length=min_len))
+        assert scores.scores["pursuing"] == pytest.approx(engine_max)
+
 
 # ---------------------------------------------------------------------------
 # Scallop bridge

@@ -207,11 +207,18 @@ class Program:
         self.edb = FactSet()
         self.rules: List[Rule] = []
         self.aggregates: List[Aggregate] = []
+        # Raw per-call contributions, kept so :meth:`run` can combine duplicate
+        # extensional facts under the *run's* provenance rather than baking in a
+        # fixed one at insertion time. ``self.edb`` is the combined input view.
+        self._edb_contributions: List[Tuple[str, GroundTuple, float]] = []
 
     # -- construction -------------------------------------------------------
     def fact(self, relation: str, *terms: Const, p: float = 1.0) -> "Program":
         """Add an extensional (input) probabilistic fact."""
-        self.edb._bump(relation, tuple(terms), clamp01(p), DEFAULT_PROVENANCE)
+        gt = tuple(terms)
+        pc = clamp01(p)
+        self._edb_contributions.append((relation, gt, pc))
+        self.edb._bump(relation, gt, pc, DEFAULT_PROVENANCE)
         return self
 
     def rule(self, head: Atom, *body: BodyLiteral) -> "Program":
@@ -279,7 +286,10 @@ class Program:
         max_s = max(strata.values(), default=0)
 
         db = FactSet()
-        for relation, gt, p in self.edb.items():
+        # Seed from the raw contributions so duplicate extensional facts are
+        # combined with the requested provenance's ``plus`` (consistent with
+        # how derived facts are combined), not a fixed default.
+        for relation, gt, p in self._edb_contributions:
             db._bump(relation, gt, p, prov)
 
         for s in range(max_s + 1):
@@ -402,9 +412,19 @@ class Program:
 def _apply_agg(op: str, vals: Sequence[Const]) -> Const:
     if op == "count":
         return len(set(vals))
-    numeric = [v for v in vals if isinstance(v, (int, float))]
+    # sum/min/max require numeric values; fail loudly rather than silently
+    # dropping non-numerics or surfacing an opaque min()/max() error.
+    non_numeric = [v for v in vals if not isinstance(v, (int, float))]
+    if non_numeric:
+        raise ValueError(
+            f"aggregation {op!r} requires numeric `over` values, got non-numeric "
+            f"{non_numeric[0]!r}"
+        )
+    if not vals:
+        raise ValueError(f"aggregation {op!r} has no values to reduce")
+    numeric = list(vals)
     if op == "sum":
-        return sum(numeric)
+        return sum(numeric)  # type: ignore[arg-type]
     if op == "min":
         return min(numeric)
     if op == "max":

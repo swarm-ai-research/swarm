@@ -104,7 +104,7 @@ class Perceiver(Protocol):
     """Maps raw trajectories to probabilistic atoms loaded into a Program."""
 
     def perceive(self, traj: Trajectory, program: Optional[Program] = None) -> Program:
-        ...
+        """Emit probabilistic atoms for ``traj`` into ``program`` (or a new one)."""
 
 
 class KinematicPerceiver:
