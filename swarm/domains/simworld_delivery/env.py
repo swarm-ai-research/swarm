@@ -204,6 +204,14 @@ class DeliveryEnvironment:
                     agent_id=agent_id,
                 )
             else:
+                # Unknown action types are recorded as waits (without the
+                # idle_steps accounting a deliberate WAIT gets) — warn so
+                # a typo'd or unhandled action type is visible in logs.
+                logger.warning(
+                    "Unknown delivery action type %r from %s; treating as wait",
+                    action.action_type,
+                    agent_id,
+                )
                 evt = DeliveryEvent(
                     event_type="wait",
                     step=self._current_step,

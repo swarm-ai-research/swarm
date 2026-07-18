@@ -57,6 +57,7 @@ class RivalsConfig(BaseModel):
     max_retries_per_stage: int = 3
     tasks_per_epoch: int = 4
     trap_probability: float = 0.5
+    council_size: int = 3
     seed: Optional[int] = None
 
     # Critic parameters (can be overridden per-agent)
@@ -346,10 +347,15 @@ class RivalsHandler(Handler):
         if self.config.mode == RivalsMode.ADVISORY:
             vetoed = False
 
-        # In council mode, we simulate a majority vote
+        # In council mode, we simulate a majority vote among council_size
+        # critics. Note: false positives never veto in council mode (the
+        # has_defect gate below), unlike solo-critic mode above — the
+        # council screens out spurious objections by design.
         if self.config.mode == RivalsMode.COUNCIL:
-            votes = [self._rng.random() < detection_rate for _ in range(3)]
-            vetoed = sum(votes) >= 2 if has_defect else False
+            n = self.config.council_size
+            votes = [self._rng.random() < detection_rate for _ in range(n)]
+            majority = n // 2 + 1
+            vetoed = sum(votes) >= majority if has_defect else False
 
         # Record veto history
         episode.veto_history.append({
