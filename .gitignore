@@ -47,7 +47,7 @@ credentials/
 runs/
 lean/
 promo/
-research/
+/research/
 docs/papers/
 
 # Company-role agents (run as independent sessions, not committed).
