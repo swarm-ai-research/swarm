@@ -32,6 +32,7 @@ from dataclasses import dataclass
 from hashlib import sha256
 from typing import Any, Dict, List, Optional, Tuple
 
+from swarm.bridges._common import trim_to_half
 from swarm.bridges.prime_intellect.config import (
     PrimeIntellectConfig,
     RewardMode,
@@ -209,10 +210,7 @@ class SwarmSafetyEnv:
             quality_gap=step_metrics.get("quality_gap", 0.0),
             welfare=step_metrics.get("welfare", 0.0),
         )
-        if len(self._rollout_steps) >= self._config.max_events:
-            self._rollout_steps = self._rollout_steps[
-                -self._config.max_events // 2 :
-            ]
+        self._rollout_steps = trim_to_half(self._rollout_steps, self._config.max_events)
         self._rollout_steps.append(rollout_step)
 
         # Check termination
@@ -522,8 +520,7 @@ class SwarmSafetyEnv:
         self, event_type: PIEventType, payload: Dict[str, Any]
     ) -> None:
         """Record a bridge event, enforcing the cap."""
-        if len(self._events) >= self._config.max_events:
-            self._events = self._events[-self._config.max_events // 2 :]
+        self._events = trim_to_half(self._events, self._config.max_events)
         self._events.append(PIEvent(
             event_type=event_type,
             agent_id="trainee",

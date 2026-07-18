@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional, Set
 from swarm.boundaries.information_flow import FlowTracker
 from swarm.boundaries.leakage import LeakageDetector
 from swarm.boundaries.policies import PolicyEngine
+from swarm.bridges._common import trim_to_half
 from swarm.bridges.opensandbox.config import (
     CapabilityManifest,
     ContractAssignment,
@@ -1008,8 +1009,7 @@ class OpenSandboxBridge:
         payload: Optional[Dict] = None,
     ) -> None:
         with self._lock:
-            if len(self._events) >= self._config.max_events:
-                self._events = self._events[-self._config.max_events // 2 :]
+            self._events = trim_to_half(self._events, self._config.max_events)
             self._events.append(
                 OpenSandboxEvent(
                     event_type=event_type,
@@ -1022,10 +1022,7 @@ class OpenSandboxBridge:
 
     def _record_interaction(self, interaction: SoftInteraction) -> None:
         with self._lock:
-            if len(self._interactions) >= self._config.max_interactions:
-                self._interactions = self._interactions[
-                    -self._config.max_interactions // 2 :
-                ]
+            self._interactions = trim_to_half(self._interactions, self._config.max_interactions)
             self._interactions.append(interaction)
         self._log_interaction(interaction)
 

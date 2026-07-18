@@ -1,7 +1,7 @@
 """Helpers shared across framework bridges."""
 
 import logging
-from typing import Optional
+from typing import List, Optional, TypeVar
 
 from swarm.logging.event_log import EventLog
 from swarm.models.interaction import SoftInteraction
@@ -37,3 +37,17 @@ def log_interaction_event(
         event_log.append(event)
     except Exception as exc:  # pragma: no cover
         logger.warning("EventLog write failed: %s", exc)
+
+
+T = TypeVar("T")
+
+
+def trim_to_half(items: List[T], max_size: int) -> List[T]:
+    """Bounded-growth trim: once items reaches max_size, keep the newest half.
+
+    Deliberately lossy eviction (drop the oldest max_size - max_size // 2
+    entries) so hot paths trim rarely instead of on every append.
+    """
+    if len(items) >= max_size:
+        return items[-max_size // 2 :]
+    return items
