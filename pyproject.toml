@@ -203,6 +203,7 @@ markers = [
     "memory: mark test as memory-focused (runs with memory limits)",
     "memory_intensive: mark test as long-running memory test (>1000 epochs)",
     "perf: mark wall-clock performance budget test (run serially without coverage; tracer/xdist distort timing)",
+    "smoke: fast determinism smoke tests on the live calibration track (select with '-m smoke')",
 ]
 
 [tool.mypy]
