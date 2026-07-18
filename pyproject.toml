@@ -130,6 +130,13 @@ langgraph = [
 #   pip install "swarm-safety[evolve]" \
 #     "darwinian-evolver @ git+https://github.com/imbue-ai/darwinian_evolver.git"
 evolve = []
+# NOTE: a-evolve is GitHub-only and ships no LICENSE file (README claims MIT)
+# as of the pinned SHA — do NOT vendor its code; install it side-by-side:
+#   pip install "swarm-safety[aevolve]" \
+#     "a-evolve @ git+https://github.com/A-EVO-Lab/a-evolve.git@c9d4789f2be499589d543aa08e74d05d10d93177"
+# The bridge (swarm/bridges/aevolve/) soft-imports agent_evolve and stays
+# fully functional/testable without it (structural stand-in types).
+aevolve = []
 gepa = [
     "gepa>=0.1.0",
 ]
