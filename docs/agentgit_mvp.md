@@ -100,6 +100,36 @@ bundle's receipt signature (dev-key fallback, same as `verify`) — so a forged
 entry that was re-chained consistently still fails on its signature. Non-zero
 exit on any failure makes it CI-friendly.
 
+## Operational Memory
+
+Code, issues, and PRs don't capture operational knowledge: "module X is
+fragile because...", "never use lib Y here", "deploys fail if migration
+order changes", "the previous agent failed this because...".
+`swarm.agentgit.MemoryStore` gives agents a durable place for exactly that:
+
+- **Structured** — every memory has a kind (`fragility`, `constraint`,
+  `failure`, `practice`, `context`) and a subject (path/module/topic).
+- **Versioned** — storage is append-only JSONL; updates append new versions,
+  retiring appends a tombstone, history stays replayable.
+- **Scoped** — `repo` (`.agentgit/memory.jsonl`, travels with clones and is
+  reviewable in PRs), `org` (`~/.agentgit/org-memory.jsonl`, shared across
+  repos), `agent` (`~/.agentgit/agent-memory/<agent>.jsonl`, private).
+
+```bash
+python -m swarm.agentgit memory remember swarm/core/proxy.py \
+  --kind fragility --body "sigmoid calibration breaks if weights are renormalized"
+python -m swarm.agentgit memory recall swarm/core   # hierarchical match
+python -m swarm.agentgit memory history --id fragility-swarm-core-proxy-py --scope repo
+python -m swarm.agentgit memory retire --id fragility-swarm-core-proxy-py --reason "refactored"
+```
+
+Recall is subject-aware and hierarchical: a memory about `swarm/core`
+surfaces when asking about `swarm/core/proxy.py` and vice versa. Before
+touching a diff, `store.recall_for_paths([f.path for f in
+snapshot.changed_files])` answers "what should I know before changing these
+files" — fragility notes, constraints, and prior agents' failures, most
+specific scope (agent → repo → org) first.
+
 ## Machine-Speed Coordination
 
 GitHub issues/PRs are human-shaped. When many agent sessions work one repo

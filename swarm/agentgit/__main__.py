@@ -16,6 +16,7 @@ from swarm.agentgit.bundle import (
     write_bundle,
 )
 from swarm.agentgit.coordination import DEFAULT_DB_PATH, CoordinationBoard
+from swarm.agentgit.memory import KINDS, SCOPES, MemoryEntry, MemoryStore
 from swarm.agentgit.policy import AgentGitPolicy, gate_bundle
 from swarm.agentgit.review import VERDICT_BLOCK, run_review_panel
 from swarm.agentgit.store import (
@@ -281,6 +282,66 @@ def cmd_coord(args: argparse.Namespace) -> int:
         return 0
 
 
+def _format_memory(entry: MemoryEntry) -> str:
+    flag = " [RETIRED]" if entry.retired else ""
+    return (
+        f"[{entry.scope}/{entry.kind}] {entry.subject}: {entry.body} "
+        f"(id={entry.id} v{entry.version} by {entry.author}){flag}"
+    )
+
+
+def cmd_memory(args: argparse.Namespace) -> int:
+    """Structured, versioned, scoped operational memory."""
+
+    agent = args.agent or os.environ.get("SESSION_ID") or "local"
+    store = MemoryStore(
+        Path(args.repo),
+        agent=agent,
+        home=Path(args.home) if args.home else None,
+    )
+    if args.action == "remember":
+        if not args.subject or not args.body:
+            print("memory remember: a subject argument and --body are required")
+            return 1
+        entry = store.remember(
+            scope=args.scope,
+            kind=args.kind,
+            subject=args.subject,
+            body=args.body,
+            author=agent,
+            entry_id=args.id,
+        )
+        print(f"REMEMBERED {_format_memory(entry)}")
+        return 0
+    if args.action == "recall":
+        entries = store.recall(args.subject or None, kind=args.kind_filter)
+        for entry in entries:
+            print(_format_memory(entry))
+        if not entries:
+            print("no memories found")
+        return 0
+    if args.action == "retire":
+        if not args.id:
+            print("memory retire: --id is required")
+            return 1
+        ok = store.retire(
+            scope=args.scope, entry_id=args.id, author=agent, reason=args.reason
+        )
+        print(f"{'RETIRED' if ok else 'NOT-FOUND'} {args.id}")
+        return 0 if ok else 1
+    # history
+    if not args.id:
+        print("memory history: --id is required")
+        return 1
+    versions = store.history(args.id, scope=args.scope)
+    for entry in versions:
+        print(f"v{entry.version} @ {entry.updated_at}: {_format_memory(entry)}")
+    if not versions:
+        print("no memories found")
+        return 1
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m swarm.agentgit",
@@ -509,6 +570,50 @@ def build_parser() -> argparse.ArgumentParser:
         help="Accept the proposal (respond action; omit to reject)",
     )
     coord.set_defaults(func=cmd_coord)
+
+    memory = subparsers.add_parser(
+        "memory",
+        help="Structured, versioned, repo/org/agent-scoped operational memory",
+    )
+    memory.add_argument("action", choices=["remember", "recall", "retire", "history"])
+    memory.add_argument(
+        "subject",
+        nargs="?",
+        default="",
+        help="Path/module/topic the memory is about (required for remember; "
+        "optional recall filter)",
+    )
+    memory.add_argument("--repo", default=".", help="Git repository path")
+    memory.add_argument(
+        "--scope",
+        default="repo",
+        choices=list(SCOPES),
+        help="Memory scope (remember/retire/history; default: repo)",
+    )
+    memory.add_argument(
+        "--kind",
+        default="context",
+        choices=list(KINDS),
+        help="Memory kind (remember; default: context)",
+    )
+    memory.add_argument(
+        "--kind-filter",
+        default=None,
+        choices=list(KINDS),
+        help="Only recall memories of this kind",
+    )
+    memory.add_argument("--body", default="", help="Memory body text (remember)")
+    memory.add_argument("--id", default=None, help="Memory id (update/retire/history)")
+    memory.add_argument("--reason", default="", help="Retire reason")
+    memory.add_argument(
+        "--agent", default=None, help="Agent identity (default: $SESSION_ID or 'local')"
+    )
+    memory.add_argument(
+        "--home",
+        default=None,
+        help="Base dir for org/agent memory files (default: ~)",
+    )
+    memory.set_defaults(func=cmd_memory)
     return parser
 
 

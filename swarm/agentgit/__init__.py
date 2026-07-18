@@ -28,6 +28,10 @@ from swarm.agentgit.identity import (
     DelegationLink,
     sign_link,
 )
+from swarm.agentgit.memory import (
+    MemoryEntry,
+    MemoryStore,
+)
 from swarm.agentgit.policy import (
     AgentGitPolicy,
     ConditionalRule,
@@ -71,6 +75,8 @@ __all__ = [
     "DelegationChain",
     "DelegationLink",
     "DependencyReviewer",
+    "MemoryEntry",
+    "MemoryStore",
     "PolicyDecision",
     "PolicyFacts",
     "ReviewFinding",
