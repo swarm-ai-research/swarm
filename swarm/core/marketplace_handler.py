@@ -432,6 +432,7 @@ class MarketplaceHandler(Handler):
                                 "auto_resolved": True,
                             },
                             epoch=state.current_epoch,
+                            step=state.current_step,
                         )
                     )
 

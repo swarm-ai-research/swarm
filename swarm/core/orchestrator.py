@@ -1331,7 +1331,7 @@ class Orchestrator:
                     "child_type": child_type_key,
                     "depth": self._spawn_tree.get_depth(child_id),
                     "inherited_reputation": inherited_rep,
-                    "initial_resources": spawn_cfg.initial_child_resources,
+                    "initial_resources": child_initial_resources,
                     "spawn_cost": spawn_cfg.spawn_cost,
                 },
                 epoch=self.state.current_epoch,
