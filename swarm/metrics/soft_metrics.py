@@ -1,7 +1,7 @@
 """Soft metrics for interaction quality analysis."""
 
 import math
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 from swarm.core.payoff import SoftPayoffEngine
 from swarm.models.interaction import SoftInteraction
@@ -61,18 +61,16 @@ class SoftMetrics:
 
         return sum(1 - i.p for i in interactions) / len(interactions)
 
-    def conditional_loss_initiator(self, interactions: List[SoftInteraction]) -> float:
+    def _conditional_loss(
+        self,
+        interactions: List[SoftInteraction],
+        payoff_fn: Callable[[SoftInteraction], float],
+    ) -> float:
         """
-        Compute conditional loss for initiator: E[π_a | accepted] - E[π_a]
+        Compute E[payoff | accepted] - E[payoff] for the given payoff function.
 
         Negative values indicate adverse selection (accepted interactions
-        are worse than average for the initiator).
-
-        Args:
-            interactions: List of interactions
-
-        Returns:
-            Conditional loss (negative = adverse selection)
+        are worse than average for that party).
         """
         if not interactions:
             return 0.0
@@ -81,17 +79,22 @@ class SoftMetrics:
         if not accepted:
             return 0.0
 
-        # Average payoff for accepted
-        avg_accepted = sum(
-            self.payoff_engine.payoff_initiator(i) for i in accepted
-        ) / len(accepted)
-
-        # Average payoff overall
-        avg_all = sum(
-            self.payoff_engine.payoff_initiator(i) for i in interactions
-        ) / len(interactions)
+        avg_accepted = sum(payoff_fn(i) for i in accepted) / len(accepted)
+        avg_all = sum(payoff_fn(i) for i in interactions) / len(interactions)
 
         return avg_accepted - avg_all
+
+    def conditional_loss_initiator(self, interactions: List[SoftInteraction]) -> float:
+        """
+        Compute conditional loss for initiator: E[π_a | accepted] - E[π_a]
+
+        Args:
+            interactions: List of interactions
+
+        Returns:
+            Conditional loss (negative = adverse selection)
+        """
+        return self._conditional_loss(interactions, self.payoff_engine.payoff_initiator)
 
     def conditional_loss_counterparty(
         self, interactions: List[SoftInteraction]
@@ -105,22 +108,9 @@ class SoftMetrics:
         Returns:
             Conditional loss (negative = adverse selection)
         """
-        if not interactions:
-            return 0.0
-
-        accepted = [i for i in interactions if i.accepted]
-        if not accepted:
-            return 0.0
-
-        avg_accepted = sum(
-            self.payoff_engine.payoff_counterparty(i) for i in accepted
-        ) / len(accepted)
-
-        avg_all = sum(
-            self.payoff_engine.payoff_counterparty(i) for i in interactions
-        ) / len(interactions)
-
-        return avg_accepted - avg_all
+        return self._conditional_loss(
+            interactions, self.payoff_engine.payoff_counterparty
+        )
 
     def spread(self, interactions: List[SoftInteraction]) -> float:
         """
@@ -142,8 +132,8 @@ class SoftMetrics:
         if not accepted:
             return 0.0
 
-        avg_p_all = sum(i.p for i in interactions) / len(interactions)
-        avg_p_accepted = sum(i.p for i in accepted) / len(accepted)
+        avg_p_all = self.average_quality(interactions)
+        avg_p_accepted = self.average_quality(interactions, accepted_only=True)
 
         scale = self.payoff_engine.config.s_plus + self.payoff_engine.config.s_minus
 
@@ -194,8 +184,8 @@ class SoftMetrics:
             return 0.0  # Var(a) = 0
 
         alpha = n_acc / n
-        mean_p = sum(i.p for i in interactions) / n
-        var_p = sum((i.p - mean_p) ** 2 for i in interactions) / n
+        mean_p = self.average_quality(interactions)
+        var_p = self.quality_variance(interactions)
         if var_p == 0.0:
             return 0.0  # Var(p) = 0
 
@@ -410,7 +400,6 @@ class SoftMetrics:
         if not interactions:
             return {
                 "total_welfare": 0.0,
-                "total_social_surplus": 0.0,
                 "net_social_welfare": 0.0,
                 "avg_initiator_payoff": 0.0,
                 "avg_counterparty_payoff": 0.0,
@@ -419,6 +408,8 @@ class SoftMetrics:
         accepted = [i for i in interactions if i.accepted]
 
         total_welfare = sum(self.payoff_engine.total_welfare(i) for i in accepted)
+        # Social surplus charges the full externality:
+        # S_soft - E_soft = p*s+ - (1-p)*(s- + h)
         total_social = sum(self.payoff_engine.social_surplus(i) for i in accepted)
         avg_init = (
             sum(self.payoff_engine.payoff_initiator(i) for i in accepted)
@@ -433,20 +424,9 @@ class SoftMetrics:
             else 0.0
         )
 
-        # Net social welfare: private surplus minus externalities.
-        # social_surplus = S_soft - E_soft = p*s+ - (1-p)*(s- + h)
-        # This is what an economist would call welfare: the sum of all
-        # gains and losses including unpriced harm to the ecosystem.
-        net_social_welfare = (
-            sum(self.payoff_engine.social_surplus(i) for i in accepted)
-            if accepted
-            else 0.0
-        )
-
         return {
             "total_welfare": total_welfare,
-            "total_social_surplus": total_social,
-            "net_social_welfare": net_social_welfare,
+            "net_social_welfare": total_social,
             "avg_initiator_payoff": avg_init,
             "avg_counterparty_payoff": avg_counter,
         }
@@ -727,6 +707,15 @@ class SoftMetrics:
             return 0.0
         return sum(len(i.causal_parents) for i in synthesis) / len(synthesis)
 
+    @staticmethod
+    def _variance(values: List[float]) -> float:
+        """Population variance of values; 0.0 when fewer than 2 values."""
+        if len(values) < 2:
+            return 0.0
+
+        mean = sum(values) / len(values)
+        return sum((v - mean) ** 2 for v in values) / len(values)
+
     def quality_variance(
         self,
         interactions: List[SoftInteraction],
@@ -745,13 +734,7 @@ class SoftMetrics:
         if accepted_only:
             interactions = [i for i in interactions if i.accepted]
 
-        if len(interactions) < 2:
-            return 0.0
-
-        mean_p = sum(i.p for i in interactions) / len(interactions)
-        variance = sum((i.p - mean_p) ** 2 for i in interactions) / len(interactions)
-
-        return variance
+        return self._variance([i.p for i in interactions])
 
     def quality_std(
         self,
@@ -782,14 +765,9 @@ class SoftMetrics:
         Returns:
             Variance of initiator payoffs
         """
-        if len(interactions) < 2:
-            return 0.0
-
-        payoffs = [self.payoff_engine.payoff_initiator(i) for i in interactions]
-        mean_payoff = sum(payoffs) / len(payoffs)
-        variance = sum((p - mean_payoff) ** 2 for p in payoffs) / len(payoffs)
-
-        return variance
+        return self._variance(
+            [self.payoff_engine.payoff_initiator(i) for i in interactions]
+        )
 
     def payoff_variance_counterparty(
         self, interactions: List[SoftInteraction]
@@ -805,14 +783,9 @@ class SoftMetrics:
         Returns:
             Variance of counterparty payoffs
         """
-        if len(interactions) < 2:
-            return 0.0
-
-        payoffs = [self.payoff_engine.payoff_counterparty(i) for i in interactions]
-        mean_payoff = sum(payoffs) / len(payoffs)
-        variance = sum((p - mean_payoff) ** 2 for p in payoffs) / len(payoffs)
-
-        return variance
+        return self._variance(
+            [self.payoff_engine.payoff_counterparty(i) for i in interactions]
+        )
 
     def coefficient_of_variation(self, interactions: List[SoftInteraction]) -> dict:
         """

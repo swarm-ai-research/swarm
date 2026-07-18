@@ -14,18 +14,13 @@ This script:
 
 import json
 import statistics
-import sys
-from collections import Counter, defaultdict
+from collections import defaultdict
 from pathlib import Path
 
-import yaml
-
 from swarm.core.payoff import SoftPayoffEngine
-from swarm.logging.event_log import EventLog
 from swarm.metrics.soft_metrics import SoftMetrics
-from swarm.models.interaction import InteractionType, SoftInteraction
+from swarm.models.interaction import SoftInteraction
 from swarm.scenarios.loader import build_orchestrator, load_scenario
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -293,7 +288,7 @@ def main():
     print("  Conditional loss (c.p.)                     = {:+.4f}".format(cond_loss_cp))
     print()
     print("  Total welfare (accepted)                    = {:.2f}".format(welfare["total_welfare"]))
-    print("  Total social surplus                        = {:.2f}".format(welfare["total_social_surplus"]))
+    print("  Net social welfare                          = {:.2f}".format(welfare["net_social_welfare"]))
     print("  Avg initiator payoff                        = {:.4f}".format(welfare["avg_initiator_payoff"]))
     print("  Avg counterparty payoff                     = {:.4f}".format(welfare["avg_counterparty_payoff"]))
     print()
