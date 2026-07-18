@@ -308,9 +308,7 @@ class ResourceNegotiationHandler(Handler):
 
     @staticmethod
     def handled_action_types() -> FrozenSet:
-        from swarm.agents.base import ActionType
-
-        return frozenset({ActionType.RESOURCE_NEGOTIATE})
+        return ResourceNegotiationHandler._ACTION_TYPES
 
     # ── Game creation ─────────────────────────────────────────────
 

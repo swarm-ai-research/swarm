@@ -107,21 +107,6 @@ _OBS_VETO = ProxyObservables(
     counterparty_engagement_delta=-0.1,
 )
 
-_OBS_CORRECT = ProxyObservables(
-    task_progress_delta=0.8,
-    rework_count=0,
-    verifier_rejections=0,
-    counterparty_engagement_delta=0.3,
-)
-
-_OBS_WRONG = ProxyObservables(
-    task_progress_delta=-0.5,
-    rework_count=0,
-    verifier_rejections=1,
-    counterparty_engagement_delta=-0.3,
-)
-
-
 # Role constants
 _PRODUCER_ROLES = {"coder", "chart_maker", "writer"}
 _CRITIC_ROLES = {"critic_code", "critic_chart", "critic_output"}

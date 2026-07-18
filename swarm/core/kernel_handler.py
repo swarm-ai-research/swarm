@@ -6,6 +6,7 @@ v3: GPU-specific memory hierarchy efficiency and precision format
 exploitation dimensions.
 """
 
+import math
 import random
 import uuid
 from typing import Any, Dict, List, Optional
@@ -920,7 +921,7 @@ class KernelOracleHandler(Handler):
         """Sample from Poisson distribution using inverse transform."""
         if lam <= 0:
             return 0
-        L = pow(2.718281828, -lam)
+        L = math.exp(-lam)
         k = 0
         p = 1.0
         while True:
