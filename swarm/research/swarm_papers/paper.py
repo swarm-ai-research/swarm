@@ -168,10 +168,6 @@ Future runs should incorporate stronger validators and richer task suites.
             column_format=col_format,
             position="h",
         )
-        # Add booktabs rules
-        latex = latex.replace("\\toprule", "\\toprule")
-        latex = latex.replace("\\midrule", "\\midrule")
-        latex = latex.replace("\\bottomrule", "\\bottomrule")
         return str(latex)
 
     def _render_memory(self, items: list[MemoryArtifact]) -> str:
