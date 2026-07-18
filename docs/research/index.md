@@ -50,6 +50,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Claim status for Aschenbrenner's *Situational Awareness* and its mapping onto SWARM mechanisms
 
+-   :material-graph-outline: **[Neurosymbolic Behavior Classification](neurosymbolic-behavior.md)**
+
+    ---
+
+    Neural perception + Scallop-style probabilistic Datalog for classifying embodied and LLM-agent behavior
+
 </div>
 
 ## Core Research Questions
