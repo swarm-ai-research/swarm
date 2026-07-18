@@ -31,6 +31,16 @@ from swarm.api.models.simulation import (
 
 logger = logging.getLogger(__name__)
 
+def _connect_sqlite(db_path: Path) -> sqlite3.Connection:
+    """Open a WAL-mode connection with busy timeout, FK enforcement, Row rows."""
+    conn = sqlite3.connect(str(db_path), timeout=10)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA busy_timeout=5000;")
+    conn.execute("PRAGMA foreign_keys=ON;")
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
 # Default DB path — sits next to the runs/ directory at repo root.
 _DEFAULT_DB_PATH = Path(__file__).resolve().parents[2] / "runs" / "agent_api.db"
 
@@ -231,12 +241,7 @@ class RunStore:
                 pass  # column already exists
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self._db_path), timeout=10)
-        conn.execute("PRAGMA journal_mode=WAL;")
-        conn.execute("PRAGMA busy_timeout=5000;")
-        conn.execute("PRAGMA foreign_keys=ON;")
-        conn.row_factory = sqlite3.Row
-        return conn
+        return _connect_sqlite(self._db_path)
 
     # ------------------------------------------------------------------
     # Write
@@ -403,12 +408,7 @@ class PostStore:
                     conn.execute(idx)
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self._db_path), timeout=10)
-        conn.execute("PRAGMA journal_mode=WAL;")
-        conn.execute("PRAGMA busy_timeout=5000;")
-        conn.execute("PRAGMA foreign_keys=ON;")
-        conn.row_factory = sqlite3.Row
-        return conn
+        return _connect_sqlite(self._db_path)
 
     # ------------------------------------------------------------------
     # Write
@@ -634,12 +634,7 @@ class ScenarioStore:
                     conn.execute(idx)
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self._db_path), timeout=10)
-        conn.execute("PRAGMA journal_mode=WAL;")
-        conn.execute("PRAGMA busy_timeout=5000;")
-        conn.execute("PRAGMA foreign_keys=ON;")
-        conn.row_factory = sqlite3.Row
-        return conn
+        return _connect_sqlite(self._db_path)
 
     def save(self, scenario: ScenarioResponse, yaml_content: Optional[str] = None) -> None:
         """Upsert a scenario, optionally storing raw YAML content."""
@@ -767,12 +762,7 @@ class ProposalStore:
                     conn.execute(idx)
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self._db_path), timeout=10)
-        conn.execute("PRAGMA journal_mode=WAL;")
-        conn.execute("PRAGMA busy_timeout=5000;")
-        conn.execute("PRAGMA foreign_keys=ON;")
-        conn.row_factory = sqlite3.Row
-        return conn
+        return _connect_sqlite(self._db_path)
 
     def save(self, proposal: Any) -> None:
         """Upsert a proposal."""
@@ -964,12 +954,7 @@ class SimulationStore:
                     conn.execute(idx)
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self._db_path), timeout=10)
-        conn.execute("PRAGMA journal_mode=WAL;")
-        conn.execute("PRAGMA busy_timeout=5000;")
-        conn.execute("PRAGMA foreign_keys=ON;")
-        conn.row_factory = sqlite3.Row
-        return conn
+        return _connect_sqlite(self._db_path)
 
     # ------------------------------------------------------------------
     # Simulation CRUD
