@@ -181,7 +181,7 @@ class TestContemplationEvaluator:
             assert param.min_value <= proposal.proposed_value <= param.max_value
             assert abs(proposal.delta) <= param.max_delta_per_proposal + 1e-6
 
-    def test_deterministic_with_same_seed(self):
+    def test_evaluation_is_deterministic(self):
         config = make_config()
         evidence = make_rising_toxicity_evidence(20)
 
@@ -191,7 +191,6 @@ class TestContemplationEvaluator:
                 adaptable_params=DEFAULT_ADAPTABLE_PARAMS,
                 config=config,
                 min_evidence_epochs=10,
-                seed=42,
             )
             acc = EvidenceAccumulator()
             for ev in evidence:
@@ -337,7 +336,6 @@ class TestAdaptiveGovernanceController:
             governance_engine=engine,
             event_bus=bus,
             config=config,
-            seed=42,
         )
         return controller, config, events
 

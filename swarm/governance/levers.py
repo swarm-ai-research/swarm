@@ -72,6 +72,12 @@ class GovernanceLever(ABC):
     points in the simulation lifecycle.
     """
 
+    # Levers that exist to reduce decision variance (ensembling,
+    # decomposition, friction, breakers). Adaptive governance gates these
+    # off together when forecast variance is low; see
+    # GovernanceEngine._iter_active_levers.
+    reduces_variance: bool = False
+
     def __init__(self, config: "GovernanceConfig"):
         """
         Initialize the lever with configuration.

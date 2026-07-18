@@ -8,6 +8,8 @@ from swarm.models.interaction import SoftInteraction
 class IncoherenceFrictionLever(GovernanceLever):
     """Apply transaction friction proportional to interaction uncertainty."""
 
+    reduces_variance = True
+
     @property
     def name(self) -> str:
         return "incoherence_friction"

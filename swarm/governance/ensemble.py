@@ -13,6 +13,8 @@ class SelfEnsembleLever(GovernanceLever):
     lever accounts for additional compute/latency friction in payoff space.
     """
 
+    reduces_variance = True
+
     @property
     def name(self) -> str:
         return "self_ensemble"

@@ -470,15 +470,9 @@ class GovernanceEngine:
         if self._incoherence_forecaster is None:
             return list(self._levers)
 
-        variance_names = {
-            "self_ensemble",
-            "incoherence_breaker",
-            "decomposition",
-            "incoherence_friction",
-        }
         active: List[GovernanceLever] = []
         for lever in self._levers:
-            if lever.name in variance_names and not self._adaptive_variance_active:
+            if lever.reduces_variance and not self._adaptive_variance_active:
                 continue
             active.append(lever)
         return active

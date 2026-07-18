@@ -405,7 +405,6 @@ class Orchestrator:
                 governance_engine=self.governance_engine,
                 event_bus=self._event_bus,
                 config=self.config.governance_config,
-                seed=self.config.seed,
             )
             self._on_epoch_end.append(self._adaptive_controller.on_epoch_end)
 

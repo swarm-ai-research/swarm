@@ -121,13 +121,11 @@ class ContemplationEvaluator:
         config: Any,
         min_evidence_epochs: int = 10,
         confidence_threshold: float = 0.8,
-        seed: Optional[int] = None,
     ) -> None:
         self._params = {p.field_name: p for p in adaptable_params}
         self._config = config
         self._min_evidence_epochs = min_evidence_epochs
         self._confidence_threshold = confidence_threshold
-        self._seed = seed
 
     def evaluate(
         self, accumulator: EvidenceAccumulator, current_epoch: int
