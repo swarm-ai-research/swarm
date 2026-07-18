@@ -100,6 +100,37 @@ bundle's receipt signature (dev-key fallback, same as `verify`) — so a forged
 entry that was re-chained consistently still fails on its signature. Non-zero
 exit on any failure makes it CI-friendly.
 
+## Machine-Speed Coordination
+
+GitHub issues/PRs are human-shaped. When many agent sessions work one repo
+concurrently, `swarm.agentgit.CoordinationBoard` (SQLite, defaults to the
+same `runs/runs.db` as `agent_messages`) provides machine-semantics
+primitives, all mirrored into an append-only `coordination_events` audit
+stream:
+
+- **claim / yield / done** — atomic task ownership; a contested claim tells
+  you who holds it instead of racing message strings.
+- **lock / release** — advisory locks on files/directories/module prefixes;
+  a lock on `swarm/core` conflicts with one on `swarm/core/proxy.py` (and
+  vice versa), siblings don't.
+- **propose / respond** — structured plan proposals, review requests, and
+  subtask delegations (`--to` an agent or `#swarm` broadcast); first
+  responder wins.
+- **conflicts** — check the paths you're about to touch against other
+  agents' active locks *before* the work collides in a merge.
+
+```bash
+python -m swarm.agentgit coord claim beads-042        # agent = $SESSION_ID
+python -m swarm.agentgit coord lock swarm/core --reason "payoff refactor"
+python -m swarm.agentgit coord conflicts swarm/core/proxy.py   # exit 1 on conflict
+python -m swarm.agentgit coord propose "plan: split epic" --kind plan --to session-2
+python -m swarm.agentgit coord status
+```
+
+Claim/lock acquisition uses `BEGIN IMMEDIATE` transactions, so it is atomic
+across processes. Merging compatible diffs is deliberately out of scope for
+v1 — locks plus early conflict detection make merges boring.
+
 ## Multi-Agent Review
 
 Instead of one end-of-task review, a panel of specialized reviewers examines

@@ -229,6 +229,11 @@ UPDATE agent_messages SET acked = 1 WHERE id = <msg_id>;
 
 If the table doesn't exist (fresh `runs.db`), create it with the schema above.
 
+For atomic claims, advisory file/module locks, structured proposals, and early
+conflict detection (beyond `CLAIM:` message strings), prefer the coordination
+primitives in the same database: `python -m swarm.agentgit coord claim|lock|conflicts|propose|status`
+(see `docs/agentgit_mvp.md` § Machine-Speed Coordination).
+
 ## Paper Author Resolution
 
 When `/write_paper` or `/compile_paper` needs an author name, resolve in this order:

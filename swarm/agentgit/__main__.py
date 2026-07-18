@@ -15,6 +15,7 @@ from swarm.agentgit.bundle import (
     verify_bundle,
     write_bundle,
 )
+from swarm.agentgit.coordination import DEFAULT_DB_PATH, CoordinationBoard
 from swarm.agentgit.policy import AgentGitPolicy, gate_bundle
 from swarm.agentgit.review import VERDICT_BLOCK, run_review_panel
 from swarm.agentgit.store import (
@@ -209,6 +210,77 @@ def cmd_review(args: argparse.Namespace) -> int:
     return 0 if not blocked or args.warn_only else 1
 
 
+def cmd_coord(args: argparse.Namespace) -> int:
+    """Machine-speed coordination: claim/lock/propose/respond/conflicts."""
+
+    agent = args.agent or os.environ.get("SESSION_ID")
+    if not agent:
+        print("coord: no agent identity; pass --agent or set SESSION_ID")
+        return 1
+
+    with CoordinationBoard(args.db) as board:
+        if args.action == "claim":
+            result = board.claim(agent, args.target)
+            if result.ok:
+                print(f"CLAIMED {args.target} (claim {result.claim_id})")
+                return 0
+            print(f"HELD {args.target} by {result.holder}")
+            return 1
+        if args.action == "yield":
+            ok = board.yield_claim(agent, args.target)
+            print(f"{'YIELDED' if ok else 'NOT-HELD'} {args.target}")
+            return 0 if ok else 1
+        if args.action == "done":
+            ok = board.complete(agent, args.target)
+            print(f"{'DONE' if ok else 'NOT-HELD'} {args.target}")
+            return 0 if ok else 1
+        if args.action == "lock":
+            lock_result = board.lock(agent, args.target, reason=args.reason)
+            if lock_result.ok:
+                print(f"LOCKED {lock_result.resource} (lock {lock_result.lock_id})")
+                return 0
+            for c in lock_result.conflicts:
+                print(f"CONFLICT {c['resource']} held by {c['agent']}: {c['reason']}")
+            return 1
+        if args.action == "release":
+            ok = board.release(agent, args.target)
+            print(f"{'RELEASED' if ok else 'NOT-HELD'} {args.target}")
+            return 0 if ok else 1
+        if args.action == "propose":
+            proposal_id = board.propose(
+                agent, args.kind, args.target, task_id=args.task, to_agent=args.to
+            )
+            print(f"PROPOSED {args.kind} #{proposal_id} -> {args.to}")
+            return 0
+        if args.action == "respond":
+            ok = board.respond(
+                agent, int(args.target), accept=args.accept, response=args.reason
+            )
+            print(f"{'RESPONDED' if ok else 'NOT-OPEN'} #{args.target}")
+            return 0 if ok else 1
+        if args.action == "conflicts":
+            conflicts = board.detect_conflicts(agent, args.paths or [args.target])
+            for c in conflicts:
+                print(
+                    f"CONFLICT {c['resource']} held by {c['agent']} "
+                    f"(overlaps: {', '.join(c['paths'])})"
+                )
+            if not conflicts:
+                print("no conflicting work detected")
+            return 1 if conflicts else 0
+        # status
+        for claim in board.active_claims():
+            print(f"claim: {claim['task_id']} by {claim['agent']} since {claim['ts']}")
+        for lock in board.active_locks():
+            print(f"lock: {lock['resource']} by {lock['agent']}: {lock['reason']}")
+        for prop in board.open_proposals(agent):
+            print(
+                f"proposal #{prop['id']} [{prop['kind']}] from {prop['agent']} "
+                f"to {prop['to_agent']}: {prop['body'][:80]}"
+            )
+        return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m swarm.agentgit",
@@ -382,6 +454,61 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the synthesis but return success even on a block verdict",
     )
     review.set_defaults(func=cmd_review)
+
+    coord = subparsers.add_parser(
+        "coord",
+        help="Machine-speed coordination: claim/lock/propose/respond/conflicts",
+    )
+    coord.add_argument(
+        "action",
+        choices=[
+            "claim", "yield", "done", "lock", "release",
+            "propose", "respond", "conflicts", "status",
+        ],
+    )
+    coord.add_argument(
+        "target",
+        nargs="?",
+        default="",
+        help=(
+            "Task id (claim/yield/done), resource (lock/release/conflicts), "
+            "proposal body (propose), or proposal id (respond)"
+        ),
+    )
+    coord.add_argument(
+        "paths",
+        nargs="*",
+        help="Additional paths to check (conflicts action)",
+    )
+    coord.add_argument(
+        "--agent",
+        default=None,
+        help="Agent identity (default: $SESSION_ID)",
+    )
+    coord.add_argument(
+        "--db",
+        default=DEFAULT_DB_PATH,
+        help=f"Coordination database path (default: {DEFAULT_DB_PATH})",
+    )
+    coord.add_argument(
+        "--kind",
+        default="plan",
+        choices=["plan", "review", "delegate"],
+        help="Proposal kind (propose action)",
+    )
+    coord.add_argument("--task", default="", help="Related task id (propose action)")
+    coord.add_argument(
+        "--to", default="#swarm", help="Addressee agent (propose action)"
+    )
+    coord.add_argument(
+        "--reason", default="", help="Lock reason / response text"
+    )
+    coord.add_argument(
+        "--accept",
+        action="store_true",
+        help="Accept the proposal (respond action; omit to reject)",
+    )
+    coord.set_defaults(func=cmd_coord)
     return parser
 
 

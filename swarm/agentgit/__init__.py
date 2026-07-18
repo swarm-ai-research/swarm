@@ -16,6 +16,11 @@ from swarm.agentgit.capabilities import (
     enforced_allowlist_for_chain,
     granted_commands,
 )
+from swarm.agentgit.coordination import (
+    ClaimResult,
+    CoordinationBoard,
+    LockResult,
+)
 from swarm.agentgit.identity import (
     AgentIdentity,
     AgentKeypair,
@@ -57,8 +62,11 @@ __all__ = [
     "AgentGitPolicy",
     "AgentIdentity",
     "AgentKeypair",
+    "ClaimResult",
     "CommandRecord",
     "ConditionalRule",
+    "CoordinationBoard",
+    "LockResult",
     "DEFAULT_REVIEWERS",
     "DelegationChain",
     "DelegationLink",
