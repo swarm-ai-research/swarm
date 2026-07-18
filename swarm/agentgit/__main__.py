@@ -16,6 +16,7 @@ from swarm.agentgit.bundle import (
     write_bundle,
 )
 from swarm.agentgit.policy import AgentGitPolicy, gate_bundle
+from swarm.agentgit.review import VERDICT_BLOCK, run_review_panel
 from swarm.agentgit.store import (
     DEFAULT_LOG_PATH,
     DEFAULT_NOTES_REF,
@@ -30,6 +31,13 @@ from swarm.agentgit.store import (
 def cmd_attest(args: argparse.Namespace) -> int:
     policy = AgentGitPolicy.from_yaml(Path(args.policy))
     checks = _parse_checks(args.check)
+
+    reviews = None
+    if args.review:
+        synthesis = run_review_panel(Path(args.repo), base_ref=args.base)
+        reviews = synthesis.to_review_dicts()
+        print(synthesis.format_text())
+
     bundle = build_bundle(
         repo=Path(args.repo),
         task_id=args.task,
@@ -39,6 +47,7 @@ def cmd_attest(args: argparse.Namespace) -> int:
         check_results=checks,
         signing_key=args.signing_key or os.environ.get("AGENTGIT_SIGNING_KEY"),
         signer_id=args.signer_id,
+        reviews=reviews,
     )
     write_bundle(bundle, Path(args.output))
 
@@ -186,6 +195,20 @@ def cmd_gate(args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+def cmd_review(args: argparse.Namespace) -> int:
+    """Run the reviewer panel and print the synthesized outcome."""
+
+    import json
+
+    synthesis = run_review_panel(Path(args.repo), base_ref=args.base)
+    if args.json:
+        print(json.dumps(synthesis.to_dict(), indent=2, sort_keys=True))
+    else:
+        print(synthesis.format_text())
+    blocked = synthesis.verdict == VERDICT_BLOCK
+    return 0 if not blocked or args.warn_only else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m swarm.agentgit",
@@ -249,6 +272,14 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Commit to attach the git note to (default: the bundle's recorded "
             "head commit)"
+        ),
+    )
+    attest.add_argument(
+        "--review",
+        action="store_true",
+        help=(
+            "Run the multi-reviewer panel over the diff and record its "
+            "synthesized outcome in the bundle's provenance reviews"
         ),
     )
     attest.set_defaults(func=cmd_attest)
@@ -333,6 +364,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="Hex HMAC key. Defaults to AGENTGIT_SIGNING_KEY or a dev key.",
     )
     history.set_defaults(func=cmd_history)
+
+    review = subparsers.add_parser(
+        "review",
+        help="Run the multi-reviewer panel over the current diff",
+    )
+    review.add_argument("--repo", default=".", help="Git repository path")
+    review.add_argument("--base", default="HEAD", help="Base ref to diff against")
+    review.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit the full synthesis as JSON instead of the text summary",
+    )
+    review.add_argument(
+        "--warn-only",
+        action="store_true",
+        help="Print the synthesis but return success even on a block verdict",
+    )
+    review.set_defaults(func=cmd_review)
     return parser
 
 

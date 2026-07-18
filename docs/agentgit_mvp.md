@@ -100,6 +100,40 @@ bundle's receipt signature (dev-key fallback, same as `verify`) — so a forged
 entry that was re-chained consistently still fails on its signature. Non-zero
 exit on any failure makes it CI-friendly.
 
+## Multi-Agent Review
+
+Instead of one end-of-task review, a panel of specialized reviewers examines
+the same diff from different angles and the output is *synthesized*: humans
+see where reviewers disagree, which findings are blocking, and which spots
+are high-risk or low-confidence — not every line every reviewer looked at.
+
+```bash
+python -m swarm.agentgit review              # text synthesis, exit 1 on block
+python -m swarm.agentgit review --json       # machine-readable synthesis
+python -m swarm.agentgit attest ... --review # record panel outcome in bundle
+```
+
+The v1 panel ships the boring-valuable reviewers:
+
+- **test-coverage** — warns on source changes with no test changes
+  (confidence scales with diff size); blocks test deletions.
+- **dependency** — warns on any manifest/lockfile change; blocks
+  lockfile-only changes (dependency graph moved without declared intent —
+  the classic supply-chain smell).
+- **security** — blocks sensitive paths (`.env`, keys, CI workflows) and
+  secret-looking added lines (private-key material, AWS keys, hardcoded
+  credentials); warns on risky calls (`shell=True`, `eval`/`exec`,
+  `pickle.load`, `os.system`). Content rules only see lines *added* by the
+  diff, so pre-existing code is never attributed to the change.
+
+Reviewers are deterministic — pure functions of the diff — so panel verdicts
+are reproducible facts. With `attest --review`, per-reviewer reports plus the
+panel synthesis land in the bundle's `provenance.reviews`, inside the signed
+payload: forging a reviewer's decision after the fact fails `verify`.
+
+Custom reviewers subclass `swarm.agentgit.Reviewer` and return
+`ReviewFinding`s; pass them to `run_review_panel(repo, reviewers=[...])`.
+
 ## Conditional Policy & CI Gate
 
 Beyond the fixed limits (allowed/denied paths, file/line caps, required checks),
