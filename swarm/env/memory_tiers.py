@@ -11,7 +11,7 @@ import threading
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 
 class MemoryTier(Enum):
@@ -226,15 +226,9 @@ class MemoryStore:
                     results.append(entry)
                     seen_ids.add(entry.entry_id)
 
-            for entry in self._entries.values():
-                if (
-                    entry.entry_id not in seen_ids
-                    and entry.tier == MemoryTier.EPHEMERAL
-                    and entry.status == MemoryEntryStatus.ACTIVE
-                    and query_lower in entry.content.lower()
-                ):
-                    results.append(entry)
-                    seen_ids.add(entry.entry_id)
+            self._collect_tier_matches(
+                MemoryTier.EPHEMERAL, query_lower, results, seen_ids
+            )
 
             # Check if Tier 1 is sufficient (~80% of queries)
             if len(results) >= limit:
@@ -242,33 +236,39 @@ class MemoryStore:
                 return results[:limit]
 
             # Tier 2: structured entries
-            for entry in self._entries.values():
-                if (
-                    entry.entry_id not in seen_ids
-                    and entry.tier == MemoryTier.STRUCTURED
-                    and entry.status == MemoryEntryStatus.ACTIVE
-                    and query_lower in entry.content.lower()
-                ):
-                    results.append(entry)
-                    seen_ids.add(entry.entry_id)
+            self._collect_tier_matches(
+                MemoryTier.STRUCTURED, query_lower, results, seen_ids
+            )
 
             if len(results) >= limit:
                 self._record_search_hit(agent_id, len(results))
                 return results[:limit]
 
             # Tier 3: graph entries
-            for entry in self._entries.values():
-                if (
-                    entry.entry_id not in seen_ids
-                    and entry.tier == MemoryTier.GRAPH
-                    and entry.status == MemoryEntryStatus.ACTIVE
-                    and query_lower in entry.content.lower()
-                ):
-                    results.append(entry)
-                    seen_ids.add(entry.entry_id)
+            self._collect_tier_matches(
+                MemoryTier.GRAPH, query_lower, results, seen_ids
+            )
 
             self._record_search_hit(agent_id, len(results))
             return results[:limit]
+
+    def _collect_tier_matches(
+        self,
+        tier: MemoryTier,
+        query_lower: str,
+        results: List[MemoryEntry],
+        seen_ids: Set[str],
+    ) -> None:
+        """Append active entries of `tier` matching the query to results."""
+        for entry in self._entries.values():
+            if (
+                entry.entry_id not in seen_ids
+                and entry.tier == tier
+                and entry.status == MemoryEntryStatus.ACTIVE
+                and query_lower in entry.content.lower()
+            ):
+                results.append(entry)
+                seen_ids.add(entry.entry_id)
 
     def _record_search_hit(self, agent_id: str, count: int) -> None:
         self._search_hits[agent_id] = self._search_hits.get(agent_id, 0) + count

@@ -12,6 +12,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
+from swarm.env.stats import gini
+
 
 @dataclass
 class AuctionConfig:
@@ -357,20 +359,4 @@ class DworkinAuction:
 
         0 = perfect equality, 1 = maximum inequality.
         """
-        if not allocations:
-            return 0.0
-
-        utilities = sorted(a.utility for a in allocations.values())
-        n = len(utilities)
-        if n == 0 or sum(utilities) == 0:
-            return 0.0
-
-        cumulative = 0.0
-        total = sum(utilities)
-        gini_sum = 0.0
-
-        for i, u in enumerate(utilities):
-            cumulative += u
-            gini_sum += (2 * (i + 1) - n - 1) * u
-
-        return gini_sum / (n * total)
+        return gini(a.utility for a in allocations.values())

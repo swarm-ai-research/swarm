@@ -1,5 +1,6 @@
 """Network topology for agent interactions."""
 
+from collections import deque
 from enum import Enum
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -452,10 +453,10 @@ class AgentNetwork:
 
         # BFS
         visited = {a}
-        queue = [(a, 0)]
+        queue = deque([(a, 0)])
 
         while queue:
-            current, dist = queue.pop(0)
+            current, dist = queue.popleft()
 
             for neighbor in self.neighbors(current):
                 if neighbor == b:
@@ -499,10 +500,10 @@ class AgentNetwork:
         # BFS from first node
         start = self._agent_ids[0]
         visited = {start}
-        queue = [start]
+        queue = deque([start])
 
         while queue:
-            current = queue.pop(0)
+            current = queue.popleft()
             for neighbor in self.neighbors(current):
                 if neighbor not in visited:
                     visited.add(neighbor)
@@ -519,10 +520,10 @@ class AgentNetwork:
             # BFS from arbitrary node
             start = next(iter(remaining))
             component = {start}
-            queue = [start]
+            queue = deque([start])
 
             while queue:
-                current = queue.pop(0)
+                current = queue.popleft()
                 for neighbor in self.neighbors(current):
                     if neighbor not in component:
                         component.add(neighbor)

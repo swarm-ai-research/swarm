@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 
+from swarm.env.stats import gini
 from swarm.models.interaction import SoftInteraction
 
 
@@ -155,9 +156,10 @@ class MissionEconomy:
         if reward_pool <= 0:
             return None
 
-        # Auto-activate if coordinator alone meets participant threshold
+        # Auto-activate if the coordinator alone (1 participant) meets
+        # the participant threshold
         initial_status = MissionStatus.PROPOSED
-        if len({coordinator_id}) >= self.config.min_participants:
+        if self.config.min_participants <= 1:
             initial_status = MissionStatus.ACTIVE
 
         mission = Mission(
@@ -491,17 +493,7 @@ class MissionEconomy:
         if not mission or not mission.contributions:
             return 0.0
 
-        counts = sorted(len(v) for v in mission.contributions.values())
+        counts = [len(v) for v in mission.contributions.values()]
         # Include participants who contributed nothing
-        for _ in range(len(mission.participants) - len(mission.contributions)):
-            counts.insert(0, 0)
-
-        n = len(counts)
-        if n == 0 or sum(counts) == 0:
-            return 0.0
-
-        gini_sum = 0.0
-        for i, c in enumerate(counts):
-            gini_sum += (2 * (i + 1) - n - 1) * c
-
-        return gini_sum / (n * sum(counts))
+        counts += [0] * (len(mission.participants) - len(mission.contributions))
+        return gini(counts)
