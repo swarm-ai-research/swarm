@@ -203,8 +203,8 @@ class RBACLever(GovernanceLever):
         *,
         high_stakes: bool = False,
     ) -> LeverEffect:
-        self._epoch_violations[agent_id] = self._epoch_violations.get(agent_id, 0) + 1
-        self._lifetime_violations[agent_id] = self._lifetime_violations.get(agent_id, 0) + 1
+        self._epoch_violations[agent_id] += 1
+        self._lifetime_violations[agent_id] += 1
 
         penalty = getattr(self.config, "rbac_violation_penalty", 0.5)
         rep_penalty = getattr(
