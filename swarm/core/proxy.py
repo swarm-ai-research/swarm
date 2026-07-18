@@ -43,14 +43,7 @@ class ProxyWeights(BaseModel):
     @field_validator("task_progress", "rework_penalty", "verifier_penalty", "engagement_signal")
     @classmethod
     def validate_non_negative(cls, v: float, info) -> float:
-        """
-        Validate that weights are non-negative.
-
-        Note: This single validator applies to all four weight fields.
-        The validation logic is identical for all fields (non-negative check).
-        If field-specific validation is needed in the future, split into
-        individual validators.
-        """
+        """Validate that weights are non-negative."""
         if v < 0:
             raise ValueError(
                 f"{info.field_name} must be non-negative, got {v}. "
@@ -185,43 +178,18 @@ class ProxyComputer:
         """Normalize progress delta to [-1, +1]."""
         return max(-1.0, min(1.0, delta))
 
-    def _compute_rework_signal(self, count: int) -> float:
+    def _decay_signal(self, count: int, decay: float) -> float:
         """
-        Convert rework count to signal in [-1, +1].
+        Convert a penalty count (rework, rejection, misuse) to a signal
+        in [-1, +1] via exponential decay: signal = 2 * decay^count - 1.
 
-        More rework cycles = more negative signal.
-        Uses exponential decay: signal = 1 - 2 * (1 - decay^count)
-        """
-        if count == 0:
-            return 1.0  # No rework = positive signal
-
-        # Exponential decay towards -1
-        decay_factor = self.rework_decay**count
-        return 2.0 * decay_factor - 1.0
-
-    def _compute_rejection_signal(self, count: int) -> float:
-        """
-        Convert verifier rejection count to signal in [-1, +1].
-
-        More rejections = more negative signal.
+        Zero penalties give +1; each additional penalty decays the signal
+        towards -1. Sharper penalties use a smaller decay factor.
         """
         if count == 0:
             return 1.0
 
-        decay_factor = self.rejection_decay**count
-        return 2.0 * decay_factor - 1.0
-
-    def _compute_misuse_signal(self, count: int) -> float:
-        """
-        Convert tool misuse flag count to signal in [-1, +1].
-
-        Tool misuse is weighted heavily negative.
-        """
-        if count == 0:
-            return 1.0
-
-        decay_factor = self.misuse_decay**count
-        return 2.0 * decay_factor - 1.0
+        return 2.0 * decay**count - 1.0
 
     def _normalize_engagement(self, delta: float) -> float:
         """Normalize engagement delta to [-1, +1]."""
@@ -239,11 +207,13 @@ class ProxyComputer:
         """
         # Compute individual signals
         progress_signal = self._normalize_progress(observables.task_progress_delta)
-        rework_signal = self._compute_rework_signal(observables.rework_count)
-        rejection_signal = self._compute_rejection_signal(
-            observables.verifier_rejections
+        rework_signal = self._decay_signal(observables.rework_count, self.rework_decay)
+        rejection_signal = self._decay_signal(
+            observables.verifier_rejections, self.rejection_decay
         )
-        misuse_signal = self._compute_misuse_signal(observables.tool_misuse_flags)
+        misuse_signal = self._decay_signal(
+            observables.tool_misuse_flags, self.misuse_decay
+        )
         engagement_signal = self._normalize_engagement(
             observables.counterparty_engagement_delta
         )

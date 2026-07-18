@@ -1,5 +1,6 @@
 """Append-only JSONL event logger."""
 
+import csv
 import json
 import threading
 from datetime import datetime
@@ -310,8 +311,6 @@ class EventLog:
         Returns:
             Path to created CSV file
         """
-        import csv
-
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -367,7 +366,6 @@ class EventLog:
                 }
 
                 if include_payload:
-                    import json
                     row["payload"] = json.dumps(event.payload) if event.payload else ""
 
                 writer.writerow(row)
@@ -386,9 +384,6 @@ class EventLog:
         Returns:
             Path to created CSV file
         """
-        import csv
-        import json
-
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -450,7 +445,7 @@ class EventLog:
                     "artifact_type": artifact_type,
                     "audit_type": audit_type,
                     "intervention_type": intervention_type,
-                    "success": str(success) if success != "" else "",
+                    "success": str(success),
                     "payload_summary": payload_summary,
                 }
 
