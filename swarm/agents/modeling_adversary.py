@@ -249,9 +249,8 @@ class ModelingAdversary(BaseAgent):
         # In exploitation phase: cooperate just enough to stay
         # above their acceptance threshold
         if model.is_ldt_like:
-            # Against LDT: exploit by accepting but extracting
-            # maximum surplus. Alternate cooperation/defection
-            # to keep twin score ambiguous.
+            # Against LDT: accept randomly (p=0.4) to keep the twin
+            # score ambiguous while still extracting surplus.
             return bool(self._rng.random() < 0.4)
 
         # Against non-LDT: straightforward exploitation

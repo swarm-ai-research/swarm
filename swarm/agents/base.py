@@ -564,22 +564,6 @@ class BaseAgent(ABC):
         # Load trust priors (counterparty_memory)
         self._counterparty_memory = snapshot.counterparty_trust.copy()
 
-    def should_post(self, observation: Observation) -> bool:
-        """Determine if agent should create a post."""
-        return observation.can_post
-
-    def should_vote(self, observation: Observation) -> bool:
-        """Determine if agent should vote."""
-        return observation.can_vote and len(observation.visible_posts) > 0
-
-    def should_interact(self, observation: Observation) -> bool:
-        """Determine if agent should initiate an interaction."""
-        return observation.can_interact
-
-    def should_claim_task(self, observation: Observation) -> bool:
-        """Determine if agent should claim a task."""
-        return observation.can_claim_task and len(observation.available_tasks) > 0
-
     def create_noop_action(self) -> Action:
         """Create a no-op action."""
         return Action(

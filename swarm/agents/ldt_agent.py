@@ -262,7 +262,7 @@ class LDTAgent(BaseAgent):
         self._own_trace: List[Tuple[bool, float]] = []
         # Level 2/3 caches.
         self._inferred_policies: Dict[str, InferredPolicy] = {}
-        self._level2_cache: Dict[str, Optional[bool]] = {}
+        self._level2_cache: Dict[str, bool] = {}
         self._level3_cache: Dict[str, float] = {}
         # Subjunctive dependence caches.
         self._subjunctive_cache: Dict[str, SubjunctiveDependence] = {}
@@ -628,7 +628,7 @@ class LDTAgent(BaseAgent):
         parameters and checks if it would cooperate.
         """
         if counterparty_id in self._level2_cache:
-            return self._level2_cache[counterparty_id] or False
+            return self._level2_cache[counterparty_id]
 
         inferred = self._infer_counterparty_policy(counterparty_id)
 

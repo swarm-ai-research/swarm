@@ -27,7 +27,48 @@ if TYPE_CHECKING:
     from swarm.agents.memory_config import MemoryConfig
 
 
-class FairNegotiator(BaseAgent):
+class NegotiatorBase(BaseAgent):
+    """Shared helpers for the negotiator strategy agents."""
+
+    def _compute_score(
+        self,
+        allocation: Dict[str, int],
+        valuations: Dict[str, float],
+        pool: Dict[str, int],
+    ) -> float:
+        raw = sum(valuations.get(r, 0) * allocation.get(r, 0) for r in pool)
+        max_s = sum(valuations.get(r, 0) * pool[r] for r in pool)
+        return raw / max_s if max_s > 0 else 0.0
+
+    def _get_active_game(self, observation: Observation) -> Optional[Dict]:
+        games: List[Dict] = getattr(observation, "resource_negotiation_games", [])
+        for g in games:
+            if not g.get("game_over", True):
+                return g
+        return None
+
+    def _make_negotiate_action(
+        self,
+        game_id: str,
+        negotiate_action: str,
+        proposal: Optional[Dict] = None,
+        message: str = "",
+    ) -> Action:
+        meta: Dict[str, Any] = {
+            "game_id": game_id,
+            "negotiate_action": negotiate_action,
+            "message": message,
+        }
+        if proposal:
+            meta["proposal"] = proposal
+        return Action(
+            action_type=ActionType.RESOURCE_NEGOTIATE,
+            agent_id=self.agent_id,
+            metadata=meta,
+        )
+
+
+class FairNegotiator(NegotiatorBase):
     """Negotiation agent that proposes fair (even) splits.
 
     Strategy: split resources roughly 50/50 by quantity, accept any
@@ -93,43 +134,6 @@ class FairNegotiator(BaseAgent):
             their_share[name] = qty - half
         return my_share, their_share
 
-    def _compute_score(
-        self,
-        allocation: Dict[str, int],
-        valuations: Dict[str, float],
-        pool: Dict[str, int],
-    ) -> float:
-        raw = sum(valuations.get(r, 0) * allocation.get(r, 0) for r in pool)
-        max_s = sum(valuations.get(r, 0) * pool[r] for r in pool)
-        return raw / max_s if max_s > 0 else 0.0
-
-    def _get_active_game(self, observation: Observation) -> Optional[Dict]:
-        games: List[Dict] = getattr(observation, "resource_negotiation_games", [])
-        for g in games:
-            if not g.get("game_over", True):
-                return g
-        return None
-
-    def _make_negotiate_action(
-        self,
-        game_id: str,
-        negotiate_action: str,
-        proposal: Optional[Dict] = None,
-        message: str = "",
-    ) -> Action:
-        meta: Dict[str, Any] = {
-            "game_id": game_id,
-            "negotiate_action": negotiate_action,
-            "message": message,
-        }
-        if proposal:
-            meta["proposal"] = proposal
-        return Action(
-            action_type=ActionType.RESOURCE_NEGOTIATE,
-            agent_id=self.agent_id,
-            metadata=meta,
-        )
-
     def accept_interaction(
         self, proposal: InteractionProposal, observation: Observation
     ) -> bool:
@@ -141,7 +145,7 @@ class FairNegotiator(BaseAgent):
         return None
 
 
-class GreedyNegotiator(BaseAgent):
+class GreedyNegotiator(NegotiatorBase):
     """Negotiation agent that maximizes own value aggressively.
 
     Strategy: claim all high-value resources initially, slowly concede
@@ -239,43 +243,6 @@ class GreedyNegotiator(BaseAgent):
 
         return my_share, their_share
 
-    def _compute_score(
-        self,
-        allocation: Dict[str, int],
-        valuations: Dict[str, float],
-        pool: Dict[str, int],
-    ) -> float:
-        raw = sum(valuations.get(r, 0) * allocation.get(r, 0) for r in pool)
-        max_s = sum(valuations.get(r, 0) * pool[r] for r in pool)
-        return raw / max_s if max_s > 0 else 0.0
-
-    def _get_active_game(self, observation: Observation) -> Optional[Dict]:
-        games: List[Dict] = getattr(observation, "resource_negotiation_games", [])
-        for g in games:
-            if not g.get("game_over", True):
-                return g
-        return None
-
-    def _make_negotiate_action(
-        self,
-        game_id: str,
-        negotiate_action: str,
-        proposal: Optional[Dict] = None,
-        message: str = "",
-    ) -> Action:
-        meta: Dict[str, Any] = {
-            "game_id": game_id,
-            "negotiate_action": negotiate_action,
-            "message": message,
-        }
-        if proposal:
-            meta["proposal"] = proposal
-        return Action(
-            action_type=ActionType.RESOURCE_NEGOTIATE,
-            agent_id=self.agent_id,
-            metadata=meta,
-        )
-
     def accept_interaction(
         self, proposal: InteractionProposal, observation: Observation
     ) -> bool:
@@ -287,7 +254,7 @@ class GreedyNegotiator(BaseAgent):
         return None
 
 
-class StrategicNegotiator(BaseAgent):
+class StrategicNegotiator(NegotiatorBase):
     """Negotiation agent that infers opponent valuations from proposals.
 
     Strategy:
@@ -442,43 +409,6 @@ class StrategicNegotiator(BaseAgent):
             their_share[name] = qty - my_share[name]
 
         return my_share, their_share
-
-    def _compute_score(
-        self,
-        allocation: Dict[str, int],
-        valuations: Dict[str, float],
-        pool: Dict[str, int],
-    ) -> float:
-        raw = sum(valuations.get(r, 0) * allocation.get(r, 0) for r in pool)
-        max_s = sum(valuations.get(r, 0) * pool[r] for r in pool)
-        return raw / max_s if max_s > 0 else 0.0
-
-    def _get_active_game(self, observation: Observation) -> Optional[Dict]:
-        games: List[Dict] = getattr(observation, "resource_negotiation_games", [])
-        for g in games:
-            if not g.get("game_over", True):
-                return g
-        return None
-
-    def _make_negotiate_action(
-        self,
-        game_id: str,
-        negotiate_action: str,
-        proposal: Optional[Dict] = None,
-        message: str = "",
-    ) -> Action:
-        meta: Dict[str, Any] = {
-            "game_id": game_id,
-            "negotiate_action": negotiate_action,
-            "message": message,
-        }
-        if proposal:
-            meta["proposal"] = proposal
-        return Action(
-            action_type=ActionType.RESOURCE_NEGOTIATE,
-            agent_id=self.agent_id,
-            metadata=meta,
-        )
 
     def accept_interaction(
         self, proposal: InteractionProposal, observation: Observation

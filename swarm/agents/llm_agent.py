@@ -1037,9 +1037,9 @@ class LLMAgent(BaseAgent):
         """
         Create an interaction proposal for a counterparty.
 
-        For LLM agents, this is typically handled by the act() method
-        returning a PROPOSE_INTERACTION action. This method is provided
-        for compatibility but delegates to act().
+        LLM agents propose interactions only via act() returning a
+        PROPOSE_INTERACTION action; this method exists for interface
+        compatibility and always returns None.
 
         Args:
             observation: Current observation
