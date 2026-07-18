@@ -698,7 +698,14 @@ def _demo_agent_delta(persona: str, my_level: int, opp_level: int, turn: int, rn
         return rng.randint(1, 3)
     elif persona == "gradual":
         return 1
-    else:  # random
+    else:
+        # "random", plus a loud fallback for typo'd persona names
+        if persona != "random":
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Unknown persona %r; falling back to random behavior", persona
+            )
         return rng.randint(-1, 2)
 
 
@@ -1199,7 +1206,7 @@ with arena_right:
 
                 # Show actions
                 for aid, action in entry.get("actions", {}).items():
-                    name = "Alpha" if "a" in aid else "Beta"
+                    name = "Alpha" if aid.endswith("_a") else "Beta"
                     lvl = levels.get(aid, action.get("action", 0))
                     sig = action.get("signal", lvl)
 

@@ -207,6 +207,7 @@ class MarketplaceHandler(Handler):
                     task_id=bounty.task_id,
                     agent_id=escrow.worker_id,
                     agent_reputation=worker_state.reputation,
+                    current_epoch=state.current_epoch,
                 )
 
         self._emit_event(
