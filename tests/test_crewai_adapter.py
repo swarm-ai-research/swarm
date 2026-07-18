@@ -932,3 +932,55 @@ class TestActionKindMapping:
         """Each kind string maps to a distinct ActionType."""
         values = list(_ACTION_KIND_MAP.values())
         assert len(values) == len(set(values))
+
+
+class TestCrewMetadataSanitizationParity:
+    """Regression for beads 909k: CrewAI sanitizer at parity with Swarms."""
+
+    def test_key_length_capped_and_control_chars_stripped(self):
+        from swarm.agents.crewai_adapter import (
+            MAX_METADATA_KEY_LENGTH,
+            _sanitize_crew_metadata,
+        )
+
+        raw = {"k" * 500: "v", "safe\x00key\x1f": "v2", "\x7fnull": "v3"}
+        result = _sanitize_crew_metadata(raw)
+        for key in result:
+            assert len(key) <= MAX_METADATA_KEY_LENGTH
+            assert "\x00" not in key and "\x1f" not in key and "\x7f" not in key
+
+    def test_empty_key_after_sanitization_dropped(self):
+        from swarm.agents.crewai_adapter import _sanitize_crew_metadata
+
+        assert _sanitize_crew_metadata({"\x00\x01\x02": "value"}) == {}
+
+    def test_non_finite_floats_dropped(self):
+        from swarm.agents.crewai_adapter import _sanitize_crew_metadata
+
+        raw = {
+            "good": 1.0,
+            "nan": float("nan"),
+            "inf": float("inf"),
+            "ninf": float("-inf"),
+            "flag": True,
+        }
+        result = _sanitize_crew_metadata(raw)
+        assert result == {"good": 1.0, "flag": True}
+        assert result["flag"] is True  # bool preserved as bool, not coerced
+
+    def test_executor_pool_shutdown_check_is_defensive(self):
+        """getattr with default: a pool object without _shutdown must not crash."""
+        import concurrent.futures
+
+        from swarm.agents.crewai_adapter import CrewBackedAgent
+
+        agent = CrewBackedAgent.__new__(CrewBackedAgent)
+        agent.agent_id = "crew_test"
+        agent._executor_pool = None
+        pool = agent._get_executor_pool()
+        assert isinstance(pool, concurrent.futures.ThreadPoolExecutor)
+        # Same live pool reused while not shut down.
+        assert agent._get_executor_pool() is pool
+        pool.shutdown(wait=False)
+        assert agent._get_executor_pool() is not pool
+        agent._executor_pool.shutdown(wait=False)
