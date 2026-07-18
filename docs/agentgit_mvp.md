@@ -100,6 +100,51 @@ bundle's receipt signature (dev-key fallback, same as `verify`) — so a forged
 entry that was re-chained consistently still fails on its signature. Non-zero
 exit on any failure makes it CI-friendly.
 
+## Reputation: Track Records
+
+A track record attaches not to a bare agent name but to a **reputation
+key** — identity + model + runtime + toolchain + prompt/config version —
+because the same agent under a different config is a different actor.
+`swarm.agentgit.ReputationLedger` (append-only JSONL over the existing
+`PerformanceTracker` substrate) records:
+
+- **attestations** — policy verdict, panel review burden, blocking
+  security findings, and domains touched, all derived from the bundle;
+- **ground-truth outcomes** — merged / rolled back / tests broken /
+  security incident, supplied later by CI or the operator (the agent
+  never self-attests its merge success).
+
+```bash
+python -m swarm.agentgit reputation record --bundle .agentgit/provenance.json
+python -m swarm.agentgit reputation outcome codex@a1b2c3d4e5f6 --merged --task issue-9
+python -m swarm.agentgit reputation show
+```
+
+`track_record()` folds the stream into rates (merge success, rollback,
+test breakage, review burden, domains of competence) plus a **trust
+score** in `[0, 1]` — a Beta-smoothed estimate that starts at 0.5 for
+unknown actors and weights failures by severity (security incident >
+rollback > broken tests).
+
+**Low reputation → restricted scope**: policies get a `trust_below`
+condition, and the CI gate reads trust from its own ledger — never from
+the (agent-supplied) bundle:
+
+```yaml
+rules:
+  - id: low-trust-needs-review
+    when: { trust_below: 0.5 }
+    action: require_review
+```
+
+```bash
+python -m swarm.agentgit gate --bundle ... --policy ... \
+  --reputation-ledger .agentgit/reputation.jsonl
+```
+
+Unknown trust (no track record) counts as below-threshold — fail-closed,
+because "no history" must not outrank "bad history".
+
 ## Operational Memory
 
 Code, issues, and PRs don't capture operational knowledge: "module X is

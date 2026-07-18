@@ -18,6 +18,13 @@ from swarm.agentgit.bundle import (
 from swarm.agentgit.coordination import DEFAULT_DB_PATH, CoordinationBoard
 from swarm.agentgit.memory import KINDS, SCOPES, MemoryEntry, MemoryStore
 from swarm.agentgit.policy import AgentGitPolicy, gate_bundle
+from swarm.agentgit.reputation import (
+    EVENT_MERGED,
+    EVENT_ROLLED_BACK,
+    EVENT_SECURITY_INCIDENT,
+    EVENT_TESTS_BROKEN,
+    ReputationLedger,
+)
 from swarm.agentgit.review import VERDICT_BLOCK, run_review_panel
 from swarm.agentgit.store import (
     DEFAULT_LOG_PATH,
@@ -182,11 +189,17 @@ def cmd_gate(args: argparse.Namespace) -> int:
     # agent-supplied and ignored, so a check-based rule can't be defeated by an
     # agent self-attesting a passing result. Unsupplied checks fail closed.
     trusted_checks = _parse_checks(args.check)
+    # Trust likewise comes from the CI-side ledger, never the bundle. With no
+    # ledger (or no history) it stays None and trust_below rules fail closed.
+    agent_trust = None
+    if args.reputation_ledger:
+        agent_trust = ReputationLedger(Path(args.reputation_ledger)).trust_for_bundle(bundle)
     ok, decisions = gate_bundle(
         bundle,
         policy,
         trusted_overrides=args.override,
         trusted_checks=trusted_checks,
+        agent_trust=agent_trust,
     )
     status = "PASS" if ok else "FAIL"
     print(f"{status} agentgit gate: {args.bundle} (policy {args.policy})")
@@ -288,6 +301,58 @@ def _format_memory(entry: MemoryEntry) -> str:
         f"[{entry.scope}/{entry.kind}] {entry.subject}: {entry.body} "
         f"(id={entry.id} v{entry.version} by {entry.author}){flag}"
     )
+
+
+def cmd_reputation(args: argparse.Namespace) -> int:
+    """Track-record reputation: record attestations/outcomes, show records."""
+
+    ledger = ReputationLedger(Path(args.ledger))
+    if args.action == "record":
+        if not args.bundle:
+            print("reputation record: --bundle is required")
+            return 1
+        key = ledger.record_attestation(load_bundle(Path(args.bundle)))
+        print(f"RECORDED attestation for {key.key_id}")
+        return 0
+    if args.action == "outcome":
+        if not args.target:
+            print("reputation outcome: a key_id argument is required")
+            return 1
+        outcome_flags = {
+            EVENT_MERGED: args.merged,
+            EVENT_ROLLED_BACK: args.rolled_back,
+            EVENT_TESTS_BROKEN: args.tests_broken,
+            EVENT_SECURITY_INCIDENT: args.security_incident,
+        }
+        chosen = [name for name, on in outcome_flags.items() if on]
+        if len(chosen) != 1:
+            print(
+                "reputation outcome: pass exactly one of --merged, "
+                "--rolled-back, --tests-broken, --security-incident"
+            )
+            return 1
+        ledger.record_outcome(args.target, chosen[0], task_id=args.task)
+        print(f"RECORDED {chosen[0]} for {args.target}")
+        return 0
+    # show
+    key_ids = [args.target] if args.target else ledger.key_ids()
+    if not key_ids:
+        print("no reputation records")
+        return 0
+    for key_id in key_ids:
+        record = ledger.track_record(key_id)
+        domains = ", ".join(f"{d}×{n}" for d, n in sorted(record.domains.items())) or "-"
+        print(
+            f"{key_id}: trust={record.trust:.3f} "
+            f"attestations={record.attestations} "
+            f"(policy pass {record.policy_pass_rate:.0%}) "
+            f"merges={record.merges} rollbacks={record.rollbacks} "
+            f"tests_broken={record.test_breakages} "
+            f"security_incidents={record.security_incidents} "
+            f"review_burden={record.review_burden:.1f} "
+            f"domains: {domains}"
+        )
+    return 0
 
 
 def cmd_memory(args: argparse.Namespace) -> int:
@@ -464,6 +529,15 @@ def build_parser() -> argparse.ArgumentParser:
             "May be repeated."
         ),
     )
+    gate.add_argument(
+        "--reputation-ledger",
+        default=None,
+        help=(
+            "CI-side reputation ledger (JSONL). Supplies the acting key's "
+            "trust score to trust_below rules; without it (or without any "
+            "history) trust is unknown and those rules fail closed."
+        ),
+    )
     gate.set_defaults(func=cmd_gate)
 
     history = subparsers.add_parser(
@@ -614,6 +688,34 @@ def build_parser() -> argparse.ArgumentParser:
         help="Base dir for org/agent memory files (default: ~)",
     )
     memory.set_defaults(func=cmd_memory)
+
+    reputation = subparsers.add_parser(
+        "reputation",
+        help="Track-record reputation attached to identity+runtime+config",
+    )
+    reputation.add_argument("action", choices=["record", "outcome", "show"])
+    reputation.add_argument(
+        "target",
+        nargs="?",
+        default="",
+        help="Reputation key_id (outcome; optional filter for show)",
+    )
+    reputation.add_argument(
+        "--ledger",
+        default=".agentgit/reputation.jsonl",
+        help="Reputation ledger path (default: .agentgit/reputation.jsonl)",
+    )
+    reputation.add_argument(
+        "--bundle", default=None, help="Provenance bundle to record (record action)"
+    )
+    reputation.add_argument("--task", default="", help="Related task id (outcome)")
+    reputation.add_argument("--merged", action="store_true", help="Change merged cleanly")
+    reputation.add_argument("--rolled-back", action="store_true", help="Merge was rolled back")
+    reputation.add_argument("--tests-broken", action="store_true", help="Change broke tests post-merge")
+    reputation.add_argument(
+        "--security-incident", action="store_true", help="Change caused a security incident"
+    )
+    reputation.set_defaults(func=cmd_reputation)
     return parser
 
 

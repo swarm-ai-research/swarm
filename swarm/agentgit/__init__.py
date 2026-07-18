@@ -39,6 +39,11 @@ from swarm.agentgit.policy import (
     PolicyFacts,
     gate_bundle,
 )
+from swarm.agentgit.reputation import (
+    ReputationKey,
+    ReputationLedger,
+    TrackRecord,
+)
 from swarm.agentgit.review import (
     DEFAULT_REVIEWERS,
     DependencyReviewer,
@@ -79,12 +84,15 @@ __all__ = [
     "MemoryStore",
     "PolicyDecision",
     "PolicyFacts",
+    "ReputationKey",
+    "ReputationLedger",
     "ReviewFinding",
     "ReviewSynthesis",
     "Reviewer",
     "ReviewerReport",
     "SecurityReviewer",
     "TestCoverageReviewer",
+    "TrackRecord",
     "append_to_log",
     "attach_note",
     "build_bundle",
