@@ -462,7 +462,6 @@ def plotly_heatmap(
         )
     )
 
-    data.get("metric", "Value").replace("_", " ").title()
     fig.update_layout(
         title=title,
         xaxis_title="Agent",
