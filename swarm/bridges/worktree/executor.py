@@ -6,6 +6,7 @@ enforce all SWARM boundary invariants on every command execution.
 
 import logging
 import subprocess
+import time
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -259,8 +260,6 @@ class SandboxExecutor:
         )
 
         # --- Execution ---
-        import time
-
         start = time.monotonic()
         timed_out = False
         try:

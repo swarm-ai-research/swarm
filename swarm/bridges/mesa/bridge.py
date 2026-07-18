@@ -45,6 +45,7 @@ from __future__ import annotations
 import logging
 from typing import Any, List, Optional
 
+from swarm.bridges._common import log_interaction_event
 from swarm.bridges.mesa.config import MesaBridgeConfig
 from swarm.core.payoff import PayoffConfig, SoftPayoffEngine
 from swarm.core.proxy import ProxyComputer, ProxyObservables
@@ -239,26 +240,7 @@ class MesaBridge:
 
     def _log_interaction(self, interaction: SoftInteraction) -> None:
         """Append an interaction to the EventLog as an Event."""
-        if self._event_log is None:
-            return
-        try:
-            from swarm.models.events import Event, EventType
-
-            event = Event(
-                event_type=EventType.INTERACTION_COMPLETED,
-                interaction_id=interaction.interaction_id,
-                initiator_id=interaction.initiator,
-                counterparty_id=interaction.counterparty,
-                payload={
-                    "p": interaction.p,
-                    "v_hat": interaction.v_hat,
-                    "accepted": interaction.accepted,
-                    "metadata": interaction.metadata,
-                },
-            )
-            self._event_log.append(event)
-        except Exception as exc:  # pragma: no cover
-            logger.warning("EventLog write failed: %s", exc)
+        log_interaction_event(self._event_log, interaction)
 
     def _extract_observables(self, agent: Any) -> ProxyObservables:
         """Extract SWARM proxy observables from a Mesa agent or state dict.
