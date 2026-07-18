@@ -287,7 +287,7 @@ def main():
                 }
                 return colors.get(val, "")
 
-            styled_df = agent_df.style.applymap(color_agent_type, subset=["agent_type"])
+            styled_df = agent_df.style.map(color_agent_type, subset=["agent_type"])
             st.dataframe(styled_df, use_container_width=True)
 
             # Reputation bar chart
