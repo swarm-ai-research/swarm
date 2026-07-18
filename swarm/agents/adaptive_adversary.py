@@ -301,6 +301,7 @@ class AdaptiveAdversary(BaseAgent):
         # Post helpful content
         if self._rng.random() < 0.3:
             return Action(
+                agent_id=self.agent_id,
                 action_type=ActionType.POST,
                 content="Here's a helpful update on recent progress.",
             )
@@ -309,13 +310,14 @@ class AdaptiveAdversary(BaseAgent):
         if observation.visible_posts:
             popular = max(observation.visible_posts, key=lambda p: p.get("votes", 0))
             return Action(
+                agent_id=self.agent_id,
                 action_type=ActionType.VOTE,
                 target_id=popular.get("post_id") or "",
                 vote_direction=1,  # Upvote
             )
 
         # Do nothing
-        return Action(action_type=ActionType.NOOP)
+        return Action(action_type=ActionType.NOOP, agent_id=self.agent_id)
 
     def _act_reputation_farming(self, observation: Observation) -> Action:
         """Build reputation through legitimate-looking activity."""
@@ -331,6 +333,7 @@ class AdaptiveAdversary(BaseAgent):
             if honest_agents and self._rng.random() < 0.5:
                 target = self._rng.choice(honest_agents)
                 return Action(
+                    agent_id=self.agent_id,
                     action_type=ActionType.PROPOSE_INTERACTION,
                     target_id=target.get("agent_id") or "",
                     content="Let's work together on this task.",
@@ -338,6 +341,7 @@ class AdaptiveAdversary(BaseAgent):
 
             # Post valuable content
             return Action(
+                agent_id=self.agent_id,
                 action_type=ActionType.POST,
                 content="Sharing knowledge to help the community.",
             )
@@ -358,6 +362,7 @@ class AdaptiveAdversary(BaseAgent):
             # Collaborate with ally
             ally = self._rng.choice(allies)
             return Action(
+                agent_id=self.agent_id,
                 action_type=ActionType.PROPOSE_INTERACTION,
                 target_id=ally.get("agent_id") or "",
                 content="Internal coordination.",
@@ -370,10 +375,11 @@ class AdaptiveAdversary(BaseAgent):
         """Stay under the radar."""
         # Minimal activity
         if self._rng.random() < 0.7:
-            return Action(action_type=ActionType.NOOP)
+            return Action(action_type=ActionType.NOOP, agent_id=self.agent_id)
 
         # Occasional innocent post
         return Action(
+            agent_id=self.agent_id,
             action_type=ActionType.POST,
             content="Just checking in.",
         )
@@ -393,6 +399,7 @@ class AdaptiveAdversary(BaseAgent):
             # Collaborate like honest agents do
             target = self._rng.choice(honest_agents)
             return Action(
+                agent_id=self.agent_id,
                 action_type=ActionType.PROPOSE_INTERACTION,
                 target_id=target.get("agent_id") or "",
                 content="Would you like to collaborate?",
@@ -400,6 +407,7 @@ class AdaptiveAdversary(BaseAgent):
 
         # Post similar content
         return Action(
+            agent_id=self.agent_id,
             action_type=ActionType.POST,
             content="Contributing to the community discussion.",
         )
@@ -444,6 +452,7 @@ class AdaptiveAdversary(BaseAgent):
                 # Set cooldown after attack
                 self.attack_cooldown = 3
                 return Action(
+                    agent_id=self.agent_id,
                     action_type=ActionType.PROPOSE_INTERACTION,
                     target_id=target.get("agent_id") or "",
                     content="Special opportunity for collaboration.",
@@ -498,6 +507,7 @@ class AdaptiveAdversary(BaseAgent):
         if targets and self._rng.random() < 0.5:
             target = self._rng.choice(targets)
             return Action(
+                agent_id=self.agent_id,
                 action_type=ActionType.PROPOSE_INTERACTION,
                 target_id=target.get("agent_id") or "",
                 content="Interested in collaborating?",
@@ -505,6 +515,7 @@ class AdaptiveAdversary(BaseAgent):
 
         # Otherwise post
         return Action(
+            agent_id=self.agent_id,
             action_type=ActionType.POST,
             content="Sharing some thoughts.",
         )

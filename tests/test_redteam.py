@@ -1210,3 +1210,45 @@ class TestGovernanceEffectivenessSerialization:
         assert data["recall"] == 0.0
         assert data["f1_score"] == 0.0
         assert data["accuracy"] == 0.0
+
+
+class TestAdversaryActionAttribution:
+    """Regression for beads s2t2: every action must carry the agent_id."""
+
+    def test_all_strategy_paths_set_agent_id(self):
+        agent = AdaptiveAdversary(agent_id="adaptive_1")
+        obs = Observation(
+            current_epoch=1,
+            current_step=1,
+            visible_agents=[
+                {"agent_id": "honest_1", "agent_type": "honest", "reputation": 5.0},
+                {"agent_id": "adv_2", "agent_type": "adversary", "reputation": 1.0},
+            ],
+            visible_posts=[
+                {"post_id": "p1", "votes": 3},
+            ],
+        )
+        handlers = [
+            agent._act_innocently,
+            agent._act_reputation_farming,
+            agent._act_low_profile,
+        ]
+        # Drive each handler across many RNG draws so every internal branch
+        # (post / vote / propose / noop) is exercised.
+        for handler in handlers:
+            for _ in range(30):
+                action = handler(obs)
+                assert action.agent_id == "adaptive_1", (
+                    f"{handler.__name__} produced an action without attribution"
+                )
+
+    def test_act_sets_agent_id(self):
+        agent = AdaptiveAdversary(agent_id="adaptive_1")
+        obs = Observation(
+            current_epoch=1,
+            current_step=1,
+            visible_agents=[],
+            visible_posts=[],
+        )
+        for _ in range(20):
+            assert agent.act(obs).agent_id == "adaptive_1"

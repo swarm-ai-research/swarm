@@ -494,3 +494,66 @@ class TestSkillRLGovernanceIntegration:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestGovernanceWithoutEnvState:
+    """Regression for beads 7209: a lever with no env_state must still gate.
+
+    Previously _maybe_refine required BOTH a lever and env_state to run
+    governance; with env_state=None every proposal was silently auto-
+    approved past an attached lever — a governance bypass.
+    """
+
+    def _agent_with_rejecting_lever(self):
+        from swarm.agents.skillrl_agent import SkillRLAgent
+
+        agent = SkillRLAgent(
+            agent_id="rl_alice",
+            config={"refinement_interval": 1, "refinement_min_invocations": 1},
+        )
+
+        calls = []
+
+        class _RejectingLever:
+            def evaluate_refinement(self, proposal, baseline, uncertainties):
+                calls.append((proposal, dict(baseline)))
+
+                class _Gate:
+                    passed = False
+
+                return False, _Gate(), _Gate()
+
+        agent.governance_lever = _RejectingLever()
+        return agent, calls
+
+    def _seed_refinable_skill(self, agent):
+        from swarm.skills.model import Skill, SkillDomain, SkillTier, SkillType
+
+        skill = Skill(
+            skill_id="s1",
+            name="s1",
+            skill_type=SkillType.STRATEGY,
+            tier=SkillTier.TASK_SPECIFIC,
+            domain=SkillDomain.INTERACTION,
+            condition={"min_p": 0.2, "max_p": 0.9},
+            effect={"acceptance_threshold_delta": 0.0},
+        )
+        agent.skill_library.add_skill(skill)
+        perf = agent.skill_library.get_performance("s1")
+        # Eligible for refinement: invoked, low success rate.
+        perf.invocations = 5
+        perf.successes = 0
+        return skill
+
+    def test_lever_is_consulted_and_rejection_blocks_apply(self):
+        agent, calls = self._agent_with_rejecting_lever()
+        skill = self._seed_refinable_skill(agent)
+        before = (dict(skill.condition), dict(skill.effect), skill.version)
+
+        agent._maybe_refine(epoch=1, env_state=None)
+
+        assert calls, "governance lever was never consulted (bypass)"
+        # Default baselines used when env_state is unavailable.
+        assert calls[0][1] == {"payoff": 0.0, "reputation": 0.5}
+        after = (dict(skill.condition), dict(skill.effect), skill.version)
+        assert after == before, "rejected refinement was applied anyway"

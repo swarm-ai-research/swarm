@@ -363,9 +363,11 @@ def format_observation(observation: Observation) -> str:
         lines.append("")
         lines.append("## Available Tasks")
         for task in observation.available_tasks[:5]:
+            # Sanitize BEFORE truncating: truncation can split an injection
+            # pattern into a form the sanitizer no longer recognizes.
             safe_prompt = _sanitize_agent_content(
-                task.get("prompt", "No description")[:50]
-            )
+                task.get("prompt", "No description")
+            )[:50]
             lines.append(
                 f"- [{task.get('task_id', 'unknown')[:8]}] "
                 f"[{safe_prompt}] "
@@ -377,9 +379,11 @@ def format_observation(observation: Observation) -> str:
         lines.append("")
         lines.append("## Your Active Tasks")
         for task in observation.active_tasks:
+            # Sanitize BEFORE truncating: truncation can split an injection
+            # pattern into a form the sanitizer no longer recognizes.
             safe_prompt = _sanitize_agent_content(
-                task.get("prompt", "No description")[:50]
-            )
+                task.get("prompt", "No description")
+            )[:50]
             lines.append(
                 f"- [{task.get('task_id', 'unknown')[:8]}] "
                 f"[{safe_prompt}] "

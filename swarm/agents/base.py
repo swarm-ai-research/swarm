@@ -524,8 +524,9 @@ class BaseAgent(ABC):
         # For complete memory loss (rain agents), also clear interaction history
         if decay == 0.0:
             # Clear detailed interaction memory but keep aggregate stats
-            # This preserves the agent's internal state while losing specifics
+            # (reputation, counters on agent state survive; specifics do not).
             self._counterparty_memory.clear()
+            self._interaction_history.clear()
 
     def update_counterparty_trust(self, counterparty_id: str, new_p: float) -> None:
         """

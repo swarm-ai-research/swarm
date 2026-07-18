@@ -368,13 +368,16 @@ class LDTAgent(BaseAgent):
                 self._subjunctive_cache[counterparty_id] = result
                 return result
 
-        # Align traces: our recent decisions paired with theirs.
+        # Align traces: our recent decisions paired with theirs. Both
+        # slices are [-n:] with n = min(len(profile), len(own)), so every
+        # zip below is provably equal-length — strict=True documents and
+        # enforces that instead of silently truncating on a future bug.
         our_decisions = [(acc, p) for acc, p in own[-n:]]
         their_decisions = [(acc, p) for acc, p in profile[-n:]]
 
         # Conditional agreement: P(they accept | we accept)
         we_accepted = [
-            (oa, ta) for (oa, _), (ta, _) in zip(our_decisions, their_decisions, strict=False)
+            (oa, ta) for (oa, _), (ta, _) in zip(our_decisions, their_decisions, strict=True)
             if oa
         ]
         if we_accepted:
@@ -384,7 +387,7 @@ class LDTAgent(BaseAgent):
 
         # Conditional defection: P(they reject | we reject)
         we_rejected = [
-            (oa, ta) for (oa, _), (ta, _) in zip(our_decisions, their_decisions, strict=False)
+            (oa, ta) for (oa, _), (ta, _) in zip(our_decisions, their_decisions, strict=True)
             if not oa
         ]
         if we_rejected:
@@ -398,19 +401,19 @@ class LDTAgent(BaseAgent):
 
         # Joint probabilities.
         both_accept = sum(
-            1 for (oa, _), (ta, _) in zip(our_decisions, their_decisions, strict=False)
+            1 for (oa, _), (ta, _) in zip(our_decisions, their_decisions, strict=True)
             if oa and ta
         ) / n
         both_reject = sum(
-            1 for (oa, _), (ta, _) in zip(our_decisions, their_decisions, strict=False)
+            1 for (oa, _), (ta, _) in zip(our_decisions, their_decisions, strict=True)
             if not oa and not ta
         ) / n
         us_accept_them_reject = sum(
-            1 for (oa, _), (ta, _) in zip(our_decisions, their_decisions, strict=False)
+            1 for (oa, _), (ta, _) in zip(our_decisions, their_decisions, strict=True)
             if oa and not ta
         ) / n
         us_reject_them_accept = sum(
-            1 for (oa, _), (ta, _) in zip(our_decisions, their_decisions, strict=False)
+            1 for (oa, _), (ta, _) in zip(our_decisions, their_decisions, strict=True)
             if not oa and ta
         ) / n
 

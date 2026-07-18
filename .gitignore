@@ -50,8 +50,10 @@ promo/
 research/
 docs/papers/
 
-# Company-role agents (run as independent sessions, not committed)
-agents/
+# Company-role agents (run as independent sessions, not committed).
+# Anchored to the repo root: a bare "agents/" would also ignore NEW files
+# under swarm/agents/ at any depth.
+/agents/
 
 # Relocated directories (prevent re-creation at root)
 submissions/

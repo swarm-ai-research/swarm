@@ -298,8 +298,8 @@ class LLMAgent(BaseAgent):
         )
 
         text = response.content[0].text
-        input_tokens = response.usage.input_tokens
-        output_tokens = response.usage.output_tokens
+        input_tokens = response.usage.input_tokens if response.usage else 0
+        output_tokens = response.usage.output_tokens if response.usage else 0
 
         if self.llm_config.cost_tracking:
             self.usage_stats.record_usage(
@@ -334,8 +334,8 @@ class LLMAgent(BaseAgent):
         )
 
         text = response.choices[0].message.content
-        input_tokens = response.usage.prompt_tokens
-        output_tokens = response.usage.completion_tokens
+        input_tokens = response.usage.prompt_tokens if response.usage else 0
+        output_tokens = response.usage.completion_tokens if response.usage else 0
 
         if self.llm_config.cost_tracking:
             self.usage_stats.record_usage(
