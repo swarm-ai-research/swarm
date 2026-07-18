@@ -80,7 +80,7 @@ class GTBScenarioRunner:
         self._config = config
         self._n_epochs = n_epochs
         self._steps_per_epoch = steps_per_epoch
-        self._seed = seed or 42
+        self._seed = 42 if seed is None else seed
         self._rng = random.Random(self._seed)
 
         # Initialize environment

@@ -782,3 +782,31 @@ class TestConfigParsing:
         assert config.planner.planner_type == "heuristic"
         assert config.misreporting.enabled is True
         assert config.collusion.enabled is True
+
+
+class TestRunnerSeed:
+    """Regression: seed=0 must not be silently replaced (beads jkwl)."""
+
+    def test_seed_zero_is_respected(self):
+        from swarm.domains.gather_trade_build.runner import GTBScenarioRunner
+
+        runner = GTBScenarioRunner(
+            config=GTBConfig(seed=0),
+            agent_specs=[],
+            n_epochs=1,
+            steps_per_epoch=1,
+            seed=0,
+        )
+        assert runner._seed == 0
+
+    def test_seed_none_defaults_to_42(self):
+        from swarm.domains.gather_trade_build.runner import GTBScenarioRunner
+
+        runner = GTBScenarioRunner(
+            config=GTBConfig(seed=0),
+            agent_specs=[],
+            n_epochs=1,
+            steps_per_epoch=1,
+            seed=None,
+        )
+        assert runner._seed == 42

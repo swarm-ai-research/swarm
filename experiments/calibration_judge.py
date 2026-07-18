@@ -35,7 +35,7 @@ from pathlib import Path
 
 from experiments._calibration_common import SCENARIOS, git_rev, load_interactions
 from swarm.judges import (
-    DEFAULT_RUBRIC_VERSION,
+    DEFAULT_RUBRIC_VERSION,  # noqa: F401 — documented contrast with the prereg lock
     RUBRICS,
     Judge,
     LLMJudge,
@@ -44,6 +44,11 @@ from swarm.judges import (
     rubric_path,
     stratified_sample,
 )
+
+# Arm B's preregistered rubric lock (calibration-prereg.md). The library
+# default has since moved on (v2 2026-06-04, v3 2026-06-05); this constant
+# is what keeps the collector honest about it.
+PREREG_RUBRIC_VERSION = "rubric.v1"
 
 
 def _rubric_hash(version: str) -> str:
@@ -132,11 +137,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--rubric",
         choices=sorted(RUBRICS.keys()),
-        default=DEFAULT_RUBRIC_VERSION,
+        # Arm B is PRE-REGISTERED to rubric.v1 (calibration-prereg.md,
+        # "Pre-registered commitments": rubric version-locked at
+        # swarm/judges/rubric_v1.md before any Arm B data collection).
+        # Deliberately NOT the library-wide DEFAULT_RUBRIC_VERSION, which
+        # moved to v3 on 2026-06-05 — after the lock. Passing a non-v1
+        # rubric is allowed but is a preregistration deviation: it is
+        # stamped into config.json and warned about loudly (beads naa8).
+        default=PREREG_RUBRIC_VERSION,
         help=(
             "Rubric version to score against. Each version is a frozen file "
             "in swarm/judges/; downstream run artifacts record both the "
-            "version string and the file's SHA-256 prefix."
+            "version string and the file's SHA-256 prefix. Default is the "
+            f"PREREGISTERED {PREREG_RUBRIC_VERSION} — anything else is a "
+            "recorded prereg deviation."
         ),
     )
     parser.add_argument(
@@ -146,6 +160,15 @@ def main(argv: list[str] | None = None) -> int:
         help="Parent directory for run output",
     )
     args = parser.parse_args(argv)
+
+    if args.rubric != PREREG_RUBRIC_VERSION:
+        print(
+            f"[PREREG DEVIATION] Arm B is version-locked to "
+            f"{PREREG_RUBRIC_VERSION} (calibration-prereg.md); this run uses "
+            f"{args.rubric}. The deviation is stamped into config.json and "
+            f"must be justified in the findings doc.",
+            file=sys.stderr,
+        )
 
     interactions = load_interactions(args.scenario, args.seed)
     sample = stratified_sample(interactions, per_bin=args.per_bin, seed=args.seed)
@@ -167,6 +190,17 @@ def main(argv: list[str] | None = None) -> int:
         "seed": args.seed,
         "rubric_version": args.rubric,
         "rubric_sha256_prefix": _rubric_hash(args.rubric),
+        # Non-None iff the run deviates from the preregistered rubric lock.
+        "prereg_deviation": (
+            None
+            if args.rubric == PREREG_RUBRIC_VERSION
+            else {
+                "locked_rubric": PREREG_RUBRIC_VERSION,
+                "used_rubric": args.rubric,
+                "note": "deviation from calibration-prereg.md rubric lock — "
+                        "must be justified in the findings doc",
+            }
+        ),
         "n_interactions_pool": len(interactions),
         "n_sampled": len(sample),
         "prereg": "docs/research/calibration-prereg.md#arm-b-external-judge-anchor",
