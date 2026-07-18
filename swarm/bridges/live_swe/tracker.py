@@ -224,8 +224,9 @@ class CapabilityTracker:
     ) -> bool:
         """Detect if a command modifies the agent's own configuration.
 
-        Checks for writes to config files, .env files, or the agent's
-        own source code / prompt files.
+        Checks for writes to config files, .env files, and shell rc
+        files, plus environment-variable exports. Source-code and
+        prompt-file modifications are NOT detected.
 
         Args:
             bash_command: The bash command to check

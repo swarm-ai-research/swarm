@@ -376,7 +376,8 @@ def _summarize_move(
         # No dimension changed relative to the base — a fresh restart point.
         return f"fresh point at score {score:.3f}"
     short = biggest_name.split(".")[-1]
-    direction = "raise" if cand[biggest_name] > base.get(biggest_name, 0) else "lower"
+    base_val = base.get(biggest_name, param_ranges[biggest_name][0])
+    direction = "raise" if cand[biggest_name] > base_val else "lower"
     return (
         f"score {parent_score:.3f} -> {score:.3f} via {direction} {short} "
         f"to {cand[biggest_name]:.4g}"
