@@ -56,6 +56,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Neural perception + Scallop-style probabilistic Datalog for classifying embodied and LLM-agent behavior
 
+-   :material-sitemap: **[Fabro Workflow DAG Spike](fabro-workflow-dag-spike.md)**
+
+    ---
+
+    Spike memo: should SWARM adopt a fabro-workflow-style experiment DAG for orchestration?
+
 </div>
 
 ## Core Research Questions
