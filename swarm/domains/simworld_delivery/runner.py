@@ -111,7 +111,6 @@ class DeliveryScenarioRunner:
         # Metrics storage
         self._epoch_metrics: list[DeliveryMetrics] = []
         self._event_log_path: Path | None = None
-        self._event_count = 0
 
     def _append_events_jsonl(self, events: list[dict]) -> None:
         """Append events to JSONL file if logging is configured."""
@@ -120,7 +119,6 @@ class DeliveryScenarioRunner:
         with open(self._event_log_path, "a") as f:
             for evt in events:
                 f.write(json.dumps(evt) + "\n")
-                self._event_count += 1
 
     def run(self, log_dir: str | None = None) -> list[DeliveryMetrics]:
         """Run the full scenario.

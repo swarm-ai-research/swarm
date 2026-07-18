@@ -388,40 +388,14 @@ class GTBEnvironment:
         )
 
     def _handle_trade_buy(self, worker: WorkerState, action: GTBAction) -> GTBEvent:
-        # Enforce collusion-triggered trade restrictions
-        restrict_until = self._trade_restricted.get(worker.agent_id, 0)
-        if self._current_epoch < restrict_until:
-            return GTBEvent(
-                event_type="trade_fail", step=self._current_step,
-                epoch=self._current_epoch, agent_id=worker.agent_id,
-                details={"reason": "trade_restricted_collusion"},
-            )
-        if worker.energy < self._config.energy_cost_trade:
-            return GTBEvent(
-                event_type="trade_fail", step=self._current_step,
-                epoch=self._current_epoch, agent_id=worker.agent_id,
-                details={"reason": "no_energy"},
-            )
-        price = max(self._config.market.price_floor,
-                     min(action.price, self._config.market.price_ceiling))
-        order = MarketOrder(
-            agent_id=worker.agent_id,
-            resource_type=action.resource_type,
-            quantity=max(0, action.quantity),
-            price_per_unit=price,
-            is_buy=True,
-            step=self._current_step,
-        )
-        self._buy_orders.append(order)
-        worker.energy -= self._config.energy_cost_trade
-        return GTBEvent(
-            event_type="order_placed", step=self._current_step,
-            epoch=self._current_epoch, agent_id=worker.agent_id,
-            details={"side": "buy", "resource": action.resource_type.value,
-                      "qty": action.quantity, "price": price},
-        )
+        return self._handle_trade(worker, action, is_buy=True)
 
     def _handle_trade_sell(self, worker: WorkerState, action: GTBAction) -> GTBEvent:
+        return self._handle_trade(worker, action, is_buy=False)
+
+    def _handle_trade(
+        self, worker: WorkerState, action: GTBAction, *, is_buy: bool
+    ) -> GTBEvent:
         # Enforce collusion-triggered trade restrictions
         restrict_until = self._trade_restricted.get(worker.agent_id, 0)
         if self._current_epoch < restrict_until:
@@ -443,15 +417,19 @@ class GTBEnvironment:
             resource_type=action.resource_type,
             quantity=max(0, action.quantity),
             price_per_unit=price,
-            is_buy=False,
+            is_buy=is_buy,
             step=self._current_step,
         )
-        self._sell_orders.append(order)
+        if is_buy:
+            self._buy_orders.append(order)
+        else:
+            self._sell_orders.append(order)
         worker.energy -= self._config.energy_cost_trade
         return GTBEvent(
             event_type="order_placed", step=self._current_step,
             epoch=self._current_epoch, agent_id=worker.agent_id,
-            details={"side": "sell", "resource": action.resource_type.value,
+            details={"side": "buy" if is_buy else "sell",
+                      "resource": action.resource_type.value,
                       "qty": action.quantity, "price": price},
         )
 
