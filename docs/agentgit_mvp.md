@@ -60,6 +60,46 @@ makes `verify_bundle` fail the `payload_hash` check. Older `v0` bundles (hashed
 without provenance) still verify — `verify_bundle` reconstructs the payload per
 schema version.
 
+## Durable Storage
+
+A loose JSON file under `.agentgit/` is easy to lose and easy to rewrite
+silently. `--store` writes each attested bundle (including failing ones —
+a policy failure is provenance too) into one or both durable backends:
+
+```bash
+python -m swarm.agentgit attest \
+  --task issue-123 --agent codex \
+  --policy examples/agentgit_policy.yaml \
+  --store log --store git-notes
+```
+
+- **`log`** — appends a hash-chained entry to `.agentgit/log.jsonl`. Each
+  entry commits to the previous entry's hash, so edits, drops, and reorders
+  break the chain. The log is append-only and replayable, matching the repo's
+  event-log invariants.
+- **`git-notes`** — attaches the bundle to the attested commit under
+  `refs/notes/agentgit` (override with `--notes-ref`, target a different
+  commit with `--store-commit`). Notes are appended as JSONL, so re-attesting
+  a commit accumulates bundles instead of overwriting earlier provenance.
+  Provenance then travels *with history*:
+
+```bash
+git push origin refs/notes/agentgit        # publish provenance
+git fetch origin refs/notes/agentgit:refs/notes/agentgit   # retrieve it
+git log --notes=agentgit                   # view inline with commits
+```
+
+Inspect and verify stored provenance with `history`:
+
+```bash
+python -m swarm.agentgit history --verify
+```
+
+`--verify` checks the log's hash chain, then re-verifies every stored
+bundle's receipt signature (dev-key fallback, same as `verify`) — so a forged
+entry that was re-chained consistently still fails on its signature. Non-zero
+exit on any failure makes it CI-friendly.
+
 ## Conditional Policy & CI Gate
 
 Beyond the fixed limits (allowed/denied paths, file/line caps, required checks),

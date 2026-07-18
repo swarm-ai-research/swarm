@@ -8,8 +8,23 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from swarm.agentgit.bundle import build_bundle, load_bundle, verify_bundle, write_bundle
+from swarm.agentgit.bundle import (
+    DEFAULT_DEV_SIGNING_KEY,
+    build_bundle,
+    load_bundle,
+    verify_bundle,
+    write_bundle,
+)
 from swarm.agentgit.policy import AgentGitPolicy, gate_bundle
+from swarm.agentgit.store import (
+    DEFAULT_LOG_PATH,
+    DEFAULT_NOTES_REF,
+    list_noted_commits,
+    read_log,
+    read_notes,
+    store_bundle,
+    verify_log,
+)
 
 
 def cmd_attest(args: argparse.Namespace) -> int:
@@ -27,6 +42,20 @@ def cmd_attest(args: argparse.Namespace) -> int:
     )
     write_bundle(bundle, Path(args.output))
 
+    # Durable stores record failing attestations too: a policy failure is
+    # itself provenance worth keeping tamper-evident.
+    if args.store:
+        summary = store_bundle(
+            bundle,
+            repo=Path(args.repo),
+            backends=list(dict.fromkeys(args.store)),
+            log_path=Path(args.log_path) if args.log_path else None,
+            notes_ref=args.notes_ref,
+            commit=args.store_commit,
+        )
+        for backend, info in summary.items():
+            print(f"stored [{backend}] {info}")
+
     passed = bundle["policy"]["passed"]
     status = "PASS" if passed else "FAIL"
     print(
@@ -34,6 +63,59 @@ def cmd_attest(args: argparse.Namespace) -> int:
         f"({bundle['git']['totals']['changed_files']} changed files)"
     )
     return 0 if passed or args.warn_only else 1
+
+
+def cmd_history(args: argparse.Namespace) -> int:
+    """Inspect and verify durably stored provenance (event log + git notes)."""
+
+    repo = Path(args.repo)
+    signing_key = args.signing_key or os.environ.get("AGENTGIT_SIGNING_KEY")
+    exit_code = 0
+
+    log_path = Path(args.log_path) if args.log_path else repo / DEFAULT_LOG_PATH
+    entries = read_log(log_path)
+    print(f"log: {log_path} ({len(entries)} entries)")
+    for entry in entries:
+        bundle = entry.get("bundle", {})
+        print(
+            f"- seq={entry.get('seq')} task={bundle.get('task', {}).get('task_id')} "
+            f"agent={bundle.get('agent', {}).get('agent_id')} "
+            f"policy_passed={bundle.get('policy', {}).get('passed')}"
+        )
+    if args.verify:
+        # Match cmd_verify's key handling: fall back to the dev key so bundle
+        # signatures inside the log are always checked under --verify.
+        ok, errors = verify_log(
+            log_path, signing_key=signing_key or DEFAULT_DEV_SIGNING_KEY
+        )
+        print(f"{'PASS' if ok else 'FAIL'} log chain verify: {log_path}")
+        for error in errors:
+            print(f"- {error}")
+        if not ok:
+            exit_code = 1
+
+    commits = [args.commit] if args.commit else list_noted_commits(repo, notes_ref=args.notes_ref)
+    for commit in commits:
+        bundles = read_notes(repo, commit, notes_ref=args.notes_ref)
+        print(f"notes[{args.notes_ref}] {commit}: {len(bundles)} bundle(s)")
+        for bundle in bundles:
+            note_ok = True
+            note_errors: list[str] = []
+            if args.verify:
+                note_ok, note_errors = verify_bundle(
+                    bundle, signing_key=signing_key, require_policy_pass=False
+                )
+            state = "" if not args.verify else (" [verified]" if note_ok else " [INVALID]")
+            print(
+                f"- task={bundle.get('task', {}).get('task_id')} "
+                f"agent={bundle.get('agent', {}).get('agent_id')} "
+                f"policy_passed={bundle.get('policy', {}).get('passed')}{state}"
+            )
+            for error in note_errors:
+                print(f"  - {error}")
+            if args.verify and not note_ok:
+                exit_code = 1
+    return exit_code
 
 
 def cmd_verify(args: argparse.Namespace) -> int:
@@ -140,6 +222,35 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Write bundle but return success even when policy fails",
     )
+    attest.add_argument(
+        "--store",
+        action="append",
+        default=[],
+        choices=["log", "git-notes"],
+        help=(
+            "Also store the bundle durably: 'log' appends to the hash-chained "
+            "event log; 'git-notes' attaches it to the attested commit. May be "
+            "repeated."
+        ),
+    )
+    attest.add_argument(
+        "--log-path",
+        default=None,
+        help=f"Event log path (default: <repo>/{DEFAULT_LOG_PATH})",
+    )
+    attest.add_argument(
+        "--notes-ref",
+        default=DEFAULT_NOTES_REF,
+        help=f"Git notes ref for provenance (default: {DEFAULT_NOTES_REF})",
+    )
+    attest.add_argument(
+        "--store-commit",
+        default=None,
+        help=(
+            "Commit to attach the git note to (default: the bundle's recorded "
+            "head commit)"
+        ),
+    )
     attest.set_defaults(func=cmd_attest)
 
     verify = subparsers.add_parser("verify", help="Verify an AgentGit bundle")
@@ -190,6 +301,38 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     gate.set_defaults(func=cmd_gate)
+
+    history = subparsers.add_parser(
+        "history",
+        help="Inspect/verify durably stored provenance (event log + git notes)",
+    )
+    history.add_argument("--repo", default=".", help="Git repository path")
+    history.add_argument(
+        "--log-path",
+        default=None,
+        help=f"Event log path (default: <repo>/{DEFAULT_LOG_PATH})",
+    )
+    history.add_argument(
+        "--notes-ref",
+        default=DEFAULT_NOTES_REF,
+        help=f"Git notes ref for provenance (default: {DEFAULT_NOTES_REF})",
+    )
+    history.add_argument(
+        "--commit",
+        default=None,
+        help="Show only notes attached to this commit (default: all noted commits)",
+    )
+    history.add_argument(
+        "--verify",
+        action="store_true",
+        help="Verify the log hash chain and every stored bundle's signature",
+    )
+    history.add_argument(
+        "--signing-key",
+        default=None,
+        help="Hex HMAC key. Defaults to AGENTGIT_SIGNING_KEY or a dev key.",
+    )
+    history.set_defaults(func=cmd_history)
     return parser
 
 

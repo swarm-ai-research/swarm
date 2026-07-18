@@ -30,6 +30,15 @@ from swarm.agentgit.policy import (
     PolicyFacts,
     gate_bundle,
 )
+from swarm.agentgit.store import (
+    append_to_log,
+    attach_note,
+    list_noted_commits,
+    read_log,
+    read_notes,
+    store_bundle,
+    verify_log,
+)
 
 __all__ = [
     "CAPABILITY_COMMANDS",
@@ -42,11 +51,18 @@ __all__ = [
     "DelegationLink",
     "PolicyDecision",
     "PolicyFacts",
+    "append_to_log",
+    "attach_note",
     "build_bundle",
     "enforced_allowlist_for_chain",
     "gate_bundle",
     "granted_commands",
+    "list_noted_commits",
+    "read_log",
+    "read_notes",
     "sign_link",
+    "store_bundle",
     "verify_bundle",
+    "verify_log",
     "write_bundle",
 ]
