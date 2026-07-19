@@ -381,6 +381,23 @@ entry = {k: v for k, v in entry.items() if v or v == 0}
 print(json.dumps(entry))
 " >> "$PROVENANCE_LOG" 2>/dev/null || true
 
+# ── 6b. Knowledge-graph ratchet (docs/scenarios changes only) ──
+# CI fails on new orphan pages / stale refs; catching it here shortens the
+# loop from ~8 CI minutes to ~2 local seconds. Only runs when staged files
+# can affect the graph. SKIP_DOCS_CHECK=1 bypasses (same knob as section 4).
+STAGED_GRAPH=$(git diff --cached --name-only --diff-filter=ACMRD | grep -E '^(docs/.*\.md|mkdocs\.yml|scenarios/.*\.ya?ml|\.kb-graph-(orphans|stale))$' || true)
+if [ -n "$STAGED_GRAPH" ] && [ -z "${SKIP_DOCS_CHECK:-}" ]; then
+    if ! python3 scripts/build_kb_graph.py --check >/tmp/kb_graph_check.$$ 2>&1; then
+        echo "[swarm pre-commit] kb-graph ratchet failed (would fail CI):"
+        tail -12 /tmp/kb_graph_check.$$
+        echo "Link the new page from the corpus, or baseline it (.kb-graph-orphans /"
+        echo ".kb-graph-stale), or bypass once with SKIP_DOCS_CHECK=1."
+        rm -f /tmp/kb_graph_check.$$
+        exit 1
+    fi
+    rm -f /tmp/kb_graph_check.$$
+fi
+
 # ── 7. Tests ──
 # Tests run in pre-push (via `make ci`), NOT pre-commit.
 # This keeps commits fast (~2s) and avoids HEAD race conditions

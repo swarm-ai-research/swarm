@@ -247,6 +247,7 @@ Never guess or infer from the OS username.
 ## Test fix discipline
 
 - When fixing a flaky test, prefer making it deterministic (set seeds, constrain inputs) over loosening assertions.
+- Before fixing a beads-filed bug, verify the cited code at HEAD first (`grep` the cited lines, `git log -S` the symbol): in multi-session periods ~30% of filed bugs are already fixed — the filer worked from a stale snapshot. Close those with the fixing commit hash as evidence instead of re-fixing.
 - After rewriting a source file with a script (python heredoc, sed -i), a same-second mtime can defeat Python's bytecode-cache invalidation: imports then silently run the OLD code while the file shows the new code (observed twice on 2026-07-18). If a just-edited module behaves as if unchanged, `rm -rf` the package's `__pycache__` (or run `python -B`) before debugging further.
 
 ## Blog post disclaimers
