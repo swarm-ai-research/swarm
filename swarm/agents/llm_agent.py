@@ -75,7 +75,8 @@ class LLMAgent(BaseAgent):
         # Lazy-loaded clients
         self._anthropic_client = None
         self._openai_client = None
-        self._llama_model = None  # llama-cpp-python Llama instance (Option B)
+        # Llama CPP can use either: (A) llama-cpp-python direct client, or (B) OpenAI-compatible API
+        self._llama_model = None  # llama-cpp-python Llama instance (Option A)
 
         # Memori middleware (lazy-loaded from config dict)
         self._memori_middleware = None

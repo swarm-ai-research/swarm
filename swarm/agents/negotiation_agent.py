@@ -41,9 +41,14 @@ class NegotiatorBase(BaseAgent):
         return raw / max_s if max_s > 0 else 0.0
 
     def _get_active_game(self, observation: Observation) -> Optional[Dict]:
+        """Return the first active (non-finished) game, or None if none exist.
+
+        Default for missing 'game_over' key is False (game still active) to match
+        the method's purpose of finding active games.
+        """
         games: List[Dict] = getattr(observation, "resource_negotiation_games", [])
         for g in games:
-            if not g.get("game_over", True):
+            if not g.get("game_over", False):
                 return g
         return None
 

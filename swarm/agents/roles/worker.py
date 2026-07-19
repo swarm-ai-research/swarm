@@ -162,7 +162,7 @@ class WorkerRole:
         Decide on a work-related action.
 
         Returns:
-            Action if work action needed, None otherwise
+            Action if executing a step, None if stuck or no work available
         """
         # Check for active work
         for task in observation.active_tasks:

@@ -31,6 +31,17 @@ class CouncilAgent(BaseAgent):
     uses the council deliberation protocol for decision-making.
     """
 
+    # System prompts for council deliberation
+    _ACT_SYSTEM_PROMPT = (
+        "You are a council of AI agents in a multi-agent simulation. "
+        "Based on the observation, decide the best action to take. "
+        "Respond with a JSON object containing 'action_type' and 'params'."
+    )
+    _ACCEPT_SYSTEM_PROMPT = (
+        "You are a council deciding whether to accept an interaction proposal. "
+        "Respond with a JSON object: {\"accept\": true/false, \"reasoning\": \"...\"}."
+    )
+
     def __init__(
         self,
         agent_id: str,
@@ -110,11 +121,7 @@ class CouncilAgent(BaseAgent):
     def act(self, observation: Observation) -> Action:
         """Decide on an action using council deliberation."""
         try:
-            system_prompt = (
-                "You are a council of AI agents in a multi-agent simulation. "
-                "Based on the observation, decide the best action to take. "
-                "Respond with a JSON object containing 'action_type' and 'params'."
-            )
+            system_prompt = self._ACT_SYSTEM_PROMPT
 
             user_prompt = self._build_observation_prompt(observation)
 
@@ -135,11 +142,7 @@ class CouncilAgent(BaseAgent):
         try:
             assert self._council is not None, "Council not initialized"
 
-            system_prompt = (
-                "You are a council of AI agents in a multi-agent simulation. "
-                "Based on the observation, decide the best action to take. "
-                "Respond with a JSON object containing 'action_type' and 'params'."
-            )
+            system_prompt = self._ACT_SYSTEM_PROMPT
 
             user_prompt = self._build_observation_prompt(observation)
 
@@ -162,20 +165,9 @@ class CouncilAgent(BaseAgent):
     ) -> bool:
         """Decide whether to accept using council vote."""
         try:
-            system_prompt = (
-                "You are a council deciding whether to accept an interaction proposal. "
-                "Respond with a JSON object: {\"accept\": true/false, \"reasoning\": \"...\"}."
-            )
+            system_prompt = self._ACCEPT_SYSTEM_PROMPT
 
-            user_prompt = (
-                f"Proposal from {proposal.initiator_id}:\n"
-                f"- Type: {proposal.interaction_type.value}\n"
-                f"- Content: {proposal.content}\n"
-                f"- Offered transfer: {proposal.offered_transfer}\n\n"
-                f"Your reputation: {observation.agent_state.reputation:.2f}\n"
-                f"Your resources: {observation.agent_state.resources:.2f}\n\n"
-                f"Should we accept? Respond with JSON."
-            )
+            user_prompt = self._build_accept_prompt(proposal, observation)
 
             result = self._call_council_sync(system_prompt, user_prompt)
 
@@ -197,20 +189,9 @@ class CouncilAgent(BaseAgent):
         try:
             assert self._council is not None, "Council not initialized"
 
-            system_prompt = (
-                "You are a council deciding whether to accept an interaction proposal. "
-                "Respond with a JSON object: {\"accept\": true/false, \"reasoning\": \"...\"}."
-            )
+            system_prompt = self._ACCEPT_SYSTEM_PROMPT
 
-            user_prompt = (
-                f"Proposal from {proposal.initiator_id}:\n"
-                f"- Type: {proposal.interaction_type.value}\n"
-                f"- Content: {proposal.content}\n"
-                f"- Offered transfer: {proposal.offered_transfer}\n\n"
-                f"Your reputation: {observation.agent_state.reputation:.2f}\n"
-                f"Your resources: {observation.agent_state.resources:.2f}\n\n"
-                f"Should we accept? Respond with JSON."
-            )
+            user_prompt = self._build_accept_prompt(proposal, observation)
 
             result = await self._council.deliberate(system_prompt, user_prompt)
 
@@ -228,7 +209,11 @@ class CouncilAgent(BaseAgent):
         observation: Observation,
         counterparty_id: str,
     ) -> Optional[InteractionProposal]:
-        """Council agents propose through act()."""
+        """Interaction proposals are synthesized via act() during council deliberation.
+
+        This method returns None because CouncilAgent generates proposals through
+        its act() method based on council deliberation, not through direct proposal synthesis.
+        """
         return None
 
     def get_usage_stats(self) -> Dict[str, Any]:
@@ -272,6 +257,22 @@ class CouncilAgent(BaseAgent):
         )
 
         return "\n".join(parts)
+
+    def _build_accept_prompt(
+        self,
+        proposal: InteractionProposal,
+        observation: Observation,
+    ) -> str:
+        """Build a prompt for deciding whether to accept an interaction proposal."""
+        return (
+            f"Proposal from {proposal.initiator_id}:\n"
+            f"- Type: {proposal.interaction_type.value}\n"
+            f"- Content: {proposal.content}\n"
+            f"- Offered transfer: {proposal.offered_transfer}\n\n"
+            f"Your reputation: {observation.agent_state.reputation:.2f}\n"
+            f"Your resources: {observation.agent_state.resources:.2f}\n\n"
+            f"Should we accept? Respond with JSON."
+        )
 
     def _parse_synthesis_to_action(self, synthesis: str) -> Action:
         """Parse council synthesis into an Action."""

@@ -225,11 +225,10 @@ class ModeratorRole:
         Decide on a moderation-related action.
 
         Returns:
-            Action if moderation action needed, None otherwise
+            None to signal actions were taken, None if no action needed
         """
         # Review flagged content
         if self._flagged_content:
-            self._flagged_content[0]
             # Would need to get content from feed
             # For now, just process flags
             actions = self.process_flagged_content()

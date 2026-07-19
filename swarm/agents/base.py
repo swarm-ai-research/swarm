@@ -391,6 +391,21 @@ class BaseAgent(ABC):
         """
         pass
 
+    def _get_counterparty(self, interaction: SoftInteraction) -> str:
+        """Extract the counterparty from an interaction.
+
+        Args:
+            interaction: The completed interaction.
+
+        Returns:
+            The ID of the counterparty (the other agent in the interaction).
+        """
+        return (
+            interaction.counterparty
+            if interaction.initiator == self.agent_id
+            else interaction.initiator
+        )
+
     def update_from_outcome(
         self,
         interaction: SoftInteraction,
@@ -406,11 +421,7 @@ class BaseAgent(ABC):
         self._interaction_history.append(interaction)
 
         # Determine counterparty
-        counterparty = (
-            interaction.counterparty
-            if interaction.initiator == self.agent_id
-            else interaction.initiator
-        )
+        counterparty = self._get_counterparty(interaction)
 
         # Update counterparty trust memory.
         # Accepted interactions provide full signal (alpha=0.3).
@@ -494,6 +505,14 @@ class BaseAgent(ABC):
 
         self._counterparty_memory[counterparty_id] = trust
         return trust
+
+    def get_counterparty_memory(self) -> Dict[str, float]:
+        """Get a copy of the counterparty trust memory.
+
+        Returns:
+            Dict mapping counterparty agent ID to trust score in [0, 1]
+        """
+        return self._counterparty_memory.copy()
 
     def apply_memory_decay(self, epoch: int) -> None:
         """

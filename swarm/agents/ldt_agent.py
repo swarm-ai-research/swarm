@@ -985,11 +985,10 @@ class LDTAgent(BaseAgent):
     def _level1_cooperate_decision(self, counterparty_id: str) -> bool:
         """Level 1 LDT decision logic.
 
-        In TDT mode (default for backward compat): behavioral twin detection
-        via cosine similarity.
-
-        In FDT mode: subjunctive dependence detection + proof-based
+        In FDT mode (default): subjunctive dependence detection + proof-based
         cooperation before falling through to counterfactual reasoning.
+
+        In TDT mode: behavioral twin detection via cosine similarity.
 
         In UDT mode: FDT logic + precommitment policy blending.
         """
@@ -1192,11 +1191,7 @@ class LDTAgent(BaseAgent):
         """Update internal models after an interaction resolves."""
         super().update_from_outcome(interaction, payoff)
 
-        counterparty = (
-            interaction.counterparty
-            if interaction.initiator == self.agent_id
-            else interaction.initiator
-        )
+        counterparty = self._get_counterparty(interaction)
 
         # Record in counterparty profile.
         if counterparty not in self._counterparty_profiles:

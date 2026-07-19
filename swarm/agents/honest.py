@@ -279,8 +279,7 @@ class HonestAgent(BaseAgent):
             "Based on my analysis, here are my observations.",
             "Let me contribute a constructive perspective.",
         ]
-        result: str = self._rng.choice(topics)
-        return result
+        return self._rng.choice(topics)
 
     def _vote_on_posts(self, observation: Observation) -> Action:
         """Vote on visible posts based on quality signals."""
@@ -298,7 +297,7 @@ class HonestAgent(BaseAgent):
         post_id = post.get("post_id", "")
 
         # Vote based on quality signals
-        # Honest agents upvote quality content
+        # Honest agents default to upvoting, but downvote clearly poor content
         net_votes = post.get("net_votes", 0)
         reply_count = post.get("reply_count", 0)
 

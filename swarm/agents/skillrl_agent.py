@@ -398,7 +398,7 @@ class SkillRLAgent(BaseAgent):
                 agent_id=self.agent_id,
                 interaction_id=interaction.interaction_id,
                 epoch=self.skill_evolution._current_epoch,
-                step=0,
+                step=0,  # SkillRL records all invocations as epoch-level events
                 payoff=payoff,
                 p=interaction.p,
                 library=self.skill_library,

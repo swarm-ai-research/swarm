@@ -154,7 +154,7 @@ class OpportunisticAgent(BaseAgent):
         Propose interaction if expected to be profitable.
 
         Opportunistic agents look for:
-        - High-reputation targets to extract value from
+        - Resource-rich targets (resources >= 50) or high-reputation targets (reputation >= 0)
         - Collaboration opportunities where others do the work
         """
         # Check if target is exploitable

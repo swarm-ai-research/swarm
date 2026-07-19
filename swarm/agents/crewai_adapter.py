@@ -467,6 +467,33 @@ def build_crew(
     return crew
 
 
+def _make_crewai_tool(
+    tool_name: str,
+    description: str,
+    tool_adapter: CrewAIToolAdapter,
+    method_name: str,
+) -> Any:
+    """Factory function to create a CrewAI tool class.
+
+    Args:
+        tool_name: Snake_case name of the tool (e.g., "get_agent_state")
+        description: Human-readable description
+        tool_adapter: The CrewAIToolAdapter instance
+        method_name: Name of the adapter method to call (e.g., "get_agent_state")
+    """
+    from crewai.tools import BaseTool as CrewBaseTool
+
+    class DynamicCrewAITool(CrewBaseTool):
+        name: str = tool_name
+        description: str = description
+
+        def _run(self) -> str:
+            method = getattr(tool_adapter, method_name)
+            return json.dumps(method())
+
+    return DynamicCrewAITool()
+
+
 def _build_crewai_tools(tool_adapter: CrewAIToolAdapter) -> list:
     """Create CrewAI-compatible tool wrappers from the tool adapter.
 
@@ -474,65 +501,20 @@ def _build_crewai_tools(tool_adapter: CrewAIToolAdapter) -> list:
     return plain callables (some CrewAI versions accept both).
     """
     try:
-        from crewai.tools import BaseTool as CrewBaseTool
-
-        class GetAgentStateTool(CrewBaseTool):
-            name: str = "get_agent_state"
-            description: str = "Get the agent's own state (reputation, resources, etc.)"
-
-            def _run(self) -> str:
-                return json.dumps(tool_adapter.get_agent_state())
-
-        class GetVisiblePostsTool(CrewBaseTool):
-            name: str = "get_visible_posts"
-            description: str = "Get recent visible posts in the feed"
-
-            def _run(self) -> str:
-                return json.dumps(tool_adapter.get_visible_posts())
-
-        class GetAvailableTasksTool(CrewBaseTool):
-            name: str = "get_available_tasks"
-            description: str = "Get tasks available for claiming"
-
-            def _run(self) -> str:
-                return json.dumps(tool_adapter.get_available_tasks())
-
-        class GetPendingProposalsTool(CrewBaseTool):
-            name: str = "get_pending_proposals"
-            description: str = "Get interaction proposals pending acceptance"
-
-            def _run(self) -> str:
-                return json.dumps(tool_adapter.get_pending_proposals())
-
-        class GetVisibleAgentsTool(CrewBaseTool):
-            name: str = "get_visible_agents"
-            description: str = "Get visible agent summaries"
-
-            def _run(self) -> str:
-                return json.dumps(tool_adapter.get_visible_agents())
-
-        class GetEcosystemMetricsTool(CrewBaseTool):
-            name: str = "get_ecosystem_metrics"
-            description: str = "Get ecosystem health metrics"
-
-            def _run(self) -> str:
-                return json.dumps(tool_adapter.get_ecosystem_metrics())
-
-        class GetAvailableBountiesTool(CrewBaseTool):
-            name: str = "get_available_bounties"
-            description: str = "Get marketplace bounties open for bidding"
-
-            def _run(self) -> str:
-                return json.dumps(tool_adapter.get_available_bounties())
+        # Define tool specifications as (name, description, adapter_method_name)
+        tool_specs = [
+            ("get_agent_state", "Get the agent's own state (reputation, resources, etc.)", "get_agent_state"),
+            ("get_visible_posts", "Get recent visible posts in the feed", "get_visible_posts"),
+            ("get_available_tasks", "Get tasks available for claiming", "get_available_tasks"),
+            ("get_pending_proposals", "Get interaction proposals pending acceptance", "get_pending_proposals"),
+            ("get_visible_agents", "Get visible agent summaries", "get_visible_agents"),
+            ("get_ecosystem_metrics", "Get ecosystem health metrics", "get_ecosystem_metrics"),
+            ("get_available_bounties", "Get marketplace bounties open for bidding", "get_available_bounties"),
+        ]
 
         return [
-            GetAgentStateTool(),
-            GetVisiblePostsTool(),
-            GetAvailableTasksTool(),
-            GetPendingProposalsTool(),
-            GetVisibleAgentsTool(),
-            GetEcosystemMetricsTool(),
-            GetAvailableBountiesTool(),
+            _make_crewai_tool(name, desc, tool_adapter, method)
+            for name, desc, method in tool_specs
         ]
     except ImportError:
         # Fallback: return empty tools list if crewai.tools is unavailable

@@ -356,11 +356,7 @@ class ModelingAdversary(BaseAgent):
         """Update models after interaction."""
         super().update_from_outcome(interaction, payoff)
 
-        counterparty = (
-            interaction.counterparty
-            if interaction.initiator == self.agent_id
-            else interaction.initiator
-        )
+        counterparty = self._get_counterparty(interaction)
 
         if counterparty not in self._counterparty_history:
             self._counterparty_history[counterparty] = []

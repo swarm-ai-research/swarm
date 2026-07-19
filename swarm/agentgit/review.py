@@ -22,7 +22,6 @@ bundle are reproducible facts, not one-off opinions.
 from __future__ import annotations
 
 import re
-import subprocess
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -30,6 +29,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from swarm.agentgit.git import GitSnapshot, collect_snapshot
 from swarm.agentgit.policy import DEPENDENCY_FILENAMES
+from swarm.agentgit.store import _git
 
 # Verdict ordinals: a reviewer's overall verdict is the worst of its findings.
 VERDICT_APPROVE = "approve"
@@ -502,18 +502,8 @@ def run_review_panel(
             findings=tuple(findings),
         )
         for reviewer in (reviewers if reviewers is not None else DEFAULT_REVIEWERS)
-        for findings in [reviewer.review(ctx)]
+        for findings in (reviewer.review(ctx),)
     ]
     return synthesize(reports)
 
 
-def _git(repo: Path, args: List[str]) -> str:
-    result = subprocess.run(
-        ["git", *args],
-        cwd=repo,
-        check=True,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    return result.stdout
