@@ -150,6 +150,20 @@ handle_session_start() {
     "governance_knobs" "$knobs_summary" \
     "hook_version" "1.0.0")"
 
+  # Coordination channel read-path (bead vw8g): surface unacked agent_messages
+  # so reading the channel is a side effect of session start, not a virtue.
+  # Fail-open: any missing dependency degrades to the empty-JSON no-op.
+  local msg_db="${REPO_ROOT}/runs/runs.db" unacked=""
+  if [ -f "$msg_db" ] && command -v sqlite3 >/dev/null 2>&1; then
+    unacked=$(sqlite3 -separator ' :: ' "$msg_db" \
+      "SELECT id, from_agent, substr(body,1,300) FROM agent_messages WHERE acked=0 ORDER BY ts LIMIT 12;" \
+      2>/dev/null || true)
+  fi
+  if [ -n "$unacked" ] && command -v jq >/dev/null 2>&1; then
+    printf '%s\n' "$unacked" | jq -Rs '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: ("UNACKED agent_messages (runs/runs.db) — act on ASSIGN rows for your role per AGENTS.md \u00a7 Session Start, then ack: sqlite3 runs/runs.db \"UPDATE agent_messages SET acked=1 WHERE id=<id>\"\n" + .)}}'
+    return
+  fi
+
   # Return empty JSON (no override)
   echo '{}'
 }

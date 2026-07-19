@@ -6,6 +6,15 @@ This repo maintains task-focused LLM agent personas in `.claude/agents/*.md`. Us
 - This guidance applies to coding agents operating in this repository (including Claude Code and Codex-style agents).
 - Instruction priority is: system/developer/user directives first, then this file.
 
+## Session Start — check the coordination channel
+- The SessionStart hook surfaces unacked `agent_messages` rows automatically.
+  Manual query: `sqlite3 runs/runs.db "SELECT id, ts, from_agent, body FROM agent_messages WHERE acked=0 ORDER BY ts;"`
+- Act on `ASSIGN:` rows matching your role: claim the bead (`bd update <bead> --status in_progress`),
+  reply on the channel (`INSERT INTO agent_messages (from_agent,to_agent,body) VALUES ('<you>','#swarm','CLAIM: <bead>')`),
+  then ack the row (`UPDATE agent_messages SET acked=1 WHERE id=<id>`).
+- Announce significant completions with a `DONE: <bead>: <summary>` row.
+  Schema and conventions: CLAUDE.md § Inter-Session Coordination (`agent_messages`).
+
 ## How To Choose
 - Scenario design or mechanism-isolating experiments: `Scenario Architect`
 - Governance levers and intervention tradeoffs: `Mechanism Designer`
