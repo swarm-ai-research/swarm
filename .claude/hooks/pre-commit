@@ -390,8 +390,27 @@ if [ -n "$STAGED_GRAPH" ] && [ -z "${SKIP_DOCS_CHECK:-}" ]; then
     if ! python3 scripts/build_kb_graph.py --check >/tmp/kb_graph_check.$$ 2>&1; then
         echo "[swarm pre-commit] kb-graph ratchet failed (would fail CI):"
         tail -12 /tmp/kb_graph_check.$$
-        echo "Link the new page from the corpus, or baseline it (.kb-graph-orphans /"
-        echo ".kb-graph-stale), or bypass once with SKIP_DOCS_CHECK=1."
+        # Attribute each flagged item: caused by YOUR staged files, or
+        # pre-existing debt another session left. Both block (the ratchet is
+        # global, same as CI) — but knowing whose it is saves a confused
+        # search. Matching is by basename, heuristic on purpose.
+        FLAGGED=$(grep '^  ! ' /tmp/kb_graph_check.$$ | sed 's/^  ! //' || true)
+        if [ -n "$FLAGGED" ]; then
+            echo ""
+            while IFS= read -r item; do
+                base=$(basename "${item##* }")
+                if echo "$STAGED_GRAPH" | grep -q "$base"; then
+                    echo "  [likely yours]   $item"
+                else
+                    echo "  [pre-existing]   $item  (another session's debt — fix or baseline it anyway)"
+                fi
+            done <<< "$FLAGGED"
+        fi
+        echo ""
+        echo "Fixes: link the page from the corpus; baseline it (.kb-graph-orphans /"
+        echo ".kb-graph-stale); or bypass once with SKIP_DOCS_CHECK=1."
+        echo "NOTE: a 'stale ref' whose target file EXISTS usually means the target is"
+        echo "untracked — the graph reads the git index, so 'git add <target>' first."
         rm -f /tmp/kb_graph_check.$$
         exit 1
     fi
