@@ -30,6 +30,13 @@ Arguments: $ARGUMENTS
      commitments (prereg locks, frozen schemas, append-only principles).
      The pattern: grep frozen/locked/prereg commitments, compare each to the
      current default it constrains. Every hit is a naa8-class incident waiting.
+  4. Orphan influx (Morgenthaler et al., "Searching for Build Debt", MTD'12:
+     make the default the right thing) — of beads created since last retro,
+     what fraction arrived with zero edges? The wrong default (edgeless
+     creation) is a debt factory; sweeps and sessions should file with
+     discovered-from/blocks edges at creation time. Report the fraction,
+     name the worst offender source, and propose the default-side fix
+     (creation-time nudge or template) rather than another cleanup pass.
 
 Any text after the mode word is extra operator context — honor it.
 
