@@ -104,7 +104,7 @@ It's also not free. Each action requires an LLM call for summarization and an em
 pip install swarm-safety[hodoscope]
 ```
 
-Or just `[pip install](../getting-started/installation.md) hodoscope` if you want to use the bridge standalone. You'll need an API key for the LLM summarization and embedding models --- the bridge defaults to `gemini/gemini-2.5-flash` and `gemini/gemini-embedding-001` via litellm, but any litellm-compatible model works.
+Or just `pip install hodoscope` if you want to use the bridge standalone. You'll need an API key for the LLM summarization and embedding models --- the bridge defaults to `gemini/gemini-2.5-flash` and `gemini/gemini-embedding-001` via litellm, but any litellm-compatible model works.
 
 ## Artifacts
 
