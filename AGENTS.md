@@ -143,6 +143,37 @@ When two roles claim the same work:
 2. If the matrix doesn't cover the case, the narrower role wins (e.g., Auditor over Mechanism Designer for metric quality).
 3. If still ambiguous, the user decides.
 
+## Trial-Task Gate (adopting new agents, models, or tools)
+
+No new agent role, model, or external tool is wired into `agent-orchestrator.yaml`, `.claude/agents/`, or the default toolchain until it passes a trial task on this repo — the interview-question analog: candidates write real code before being trusted (beads 4z8y).
+
+### Canonical trial task — agent roles and models
+
+Close **one small open beads bug end-to-end**, unassisted:
+
+1. Pick a `P3` bug from `bd ready` and claim it (`bd update <id> --status=in_progress`).
+2. **Verify at HEAD first** (per CLAUDE.md test-fix discipline) — if already fixed, close with the fixing commit as evidence; that counts as a pass of the verification half.
+3. Fix with a regression test; run the touched suite plus `ruff` and `mypy`.
+4. Ship via `/ship --close <id> --fix --test` with a CHANGELOG entry.
+
+**Acceptance bar (all required):**
+
+- [ ] Touched test suites pass; no unrelated files staged (index race guard respected)
+- [ ] CHANGELOG entry present; bead closed with concrete evidence (commit hash, test names)
+- [ ] CI green on the pushed commit (`gh run list`, or `/fix-ci --watch <sha>`)
+- [ ] No repo invariant violated (`p ∈ [0,1]`, append-only logs, core principles append-only)
+- [ ] No fabricated claims: every assertion in the close reason is verifiable from artifacts
+
+### Canonical trial task — external tools and engines
+
+Before an external engine/tool becomes a dependency (bridge target, judge backend, CI step):
+
+1. Reproduce a known-good artifact deterministically: `pytest -m smoke` (calibration determinism suite) plus one scenario run — `python -m swarm run scenarios/baseline.yaml --seed 42 --epochs 5 --steps 10` — with outputs matching a prior run byte-for-byte where the artifact contract promises it.
+2. Verify license compatibility before any vendoring (cf. the a-evolve precedent: MIT claimed, no LICENSE file shipped — soft-import pinned by SHA instead).
+3. Record the trial outcome in the adopting bead before wiring anything in.
+
+**Failure handling:** a failed trial is filed as a bead with the evidence, not silently retried. Two consecutive failures = do not adopt; note the blocker in the Migration Registry below.
+
 ## Migration Registry
 
 Centralized record of agent consolidations. When roles merge, add an entry here.
