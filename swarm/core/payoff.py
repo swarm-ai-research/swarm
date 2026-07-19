@@ -266,8 +266,12 @@ class SoftPayoffEngine:
         Returns:
             (pi_a, pi_b): Initiator and counterparty payoffs
         """
-        S_soft = self.expected_surplus(interaction.p)
-        E_soft = self.expected_harm(interaction.p)
+        # Formulas deliberately inlined rather than calling expected_surplus/
+        # expected_harm: this is the per-interaction hot path and the method-
+        # call overhead trips test_payoffs_both_within_budget's 50ms budget.
+        p = interaction.p
+        S_soft = p * self.config.s_plus - (1 - p) * self.config.s_minus
+        E_soft = (1 - p) * self.config.h
 
         pi_a = (
             self.config.theta * S_soft
