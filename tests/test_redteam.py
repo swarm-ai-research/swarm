@@ -1252,3 +1252,78 @@ class TestAdversaryActionAttribution:
         )
         for _ in range(20):
             assert agent.act(obs).agent_id == "adaptive_1"
+
+
+class TestAdversaryProposalRouting:
+    """Regression for beads fkn9: proposals must route via counterparty_id.
+
+    The proposal handler (core_interaction_handler._handle_propose) reads
+    action.counterparty_id exclusively; adaptive_adversary used to put the
+    target in target_id, so every adversary proposal was a silent no-op —
+    with a network graph the empty counterparty failed has_edge, without
+    one the proposal was addressed to nobody. Either way the red-team
+    agent never actually attacked anyone.
+    """
+
+    def _obs_with_targets(self):
+        return Observation(
+            current_epoch=3,
+            current_step=1,
+            visible_agents=[
+                {"agent_id": "honest_1", "agent_type": "honest", "reputation": 8.0},
+                {"agent_id": "adv_2", "agent_type": "adversary", "reputation": 1.0},
+            ],
+            visible_posts=[{"post_id": "p1", "votes": 2}],
+        )
+
+    def _collect_proposals(self, agent, obs, attempts=200):
+        # A fresh agent lays low in act(); drive the strategy handlers that
+        # emit proposals directly (same approach as the attribution tests).
+        handlers = [
+            agent._act_reputation_farming,
+            agent._act_opportunistic,
+            agent._act_mimicry,
+        ]
+        out = []
+        for handler in handlers:
+            for _ in range(attempts):
+                action = handler(obs)
+                if action.action_type == ActionType.PROPOSE_INTERACTION:
+                    out.append(action)
+        return out
+
+    def test_every_emitted_proposal_carries_counterparty(self):
+        agent = AdaptiveAdversary(agent_id="adaptive_1")
+        obs = self._obs_with_targets()
+        proposals = self._collect_proposals(agent, obs)
+        assert proposals, "no proposal path exercised — fixture too narrow"
+        for action in proposals:
+            assert action.counterparty_id, (
+                "proposal without counterparty_id — unroutable"
+            )
+            assert action.counterparty_id in {"honest_1", "adv_2"}
+
+    def test_proposal_reaches_handler_and_targets_counterparty(self):
+        from swarm.core.core_interaction_handler import CoreInteractionHandler
+        from swarm.env.state import EnvState
+
+        agent = AdaptiveAdversary(agent_id="adaptive_1")
+        obs = self._obs_with_targets()
+        proposals = self._collect_proposals(agent, obs, attempts=50)
+        assert proposals
+        action = proposals[0]
+
+        class _NullBus:
+            def emit(self, event):
+                pass
+
+        handler = CoreInteractionHandler(
+            finalizer=None,  # unused on the propose path
+            event_bus=_NullBus(),
+        )
+        state = EnvState()
+        result = handler.handle_action(action, state)
+        assert result.success
+        pending = state.get_proposals_for_agent(action.counterparty_id)
+        assert len(pending) == 1
+        assert pending[0].initiator_id == "adaptive_1"

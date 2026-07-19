@@ -335,7 +335,7 @@ class AdaptiveAdversary(BaseAgent):
                 return Action(
                     agent_id=self.agent_id,
                     action_type=ActionType.PROPOSE_INTERACTION,
-                    target_id=target.get("agent_id") or "",
+                    counterparty_id=target.get("agent_id") or "",
                     content="Let's work together on this task.",
                 )
 
@@ -364,7 +364,7 @@ class AdaptiveAdversary(BaseAgent):
             return Action(
                 agent_id=self.agent_id,
                 action_type=ActionType.PROPOSE_INTERACTION,
-                target_id=ally.get("agent_id") or "",
+                counterparty_id=ally.get("agent_id") or "",
                 content="Internal coordination.",
             )
 
@@ -401,7 +401,7 @@ class AdaptiveAdversary(BaseAgent):
             return Action(
                 agent_id=self.agent_id,
                 action_type=ActionType.PROPOSE_INTERACTION,
-                target_id=target.get("agent_id") or "",
+                counterparty_id=target.get("agent_id") or "",
                 content="Would you like to collaborate?",
             )
 
@@ -454,7 +454,7 @@ class AdaptiveAdversary(BaseAgent):
                 return Action(
                     agent_id=self.agent_id,
                     action_type=ActionType.PROPOSE_INTERACTION,
-                    target_id=target.get("agent_id") or "",
+                    counterparty_id=target.get("agent_id") or "",
                     content="Special opportunity for collaboration.",
                 )
 
@@ -509,7 +509,7 @@ class AdaptiveAdversary(BaseAgent):
             return Action(
                 agent_id=self.agent_id,
                 action_type=ActionType.PROPOSE_INTERACTION,
-                target_id=target.get("agent_id") or "",
+                counterparty_id=target.get("agent_id") or "",
                 content="Interested in collaborating?",
             )
 
