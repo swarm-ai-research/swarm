@@ -1,6 +1,7 @@
 """Tests for the conditional policy engine + CI gate (issue b61g)."""
 
 import subprocess
+from dataclasses import asdict
 from pathlib import Path
 
 import pytest
@@ -505,3 +506,87 @@ def test_from_dict_validates_when_conditions():
         }
     )
     assert rule.when == {"paths_match": ["*auth*"], "added_lines_gt": 10}
+
+
+# --- attest-time vs CI-gate-time verdict parity (issue b61g) ---
+#
+# One rule engine serves both places: `AgentGitPolicy.evaluate` folds decisions
+# into the signed bundle at attest time, and `gate_bundle` re-derives the same
+# facts from the bundle at CI time. These tests pin the parity contract: given
+# the same policy and the same trusted inputs, every decision — id, verdict,
+# reason, details — is identical, so an agent can never see a different verdict
+# locally than CI enforces.
+
+
+def _parity_policy() -> AgentGitPolicy:
+    return AgentGitPolicy(
+        allowed_paths=["**"],
+        max_changed_files=10,
+        max_added_lines=1000,
+        required_checks=["pytest"],
+        rules=[
+            ConditionalRule(
+                id="deps-scan",
+                when={"dependency_changed": True},
+                action="require_check",
+                check="supply-chain-scan",
+            ),
+            ConditionalRule(
+                id="auth-review", when={"paths_match": ["*auth*"]}, action="require_review"
+            ),
+            ConditionalRule(
+                id="tests-must-pass", when={"check_failed": "pytest"}, action="deny"
+            ),
+            ConditionalRule(
+                id="large-warn",
+                when={"added_lines_gt": 500},
+                action="require_review",
+                severity="warning",
+            ),
+        ],
+    )
+
+
+def _parity_repo(tmp_path: Path) -> Path:
+    # A diff that exercises path-, dependency-, and check-conditioned rules.
+    repo = _repo(tmp_path)
+    (repo / "auth.py").write_text("def login(): ...\n")
+    (repo / "requirements.txt").write_text("requests>=2\n")
+    return repo
+
+
+def test_attest_and_gate_verdicts_match_when_blocking(tmp_path):
+    # No checks or overrides on either side: both paths must block, with
+    # decision-for-decision identical output.
+    repo = _parity_repo(tmp_path)
+    policy = _parity_policy()
+    bundle = build_bundle(repo=repo, task_id="t", agent_id="a", policy=policy)
+    assert bundle["policy"]["passed"] is False
+
+    ok, decisions = gate_bundle(bundle, policy)
+    assert ok is bundle["policy"]["passed"]
+    assert [asdict(d) for d in decisions] == bundle["policy"]["decisions"]
+
+
+def test_attest_and_gate_verdicts_match_when_clean(tmp_path):
+    # The same checks and overrides supplied on both sides (self-attested at
+    # attest time, CI-trusted at gate time) yield identical passing verdicts.
+    repo = _parity_repo(tmp_path)
+    policy = _parity_policy()
+    checks = {"pytest": True, "supply-chain-scan": True}
+    overrides = [{"rule": "auth-review", "by": "alice", "reason": "reviewed"}]
+    bundle = build_bundle(
+        repo=repo,
+        task_id="t",
+        agent_id="a",
+        policy=policy,
+        check_results=checks,
+        overrides=overrides,
+    )
+    assert bundle["policy"]["passed"] is True
+
+    ok, decisions = gate_bundle(
+        bundle, policy, trusted_checks=checks, trusted_overrides=["auth-review"]
+    )
+    assert ok is True
+    assert [asdict(d) for d in decisions] == bundle["policy"]["decisions"]

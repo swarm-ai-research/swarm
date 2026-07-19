@@ -103,6 +103,46 @@ jobs:
           path: .testmondata
           if-no-files-found: ignore
 
+  # Enforce the CI-owned AgentGit policy (.github/agentgit.policy.yaml) against
+  # every provenance bundle committed under .agentgit/. Bundles record what an
+  # agent actually did (signed diff facts); the gate judges those facts against
+  # the org policy, independent of whatever policy the agent self-attested
+  # with. No committed bundles -> pass (most PRs are human/local-session work).
+  # The pytest result is CI-authoritative: it comes from the `test` job, never
+  # from the bundle's self-attested checks. Fails closed on a missing
+  # AGENTGIT_SIGNING_KEY secret or an unverifiable bundle.
+  agentgit-gate:
+    if: always()
+    needs: [test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e .
+      - name: Gate committed provenance bundles
+        env:
+          AGENTGIT_SIGNING_KEY: ${{ secrets.AGENTGIT_SIGNING_KEY }}
+          PYTEST_RESULT: ${{ needs.test.result }}
+        run: |
+          bundles=$(git ls-files '.agentgit/*.json' '.agentgit/**/*.json')
+          if [ -z "$bundles" ]; then
+            echo "no committed provenance bundles to gate"
+            exit 0
+          fi
+          check="fail"
+          [ "$PYTEST_RESULT" = "success" ] && check="pass"
+          rc=0
+          for bundle in $bundles; do
+            python -m swarm.agentgit gate \
+              --bundle "$bundle" \
+              --policy .github/agentgit.policy.yaml \
+              --check "pytest=$check" || rc=1
+          done
+          exit $rc
+
   # Render-verify JS-bearing docs pages: build the static site, serve it, and
   # confirm the dashboards actually render in a headless browser. HTTP 200 is
   # not proof a page works — curl/WebFetch don't run JS. This gate would have
@@ -166,7 +206,7 @@ jobs:
   # Add "quality-gate" as a required check in GitHub branch protection.
   quality-gate:
     if: always()
-    needs: [lint, kb-graph-check, type-check, test, render-verify]
+    needs: [lint, kb-graph-check, type-check, test, agentgit-gate, render-verify]
     runs-on: ubuntu-latest
     steps:
       - name: Check all jobs passed
@@ -185,6 +225,10 @@ jobs:
           fi
           if [[ "${{ needs.test.result }}" != "success" ]]; then
             echo "::error::Tests failed"
+            exit 1
+          fi
+          if [[ "${{ needs.agentgit-gate.result }}" != "success" ]]; then
+            echo "::error::AgentGit gate failed (a committed provenance bundle violates .github/agentgit.policy.yaml)"
             exit 1
           fi
           if [[ "${{ needs.render-verify.result }}" != "success" ]]; then

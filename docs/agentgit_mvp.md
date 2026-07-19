@@ -308,6 +308,16 @@ python -m swarm.agentgit gate \
   --override deps-need-supply-chain-scan
 ```
 
+This repo now runs that gate in its own CI: the `agentgit-gate` job in
+`.github/workflows/ci.yml` gates every provenance bundle committed under
+`.agentgit/` against `.github/agentgit.policy.yaml` and feeds the required
+`quality-gate` check. The pytest result is wired from the CI `test` job
+(`--check pytest=pass|fail`), never read from the bundle; with no committed
+bundles the job is a no-op pass. Verdict parity between attest time and gate
+time is pinned by the `test_attest_and_gate_verdicts_match_*` tests in
+`tests/test_agentgit_policy_engine.py` — an agent cannot see a different
+verdict locally than CI enforces, given the same policy and trusted inputs.
+
 ## Worktree Loop
 
 AgentGit also plugs into the worktree sandbox bridge:
