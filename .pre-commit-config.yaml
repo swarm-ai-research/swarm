@@ -9,7 +9,12 @@ repos:
     rev: v1.14.1
     hooks:
       - id: mypy
-        additional_dependencies: [numpy>=1.24, pydantic>=2.0, types-PyYAML, types-requests]
+        # gql pinned so the gitlawb bridge's import graph resolves the same
+        # way on every run: with it absent, mypy's incremental cache could
+        # record gql symbols one run and fail to rebuild them the next,
+        # crashing every commit with an internal AssertionError (beads el65).
+        # Recovery if the cache still corrupts: rm -rf .mypy_cache
+        additional_dependencies: [numpy>=1.24, pydantic>=2.0, types-PyYAML, types-requests, "gql[aiohttp,websockets]>=3.5.0"]
         args: [--ignore-missing-imports]
         pass_filenames: false
         entry: mypy swarm/
