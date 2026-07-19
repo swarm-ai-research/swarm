@@ -101,6 +101,28 @@ def _register_agent(client, name="TestAgent"):
     return data["agent_id"], data["api_key"]
 
 
+
+def _wait_for_sse_subscriber(bus, simulation_id: str, timeout: float = 10.0) -> None:
+    """Block until the SSE stream has registered its subscriber on the bus.
+
+    The SSE tests publish from a background thread while the main thread
+    opens the stream. A blind sleep races on loaded CI workers: if the
+    publish fires before the subscriber registers, the completion event is
+    lost and the stream never closes (observed as 300s pytest timeouts on
+    xdist runners). Polling the bus makes publish-after-subscribe explicit.
+    """
+    import time as _time
+
+    deadline = _time.monotonic() + timeout
+    while _time.monotonic() < deadline:
+        if bus._subscribers.get(simulation_id):
+            return
+        _time.sleep(0.01)
+    raise AssertionError(
+        f"SSE subscriber for {simulation_id} never registered within {timeout}s"
+    )
+
+
 class TestHealthEndpoints:
     """Tests for health check endpoints."""
 
@@ -2303,9 +2325,7 @@ class TestSSEEndpoint:
         # instead of creating a separate event loop — avoids
         # Python 3.12+ cross-loop asyncio.Queue issues.
         def publish_events():
-            import time
-
-            time.sleep(0.1)
+            _wait_for_sse_subscriber(event_bus, sim_id)
             event_bus.publish_sync(
                 SimEvent(
                     event_type=SimEventType.STEP_COMPLETE,
@@ -4101,8 +4121,7 @@ class TestE2ESimulationLifecycle:
 
         # Publish a completion event from a background thread (simulating orchestrator)
         def _publish_completion():
-            import time
-            time.sleep(0.1)
+            _wait_for_sse_subscriber(_event_bus, sim_id)
             _event_bus.publish_sync(
                 SimEvent(
                     event_type=SimEventType.SIMULATION_COMPLETE,
