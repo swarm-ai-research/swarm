@@ -54,7 +54,7 @@ SCENARIOS = {
 }
 
 # Short names for the summary table
-SHORT_NAMES = {
+SCENARIO_TO_SHORT_NAME = {
     "Baseline\n(Claude v Sonnet 4\nvs GPT-4.1-mini)": "Baseline",
     "Cuban Missile\n(Llama 3.3 70B\nvs Gemini Flash)": "Cuban Missile",
     "Deception\n(Mistral Small\nvs Claude Sonnet 4)": "Deception",
@@ -72,7 +72,7 @@ run_count = 0
 t0 = time.time()
 
 for name, path in SCENARIOS.items():
-    short = SHORT_NAMES[name]
+    short = SCENARIO_TO_SHORT_NAME[name]
     log(f"\n{'='*60}")
     log(f"Running {short} ({path})")
     log(f"{'='*60}")
@@ -190,7 +190,7 @@ for lbl in outcome_labels:
                color=outcome_colors[lbl], width=0.6)
         bottom += vals
 ax.set_xticks(x_pos)
-ax.set_xticklabels([SHORT_NAMES[n] for n in names], rotation=30, ha="right", fontsize=8)
+ax.set_xticklabels([SCENARIO_TO_SHORT_NAME[n] for n in names], rotation=30, ha="right", fontsize=8)
 ax.set_ylabel(f"Count (of {len(SEEDS)})")
 ax.set_title("Outcome Distribution")
 ax.legend(fontsize=7, loc="upper left")
@@ -248,7 +248,7 @@ log(f"{'Scenario':<16} {'Welfare':>10} {'MaxEsc':>8} {'Velocity':>10} "
     f"{'DeEsc':>8} {'Nuclear%':>10}")
 log("-" * 110)
 for s in names:
-    short = SHORT_NAMES[s]
+    short = SCENARIO_TO_SHORT_NAME[s]
     st = compute_sweep_statistics(results[s])
     nuc_pct = st["nuclear_threshold_rate"] * 100
     log(f"{short:<16} {st['mean_welfare_composite']:>10.1f} "

@@ -40,6 +40,24 @@ def classify_agent(agent_id: str) -> str:
     return "Unknown"
 
 
+def aggregate_by_type(scorer, attribute_name: str):
+    """Aggregate scorer attribute values by agent type.
+
+    Args:
+        scorer: MoltbookScorer instance with typed attributes (e.g. rate_limit_hits, published_counts)
+        attribute_name: Name of the scorer attribute to aggregate (e.g. 'rate_limit_hits')
+
+    Returns:
+        defaultdict mapping agent type labels to aggregated values
+    """
+    result = defaultdict(int)
+    if scorer:
+        attr_dict = getattr(scorer, attribute_name)
+        for agent_id, value in attr_dict.items():
+            result[classify_agent(agent_id)] += value
+    return result
+
+
 def divider(title: str, width: int = 80) -> str:
     return "\n" + "=" * width + "\n  " + title + "\n" + "=" * width
 
@@ -232,20 +250,9 @@ def main():
             else:
                 challenge_fail_by_type[atype_label] += 1
 
-    rate_limit_by_type = defaultdict(int)
-    if scorer:
-        for agent_id, hits in scorer.rate_limit_hits.items():
-            rate_limit_by_type[classify_agent(agent_id)] += hits
-
-    published_by_type = defaultdict(int)
-    if scorer:
-        for agent_id, count in scorer.published_counts.items():
-            published_by_type[classify_agent(agent_id)] += count
-
-    wasted_by_type = defaultdict(int)
-    if scorer:
-        for agent_id, count in scorer.wasted_actions.items():
-            wasted_by_type[classify_agent(agent_id)] += count
+    rate_limit_by_type = aggregate_by_type(scorer, 'rate_limit_hits')
+    published_by_type = aggregate_by_type(scorer, 'published_counts')
+    wasted_by_type = aggregate_by_type(scorer, 'wasted_actions')
 
     # Karma
     karma_by_agent = {}

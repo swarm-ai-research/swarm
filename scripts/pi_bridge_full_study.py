@@ -156,8 +156,14 @@ class EpisodeResult:
 # ---------------------------------------------------------------------------
 
 
-def run_episode(model_name, model_id, mix_name, fracs, persona_name,
-                system_prompt, seed):
+def run_episode(model_name: str, model_id: str, mix_name: str, fracs: Tuple[float, float, float],
+                persona_name: str, system_prompt: str, seed: int) -> Tuple[EpisodeResult, ClaudeModelFn]:
+    """Run a single episode with the specified configuration.
+
+    Returns:
+        A tuple of (EpisodeResult, ClaudeModelFn) containing the episode results
+        and the model instance for inspecting token usage.
+    """
     config = PrimeIntellectConfig(
         reward_mode=RewardMode.COMPOSITE,
         reward_normalize=False,
@@ -685,7 +691,7 @@ def main():
         for model in model_names:
             for _ in persona_list:
                 cmap.append(colors_model[model])
-        for patch, color in zip(bp["boxes"], cmap, strict=False):
+        for patch, color in zip(bp["boxes"], cmap, strict=True):
             patch.set_facecolor(color)
             patch.set_alpha(0.7)
         ax.set_ylabel("Total Reward")

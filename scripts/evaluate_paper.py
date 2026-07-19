@@ -23,16 +23,15 @@ logger = logging.getLogger(__name__)
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from swarm.evaluation.evaluators import (
+from swarm.evaluation.evaluators import (  # noqa: E402
     ArtifactIntegrityEvaluator,
     EmergenceDetectionEvaluator,
-    EvaluationResult,
     ExperimentalValidityEvaluator,
     FailureModeEvaluator,
     ReproducibilityEvaluator,
 )
-from swarm.evaluation.rubric import AcceptanceRubric, RubricConfig
-from swarm.evaluation.models import Checks, Scores
+from swarm.evaluation.models import Checks, Scores  # noqa: E402
+from swarm.evaluation.rubric import AcceptanceRubric, RubricConfig  # noqa: E402
 
 
 def extract_paper_metadata(content: str, path: str) -> Dict[str, Any]:
@@ -57,7 +56,7 @@ def extract_paper_metadata(content: str, path: str) -> Dict[str, Any]:
         author_match = re.search(r"\\author\{([^}]+)\}", content)
         if author_match:
             author_text = author_match.group(1)
-            # Split by \\ for multiple authors
+            # Split by \\ or 'and' for multiple authors
             for author in re.split(r"\\\\|\band\b", author_text):
                 author = author.strip()
                 if author:

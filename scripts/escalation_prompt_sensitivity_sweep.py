@@ -11,7 +11,6 @@ Sweeps 6 framings across 3 scenario types × 10 seeds = 180 LLM runs.
 from __future__ import annotations
 
 import copy
-import json
 import sys
 import time
 from pathlib import Path
@@ -23,6 +22,8 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 matplotlib.use("Agg")
+
+from sweep_utils import load_checkpoint, log, save_checkpoint  # noqa: E402
 
 from swarm.domains.escalation_sandbox.agents import (  # noqa: E402
     EscalationAgentBridge,
@@ -85,24 +86,6 @@ OUTDIR = Path("runs/escalation_prompt_sensitivity")
 OUTDIR.mkdir(parents=True, exist_ok=True)
 PROGRESS_FILE = OUTDIR / "progress.log"
 CHECKPOINT_FILE = OUTDIR / "checkpoint.json"
-
-
-def log(msg: str) -> None:
-    print(msg, flush=True)
-    with open(PROGRESS_FILE, "a") as f:
-        f.write(f"[{time.strftime('%H:%M:%S')}] {msg}\n")
-
-
-def load_checkpoint() -> dict:
-    if CHECKPOINT_FILE.exists():
-        with open(CHECKPOINT_FILE) as f:
-            return json.load(f)
-    return {}
-
-
-def save_checkpoint(completed: dict) -> None:
-    with open(CHECKPOINT_FILE, "w") as f:
-        json.dump(completed, f, indent=2)
 
 
 def run_scenario_with_framing(
@@ -169,14 +152,14 @@ def run_scenario_with_framing(
 
 
 # ── Run sweep ────────────────────────────────────────────────────────
-log("=" * 80)
-log("Prompt Sensitivity Sweep: Reducing LLM Deception via Framing")
+log("=" * 80, PROGRESS_FILE)
+log("Prompt Sensitivity Sweep: Reducing LLM Deception via Framing", PROGRESS_FILE)
 log(f"{len(SCENARIOS)} scenarios × {len(PROMPT_FRAMINGS)} framings × "
     f"{len(SEEDS)} seeds = "
-    f"{len(SCENARIOS) * len(PROMPT_FRAMINGS) * len(SEEDS)} runs")
-log("=" * 80)
+    f"{len(SCENARIOS) * len(PROMPT_FRAMINGS) * len(SEEDS)} runs", PROGRESS_FILE)
+log("=" * 80, PROGRESS_FILE)
 
-completed = load_checkpoint()
+completed = load_checkpoint(CHECKPOINT_FILE)
 results: dict[str, dict[str, list[EscalationMetrics]]] = {}
 
 total = len(SCENARIOS) * len(PROMPT_FRAMINGS) * len(SEEDS)
@@ -185,11 +168,11 @@ start = time.time()
 
 for scenario_name, yaml_path in SCENARIOS.items():
     results[scenario_name] = {}
-    log(f"\n── {scenario_name} ──")
+    log(f"\n── {scenario_name} ──", PROGRESS_FILE)
 
     for framing_name, framing_suffix in PROMPT_FRAMINGS.items():
         metrics_list: list[EscalationMetrics] = []
-        log(f"  Framing: {framing_name}")
+        log(f"  Framing: {framing_name}", PROGRESS_FILE)
 
         for seed in SEEDS:
             run_key = f"{scenario_name}|{framing_name}|{seed}"
@@ -198,10 +181,10 @@ for scenario_name, yaml_path in SCENARIOS.items():
             if run_key in completed:
                 m = EscalationMetrics(**completed[run_key])
                 metrics_list.append(m)
-                log(f"    Seed {seed}: [cached] div={m.signal_action_divergence:.3f}")
+                log(f"    Seed {seed}: [cached] div={m.signal_action_divergence:.3f}", PROGRESS_FILE)
                 continue
 
-            log(f"    Seed {seed} ({count}/{total}) ... ")
+            log(f"    Seed {seed} ({count}/{total}) ... ", PROGRESS_FILE)
             try:
                 t0 = time.time()
                 m = run_scenario_with_framing(yaml_path, framing_suffix, seed)
@@ -209,13 +192,13 @@ for scenario_name, yaml_path in SCENARIOS.items():
 
                 metrics_list.append(m)
                 completed[run_key] = m.to_dict()
-                save_checkpoint(completed)
+                save_checkpoint(completed, CHECKPOINT_FILE)
 
                 nuc = m.outcome in ("nuclear_exchange", "mutual_destruction")
                 log(f"      -> nuc={nuc}, div={m.signal_action_divergence:.3f}, "
-                    f"welfare={m.welfare_composite:.1f} ({elapsed:.1f}s)")
+                    f"welfare={m.welfare_composite:.1f} ({elapsed:.1f}s)", PROGRESS_FILE)
             except Exception as e:
-                log(f"      -> ERROR: {e}")
+                log(f"      -> ERROR: {e}", PROGRESS_FILE)
                 continue
 
         results[scenario_name][framing_name] = metrics_list
@@ -223,10 +206,10 @@ for scenario_name, yaml_path in SCENARIOS.items():
             stats = compute_sweep_statistics(metrics_list)
             log(f"  {framing_name} summary: nuclear={stats['nuclear_threshold_rate']:.0%}, "
                 f"divergence={stats['mean_signal_action_divergence']:.3f}, "
-                f"welfare={stats['mean_welfare_composite']:.1f}")
+                f"welfare={stats['mean_welfare_composite']:.1f}", PROGRESS_FILE)
 
 elapsed_total = time.time() - start
-log(f"\nTotal: {elapsed_total:.0f}s ({elapsed_total/60:.1f}m)")
+log(f"\nTotal: {elapsed_total:.0f}s ({elapsed_total/60:.1f}m)", PROGRESS_FILE)
 
 # ── Plot 1: Divergence comparison ────────────────────────────────────
 framing_names = list(PROMPT_FRAMINGS.keys())
@@ -282,7 +265,7 @@ plt.tight_layout(rect=[0, 0, 1, 0.94])
 plot_path = OUTDIR / "prompt_sensitivity_sweep.png"
 fig.savefig(plot_path, dpi=150, bbox_inches="tight")
 plt.close(fig)
-log(f"\nPlot saved to {plot_path}")
+log(f"\nPlot saved to {plot_path}", PROGRESS_FILE)
 
 # ── Plot 2: Heatmap ──────────────────────────────────────────────────
 fig2, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
@@ -327,7 +310,7 @@ plt.tight_layout()
 heatmap_path = OUTDIR / "prompt_sensitivity_heatmap.png"
 fig2.savefig(heatmap_path, dpi=150, bbox_inches="tight")
 plt.close(fig2)
-log(f"Heatmap saved to {heatmap_path}")
+log(f"Heatmap saved to {heatmap_path}", PROGRESS_FILE)
 
 # ── Plot 3: Divergence reduction from control ────────────────────────
 fig3, ax = plt.subplots(figsize=(10, 6))
@@ -363,13 +346,13 @@ plt.tight_layout()
 reduction_path = OUTDIR / "prompt_sensitivity_reduction.png"
 fig3.savefig(reduction_path, dpi=150, bbox_inches="tight")
 plt.close(fig3)
-log(f"Reduction plot saved to {reduction_path}")
+log(f"Reduction plot saved to {reduction_path}", PROGRESS_FILE)
 
 # ── Summary ──────────────────────────────────────────────────────────
-log("\n" + "=" * 110)
+log("\n" + "=" * 110, PROGRESS_FILE)
 log(f"{'Scenario':<35} {'Framing':<20} {'Nuc%':>6} {'Diverge':>9} "
-    f"{'Welfare':>9} {'Velocity':>9} {'DeEsc':>7} {'N':>4}")
-log("-" * 110)
+    f"{'Welfare':>9} {'Velocity':>9} {'DeEsc':>7} {'N':>4}", PROGRESS_FILE)
+log("-" * 110, PROGRESS_FILE)
 for sn in scenario_names:
     for fn in framing_names:
         mlist = results[sn].get(fn, [])
@@ -381,6 +364,6 @@ for sn in scenario_names:
                 f"{stats['mean_welfare_composite']:>9.1f} "
                 f"{stats['mean_escalation_velocity']:>9.3f} "
                 f"{stats['mean_de_escalation_rate']:>7.3f} "
-                f"{len(mlist):>4d}")
-    log("")
-log("=" * 110)
+                f"{len(mlist):>4d}", PROGRESS_FILE)
+    log("", PROGRESS_FILE)
+log("=" * 110, PROGRESS_FILE)

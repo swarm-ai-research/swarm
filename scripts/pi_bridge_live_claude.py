@@ -181,6 +181,11 @@ class EpisodeResult:
     completions: List[str] = field(default_factory=list)
 
 
+# Default EpisodeResult for missing data in aggregations.
+# Uses mean_p=0.5 as neutral fallback (no signal about interaction quality).
+DEFAULT_EPISODE_RESULT = EpisodeResult("", "", 0, 0, 0, 0.5, 0, 0, 0, False)
+
+
 def run_episode(
     mix_name: str,
     fracs: Tuple[float, float, float],
@@ -441,7 +446,7 @@ def main():
         x = np.arange(len(mix_names))
         width = 0.25
         for i, p_name in enumerate(persona_names):
-            vals = [agg.get((m, p_name), EpisodeResult("", "", 0, 0, 0, 0.5, 0, 0, 0, False)).toxicity
+            vals = [agg.get((m, p_name), DEFAULT_EPISODE_RESULT).toxicity
                     for m in mix_names]
             ax.bar(x + i * width, vals, width, label=p_name,
                    color=colors.get(p_name, "#95a5a6"))
@@ -459,7 +464,7 @@ def main():
         # --- Reward bar chart ---
         fig, ax = plt.subplots(figsize=(10, 6))
         for i, p_name in enumerate(persona_names):
-            vals = [agg.get((m, p_name), EpisodeResult("", "", 0, 0, 0, 0.5, 0, 0, 0, False)).total_reward
+            vals = [agg.get((m, p_name), DEFAULT_EPISODE_RESULT).total_reward
                     for m in mix_names]
             ax.bar(x + i * width, vals, width, label=p_name,
                    color=colors.get(p_name, "#95a5a6"))
@@ -476,7 +481,7 @@ def main():
         # --- Mean p bar chart ---
         fig, ax = plt.subplots(figsize=(10, 6))
         for i, p_name in enumerate(persona_names):
-            vals = [agg.get((m, p_name), EpisodeResult("", "", 0, 0, 0, 0.5, 0, 0, 0, False)).mean_p
+            vals = [agg.get((m, p_name), DEFAULT_EPISODE_RESULT).mean_p
                     for m in mix_names]
             ax.bar(x + i * width, vals, width, label=p_name,
                    color=colors.get(p_name, "#95a5a6"))

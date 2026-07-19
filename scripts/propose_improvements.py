@@ -29,6 +29,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -64,30 +66,23 @@ class Proposal:
 
     def to_yaml_str(self) -> str:
         """Render as human-readable YAML."""
-        evidence_lines = ""
-        for k, v in self.evidence.items():
-            evidence_lines += f"  {k}: {v}\n"
-
-        return (
-            f"proposal_id: {self.proposal_id}\n"
-            f"agent_id: {self.agent_id}\n"
-            f"category: {self.category}\n"
-            f"priority: {self.priority}\n"
-            f"created_at: {self.created_at}\n"
-            f"title: {self.title}\n"
-            f"\n"
-            f"rationale: |\n"
-            f"  {self.rationale}\n"
-            f"\n"
-            f"suggested_change: |\n"
-            f"  {self.suggested_change}\n"
-            f"\n"
-            f"evidence:\n"
-            f"{evidence_lines}\n"
-            f"status: pending  # pending | approved | rejected | superseded\n"
-            f"reviewed_by: null\n"
-            f"reviewed_at: null\n"
-        )
+        # Build a dict with all proposal fields plus metadata
+        data = {
+            "proposal_id": self.proposal_id,
+            "agent_id": self.agent_id,
+            "category": self.category,
+            "priority": self.priority,
+            "created_at": self.created_at,
+            "title": self.title,
+            "rationale": self.rationale,
+            "suggested_change": self.suggested_change,
+            "evidence": self.evidence,
+            "status": "pending",
+            "reviewed_by": None,
+            "reviewed_at": None,
+        }
+        # Use yaml.dump for safe escaping and proper YAML formatting
+        return yaml.dump(data, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
 
 # ---------------------------------------------------------------------------

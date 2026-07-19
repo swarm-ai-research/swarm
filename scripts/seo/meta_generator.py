@@ -323,7 +323,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Generate meta descriptions for swarm-ai.org docs")
     parser.add_argument("--docs", default="docs", help="Path to docs/ directory")
-    parser.add_argument("--dry-run", action="store_true", default=True, help="Preview only (default)")
+    parser.add_argument("--dry-run", action="store_true", help="Preview only (default)")
     parser.add_argument("--apply", action="store_true", help="Actually write changes")
     parser.add_argument("--overwrite", action="store_true", help="Replace existing descriptions")
     parser.add_argument("--max-len", type=int, default=155, help="Max description length")

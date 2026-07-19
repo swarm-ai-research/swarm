@@ -11,6 +11,7 @@ Usage:
 import copy
 import csv
 import sys
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
@@ -73,8 +74,6 @@ def main() -> None:
     print(f"\nCSV written to {csv_path}  ({len(rows)} rows)")
 
     # ── Summary table ──────────────────────────────────────────
-    from collections import defaultdict
-
     grouped: dict[float, list] = defaultdict(list)
     for r in results:
         grouped[r.params["entry_fee"]].append(r)

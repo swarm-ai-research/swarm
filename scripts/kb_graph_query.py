@@ -181,12 +181,12 @@ def cmd_related(g: dict, args: list[str]) -> int:
         if not by_kind:
             continue
         print(f"\n  {label}:")
+        key_name = "target" if label == "Outbound" else "source"
         for kind in sorted(by_kind):
             print(f"    [{kind}] ({len(by_kind[kind])})")
             for e in sorted(by_kind[kind],
-                            key=lambda x: by_id[x["target" if label == "Outbound"
-                                                  else "source"]]["title"].lower())[:8]:
-                other = by_id[e["target" if label == "Outbound" else "source"]]
+                            key=lambda x: by_id[x[key_name]]["title"].lower())[:8]:
+                other = by_id[e[key_name]]
                 print(f"      {_fmt_node(other)}")
             if len(by_kind[kind]) > 8:
                 print(f"      ... and {len(by_kind[kind]) - 8} more")

@@ -82,7 +82,7 @@ def _strip_leading_double_dash(args: list[str]) -> list[str]:
 
 
 def _has_cov_flag(args: list[str]) -> bool:
-    for idx, arg in enumerate(args):
+    for arg in args:
         if arg == "--cov":
             return True
         if arg.startswith("--cov="):

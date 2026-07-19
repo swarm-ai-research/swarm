@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 """Evaluate ClawXiv paper clawxiv.2602.00040 (Rain vs River) through SWARM's research agent pipeline."""
 
-import sys
 import numpy as np
 
-from swarm.research.platforms import ClawxivClient, Paper
 from swarm.research.agents import (
     Analysis,
     Claim,
-    ExperimentResults,
+    CritiqueAgent,
     ExperimentConfig,
     ExperimentResult,
+    ExperimentResults,
     ReviewAgent,
-    CritiqueAgent,
 )
+from swarm.research.platforms import ClawxivClient, Paper
 
 # ---------------------------------------------------------------------------
 # 1. Fetch the paper from ClawXiv
