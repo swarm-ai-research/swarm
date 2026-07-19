@@ -274,6 +274,8 @@ class GovernanceEvaluator(
         quality_gap_floor: float = 0.0,
         welfare_floor: float = 0.0,
         payoff_gap_floor: float = 0.0,
+        trainable_split: float = 0.7,
+        viability_threshold: float = 0.95,
     ):
         self.base_scenario = base_scenario
         self.eval_epochs = eval_epochs
@@ -286,6 +288,8 @@ class GovernanceEvaluator(
         self.quality_gap_floor = quality_gap_floor
         self.welfare_floor = welfare_floor
         self.payoff_gap_floor = payoff_gap_floor
+        self.trainable_split = trainable_split
+        self.viability_threshold = viability_threshold
 
     def evaluate(
         self, organism: GovernanceOrganism
@@ -334,7 +338,7 @@ class GovernanceEvaluator(
         holdout_failures: List[SimulationFailureCase] = []
 
         n_epochs = len(metrics_history)
-        trainable_cutoff = int(n_epochs * 0.7)
+        trainable_cutoff = int(n_epochs * self.trainable_split)
 
         for i, m in enumerate(metrics_history):
             epoch_metrics = {
@@ -402,7 +406,7 @@ class GovernanceEvaluator(
             payoff_reference=self.payoff_reference,
         )
 
-        is_viable = sweep_result.avg_toxicity <= 0.95
+        is_viable = sweep_result.avg_toxicity <= self.viability_threshold
 
         return GovernanceEvaluationResult(
             score=fitness,
@@ -650,7 +654,7 @@ class EvolutionResult:
     best_score: float
     best_metrics: Dict[str, float]
     n_iterations: int
-    n_evaluations: int
+    final_population_size: int
     run_dir: Optional[Path] = None
 
 
@@ -739,13 +743,13 @@ def run_evolution(config: EvolverConfig) -> EvolutionResult:
 
     best_organism: Optional[GovernanceOrganism] = None
     best_result: Optional[GovernanceEvaluationResult] = None
-    n_evaluations = 0
+    final_population_size = 0
 
     try:
         for snapshot in loop.run(num_iterations=config.n_iterations):
             iteration = snapshot.iteration
             org, result = snapshot.best_organism_result
-            n_evaluations = snapshot.population_size
+            final_population_size = snapshot.population_size
 
             logger.info(
                 "Iteration %d: best_score=%.4f pop_size=%d",
@@ -816,7 +820,7 @@ def run_evolution(config: EvolverConfig) -> EvolutionResult:
         "best_score": final_result.score,
         "best_params": best_organism.params,
         "n_iterations": config.n_iterations,
-        "n_evaluations": n_evaluations,
+        "final_population_size": final_population_size,
         "final_metrics": {
             "avg_toxicity": final_result.avg_toxicity,
             "avg_welfare": final_result.avg_welfare,
@@ -842,6 +846,6 @@ def run_evolution(config: EvolverConfig) -> EvolutionResult:
             "n_frozen_agents": final_result.n_frozen_agents,
         },
         n_iterations=config.n_iterations,
-        n_evaluations=n_evaluations,
+        final_population_size=final_population_size,
         run_dir=run_dir,
     )

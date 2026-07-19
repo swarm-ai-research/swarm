@@ -657,6 +657,14 @@ class SandboxEnvironment:
         .. warning::
 
            The callable runs in-process with no isolation.
+
+        .. warning::
+
+           Unlike the async ``execute()``, this method supports NO
+           execution timeout: Python has no portable way to interrupt a
+           CPU-bound callable (signals are Unix-only and thread-based
+           cancellation cannot stop a busy loop). If a run can hang, use
+           ``execute()`` with its ``timeout`` parameter instead.
         """
         policy = retry_policy or self.config.retry_policy
         start = time.monotonic()

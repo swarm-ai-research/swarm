@@ -156,7 +156,6 @@ class ContainerSpec:
     cap_drop: List[str] = field(default_factory=lambda: ["ALL"])
     cap_add: List[str] = field(default_factory=list)
     pids_limit: int = 256
-    auto_remove: bool = False  # reserved for future use
 
 
 def contract_to_spec(
