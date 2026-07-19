@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from swarm.analysis.adverse_selection import AdverseSelectionDetector
+from swarm.analysis.aggregation import AgentSnapshot
 from swarm.analysis.dashboard import (
-    AgentSnapshot,
     DashboardConfig,
     DashboardState,
     MetricSnapshot,

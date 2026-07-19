@@ -41,6 +41,9 @@ def render_frame(
 
     *plot_func* takes no args and returns ``(fig, ax)`` or ``fig``.
     PIL is imported lazily; raises ``ImportError`` if Pillow is absent.
+
+    Returns:
+        PIL.Image.Image object containing the rendered frame.
     """
     try:
         from PIL import Image

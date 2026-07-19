@@ -143,10 +143,10 @@ def plot_tradeoff_scatter(
     if marginals:
         rc = COLORS.TEXT_MUTED
         for xi in xa:
-            ax.plot([xi, xi], [ax.get_ylim()[0]] * 2,
+            ax.plot([xi, xi], [ax.get_ylim()[0], ax.get_ylim()[1]],
                     color=rc, alpha=0.5, linewidth=0.8, clip_on=False)
         for yi in ya:
-            ax.plot([ax.get_xlim()[0]] * 2, [yi, yi],
+            ax.plot([ax.get_xlim()[0], ax.get_xlim()[1]], [yi, yi],
                     color=rc, alpha=0.5, linewidth=0.8, clip_on=False)
         ax.tick_params(axis="x", direction="inout", length=4)
         ax.tick_params(axis="y", direction="inout", length=4)

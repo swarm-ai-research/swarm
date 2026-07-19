@@ -12,6 +12,11 @@ gap.
 
 Pure-matplotlib, no seaborn or other deps. Pre-registered grid is
 the default but ``load_*`` are parameterized for ablations.
+
+Additionally, the module provides ``load_judged()`` to read
+``judged_summary.csv`` and ``plot_judged_overlay()`` to produce a
+three-panel calibration plot (proxy toxicity, judge toxicity, and
+target-rule firing rate).
 """
 
 from __future__ import annotations

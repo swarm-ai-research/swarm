@@ -294,7 +294,12 @@ class GovernanceEvaluator(
     def evaluate(
         self, organism: GovernanceOrganism
     ) -> GovernanceEvaluationResult:
-        """Run simulation and score the organism."""
+        """Run simulation and score the organism.
+
+        Note: If no real failure cases are detected, injects a synthetic failure
+        case with type 'room_for_improvement' to satisfy darwinian_evolver's
+        parent-eligibility requirement (non-empty trainable_failure_cases).
+        """
         try:
             return self._evaluate_impl(organism)
         except Exception as exc:

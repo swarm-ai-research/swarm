@@ -184,6 +184,22 @@ def _draw_convex_hull(
     ax.add_patch(polygon)
 
 
+def _unique_nodes_from_edges(edges: List[Tuple[str, str, float]]) -> List[str]:
+    """Extract unique nodes from edge list, preserving order.
+
+    Args:
+        edges: List of (source, target, weight) tuples.
+
+    Returns:
+        Ordered list of unique node identifiers.
+    """
+    seen: dict[str, None] = {}
+    for src, tgt, _ in edges:
+        seen.setdefault(src, None)
+        seen.setdefault(tgt, None)
+    return list(seen)
+
+
 # ---------------------------------------------------------------------------
 # Collusion network
 # ---------------------------------------------------------------------------
@@ -225,11 +241,7 @@ def plot_collusion_network(
     suspicion_scores = suspicion_scores or {}
 
     # Collect unique nodes preserving order
-    seen: dict[str, None] = {}
-    for src, tgt, _ in edges:
-        seen.setdefault(src, None)
-        seen.setdefault(tgt, None)
-    nodes = list(seen)
+    nodes = _unique_nodes_from_edges(edges)
 
     positions = compute_spring_layout(nodes, edges, iterations=60, seed=42)
 
@@ -354,11 +366,7 @@ def plot_interaction_network(
     node_types = node_types or {}
     node_sizes = node_sizes or {}
 
-    seen: dict[str, None] = {}
-    for src, tgt, _ in edges:
-        seen.setdefault(src, None)
-        seen.setdefault(tgt, None)
-    nodes = list(seen)
+    nodes = _unique_nodes_from_edges(edges)
 
     positions = compute_spring_layout(nodes, edges, iterations=50, seed=7)
 
