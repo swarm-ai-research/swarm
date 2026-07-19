@@ -18,19 +18,12 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from ai_economist_colors import AGENT_TYPE_COLORS as _AGENT_TYPE_COLORS
 from matplotlib.colors import to_rgba
 from matplotlib.patches import FancyBboxPatch, Patch
 
 from swarm.analysis.enhanced_dashboard import plot_enhanced_line
 from swarm.analysis.theme import COLORS, add_danger_zone, swarm_theme
-
-# Agent-type color mapping for GTB worker types
-_AGENT_TYPE_COLORS = {
-    "honest": COLORS.HONEST,
-    "gaming": COLORS.DECEPTIVE,
-    "evasive": COLORS.EVASION,
-    "collusive": COLORS.ADVERSARIAL,
-}
 
 # Default initial tax schedule (flat 10% before planner adaptation)
 _INITIAL_BRACKETS = [

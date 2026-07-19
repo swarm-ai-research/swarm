@@ -251,7 +251,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_dir = args.out_dir or Path(f"runs/{timestamp}_redteam")
 
     return run_evaluation(args.mode, out_dir)

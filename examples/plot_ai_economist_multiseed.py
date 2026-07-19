@@ -31,18 +31,11 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
+from ai_economist_colors import AGENT_TYPE_COLORS as _AGENT_TYPE_COLORS  # noqa: E402
 from matplotlib.colors import to_rgba  # noqa: E402
 from matplotlib.patches import Patch  # noqa: E402
 
 from swarm.analysis.theme import COLORS, swarm_theme  # noqa: E402
-
-# Agent-type color mapping (from plot_ai_economist.py)
-_AGENT_TYPE_COLORS = {
-    "honest": COLORS.HONEST,
-    "gaming": COLORS.DECEPTIVE,
-    "evasive": COLORS.EVASION,
-    "collusive": COLORS.ADVERSARIAL,
-}
 
 # Default initial flat 10% schedule
 _INITIAL_BRACKETS = [

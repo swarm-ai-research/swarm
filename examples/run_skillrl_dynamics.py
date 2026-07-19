@@ -36,7 +36,7 @@ def _snapshot_epoch(orchestrator, epoch: int) -> Dict[str, Any]:
 
     for agent in orchestrator.get_all_agents():
         state = orchestrator.state.get_agent(agent.agent_id)
-        # SkillRL agents use AgentType.HONEST as base, so detect by class
+        # SkillRL agents have a skill_summary method, so detect by attribute
         is_skillrl = hasattr(agent, "skill_summary")
         effective_type = "skillrl" if is_skillrl else agent.agent_type.value
 

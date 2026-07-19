@@ -29,6 +29,7 @@ Usage:
     python examples/run_cooperation_window_study.py scenarios/ldt_cooperation.yaml --seed 42 --turns 30
 """
 
+import csv
 import json
 import sys
 from datetime import datetime
@@ -550,7 +551,6 @@ def main():
     # Export summary CSV
     csv_path = export_dir / "csv" / "sweep_summary.csv"
     csv_path.parent.mkdir(parents=True, exist_ok=True)
-    import csv
 
     with open(csv_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=list(summary_rows[0].keys()))

@@ -301,7 +301,7 @@ def plot_multi_metric_panel(
                 markersize=3,
             )
 
-        _style_ax(ax, ylabel, "Epoch", ylabel)
+        _style_ax(ax, ylabel, "Epoch", "")
         if ylim:
             ax.set_ylim(*ylim)
         if panel_idx == 0:
@@ -369,7 +369,7 @@ def plot_scenario_summary_bars(
         label = SCENARIO_LABELS.get(sid, sid)
         offset = (idx - n_scenarios / 2 + 0.5) * width
         bars = ax.bar(x + offset, avgs, width, label=label, color=color, alpha=0.85)
-        for bar, val in zip(bars, avgs):
+        for bar, val in zip(bars, avgs, strict=True):
             ax.text(
                 bar.get_x() + bar.get_width() / 2,
                 bar.get_height() + 0.01,

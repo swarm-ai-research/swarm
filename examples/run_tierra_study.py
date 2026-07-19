@@ -301,14 +301,6 @@ def _print_comparison_table(all_results: list[dict]) -> None:
         ("total_welfare", "Welfare"),
     ]
 
-    header = f"{'Metric':<14}"
-    for sid in scenario_ids:
-        header += f" {'seed':>5}"
-        for r in sorted(by_scenario[sid], key=lambda x: x["seed"]):
-            header += f" {r['seed']:>6}"
-        header += f" {'mean':>8}"
-        break  # just need seeds once for layout
-
     # Print per-metric rows
     print(f"{'Metric':<14} {'Scenario':<20}", end="")
     seeds = sorted({r["seed"] for r in all_results})

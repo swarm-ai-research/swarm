@@ -137,7 +137,6 @@ class FramedPolicy(EscalationPolicy):
         self._divergence_prob = divergence_prob
         self._divergence_magnitude = divergence_magnitude
         self._transparency_enabled = transparency_enabled
-        self._opponent_divergence_history: List[float] = []
 
     def decide(self, observation: Dict[str, Any]) -> EscalationAction:
         # Get the base action (which may already have some divergence)
@@ -180,7 +179,6 @@ class FramedPolicy(EscalationPolicy):
 
     def reset(self) -> None:
         self._base_policy.reset()
-        self._opponent_divergence_history.clear()
 
 
 # ======================================================================

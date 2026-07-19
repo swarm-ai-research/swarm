@@ -61,7 +61,7 @@ def eta_squared(groups: list[np.ndarray]) -> float:
 
 
 def power_analysis(effect_size: float, n: int, alpha: float = 0.05) -> float:
-    """Approximate power for two-sample t-test."""
+    """Approximate power using normal distribution (z-test approximation)."""
     from scipy.stats import norm
     if n < 2 or np.isnan(effect_size):
         return float("nan")

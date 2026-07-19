@@ -78,6 +78,10 @@ def create_demo_orchestrator(
     # Create LLM agents
     llm_provider = LLMProvider(provider.lower())
 
+    # Define mock_call once for dry-run (stateless and reusable)
+    async def mock_call(*args, **kwargs):
+        return ('{"action_type": "NOOP", "reasoning": "Dry run"}', 50, 20)
+
     for i in range(n_llm_agents):
         # Alternate between personas
         persona = PersonaType.OPEN if i % 2 == 0 else PersonaType.STRATEGIC
@@ -98,10 +102,6 @@ def create_demo_orchestrator(
 
         # For dry-run, mock the API calls
         if dry_run:
-
-            async def mock_call(*args, **kwargs):
-                return ('{"action_type": "NOOP", "reasoning": "Dry run"}', 50, 20)
-
             agent._call_llm_async = mock_call
 
         orchestrator.register_agent(agent)

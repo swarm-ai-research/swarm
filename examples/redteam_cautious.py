@@ -33,6 +33,9 @@ from swarm.core.payoff import PayoffConfig
 from swarm.governance.config import GovernanceConfig
 from swarm.redteam import RedTeamEvaluator
 
+# Adversary types used for payoff extraction across analysis
+ADVERSARY_TYPES = ["adversarial", "deceptive", "adaptive", "modeling", "threshold"]
+
 
 def make_governance():
     return GovernanceConfig(
@@ -269,8 +272,7 @@ def main():
     for r in results:
         cautious_pay = r["payoffs"].get("cautious", 0)
         # Worst adversary payoff (highest = most successful attack)
-        adv_types = ["adversarial", "deceptive", "adaptive", "modeling", "threshold"]
-        adv_payoffs = [r["payoffs"].get(t, -999) for t in adv_types if t in r["payoffs"]]
+        adv_payoffs = [r["payoffs"].get(t, -999) for t in ADVERSARY_TYPES if t in r["payoffs"]]
         worst_adv = max(adv_payoffs) if adv_payoffs else 0
 
         # "Broke" if adversaries earn more than cautious OR toxicity > 0.5
@@ -282,7 +284,7 @@ def main():
 
     # ── Failure analysis ─────────────────────────────────────────────
     failures = [r for r in results
-                if max([r["payoffs"].get(t, -999) for t in ["adversarial", "deceptive", "adaptive", "modeling", "threshold"]
+                if max([r["payoffs"].get(t, -999) for t in ADVERSARY_TYPES
                         if t in r["payoffs"]], default=-999) > r["payoffs"].get("cautious", 0)
                 or r["toxicity"] > 0.5]
 
@@ -323,7 +325,7 @@ def main():
     ]
     for r in results:
         cautious_pay = r["payoffs"].get("cautious", 0)
-        adv_payoffs = [r["payoffs"].get(t, -999) for t in ["adversarial", "deceptive", "adaptive", "modeling", "threshold"]
+        adv_payoffs = [r["payoffs"].get(t, -999) for t in ADVERSARY_TYPES
                        if t in r["payoffs"]]
         worst_adv = max(adv_payoffs) if adv_payoffs else 0
         broke = worst_adv > cautious_pay or r["toxicity"] > 0.5

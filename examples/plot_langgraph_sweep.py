@@ -154,13 +154,13 @@ def plot_governance_sensitivity(df: pd.DataFrame, plots_dir: Path) -> Path:
     return path
 
 
-def plot_cross_seed_stability(df: pd.DataFrame, plots_dir: Path) -> Path:
+def plot_cross_seed_stability(df: pd.DataFrame, plots_dir: Path) -> Path | None:
     """Per-seed completion rates to show cross-seed stability."""
     import matplotlib.pyplot as plt
 
     seeds = sorted(df["seed"].unique())
     if len(seeds) < 2:
-        return None  # type: ignore[return-value]
+        return None
 
     rates = [df[df["seed"] == s]["task_completed"].mean() * 100 for s in seeds]
     fig, ax = plt.subplots(figsize=(8, 5))
