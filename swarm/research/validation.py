@@ -75,7 +75,7 @@ class ValidationWorkflow:
         self._simulation_fn = simulation_fn
         self._num_runs = num_runs
 
-    def validate(self, paper_id: str, platform: Any = None) -> ValidationResult:
+    def validate(self, paper_id: str) -> ValidationResult:
         """Full validation pipeline: annotate, generate, simulate, compare."""
         if self._annotator is None:
             return ValidationResult(

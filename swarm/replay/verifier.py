@@ -53,7 +53,8 @@ class TaskReplayResult:
         """Whether the task is considered successfully verifiable.
 
         A task is verifiable if it completes successfully in at least
-        one replay and shows consistent behavior.
+        one replay and achieves a reproducibility_score of at least 0.7,
+        indicating consistent behavior across replays.
         """
         return (
             self.successful_replays > 0
@@ -80,9 +81,20 @@ class TaskReplayResult:
 class SynthesizedTaskVerifier:
     """Verifies that synthesized tasks can be replayed deterministically.
 
-    Uses the ReplayRunner to execute synthesized tasks multiple times
-    with different seeds and verifies consistent, successful execution.
+    This is a placeholder implementation that simulates replay verification.
+    Future versions will integrate with ReplayRunner to execute synthesized
+    tasks multiple times with different seeds.
     """
+
+    # Simulated metric values for well-formed tasks
+    _VALID_REPRODUCIBILITY = 0.95
+    _VALID_QUALITY = 0.85
+    _VALID_COMPLETION = 1.0
+
+    # Simulated metric values for poorly-formed tasks
+    _INVALID_REPRODUCIBILITY = 0.4
+    _INVALID_QUALITY = 0.5
+    _INVALID_COMPLETION = 0.6
 
     def __init__(
         self,
@@ -139,6 +151,10 @@ class SynthesizedTaskVerifier:
 
         This is a placeholder that would be replaced with actual
         replay runner integration in a full implementation.
+
+        Metric values are hardcoded to demonstrate expected behavior:
+        - Well-formed tasks simulate high reproducibility and quality
+        - Poorly-formed tasks simulate partial success with lower scores
         """
         # Simulate replay results based on task characteristics
         # Well-formed tasks (with proper dependencies) should verify successfully
@@ -150,19 +166,19 @@ class SynthesizedTaskVerifier:
         )
 
         if has_valid_structure:
-            # Simulate successful replays
+            # Simulate successful replays for well-formed tasks
             successful = self.replay_count
             failed = 0
-            avg_completion = 1.0
-            avg_quality = 0.85
-            reproducibility = 0.95
+            avg_completion = self._VALID_COMPLETION
+            avg_quality = self._VALID_QUALITY
+            reproducibility = self._VALID_REPRODUCIBILITY
         else:
-            # Simulate partial success
+            # Simulate partial success for poorly-formed tasks
             successful = max(1, self.replay_count // 2)
             failed = self.replay_count - successful
-            avg_completion = 0.6
-            avg_quality = 0.5
-            reproducibility = 0.4
+            avg_completion = self._INVALID_COMPLETION
+            avg_quality = self._INVALID_QUALITY
+            reproducibility = self._INVALID_REPRODUCIBILITY
 
         return TaskReplayResult(
             task_id=task.task_id,

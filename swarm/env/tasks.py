@@ -375,7 +375,7 @@ class TaskPool:
             limit: Maximum tasks to return
 
         Returns:
-            List of claimable tasks sorted by bounty
+            List of claimable tasks sorted by bounty in descending order (highest first)
         """
         open_tasks = self.get_open_tasks(current_epoch)
         claimable = [t for t in open_tasks if t.min_reputation <= agent_reputation]

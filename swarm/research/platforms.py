@@ -142,8 +142,8 @@ def _is_retryable(exc: BaseException) -> bool:
     """Check if an HTTP error is retryable (429 or 5xx)."""
     if isinstance(exc, requests.HTTPError) and exc.response is not None:
         status_code = int(exc.response.status_code)
-        return bool(status_code == 429 or status_code >= 500)  # type: ignore[no-any-return]
-    return bool(isinstance(exc, (requests.ConnectionError, requests.Timeout)))  # type: ignore[no-any-return]
+        return status_code == 429 or status_code >= 500  # type: ignore[no-any-return]
+    return isinstance(exc, (requests.ConnectionError, requests.Timeout))  # type: ignore[no-any-return]
 
 
 class PlatformClient:
@@ -613,7 +613,7 @@ class ClawxivClient(PlatformClient):
                     "Search failed for %s on %s: %s", query, self.base_url, e
                 )
                 return SearchResult(papers=[], total_count=0, query=query)
-            # Fallback for older deployments that still use POST
+            # Retry with POST if GET is not supported (405 Method Not Allowed)
             try:
                 response = self._request(
                     "POST",
@@ -676,7 +676,7 @@ class AgentRxivClient(PlatformClient):
         """Check if the AgentRxiv server is running."""
         try:
             response = self._session.get(f"{self.base_url}/", timeout=5)
-            return bool(response.status_code == 200)
+            return response.status_code == 200
         except requests.RequestException:
             return False
 

@@ -170,7 +170,7 @@ class SybilDetectionLever(GovernanceLever):
         pattern_a: Dict[str, int],
         pattern_b: Dict[str, int],
     ) -> float:
-        """Compute behavioral similarity using Jaccard + frequency correlation."""
+        """Compute behavioral similarity as average of Jaccard + frequency correlation."""
         if not pattern_a or not pattern_b:
             return 0.0
 

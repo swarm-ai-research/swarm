@@ -87,8 +87,10 @@ def p_in_bounds(low: float = 0.0, high: float = 1.0) -> InvariantCheck:
 def max_drift_rate(threshold: float) -> InvariantCheck:
     """Invariant: behavioral drift D* must stay below threshold.
 
-    This invariant is stateless — it reads drift from interaction metadata
-    set by the DriftDetector.
+    This invariant is stateless — it reads drift_rate from interaction metadata
+    (defaults to 0.0 if absent). Note: DriftDetector computes drift internally
+    but does not populate interaction.metadata; callers must populate this
+    field separately if integration with DriftDetector is desired.
     """
     return InvariantCheck(
         name=f"max_drift({threshold})",

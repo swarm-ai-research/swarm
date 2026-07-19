@@ -11,6 +11,21 @@ from swarm.replay.episode_spec import EpisodeSpec
 from swarm.scenarios.loader import build_orchestrator
 
 
+def _strip_prefix(path: str, prefix: str) -> Optional[str]:
+    """Extract suffix after prefix, or None if prefix does not match.
+
+    Args:
+        path: The full path string
+        prefix: The prefix to strip (e.g., "simulation.")
+
+    Returns:
+        The suffix after the prefix, or None if prefix does not match.
+    """
+    if path.startswith(prefix):
+        return path[len(prefix) :]
+    return None
+
+
 def _set_nested_attr(obj: Any, path: str, value: Any) -> None:
     """Set a nested attribute using dot notation."""
     parts = path.split(".")
@@ -78,14 +93,15 @@ class ReplayRunner:
         scenario.orchestrator_config.log_events = False
 
         for path, value in self.episode_spec.parameter_overrides.items():
-            if path.startswith("simulation."):
-                attr = path[len("simulation.") :]
-                setattr(scenario.orchestrator_config, attr, value)
-            elif path.startswith("governance."):
-                attr = path[len("governance.") :]
-                setattr(scenario.orchestrator_config.governance_config, attr, value)
+            sim_attr = _strip_prefix(path, "simulation.")
+            if sim_attr is not None:
+                setattr(scenario.orchestrator_config, sim_attr, value)
             else:
-                _set_nested_attr(scenario.orchestrator_config, path, value)
+                gov_attr = _strip_prefix(path, "governance.")
+                if gov_attr is not None:
+                    setattr(scenario.orchestrator_config.governance_config, gov_attr, value)
+                else:
+                    _set_nested_attr(scenario.orchestrator_config, path, value)
 
         return build_orchestrator(scenario)
 

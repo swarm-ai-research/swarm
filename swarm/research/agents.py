@@ -684,7 +684,7 @@ class AnalysisAgent(ResearchAgent):
             std = float(np.std(values))
             ci = self._compute_ci(values)
 
-            mean_val: float = float(mean)
+            mean_val: float = mean
             claims.append(
                 Claim(
                     statement=f"Mean {metric}: {mean_val:.3f} (SD: {std:.3f})",

@@ -69,7 +69,7 @@ class HawkPolicy(EscalationPolicy):
         target = min(9, current + self._rng.randint(1, 2))
         return EscalationAction(
             agent_id=self.agent_id,
-            signal_level=max(0, target - 1),  # signal slightly lower (deception)
+            signal_level=max(0, target - 1),  # signal always 1 level lower (fixed deception offset)
             action_level=target,
             reasoning="Hawk: always escalate",
         )
@@ -307,7 +307,7 @@ class EscalationActionParser:
         """
         # Try JSON parsing first
         try:
-            # Find JSON in the response
+            # Find top-level JSON in the response (regex does not handle nested objects)
             json_match = re.search(r'\{[^{}]*\}', raw_completion, re.DOTALL)
             if json_match:
                 data = json.loads(json_match.group())

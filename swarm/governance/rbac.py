@@ -174,9 +174,11 @@ class RBACLever(GovernanceLever):
         # Normalise to string value
         action_str = action_type.value if hasattr(action_type, "value") else str(action_type)
 
+        # Fetch high-stakes actions once for reuse
+        high_stakes = getattr(self.config, "rbac_high_stakes_actions", [])
+
         if action_str in permitted:
             # Permitted — but still check high-stakes clearance
-            high_stakes = getattr(self.config, "rbac_high_stakes_actions", [])
             if action_str in high_stakes:
                 clearance = self._security_clearances.get(agent_id, 0)
                 required = getattr(
@@ -191,7 +193,6 @@ class RBACLever(GovernanceLever):
             return LeverEffect(lever_name=self.name)
 
         # Not in permitted set — role violation
-        high_stakes = getattr(self.config, "rbac_high_stakes_actions", [])
         is_high_stakes = action_str in high_stakes
         return self._apply_violation(agent_id, action_str, high_stakes=is_high_stakes)
 

@@ -557,6 +557,30 @@ class SelfModificationLever(GovernanceLever):
         )
 
         # Gate 2: K_max — under lock for atomic budget check-and-update
+        approved, k_max_result = self._apply_k_max_gate_and_budget_update(
+            proposal, tau_result
+        )
+
+        return approved, tau_result, k_max_result
+
+    def _apply_k_max_gate_and_budget_update(
+        self,
+        proposal: ModificationProposal,
+        tau_result: GateResult,
+    ) -> Tuple[bool, GateResult]:
+        """Apply K_max gate and atomically update budget and history.
+
+        Executes under per-agent lock to ensure atomicity of the budget
+        check-and-update operation. Evaluates K_max gate, checks approval,
+        and transitions proposal state.
+
+        Args:
+            proposal: The proposal to evaluate and update.
+            tau_result: The tau gate result (to compute combined approval).
+
+        Returns:
+            (approved, k_max_result) where approved = tau_result.passed and k_max_result.passed
+        """
         lock = self._agent_locks[proposal.agent_id]
         with lock:
             current_budget = self._agent_budgets[proposal.agent_id]
@@ -582,7 +606,7 @@ class SelfModificationLever(GovernanceLever):
                     "; ".join(reasons),
                 )
 
-        return approved, tau_result, k_max_result
+        return approved, k_max_result
 
     def detect_oscillation(self, agent_id: str, window: int = 6) -> bool:
         """Detect if an agent is oscillating (reverting its own changes).
@@ -649,27 +673,9 @@ class SelfModificationLever(GovernanceLever):
         )
 
         # Gate 2: K_max (capacity gate) — under lock for atomic budget check-and-update
-        lock = self._agent_locks[proposal.agent_id]
-        with lock:
-            current_budget = self._agent_budgets[proposal.agent_id]
-            k_max_result = evaluate_k_max_gate(proposal, current_budget)
-
-            approved = tau_result.passed and k_max_result.passed
-
-            if approved:
-                # Atomic budget update
-                self._agent_budgets[proposal.agent_id] += proposal.complexity_weight
-                self._agent_history[proposal.agent_id].append(proposal)
-                proposal.constitutional_result = tau_result.passed
-                proposal.compositional_result = k_max_result.passed
-                proposal.transition(ModificationState.SANDBOXED, "gates passed")
-            else:
-                reasons = []
-                if not tau_result.passed:
-                    reasons.append(f"tau gate: {tau_result.details}")
-                if not k_max_result.passed:
-                    reasons.append(f"k_max gate: {k_max_result.details}")
-                proposal.transition(ModificationState.REJECTED, "; ".join(reasons))
+        approved, k_max_result = self._apply_k_max_gate_and_budget_update(
+            proposal, tau_result
+        )
 
         return approved, tau_result, k_max_result
 

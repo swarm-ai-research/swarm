@@ -165,7 +165,7 @@ class ResampleLever(GovernanceLever):
 
         # Update trajectory window
         self._trajectory[agent_id].append(interaction.p)
-        max_window = self.config.resample_trajectory_window * 2
+        max_window = self.config.resample_trajectory_window
         if len(self._trajectory[agent_id]) > max_window:
             self._trajectory[agent_id] = self._trajectory[agent_id][-max_window:]
 

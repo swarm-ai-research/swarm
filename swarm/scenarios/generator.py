@@ -185,7 +185,6 @@ class ScenarioGenerator:
 
         # Infer agent composition from entities
         agent_types = ScenarioGenerator._infer_agent_types(entities, text)
-        ScenarioGenerator._infer_agent_count(text, agent_types)
 
         # Generate scenario dict
         scenario: Dict[str, Any] = {

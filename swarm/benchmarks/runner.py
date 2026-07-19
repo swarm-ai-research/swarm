@@ -93,6 +93,10 @@ class BenchmarkRunner:
         rows: list[dict[str, Any]] = []
         for gov_config in governance_configs:
             adv_frac = float(gov_config.get("adversarial_fraction", 0.0))
+            if not (0.0 <= adv_frac <= 1.0):
+                raise ValueError(
+                    f"adversarial_fraction must be in [0-1], got {adv_frac}"
+                )
             for seed in range(n_seeds):
                 instance, oracle = seed_data[seed]
 

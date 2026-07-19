@@ -185,11 +185,8 @@ def extract_from_csv(csv_dir: Path) -> dict:
     if not csv_files:
         raise FileNotFoundError(f"No CSV files found in {csv_dir}")
 
-    rows = []
     with open(csv_files[0], encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            rows.append(row)
+        rows = list(csv.DictReader(f))
 
     n_epochs = len(rows)
     total_interactions = sum(int(float(r.get("total_interactions", 0))) for r in rows)

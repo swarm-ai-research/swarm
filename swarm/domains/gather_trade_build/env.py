@@ -19,6 +19,7 @@ from swarm.domains.gather_trade_build.entities import (
     ResourceType,
     WorkerState,
 )
+from swarm.domains.gather_trade_build.metrics import compute_gini
 from swarm.domains.gather_trade_build.tax_schedule import TaxSchedule
 
 logger = logging.getLogger(__name__)
@@ -812,7 +813,7 @@ class GTBEnvironment:
                     continue
 
                 matches = sum(
-                    1 for a, b in zip(trace_a[-min_len:], trace_b[-min_len:], strict=False)
+                    1 for a, b in zip(trace_a[-min_len:], trace_b[-min_len:], strict=True)
                     if a == b
                 )
                 similarity = matches / min_len
@@ -929,21 +930,12 @@ class GTBEnvironment:
         total_houses = sum(w.houses_built for w in self._workers.values())
 
         # Gini coefficient
-        sorted_inc = sorted(incomes)
-        if total_income > 0:
-            cumulative = 0.0
-            gini_sum = 0.0
-            for _i, inc in enumerate(sorted_inc):
-                cumulative += inc
-                gini_sum += cumulative
-            gini = 1.0 - 2.0 * gini_sum / (n * total_income) + 1.0 / n
-        else:
-            gini = 0.0
+        gini = compute_gini(incomes)
 
         return {
             "total_income": total_income,
             "mean_income": mean_income,
-            "gini": max(0.0, min(1.0, gini)),
+            "gini": gini,
             "total_tax_revenue": total_tax,
             "total_houses": total_houses,
             "mean_coin": sum(coins) / n,

@@ -115,7 +115,7 @@ class ReviewResult(BaseModel):
 
     @model_validator(mode="after")
     def _validate_consistency(self) -> "ReviewResult":
-        """Ensure verdict is consistent with scores."""
+        """Ensure PUBLISH verdict does not have design_consistency='fail'."""
         if self.verdict == Verdict.PUBLISH:
             if self.checks.design_consistency == "fail":
                 raise ValueError("Cannot publish with design_consistency='fail'")

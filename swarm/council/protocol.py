@@ -249,6 +249,10 @@ class Council:
 
         if chairman_id not in self.query_fns:
             # Fallback to any available member
+            logger.warning(
+                f"Configured chairman {chairman_id} not in query_fns; "
+                f"falling back to {next(iter(self.query_fns))}"
+            )
             chairman_id = next(iter(self.query_fns))
 
         try:

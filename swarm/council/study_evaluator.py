@@ -85,7 +85,8 @@ def parse_synthesis_sections(synthesis: str) -> Dict[str, List[str]]:
     """Parse synthesis text into FINDINGS / CONCERNS / RECOMMENDATIONS sections.
 
     Looks for section headers (case-insensitive) and collects bullet points
-    and continuation lines under each.
+    and continuation lines under each. Note: bare bullet markers with no text
+    (e.g., a line containing only "-" or "*") produce empty strings in the section lists.
     """
     sections: Dict[str, List[str]] = {
         "findings": [],
@@ -205,10 +206,13 @@ def _format_sweep_prompt(run_dir: Path) -> str:
     # Load summary.json
     summary_path = run_dir / "summary.json"
     if summary_path.exists():
-        with open(summary_path) as f:
-            summary = json.load(f)
-        parts.append("## Study Summary\n")
-        parts.append(json.dumps(summary, indent=2, default=str))
+        try:
+            with open(summary_path) as f:
+                summary = json.load(f)
+            parts.append("## Study Summary\n")
+            parts.append(json.dumps(summary, indent=2, default=str))
+        except (json.JSONDecodeError, IOError) as e:
+            parts.append(f"## Study Summary\n(Error reading summary.json: {e})")
     else:
         parts.append("## Study Summary\n(summary.json not found)")
 
@@ -370,11 +374,7 @@ class StudyEvaluator:
         query_fns: Dict[str, QueryFn] = {}
 
         for member_cfg in self.config.members:
-            # Inject the evaluator persona as the system prompt
             llm_config = member_cfg.llm_config
-            persona_prompt = PERSONAS.get(member_cfg.member_id)
-            if persona_prompt and not llm_config.system_prompt:
-                llm_config.system_prompt = persona_prompt
 
             agent = LLMAgent(
                 agent_id=f"evaluator_{member_cfg.member_id}",

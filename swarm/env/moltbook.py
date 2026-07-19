@@ -285,6 +285,7 @@ class MoltbookPost:
                 "raw_text": self.challenge.raw_text,
                 "clean_text": self.challenge.clean_text,
                 "answer": self.challenge.answer,
+                "operation": self.challenge.operation.value,
                 "expires_at_step": self.challenge.expires_at_step,
                 "obfuscation_level": self.challenge.obfuscation_level,
             }

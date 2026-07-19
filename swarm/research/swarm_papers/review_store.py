@@ -14,7 +14,8 @@ logger = logging.getLogger(__name__)
 class ReviewStore:
     """Append-only JSONL store for peer reviews.
 
-    Follows the same pattern as MemoryStore in memory.py.
+    Same append-only JSONL role as MemoryStore in memory.py, though load()
+    reads the whole file at once rather than streaming line by line.
     """
 
     def __init__(self, path: str | Path) -> None:

@@ -287,7 +287,7 @@ class TelemetrySink(ABC):
 class NullSink(TelemetrySink):
     """Discards events (used when telemetry is off)."""
 
-    def emit(self, event: TelemetryEvent) -> None:  # noqa: D401
+    def emit(self, event: TelemetryEvent) -> None:
         return
 
 

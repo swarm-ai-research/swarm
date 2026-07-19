@@ -580,6 +580,10 @@ class AgentNetwork:
                 if matrix[i, j] > 0:
                     self._adjacency[agent_ids[i]][agent_ids[j]] = float(matrix[i, j])
 
+    def _compute_n_edges(self) -> int:
+        """Compute the number of edges in the undirected graph."""
+        return sum(self.degree(a) for a in self._agent_ids) // 2
+
     def get_metrics(self) -> Dict[str, float]:
         """
         Compute network metrics for reporting.
@@ -588,7 +592,7 @@ class AgentNetwork:
             Dictionary of metric name -> value
         """
         n_agents = len(self._agent_ids)
-        n_edges = sum(self.degree(a) for a in self._agent_ids) // 2
+        n_edges = self._compute_n_edges()
 
         return {
             "n_agents": n_agents,
@@ -601,7 +605,7 @@ class AgentNetwork:
         }
 
     def __repr__(self) -> str:
-        n_edges = sum(self.degree(a) for a in self._agent_ids) // 2
+        n_edges = self._compute_n_edges()
         return (
             f"AgentNetwork(topology={self.config.topology.value}, "
             f"agents={len(self._agent_ids)}, edges={n_edges})"

@@ -293,9 +293,7 @@ class MissionEconomy:
         if all_met:
             mission.status = MissionStatus.SUCCEEDED
         elif expired:
-            mission.status = (
-                MissionStatus.FAILED if not all_met else MissionStatus.SUCCEEDED
-            )
+            mission.status = MissionStatus.FAILED
         # If not expired and not all met, mission stays active
 
         return {

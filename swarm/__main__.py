@@ -1,11 +1,11 @@
 """CLI entry point for the distributional-agi-safety framework.
 
 Usage:
-    python -m src run scenarios/baseline.yaml
-    python -m src run scenarios/baseline.yaml --seed 42 --epochs 20
-    python -m src run scenarios/baseline.yaml --export-json results.json
-    python -m src run scenarios/baseline.yaml --export-csv output/
-    python -m src list
+    python -m swarm run scenarios/baseline.yaml
+    python -m swarm run scenarios/baseline.yaml --seed 42 --epochs 20
+    python -m swarm run scenarios/baseline.yaml --export-json results.json
+    python -m swarm run scenarios/baseline.yaml --export-csv output/
+    python -m swarm list
 """
 
 import argparse
@@ -689,7 +689,7 @@ def _agentrxiv_status(args: argparse.Namespace) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        prog="python -m src",
+        prog="python -m swarm",
         description="Distributional AGI Safety Sandbox",
     )
     subparsers = parser.add_subparsers(dest="command")

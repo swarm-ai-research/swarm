@@ -27,15 +27,14 @@ behave as a population, not a single policy.
 from __future__ import annotations
 
 import random
-import uuid
 from dataclasses import dataclass
 from datetime import datetime
 
-from swarm.adaptive.episode import EpisodeReport
+from swarm.adaptive.episode import EpisodeReport, _make_accepted_interaction
 from swarm.adaptive.policy import Policy
 from swarm.core.payoff import PayoffConfig, SoftPayoffEngine
 from swarm.core.proxy import ProxyComputer
-from swarm.models.interaction import InteractionType, SoftInteraction
+from swarm.models.interaction import SoftInteraction
 
 
 # Hand-specified canonical baselines. Values chosen to match the
@@ -112,10 +111,6 @@ STATIC_BASELINES: dict[str, StaticBaseline] = {
         weights=(0.7, 0.3),
     ),
 }
-
-
-def _seeded_uuid(rng: random.Random) -> str:
-    return str(uuid.UUID(int=rng.getrandbits(128)))
 
 
 def run_population_episode(
@@ -206,21 +201,8 @@ def run_population_episode_with_interactions(
             else f"static_{baseline.name}_{i}"
         )
 
-        interaction = SoftInteraction(
-            interaction_id=_seeded_uuid(rng),
-            timestamp=base_ts,
-            initiator=initiator_name,
-            counterparty="env",
-            interaction_type=InteractionType.COLLABORATION,
-            accepted=True,
-            task_progress_delta=obs.task_progress_delta,
-            rework_count=obs.rework_count,
-            verifier_rejections=obs.verifier_rejections,
-            tool_misuse_flags=obs.tool_misuse_flags,
-            counterparty_engagement_delta=obs.counterparty_engagement_delta,
-            v_hat=v_hat,
-            p=p,
-            metadata=metadata,
+        interaction = _make_accepted_interaction(
+            rng, base_ts, initiator_name, obs, v_hat, p, metadata
         )
         payoffs.append(engine.payoff_initiator(interaction))
         accepted_p.append(p)

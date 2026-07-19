@@ -178,13 +178,3 @@ class IamService(SimulatedApiService):
             {"event": "delete_user", "user_id": user_id, "existed": existed}
         )
         return {"ok": existed}
-
-    def _handle_audit_log(self, query: str = "") -> Dict[str, Any]:
-        # Extremely simple: return all or filtered by substring.
-        events = list(self.state.get("_audit", []))
-        if query:
-            events = [e for e in events if query in str(e)]
-        return {"events": events[-100:]}
-
-    def _handle_diff_state(self) -> Dict[str, Any]:
-        return {"state": self.snapshot_state()}

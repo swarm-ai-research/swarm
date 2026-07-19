@@ -284,6 +284,24 @@ class ScenarioConfig:
     metrics_csv_path: Optional[Path] = None
 
 
+def _should_process_config(data: Optional[Dict[str, Any]]) -> bool:
+    """Check if config data should be processed.
+
+    Returns False if data is None/empty or explicitly disabled.
+
+    Args:
+        data: The config data dictionary
+
+    Returns:
+        True if config should be processed, False otherwise
+    """
+    if not data:
+        return False
+    if data.get("enabled") is False:
+        return False
+    return True
+
+
 def parse_governance_config(data: Dict[str, Any]) -> GovernanceConfig:
     """
     Parse governance section from YAML into GovernanceConfig.
@@ -574,11 +592,7 @@ def parse_network_config(data: Dict[str, Any]) -> Optional[NetworkConfig]:
     Returns:
         NetworkConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    # Check if network is explicitly disabled
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     # Parse topology
@@ -629,10 +643,7 @@ def parse_marketplace_config(data: Dict[str, Any]) -> Optional[MarketplaceConfig
     Returns:
         MarketplaceConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     config = MarketplaceConfig(
@@ -659,10 +670,7 @@ def parse_moltipedia_config(data: Dict[str, Any]) -> Optional[MoltipediaConfig]:
     Returns:
         MoltipediaConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     config = MoltipediaConfig(
@@ -689,10 +697,7 @@ def parse_moltbook_config(data: Dict[str, Any]) -> Optional[MoltbookConfig]:
     Returns:
         MoltbookConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     config = MoltbookConfig(
@@ -716,10 +721,7 @@ def parse_memory_tier_config(data: Dict[str, Any]) -> Optional[MemoryTierConfig]
     Returns:
         MemoryTierConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     config = MemoryTierConfig(
@@ -742,10 +744,7 @@ def parse_scholar_config(data: Dict[str, Any]) -> Optional[ScholarConfig]:
     Returns:
         ScholarConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     config = ScholarConfig(
@@ -771,10 +770,7 @@ def parse_kernel_oracle_config(
     Returns:
         KernelOracleConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     return KernelOracleConfig(**data)
@@ -790,10 +786,7 @@ def parse_spawn_config(data: Dict[str, Any]) -> Optional[SpawnConfig]:
     Returns:
         SpawnConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     # Parse attribution mode
@@ -830,10 +823,7 @@ def parse_rivals_config(data: Dict[str, Any]) -> Optional[Any]:
     Returns:
         RivalsConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     from swarm.core.rivals_handler import RivalsConfig
@@ -850,10 +840,7 @@ def parse_awm_config(data: Dict[str, Any]) -> Optional[Any]:
     Returns:
         AWMConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     from swarm.bridges.awm.config import AWMConfig
@@ -870,10 +857,7 @@ def parse_letta_config(data: Dict[str, Any]) -> Optional[Any]:
     Returns:
         LettaConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     from swarm.bridges.letta.config import LettaConfig
@@ -1076,10 +1060,7 @@ def parse_tierra_config(data: Dict[str, Any]) -> Optional[Any]:
     Returns:
         TierraConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     from swarm.core.tierra_handler import TierraConfig
@@ -1096,10 +1077,7 @@ def parse_evo_game_config(data: Dict[str, Any]) -> Optional[Any]:
     Returns:
         EvoGameConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     from swarm.core.evo_game_handler import EvoGameConfig
@@ -1116,10 +1094,7 @@ def parse_resource_negotiation_config(data: Dict[str, Any]) -> Optional[Any]:
     Returns:
         ResourceNegotiationConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     from swarm.core.resource_negotiation_handler import ResourceNegotiationConfig
@@ -1230,9 +1205,6 @@ def load_scenario(path: Path) -> ScenarioConfig:
         rate_limits=rate_limits,
         agent_specs=data.get("agents", []),
         success_criteria=data.get("success_criteria", {}),
-        event_log_path=Path(outputs_data["event_log"])
-        if outputs_data.get("event_log")
-        else None,
         metrics_csv_path=Path(outputs_data["metrics_csv"])
         if outputs_data.get("metrics_csv")
         else None,

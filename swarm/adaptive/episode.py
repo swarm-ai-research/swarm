@@ -29,7 +29,7 @@ from datetime import datetime
 
 from swarm.adaptive.policy import Policy
 from swarm.core.payoff import PayoffConfig, SoftPayoffEngine
-from swarm.core.proxy import ProxyComputer
+from swarm.core.proxy import ProxyComputer, ProxyObservables
 from swarm.models.interaction import InteractionType, SoftInteraction
 
 
@@ -76,6 +76,50 @@ class EpisodeReport:
 
 def _seeded_uuid(rng: random.Random) -> str:
     return str(uuid.UUID(int=rng.getrandbits(128)))
+
+
+def _make_accepted_interaction(
+    rng: random.Random,
+    base_ts: datetime,
+    initiator_name: str,
+    obs: ProxyObservables,
+    v_hat: float,
+    p: float,
+    metadata: dict[str, str],
+) -> SoftInteraction:
+    """Construct an accepted SoftInteraction from observables and labels.
+
+    Helper to avoid duplication of the 16-line SoftInteraction constructor
+    across episode runners (episode.py, cause3.py, static_baselines.py).
+
+    Args:
+        rng: Seeded RNG for generating interaction_id.
+        base_ts: Timestamp for the interaction (typically epoch 0).
+        initiator_name: Name/identifier for the initiator agent.
+        obs: Observable signals from policy sampling.
+        v_hat: Raw proxy score [-1, +1].
+        p: Probability label [0, 1].
+        metadata: Agent metadata dict (e.g., {"agent_type": "honest"}).
+
+    Returns:
+        SoftInteraction with accepted=True and all fields populated.
+    """
+    return SoftInteraction(
+        interaction_id=_seeded_uuid(rng),
+        timestamp=base_ts,
+        initiator=initiator_name,
+        counterparty="env",
+        interaction_type=InteractionType.COLLABORATION,
+        accepted=True,
+        task_progress_delta=obs.task_progress_delta,
+        rework_count=obs.rework_count,
+        verifier_rejections=obs.verifier_rejections,
+        tool_misuse_flags=obs.tool_misuse_flags,
+        counterparty_engagement_delta=obs.counterparty_engagement_delta,
+        v_hat=v_hat,
+        p=p,
+        metadata=metadata,
+    )
 
 
 def run_episode(
@@ -145,21 +189,8 @@ def run_episode_with_interactions(
             f"{policy.identity_label}_{i}" if policy.identity_label else f"adaptive_{i}"
         )
 
-        interaction = SoftInteraction(
-            interaction_id=_seeded_uuid(rng),
-            timestamp=base_ts,
-            initiator=initiator_name,
-            counterparty="env",
-            interaction_type=InteractionType.COLLABORATION,
-            accepted=True,
-            task_progress_delta=obs.task_progress_delta,
-            rework_count=obs.rework_count,
-            verifier_rejections=obs.verifier_rejections,
-            tool_misuse_flags=obs.tool_misuse_flags,
-            counterparty_engagement_delta=obs.counterparty_engagement_delta,
-            v_hat=v_hat,
-            p=p,
-            metadata=metadata,
+        interaction = _make_accepted_interaction(
+            rng, base_ts, initiator_name, obs, v_hat, p, metadata
         )
         payoffs.append(engine.payoff_initiator(interaction))
         accepted_p.append(p)

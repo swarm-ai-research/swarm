@@ -178,7 +178,7 @@ class WikiTaskPool:
         limit: int,
         current_step: int,
     ) -> List[WikiPage]:
-        """Search pages by keyword in title/content."""
+        """Search pages by keyword in title/content, sorted by quality score (lowest first)."""
         if not query:
             return []
         query_l = query.lower()

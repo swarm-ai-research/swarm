@@ -310,7 +310,7 @@ class FlowTracker:
             )
 
         # Check for concentrated sources
-        if summary.top_sources and len(summary.top_sources) > 0:
+        if summary.top_sources:
             top_source_count = summary.top_sources[0][1]
             if top_source_count > summary.total_flows * 0.5:
                 anomalies.append(

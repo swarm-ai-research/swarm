@@ -38,14 +38,13 @@ from typing import Sequence
 
 import numpy as np
 
-from swarm.adaptive.episode import _seeded_uuid
+from swarm.adaptive.episode import _make_accepted_interaction
 from swarm.adaptive.policy import PARAM_DIM as POLICY_PARAM_DIM
 from swarm.adaptive.policy import PARAM_SPEC as POLICY_PARAM_SPEC
 from swarm.adaptive.policy import Policy
 from swarm.core.payoff import PayoffConfig, SoftPayoffEngine
 from swarm.core.proxy import ProxyComputer
 from swarm.judges import Judge, make_view
-from swarm.models.interaction import InteractionType, SoftInteraction
 
 # Cause-3 extends Policy's 8-dim vector with one more parameter.
 CAUSE3_PARAM_DIM = POLICY_PARAM_DIM + 1
@@ -151,21 +150,8 @@ def run_cause3_episode(
             f"{claimed}_{i}" if claimed else f"cause3_{i}"
         )
 
-        interaction = SoftInteraction(
-            interaction_id=_seeded_uuid(rng),
-            timestamp=base_ts,
-            initiator=initiator_name,
-            counterparty="env",
-            interaction_type=InteractionType.COLLABORATION,
-            accepted=True,
-            task_progress_delta=obs.task_progress_delta,
-            rework_count=obs.rework_count,
-            verifier_rejections=obs.verifier_rejections,
-            tool_misuse_flags=obs.tool_misuse_flags,
-            counterparty_engagement_delta=obs.counterparty_engagement_delta,
-            v_hat=v_hat,
-            p=p,
-            metadata=metadata,
+        interaction = _make_accepted_interaction(
+            rng, base_ts, initiator_name, obs, v_hat, p, metadata
         )
         payoffs.append(engine.payoff_initiator(interaction))
         accepted_p.append(p)

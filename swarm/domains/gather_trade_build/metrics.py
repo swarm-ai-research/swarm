@@ -178,6 +178,9 @@ def compute_gtb_metrics(
 
     # Tax
     total_tax = sum(w.tax_paid_this_epoch for w in workers.values())
+    # Mean-of-means effective rate: average of individual per-worker rates,
+    # NOT the aggregate rate (total_tax / total_reported_income).
+    # These diverge when worker incomes are heterogeneous.
     mean_eff_rate = (
         sum(
             w.tax_paid_this_epoch / max(w.reported_income_this_epoch, 1e-9)

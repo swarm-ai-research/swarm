@@ -249,7 +249,7 @@ class PermeabilityModel:
                     source_interaction_id=interaction.interaction_id,
                     source_p=interaction.p,
                     direction="outbound",
-                    harm_magnitude=raw_harm if not allowed else raw_harm,
+                    harm_magnitude=raw_harm,
                     blocked=not allowed,
                 )
 

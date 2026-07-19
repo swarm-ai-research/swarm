@@ -127,12 +127,3 @@ class PaymentsService(SimulatedApiService):
             {"event": "issue_credit", "user_id": user_id, "amount": amount}
         )
         return {"ok": True}
-
-    def _handle_audit_log(self, query: str = "") -> Dict[str, Any]:
-        events = list(self.state.get("_audit", []))
-        if query:
-            events = [e for e in events if query in str(e)]
-        return {"events": events[-100:]}
-
-    def _handle_diff_state(self) -> Dict[str, Any]:
-        return {"state": self.snapshot_state()}

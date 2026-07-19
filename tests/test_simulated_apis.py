@@ -98,5 +98,5 @@ def test_scoring_create_sa_repo_success():
             agent_id="a1", endpoint="grant_permission", params=params, request_id=req
         )
 
-    score = score_task_bundle(bundle, final_state=svc.snapshot_state(), log=log)
+    score = score_task_bundle(bundle, final_state=svc.snapshot_state())
     assert score.success is True

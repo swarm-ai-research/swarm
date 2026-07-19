@@ -565,13 +565,15 @@ class SkillEvolutionEngine:
         """Refine skills, returning both IDs and governance proposals.
 
         This method collects refinement proposals for skills that need
-        refinement, but does NOT apply them directly. Instead, it returns
-        the proposals for evaluation by the governance lever.
+        refinement. When governance_lever is provided, it returns the
+        proposals for evaluation by the governance lever. When governance_lever
+        is None (backward compatible), it applies refinements directly to skills.
 
         Args:
             library: The agent's skill library.
             agent_id: ID of the agent proposing refinements.
             governance_lever: Optional governance lever for evaluation.
+                When None, refinements are applied immediately.
 
         Returns:
             (refined_skill_ids, proposals_submitted_to_governance)

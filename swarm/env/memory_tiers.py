@@ -168,14 +168,15 @@ class MemoryStore:
 
     def verify(self, entry_id: str, verifier_id: str) -> bool:
         """Add a verification to an entry. Returns True if entry exists."""
-        entry = self._entries.get(entry_id)
-        if entry is None:
-            return False
-        if verifier_id == entry.author_id:
-            return False  # Cannot self-verify
-        if verifier_id not in entry.verified_by:
-            entry.verified_by.append(verifier_id)
-        return True
+        with self._lock:
+            entry = self._entries.get(entry_id)
+            if entry is None:
+                return False
+            if verifier_id == entry.author_id:
+                return False  # Cannot self-verify
+            if verifier_id not in entry.verified_by:
+                entry.verified_by.append(verifier_id)
+            return True
 
     # ------------------------------------------------------------------
     # Challenge / Revert

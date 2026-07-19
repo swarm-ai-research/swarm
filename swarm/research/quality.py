@@ -327,10 +327,7 @@ class PreRegistration:
         if self.methodology:
             lines.extend(["", "methodology:"])
             for key, value in self.methodology.items():
-                if isinstance(value, list):
-                    lines.append(f"  {key}: {value}")
-                else:
-                    lines.append(f"  {key}: {value}")
+                lines.append(f"  {key}: {value}")
 
         if self.analysis_plan:
             lines.extend(["", "analysis_plan:"])

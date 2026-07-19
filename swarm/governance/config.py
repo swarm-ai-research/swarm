@@ -180,6 +180,7 @@ class GovernanceConfig(BaseModel):
     # Loop detector
     loop_detector_enabled: bool = False
     loop_detector_quality_threshold: float = 0.4  # avg p threshold for quality loops
+    loop_detector_repetition_threshold: float = 0.6  # proportion threshold for repetition loops
     loop_detector_tool_misuse_threshold: int = 5  # total tool misuse flags for loop
     loop_detector_rework_threshold: int = 10  # total rework count for loop
     loop_detector_penalty_multiplier: float = 1.5  # cost multiplier for loop detection
@@ -453,6 +454,8 @@ class GovernanceConfig(BaseModel):
         # Loop detector validation
         if not 0.0 <= self.loop_detector_quality_threshold <= 1.0:
             raise ValueError("loop_detector_quality_threshold must be in [0, 1]")
+        if not 0.0 <= self.loop_detector_repetition_threshold <= 1.0:
+            raise ValueError("loop_detector_repetition_threshold must be in [0, 1]")
         if self.loop_detector_tool_misuse_threshold < 0:
             raise ValueError("loop_detector_tool_misuse_threshold must be non-negative")
         if self.loop_detector_rework_threshold < 0:

@@ -52,12 +52,15 @@ class LoopTracker:
         self.recent_tool_misuse.append(tool_misuse)
         self.recent_rework.append(rework)
 
-    def detect_repetition_loop(self) -> bool:
+    def detect_repetition_loop(self, threshold: float) -> bool:
         """
         Detect if agent is in a repetition loop.
 
         A repetition loop is detected when the agent has repeated
         the same (counterparty, interaction_type) pattern too frequently.
+
+        Args:
+            threshold: Proportion threshold (0-1) for pattern repetition
         """
         if len(self.recent_interactions) < 5:
             return False
@@ -67,9 +70,9 @@ class LoopTracker:
         for pattern in self.recent_interactions:
             pattern_counts[pattern] += 1
 
-        # Check if any pattern repeats too much (>60% of recent interactions)
+        # Check if any pattern repeats too much
         max_count = max(pattern_counts.values())
-        return max_count >= len(self.recent_interactions) * 0.6
+        return max_count >= len(self.recent_interactions) * threshold
 
     def detect_quality_loop(self, threshold: float) -> bool:
         """
@@ -206,7 +209,7 @@ class LoopDetectorLever(GovernanceLever):
         loop_detected = False
         loop_type = None
 
-        if tracker.detect_repetition_loop():
+        if tracker.detect_repetition_loop(self.config.loop_detector_repetition_threshold):
             loop_detected = True
             loop_type = "repetition"
         elif tracker.detect_quality_loop(self.config.loop_detector_quality_threshold):

@@ -158,7 +158,7 @@ class ResearchWorkflow:
         self.reflexivity_analyzer: ReflexivityAnalyzer | None = None
         if self.config.enable_reflexivity and simulation_fn:
             self.reflexivity_analyzer = ReflexivityAnalyzer(
-                simulation_fn=lambda cfg, findings: simulation_fn(cfg),
+                simulation_fn=lambda cfg: simulation_fn(cfg),
             )
 
     def _build_literature_gate(self) -> QualityGate:
@@ -367,16 +367,29 @@ class ResearchWorkflow:
 
         return state
 
+    def _generate_paper(
+        self,
+        literature: LiteratureReview | None,
+        analysis: Analysis | None,
+        experiments: ExperimentResults | None,
+    ) -> Paper | None:
+        """Generate paper from literature, analysis, and experiments."""
+        if not literature or not analysis or not experiments:
+            return None
+        return self.writing_agent.run(
+            literature=literature,
+            analysis=analysis,
+            results=experiments,
+            venue=self.config.target_venue,
+        )
+
     def _run_writing_phase(self, state: WorkflowState) -> WorkflowState:
         """Run paper writing phase."""
         if not state.literature or not state.analysis or not state.experiments:
             return state
 
-        state.paper = self.writing_agent.run(
-            literature=state.literature,
-            analysis=state.analysis,
-            results=state.experiments,
-            venue=self.config.target_venue,
+        state.paper = self._generate_paper(
+            state.literature, state.analysis, state.experiments
         )
         return state
 
@@ -500,15 +513,13 @@ class ResearchWorkflow:
         return state.question
 
     def _revise_paper(self, state: WorkflowState) -> WorkflowState:
-        """Revise paper based on review feedback."""
-        # Re-run writing with updated analysis
-        if state.literature and state.analysis and state.experiments:
-            state.paper = self.writing_agent.run(
-                literature=state.literature,
-                analysis=state.analysis,
-                results=state.experiments,
-                venue=self.config.target_venue,
-            )
+        """Re-write paper with same analysis and results (review feedback not incorporated)."""
+        # Re-run writing agent with same inputs as initial write
+        paper = self._generate_paper(
+            state.literature, state.analysis, state.experiments
+        )
+        if paper:
+            state.paper = paper
         return state
 
     def replicate(self, paper_id: str, platform: str = "clawxiv") -> dict[str, Any]:

@@ -264,7 +264,8 @@ class ContemplationEvaluator:
             if abs(actual_delta) < 1e-6:
                 continue
 
-            confidence = strength * (abs(slope) / max(abs(slope), 0.01))
+            # Dampen confidence if slope signal is very weak (< 0.01)
+            confidence = strength * min(abs(slope) / 0.01, 1.0)
 
             proposal = ThresholdProposal(
                 parameter=name,

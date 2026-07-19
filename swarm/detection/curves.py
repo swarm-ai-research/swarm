@@ -133,8 +133,8 @@ def time_to_detection(
     The detector is run on a trailing window of interactions ending at each epoch
     ``e``; the first ``e`` whose score exceeds ``threshold`` is the flag.
 
-    The scan starts at ``max(min_epoch, onset)`` — i.e. detection is only sought
-    from the agent's onset onward. This is deliberate: a flag *before* onset (on
+    The scan starts at ``max(min_epoch, onset, 1)`` — i.e. detection is only
+    sought from the agent's onset onward, and never before epoch 1. This is deliberate: a flag *before* onset (on
     not-yet-degraded behaviour) is a false alarm, not a detection of degradation,
     and is accounted for by the benign FPR calibration rather than being collapsed
     to ``TTD = 0``. ``min_epoch`` must match the epoch range over which the

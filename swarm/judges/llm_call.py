@@ -14,7 +14,7 @@ GPT-4o-mini / Llama" requirement:
 Each function returns the model's raw text. JSON parsing and the
 rubric-shaped response handling live in `LLMJudge.score`.
 
-Temperature is forced to 0 per the rubric's "Determinism" section so
+Temperature defaults to 0 per the rubric's "Determinism" section so
 re-running the same prompt yields the same score. The judge can also
 swap to a temperature-0-by-default provider via `LLMConfig.temperature`.
 """

@@ -59,8 +59,8 @@ def build_synthesis_prompt(
         "You are the chairman of a council of AI experts. You have received "
         "responses from multiple council members and their peer rankings. "
         "Synthesize the best answer by drawing on the strongest points from "
-        "each response. Resolve any disagreements by siding with the majority "
-        "or the highest-ranked response. Be concise and actionable."
+        "each response. When resolving disagreements, prefer the majority view "
+        "or the highest-ranked response, but use your judgment. Be concise and actionable."
     )
 
     response_text = ""

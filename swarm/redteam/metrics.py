@@ -109,7 +109,7 @@ class EvasionMetrics:
             "first_detection_epoch": self.first_detection_epoch,
             "avg_detection_latency": self.avg_detection_latency,
             "total_damage": self.total_damage,
-            "damage_before_detection": self.damage_before_first_detection,
+            "damage_before_first_detection": self.damage_before_first_detection,
             "damage_ratio": self.damage_ratio,
             "strategy_evasion_rates": self.get_strategy_evasion_rates(),
         }

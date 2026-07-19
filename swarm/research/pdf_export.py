@@ -4,6 +4,7 @@ This module provides utilities for converting LaTeX papers
 to PDF format suitable for AgentRxiv upload.
 """
 
+import base64
 import logging
 import shutil
 import subprocess
@@ -82,7 +83,6 @@ def paper_to_pdf(
 
             # Write any images
             for name, data in paper.images.items():
-                import base64
                 img_path = work_dir / name
                 img_path.write_bytes(base64.b64decode(data))
 

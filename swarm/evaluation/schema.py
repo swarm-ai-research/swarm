@@ -144,7 +144,8 @@ def validate_review(data: Dict[str, Any]) -> Tuple[bool, List[str]]:
     """Validate a review document against the SWARM review schema.
 
     Performs structural validation without requiring jsonschema as a dependency.
-    Checks required fields, types, enums, and numeric bounds.
+    Validates required fields, types, enums, and numeric bounds for submission,
+    scores, and checks. Notes and evidence fields are checked for presence only.
 
     Args:
         data: Dictionary to validate against the schema.

@@ -446,8 +446,7 @@ def _extract_score(text: str) -> tuple[float, str]:
             score = float(m.group(1))
         except ValueError:
             score = float("nan")
-        if 0.0 <= score <= 1.0 or (not 0.0 <= score <= 1.0):
-            score = max(0.0, min(1.0, score))
+        score = max(0.0, min(1.0, score))
         rm = RATIONALE_PREFIX_RE.search(text)
         rationale = (rm.group(1) if rm else "").strip()
         if rationale:
@@ -466,7 +465,7 @@ class LLMJudge:
     """LLM-backed judge. Calls a real provider with the frozen rubric.
 
     Intentionally minimal — does not subclass BaseLLMAgent. The judge call
-    is a one-shot: rubric + payload → JSON response. Temperature is forced
+    is a one-shot: rubric + payload → JSON response. Temperature defaults
     to 0 for reproducibility per the rubric's "Determinism" section.
 
     Providers (matches the calibration pre-reg's requirement of three
@@ -476,8 +475,9 @@ class LLMJudge:
       - "openrouter" / "groq" / "together" / "deepseek" → call_openai_compatible
       - "ollama" → call_ollama  (local Llama-family)
 
-    The `caller` field is for tests — injecting a fake call function lets
-    us exercise the JSON-parsing + retry path without network.
+    The `caller` field is an injectable call function, useful for testing
+    (to exercise JSON-parsing + retry path without network) or other custom
+    call implementations.
     """
 
     name: str

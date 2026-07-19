@@ -68,6 +68,9 @@ class DeliveryEnvironment:
         self._current_step = 0
         self._current_epoch = 0
 
+        # Shared orders tracking
+        self._shared_orders_map: dict[str, str] = {}
+
         # Generate depot locations
         self._depots: list[tuple[float, float]] = []
         for _ in range(config.city.num_depots):
@@ -798,7 +801,6 @@ class DeliveryEnvironment:
         v_hat = max(-1.0, min(1.0, v_hat))
 
         # Apply sigmoid: p = 1 / (1 + exp(-k * v_hat))
-        import math
         try:
             p = 1.0 / (1.0 + math.exp(-_DEFAULT_SIGMOID_K * v_hat))
         except OverflowError:
@@ -814,8 +816,6 @@ class DeliveryEnvironment:
     @property
     def _shared_orders(self) -> dict[str, str]:
         """Track which orders were shared and by whom."""
-        if not hasattr(self, "_shared_orders_map"):
-            self._shared_orders_map: dict[str, str] = {}
         return self._shared_orders_map
 
     # ------------------------------------------------------------------

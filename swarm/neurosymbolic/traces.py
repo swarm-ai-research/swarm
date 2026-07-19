@@ -66,6 +66,9 @@ class TraceEvent:
     name (``"search"``, ``"write_file"``, ``"bash"``, ``"plan"`` ...). The
     remaining fields describe the event; ``signals`` carries soft judge scores
     (``progress``, ``advances``, ``goal_met``) in ``[0, 1]``.
+
+    ``states_plan`` is a boolean flag: when ``True`` and ``goal`` is not ``None``,
+    a ``plan(step, goal)`` fact is lifted, which enables goal-abandonment detection.
     """
 
     step: int
@@ -368,11 +371,7 @@ def classify_trace(
                            detail=f"{t} repeated with no progress")
             )
 
-    seen_sg: set[int] = set()
     for (i,), p in db.get("spec_gaming").items():
-        if i in seen_sg:
-            continue
-        seen_sg.add(int(i))
         hits["spec_gaming"].append(
             PatternHit("spec_gaming", (int(i),), float(p))
         )

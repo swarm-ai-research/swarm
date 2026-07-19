@@ -18,6 +18,7 @@ study is built to answer.
 
 from __future__ import annotations
 
+import csv
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping, Optional
 
@@ -174,8 +175,6 @@ def load_judge_scores_for_join(
     path: str,
 ) -> tuple[dict[str, dict[str, float]], dict[str, dict[str, str]]]:
     """Read arm B's judge_scores.csv into the shape join_with_judges expects."""
-    import csv
-
     scores: dict[str, dict[str, float]] = {}
     rationales: dict[str, dict[str, str]] = {}
     with open(path) as f:

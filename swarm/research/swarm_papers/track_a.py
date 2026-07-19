@@ -354,6 +354,10 @@ class TrackATaskGenerator:
         self._colors_4 = ["red", "green", "blue", "yellow"]
         self._hobbies = ["chess", "piano", "gardening", "painting"]
 
+    def _format_clues(self, clues: list[str]) -> str:
+        """Format a list of clues into numbered text."""
+        return " ".join(f"{i+1}) {clue}" for i, clue in enumerate(clues))
+
     def generate(self, n_tasks: int, difficulty: float) -> list[ReasoningTask]:
         tasks: list[ReasoningTask] = []
         for idx in range(n_tasks):
@@ -513,7 +517,7 @@ class TrackATaskGenerator:
             f"{person_neg} does not wear {target_color}.",
             f"The person wearing {target_color} has the {target_pet}.",
         ]
-        clues_text = " ".join(f"{i+1}) {clue}" for i, clue in enumerate(clues))
+        clues_text = self._format_clues(clues)
         prompt = (
             "Three researchers (Ava, Ben, Cleo) each have a different pet "
             "(cat, dog, owl) and wear a different color (red, green, blue). "
@@ -707,7 +711,7 @@ class TrackATaskGenerator:
             f"The person wearing {mapping[target_person]['color']} has the {target_value}."
         )
 
-        clues_text = " ".join(f"{i+1}) {clue}" for i, clue in enumerate(clues))
+        clues_text = self._format_clues(clues)
         prompt = (
             f"Four researchers ({', '.join(people)}) each have a different pet "
             f"({', '.join(self._pets_4)}), wear a different color "
@@ -995,7 +999,7 @@ class AdversarialSolver(BaseSolver):
     def _sycophant(self, correct: str, options: list[str]) -> str:
         """Agree with peers but subtly modify to be wrong."""
         if self._peer_answers:
-            # Take the most common peer answer and slightly modify it
+            # Take a random peer answer and slightly modify it
             peer = self._rng.choice(self._peer_answers)
             try:
                 num = float(peer)

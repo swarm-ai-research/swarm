@@ -371,8 +371,8 @@ class AdaptiveGovernanceController:
                 {
                     "proposal_id": p.proposal_id,
                     "parameter": p.parameter,
-                    "current_value": p.proposed_value,
-                    "original_value": p.current_value,
+                    "current_value": p.current_value,
+                    "original_value": p.proposed_value,
                     "epochs_active": p.epochs_active,
                     "status": p.status.value,
                 }
