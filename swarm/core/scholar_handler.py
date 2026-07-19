@@ -536,7 +536,7 @@ class ScholarHandler(Handler):
         all_passage_terms = passage_words | passage_keywords
 
         overlap = len(query_terms & all_passage_terms)
-        score = overlap / len(query_terms) if query_terms else 0.0
+        score = overlap / len(query_terms)
 
         return min(1.0, score)
 

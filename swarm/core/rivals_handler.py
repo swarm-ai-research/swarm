@@ -160,7 +160,6 @@ class RivalsHandler(Handler):
         tasks = sample_tasks(
             self._rng,
             self.config.tasks_per_epoch,
-            self.config.trap_probability,
         )
 
         # Determine available agents by role
@@ -432,7 +431,7 @@ class RivalsHandler(Handler):
                     self._pending_produce[producer_id] = episode.episode_id
 
     def _score_episode(self, episode: RivalsEpisode) -> None:
-        """Compare artifacts vs ground truth to compute final score."""
+        """Compute final score based on artifact quality."""
         # Average artifact quality as actual consistency
         qualities = list(episode.artifacts.values())
         if qualities:

@@ -77,8 +77,7 @@ class ProxyWeights(BaseModel):
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
-        result: dict[str, Any] = self.model_dump()
-        return result
+        return self.model_dump()
 
 
 class ProxyObservables(BaseModel):
@@ -174,8 +173,8 @@ class ProxyComputer:
         self.rejection_decay = rejection_decay
         self.misuse_decay = misuse_decay
 
-    def _normalize_progress(self, delta: float) -> float:
-        """Normalize progress delta to [-1, +1]."""
+    def _clamp_to_unit_interval(self, delta: float) -> float:
+        """Clamp value to [-1, +1]."""
         return max(-1.0, min(1.0, delta))
 
     def _decay_signal(self, count: int, decay: float) -> float:
@@ -191,10 +190,6 @@ class ProxyComputer:
 
         return 2.0 * decay**count - 1.0
 
-    def _normalize_engagement(self, delta: float) -> float:
-        """Normalize engagement delta to [-1, +1]."""
-        return max(-1.0, min(1.0, delta))
-
     def compute_v_hat(self, observables: ProxyObservables) -> float:
         """
         Compute v_hat from downstream observables.
@@ -206,7 +201,7 @@ class ProxyComputer:
             v_hat: Proxy score in [-1, +1]
         """
         # Compute individual signals
-        progress_signal = self._normalize_progress(observables.task_progress_delta)
+        progress_signal = self._clamp_to_unit_interval(observables.task_progress_delta)
         rework_signal = self._decay_signal(observables.rework_count, self.rework_decay)
         rejection_signal = self._decay_signal(
             observables.verifier_rejections, self.rejection_decay
@@ -214,7 +209,7 @@ class ProxyComputer:
         misuse_signal = self._decay_signal(
             observables.tool_misuse_flags, self.misuse_decay
         )
-        engagement_signal = self._normalize_engagement(
+        engagement_signal = self._clamp_to_unit_interval(
             observables.counterparty_engagement_delta
         )
 

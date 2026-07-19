@@ -193,7 +193,10 @@ class MoltipediaHandler(Handler):
         page_id: Optional[str] = None,
         edit_type: Optional[str] = None,
     ) -> None:
-        """Update leaderboard and emit points event."""
+        """Update leaderboard and emit points event when points are positive.
+
+        If points_awarded <= 0, this method returns without recording or emitting.
+        """
         if points_awarded <= 0:
             return
         self.task_pool.award_points(agent_id, points_awarded)
@@ -215,6 +218,19 @@ class MoltipediaHandler(Handler):
     # Internal helpers
     # ------------------------------------------------------------------
 
+    def _get_counterparty_id(
+        self, page: WikiPage, action_agent_id: str
+    ) -> str:
+        """Get the counterparty ID for a wiki interaction.
+
+        If the page was created by someone other than the current actor,
+        the creator is the counterparty. Otherwise, the counterparty is
+        the wiki itself ("moltipedia").
+        """
+        if page.created_by and page.created_by != action_agent_id:
+            return page.created_by
+        return "moltipedia"
+
     def _handle_create(self, action: Action, state: EnvState) -> MoltipediaActionResult:
         title = action.metadata.get("title", action.content or "Untitled Page")
         content = action.content or action.metadata.get("content", "")
@@ -223,8 +239,7 @@ class MoltipediaHandler(Handler):
             if len(content) < self.config.stub_length_threshold
             else PageStatus.DRAFT
         )
-        agent_state = state.get_agent(action.agent_id)
-        agent_type = agent_state.agent_type if agent_state else AgentType.HONEST
+        agent_type = self._get_agent_type(action.agent_id, state)
 
         quality_delta = self._quality_delta_for_agent(agent_type, is_create=True)
         quality_score = max(0.1, min(1.0, 0.2 + quality_delta))
@@ -276,8 +291,7 @@ class MoltipediaHandler(Handler):
         if page is None:
             return MoltipediaActionResult(success=False)
 
-        agent_state = state.get_agent(action.agent_id)
-        agent_type = agent_state.agent_type if agent_state else AgentType.HONEST
+        agent_type = self._get_agent_type(action.agent_id, state)
 
         old_quality = page.quality_score
         old_status = page.status
@@ -306,10 +320,7 @@ class MoltipediaHandler(Handler):
         )
         observables = self.observable_generator.generate(outcome)
 
-        if page.created_by and page.created_by != action.agent_id:
-            counterparty_id = page.created_by
-        else:
-            counterparty_id = "moltipedia"
+        counterparty_id = self._get_counterparty_id(page, action.agent_id)
 
         self._emit_event(
             Event(
@@ -364,11 +375,7 @@ class MoltipediaHandler(Handler):
             success=True,
             observables=None,
             initiator_id=action.agent_id,
-            counterparty_id=(
-                page.created_by
-                if page.created_by and page.created_by != action.agent_id
-                else "moltipedia"
-            ),
+            counterparty_id=self._get_counterparty_id(page, action.agent_id),
             points=0.0,
             metadata={
                 "moltipedia": True,
@@ -409,11 +416,7 @@ class MoltipediaHandler(Handler):
             success=True,
             observables=None,
             initiator_id=action.agent_id,
-            counterparty_id=(
-                page.created_by
-                if page.created_by and page.created_by != action.agent_id
-                else "moltipedia"
-            ),
+            counterparty_id=self._get_counterparty_id(page, action.agent_id),
             points=0.0,
             metadata={
                 "moltipedia": True,
@@ -477,7 +480,8 @@ class MoltipediaHandler(Handler):
             return list(set(page.policy_violations) | {PolicyViolationType.SOURCING})
         if agent_type == AgentType.DECEPTIVE and self._rng.random() < 0.2:
             return list(set(page.policy_violations) | {PolicyViolationType.SCOPE})
-        return []
+        # HONEST agents preserve existing violations; add none of their own
+        return list(page.policy_violations)
 
     def _classify_edit_type(
         self,

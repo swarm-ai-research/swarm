@@ -328,7 +328,15 @@ def create_research_verifier() -> CompositeVerifier:
 
 
 def create_task_verifier(task_type: str) -> PseudoVerifier:
-    """Factory for task-specific verifiers."""
+    """Factory for task-specific verifiers.
+
+    Args:
+        task_type: Type of task ("code", "research", or unknown).
+
+    Returns:
+        A PseudoVerifier instance. For unknown task types, silently returns
+        a basic FormatVerifier as a fallback.
+    """
     verifiers = {
         "code": create_code_verifier,
         "research": create_research_verifier,

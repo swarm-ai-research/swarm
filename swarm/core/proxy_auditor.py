@@ -72,16 +72,16 @@ class CouncilProxyAuditor:
         v_hat, p = self._proxy.compute_labels(observables)
 
         # Probabilistic audit gate
-        if self._rng.random() > self._audit_probability:
-            return v_hat, p
+        if self._rng.random() < self._audit_probability:
+            # Run council audit
+            try:
+                adjusted_p = self._run_audit_sync(v_hat, p, observables, context)
+                return v_hat, adjusted_p
+            except Exception as e:
+                logger.warning(f"Council audit failed, using original p: {e}")
+                return v_hat, p
 
-        # Run council audit
-        try:
-            adjusted_p = self._run_audit_sync(v_hat, p, observables, context)
-            return v_hat, adjusted_p
-        except Exception as e:
-            logger.warning(f"Council audit failed, using original p: {e}")
-            return v_hat, p
+        return v_hat, p
 
     def _run_audit_sync(
         self,

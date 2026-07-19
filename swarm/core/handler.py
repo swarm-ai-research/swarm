@@ -13,11 +13,12 @@ the orchestrator uses for proxy computation and interaction finalization.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, FrozenSet, Optional
+from typing import Any, Callable, Dict, FrozenSet, Optional, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from swarm.logging.event_bus import EventBus
+from swarm.models.agent import AgentType
 from swarm.models.artifact import Artifact
 from swarm.models.events import Event
 from swarm.models.interaction import InteractionType
@@ -161,3 +162,18 @@ class Handler(ABC):
         - ``MoltipediaHandler``: record points, emit governance events.
         - ``MemoryHandler``: revert promotion if governance blocked it.
         """
+
+    def _get_agent_type(self, agent_id: str, state: Any) -> AgentType:
+        """Look up agent type from state, defaulting to HONEST if not found.
+
+        Args:
+            agent_id: The agent ID to look up.
+            state: Environment state with get_agent method.
+
+        Returns:
+            The agent's AgentType, or AgentType.HONEST if agent not found.
+        """
+        agent_state = state.get_agent(agent_id)
+        if agent_state is None:
+            return AgentType.HONEST
+        return cast(AgentType, agent_state.agent_type)

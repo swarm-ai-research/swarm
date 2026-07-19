@@ -223,7 +223,6 @@ class CapabilityAnalyzer:
             # Count subtasks that could run in parallel (same depth in DAG)
             depths = self._compute_subtask_depths(task)
             if depths:
-                max(depths.values())
                 n_subtasks = len(task.subtasks)
                 # Perfect parallelization = all at depth 0
                 # Sequential = depths 0,1,2,...,n-1

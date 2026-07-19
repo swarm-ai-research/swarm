@@ -307,6 +307,20 @@ class PerturbationEngine:
     def _corrupt_value(
         self, field_name: str, value: Any, mode: CorruptionMode
     ) -> Any:
+        """Corrupt a signal value according to the specified mode.
+
+        Args:
+            field_name: Name of the field being corrupted (used by STICKY mode)
+            value: The value to corrupt
+            mode: Corruption strategy:
+                - ZERO_OUT: Replace with 0 (or 0.0)
+                - INVERT: Negate the value
+                - RANDOM: Replace with random value in [0, 5] for int or [-1.0, 1.0] for float
+                - STICKY: Store first value and return it consistently for this field
+
+        Returns:
+            The corrupted value
+        """
         if mode == CorruptionMode.ZERO_OUT:
             return 0 if isinstance(value, int) else 0.0
         elif mode == CorruptionMode.INVERT:

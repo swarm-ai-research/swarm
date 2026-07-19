@@ -483,8 +483,8 @@ class SoftMetrics:
         total = 0.0
         for i in with_truth:
             # Convert ground_truth from {-1, +1} to {0, 1}
-            gt = i.ground_truth if i.ground_truth is not None else 0
-            v = (gt + 1) / 2
+            assert i.ground_truth is not None  # filtered above
+            v = (i.ground_truth + 1) / 2
             total += (i.p - v) ** 2
 
         return total / len(with_truth)
@@ -596,8 +596,8 @@ class SoftMetrics:
         total = 0.0
         for i in with_truth:
             # Convert ground_truth from {-1, +1} to {0, 1}
-            gt = i.ground_truth if i.ground_truth is not None else 0
-            v = (gt + 1) / 2
+            assert i.ground_truth is not None  # filtered above
+            v = (i.ground_truth + 1) / 2
             # Clamp p to avoid log(0)
             p_clamped = max(eps, min(1 - eps, i.p))
 

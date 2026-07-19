@@ -184,9 +184,10 @@ class MetricsReporter:
         """
         Compute comprehensive summary of all metrics.
 
-        Optimised via a single pass through the interaction list: payoffs,
-        quality accumulators, and counts are gathered together so we avoid
-        O(N) re-filtering for each individual metric.
+        Optimised via a single pass through the interaction list for core metrics:
+        payoffs, quality accumulators, and counts are gathered together to avoid
+        O(N) re-filtering. Note: calibration metrics (brier_score, log_loss, etc.)
+        perform additional passes when ground_truth is available.
 
         Args:
             interactions: List of interactions

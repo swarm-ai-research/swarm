@@ -71,7 +71,7 @@ async def register_agent(
     if auto_approve:
         status = AgentStatus.APPROVED
     else:
-        status = AgentStatus.PENDING
+        status = AgentStatus.PENDING_REVIEW
 
     agent = AgentResponse(
         agent_id=agent_id,
@@ -113,15 +113,7 @@ async def get_agent(agent_id: str) -> AgentResponse:
 
     agent = _registered_agents[agent_id]
     # Don't return the API key on subsequent requests
-    return AgentResponse(
-        agent_id=agent.agent_id,
-        api_key="[REDACTED]",
-        name=agent.name,
-        description=agent.description,
-        capabilities=agent.capabilities,
-        status=agent.status,
-        registered_at=agent.registered_at,
-    )
+    return _redacted_response(agent)
 
 
 @router.get("/", response_model=list[AgentResponse])
@@ -152,18 +144,7 @@ async def list_agents(
 
     agents = agents[offset : offset + limit]
 
-    return [
-        AgentResponse(
-            agent_id=a.agent_id,
-            api_key="[REDACTED]",
-            name=a.name,
-            description=a.description,
-            capabilities=a.capabilities,
-            status=a.status,
-            registered_at=a.registered_at,
-        )
-        for a in agents
-    ]
+    return [_redacted_response(a) for a in agents]
 
 
 def _redacted_response(agent: AgentResponse) -> AgentResponse:
@@ -296,7 +277,7 @@ async def approve_agent(
         raise HTTPException(status_code=404, detail="Agent not found")
 
     agent = _registered_agents[agent_id]
-    if agent.status != AgentStatus.PENDING:
+    if agent.status != AgentStatus.PENDING_REVIEW:
         raise HTTPException(
             status_code=400,
             detail=f"Cannot approve agent with status '{agent.status.value}'. "
@@ -327,7 +308,7 @@ async def reject_agent(
         raise HTTPException(status_code=404, detail="Agent not found")
 
     agent = _registered_agents[agent_id]
-    if agent.status != AgentStatus.PENDING:
+    if agent.status != AgentStatus.PENDING_REVIEW:
         raise HTTPException(
             status_code=400,
             detail=f"Cannot reject agent with status '{agent.status.value}'. "

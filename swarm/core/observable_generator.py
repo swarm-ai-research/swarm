@@ -50,8 +50,8 @@ class DefaultObservableGenerator:
     the soft label p, which in turn reduces payoffs and welfare.
 
     Accepts an optional ``random.Random`` instance for deterministic
-    signal generation.  When *rng* is ``None`` the module-level
-    ``random`` functions are used (legacy behaviour).
+    signal generation.  When *rng* is ``None`` a new ``Random()`` instance
+    is created for signal generation.
     """
 
     def __init__(self, rng: random.Random | None = None) -> None:

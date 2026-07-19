@@ -12,8 +12,6 @@ from typing import Dict
 # Variable-name pools for cosmetic randomization
 # ---------------------------------------------------------------------------
 _INDEX_NAMES = ["idx", "tid", "gid", "i", "index", "global_id"]
-_BLOCK_NAMES = ["blk", "block_idx", "bx", "bid"]
-_THREAD_NAMES = ["tx", "threadIdx.x", "local_id", "lid"]
 
 # ---------------------------------------------------------------------------
 # 1_vector_add  --  Vector Addition

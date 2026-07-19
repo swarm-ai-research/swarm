@@ -942,19 +942,8 @@ class Orchestrator:
         # Store per-sample p-proxy values for incrimination analysis.
         # True p is only available after handler execution, so we
         # differentiate pre-execution proxies based on action agreement:
-        # resampled actions that DIFFER from the original suspicious action
-        # suggest the agent is capable of benign behavior (higher p proxy),
-        # while actions matching the original confirm suspicion (lower p).
         selected.metadata["resample_p_proxy"] = p_proxy
-        original_sig = self._action_signature(original_action)
-        per_sample_p = []
-        for ra in resample_actions:
-            if self._action_signature(ra) != original_sig:
-                # Divergent action → exonerating evidence
-                per_sample_p.append(min(1.0, p_proxy + 0.3))
-            else:
-                # Matching action → confirming suspicion
-                per_sample_p.append(p_proxy)
+        per_sample_p = self._compute_resample_p_values(original_action, resample_actions, p_proxy)
         selected.metadata["resample_p_values"] = per_sample_p
 
         return selected
@@ -1025,16 +1014,30 @@ class Orchestrator:
         selected.metadata["resample_n_samples"] = n_samples
         selected.metadata["resample_blocked"] = was_blocked
         selected.metadata["resample_p_proxy"] = p_proxy
+        per_sample_p = self._compute_resample_p_values(original_action, resample_actions, p_proxy)
+        selected.metadata["resample_p_values"] = per_sample_p
+
+        return selected
+
+    def _compute_resample_p_values(
+        self, original_action: Action, resample_actions: List[Action], p_proxy: float
+    ) -> List[float]:
+        """Compute per-sample p-proxy values for resample evidence.
+
+        Resampled actions that DIFFER from the original suspicious action
+        suggest the agent is capable of benign behavior (higher p proxy),
+        while actions matching the original confirm suspicion (lower p).
+        """
         original_sig = self._action_signature(original_action)
         per_sample_p = []
         for ra in resample_actions:
             if self._action_signature(ra) != original_sig:
+                # Divergent action → exonerating evidence
                 per_sample_p.append(min(1.0, p_proxy + 0.3))
             else:
+                # Matching action → confirming suspicion
                 per_sample_p.append(p_proxy)
-        selected.metadata["resample_p_values"] = per_sample_p
-
-        return selected
+        return per_sample_p
 
     def _majority_action(self, actions: List[Action]) -> Action:
         """Choose majority action signature with deterministic tie-break."""

@@ -123,6 +123,10 @@ def _clustering_per_node(
     where ``t = Σ_{u ∈ N(v)} |N(v) ∩ N(u)|``.  Each triangle is counted
     twice in *t* (once per endpoint in the pair), which cancels the usual
     factor of 2 in the denominator, giving the standard LCC formula.
+
+    Precondition: All nodes in ``nodes`` must have degree >= 2, otherwise
+    ZeroDivisionError will be raised. Callers should filter eligible nodes
+    before invoking this function (typically via ``if len(adj[v]) >= 2``).
     """
     result: Dict[str, float] = {}
     for v in nodes:

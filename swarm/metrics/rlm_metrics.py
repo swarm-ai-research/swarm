@@ -292,7 +292,7 @@ class RLMMetrics:
             return float("inf")
 
         detection_set = sorted(detection_epochs)
-        lags: list[float] = []
+        lags: List[float] = []
         for h_epoch in harmful_epochs:
             # Find earliest detection at or after this harmful epoch
             detected = False

@@ -121,8 +121,6 @@ class EvolutionaryGameHandler(Handler):
     # Import here to avoid circular imports at module level
     from swarm.agents.base import ActionType
 
-    _ACTION_TYPES: FrozenSet = frozenset({ActionType.EVO_GAME_MOVE})
-
     def __init__(
         self,
         *,

@@ -438,8 +438,8 @@ class PostStore:
                     json.dumps(post.tags),
                     _iso(post.published_at),
                     post.run_url,
-                    getattr(post, "upvotes", 0),
-                    getattr(post, "downvotes", 0),
+                    post.upvotes,
+                    post.downvotes,
                 ),
             )
 

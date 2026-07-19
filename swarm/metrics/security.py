@@ -178,7 +178,6 @@ class SecurityAnalyzer:
         self.laundering_trust_gap = laundering_trust_gap
         self.contagion_velocity_threshold = contagion_velocity_threshold
         self.min_chain_length = min_chain_length
-        self._rng = np.random.default_rng(seed)
 
         # State tracking
         self._interaction_history: List[SoftInteraction] = []

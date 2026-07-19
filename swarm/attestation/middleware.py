@@ -40,6 +40,9 @@ class AttestationMiddleware:
     default_bounds:
         Default execution bounds applied when no per-action bounds are
         supplied.
+    event_callback:
+        Optional callback invoked when a receipt is sealed, used to emit
+        ``EventType.RECEIPT_SEALED`` events for replay.
     """
 
     def __init__(

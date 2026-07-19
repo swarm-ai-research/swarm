@@ -243,8 +243,7 @@ class MoltbookHandler(Handler):
 
     def _handle_post(self, action: Action, state) -> MoltbookActionResult:
         submolt = action.metadata.get("submolt") or self.config.default_submolt
-        agent_state = state.get_agent(action.agent_id)
-        agent_type = agent_state.agent_type if agent_state else AgentType.HONEST
+        agent_type = self._get_agent_type(action.agent_id, state)
 
         allowed, reason = self.check_rate_limits(
             action.agent_id, "post", state.current_step
@@ -292,8 +291,7 @@ class MoltbookHandler(Handler):
 
     def _handle_comment(self, action: Action, state) -> MoltbookActionResult:
         submolt = action.metadata.get("submolt") or self.config.default_submolt
-        agent_state = state.get_agent(action.agent_id)
-        agent_type = agent_state.agent_type if agent_state else AgentType.HONEST
+        agent_type = self._get_agent_type(action.agent_id, state)
 
         allowed, reason = self.check_rate_limits(
             action.agent_id, "comment", state.current_step
@@ -345,8 +343,7 @@ class MoltbookHandler(Handler):
 
     def _handle_verify(self, action: Action, state) -> MoltbookActionResult:
         answer = float(action.metadata.get("answer", 0.0))
-        agent_state = state.get_agent(action.agent_id)
-        agent_type = agent_state.agent_type if agent_state else AgentType.HONEST
+        agent_type = self._get_agent_type(action.agent_id, state)
 
         allowed, reason = self.check_rate_limits(
             action.agent_id, "verify", state.current_step
@@ -364,8 +361,7 @@ class MoltbookHandler(Handler):
         return result
 
     def _handle_vote(self, action: Action, state) -> MoltbookActionResult:
-        agent_state = state.get_agent(action.agent_id)
-        agent_type = agent_state.agent_type if agent_state else AgentType.HONEST
+        agent_type = self._get_agent_type(action.agent_id, state)
 
         allowed, reason = self.check_rate_limits(
             action.agent_id, "vote", state.current_step

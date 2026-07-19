@@ -1256,7 +1256,7 @@ class TestAgentPatchAndTransitions:
             name="PendingAgent",
             description="Stuck in review",
             capabilities=[],
-            status=AgentStatus.PENDING,
+            status=AgentStatus.PENDING_REVIEW,
             registered_at=datetime.now(timezone.utc),
         )
 
