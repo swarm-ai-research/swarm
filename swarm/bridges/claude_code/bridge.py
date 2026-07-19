@@ -252,8 +252,16 @@ class ClaudeCodeBridge:
         """
         start_time = time.monotonic()
 
-        # Send prompt and get response
+        # Send prompt and wait for the real response via the event stream.
+        # ask() returns None on timeout; failing loudly here is deliberate —
+        # logging a fabricated response would corrupt the observational
+        # record (see beads 2331).
         message = self._client.ask(agent_id, prompt)
+        if message is None:
+            raise TimeoutError(
+                f"No response from agent {agent_id!r} within the ask() "
+                "timeout; refusing to record a fabricated interaction"
+            )
 
         elapsed_ms = int((time.monotonic() - start_time) * 1000)
 

@@ -32,6 +32,7 @@ from swarm.agents.base import BaseAgent
 from swarm.agents.deceptive import DeceptiveAgent
 from swarm.agents.honest import HonestAgent
 from swarm.agents.opportunistic import OpportunisticAgent
+from swarm.agents.rlm_agent import RLMAgent
 from swarm.core.behavioral_profiler import InferredProfile
 from swarm.core.orchestrator import EpochMetrics, Orchestrator, OrchestratorConfig
 from swarm.core.payoff import PayoffConfig
@@ -50,6 +51,7 @@ ARCHETYPE_AGENT_CLASSES: Dict[AgentType, type] = {
     AgentType.OPPORTUNISTIC: OpportunisticAgent,
     AgentType.DECEPTIVE: DeceptiveAgent,
     AgentType.ADVERSARIAL: AdversarialAgent,
+    AgentType.RLM: RLMAgent,
 }
 
 

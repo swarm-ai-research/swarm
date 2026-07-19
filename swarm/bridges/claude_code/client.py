@@ -213,32 +213,50 @@ class ClaudeCodeClient:
         agent_id: str,
         prompt: str,
         timeout_seconds: Optional[float] = None,
-    ) -> MessageEvent:
-        """Send a message to an agent (alias for send with MessageEvent return).
+    ) -> Optional[MessageEvent]:
+        """Send a message and wait for the agent's response via events.
 
-        Note: The web controller's /send endpoint is fire-and-forget.
-        This method sends the message and returns a placeholder MessageEvent.
-        Use poll_events or WebSocket for actual responses.
+        The web controller's /send endpoint is fire-and-forget, so the
+        response is recovered by polling the event stream for the next
+        assistant MessageEvent from this agent.
 
         Args:
             agent_id: Target agent name
             prompt: The message to send
-            timeout_seconds: Unused (kept for API compatibility)
+            timeout_seconds: How long to wait for the response (default 60s)
 
         Returns:
-            MessageEvent placeholder (actual response comes via events)
+            The agent's MessageEvent, or None if no response arrived
+            within the timeout. Never returns a fabricated placeholder —
+            callers must handle None rather than log pending sends as
+            observations.
         """
         _validate_agent_id(agent_id)
         self.send(agent_id, prompt)
-        # The web controller's send is async - return placeholder
-        return MessageEvent(
-            agent_id=agent_id,
-            role="assistant",
-            content="[Message sent - response will arrive via events]",
-            tool_calls=[],
-            token_count=0,
-            cost_usd=0.0,
-        )
+
+        deadline = time.monotonic() + (timeout_seconds or 60.0)
+        last_event_id: Optional[str] = None
+        while time.monotonic() < deadline:
+            events = self.poll_events(since_event_id=last_event_id)
+            for event in events:
+                last_event_id = event.event_id or last_event_id
+                if (
+                    event.event_type is BridgeEventType.MESSAGE_RECEIVED
+                    and event.agent_id == agent_id
+                ):
+                    payload = event.payload or {}
+                    if payload.get("role", "assistant") != "assistant":
+                        continue
+                    return MessageEvent(
+                        agent_id=agent_id,
+                        role="assistant",
+                        content=str(payload.get("content", "")),
+                        tool_calls=list(payload.get("tool_calls", [])),
+                        token_count=int(payload.get("token_count", 0) or 0),
+                        cost_usd=float(payload.get("cost_usd", 0.0) or 0.0),
+                    )
+            time.sleep(0.5)
+        return None
 
     # --- Task lifecycle ---
 

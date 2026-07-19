@@ -96,14 +96,24 @@ ARCHETYPE_MODELS: Dict[AgentType, ArchetypeSignalModel] = {
         misuse_lo=0, misuse_hi=1,
         engagement_lo=-0.5, engagement_hi=-0.1,
     ),
+    # Ranges mirror DefaultObservableGenerator._base_signals for RLM —
+    # keep the two in sync (the generator is the source of truth).
+    AgentType.RLM: ArchetypeSignalModel(
+        progress_lo=0.2, progress_hi=0.7,
+        rework_lo=0, rework_hi=2,
+        rejection_lo=0, rejection_hi=1,
+        misuse_lo=0, misuse_hi=0,
+        engagement_lo=0.0, engagement_hi=0.5,
+    ),
 }
 
-# Core archetypes used for mixture fitting (the 4 with defined signal models)
+# Core archetypes used for mixture fitting (the 5 with defined signal models)
 CORE_ARCHETYPES: Tuple[AgentType, ...] = (
     AgentType.HONEST,
     AgentType.OPPORTUNISTIC,
     AgentType.DECEPTIVE,
     AgentType.ADVERSARIAL,
+    AgentType.RLM,
 )
 
 
