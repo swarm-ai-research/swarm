@@ -27,6 +27,8 @@ class MirosharkClient:
         self.session = requests.Session()
         if cfg.admin_token:
             self.session.headers["Authorization"] = f"Bearer {cfg.admin_token}"
+        if cfg.internal_key:
+            self.session.headers["x-miroshark-internal-key"] = cfg.internal_key
 
     def _url(self, path: str) -> str:
         return self.cfg.api_url.rstrip("/") + path

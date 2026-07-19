@@ -45,14 +45,29 @@ SCENARIOS = {
     "redteam": REPO / "scenarios" / "adversarial_redteam.yaml",
 }
 JUDGE_MODEL = "x-ai/grok-4.3"
+# Wonderwall agent model (persona actions / profiles / sim configs). The
+# 20260517 batch ran on xiaomi/mimo-v2-flash but did not pin it in the
+# preregistration; that model was delisted from OpenRouter by 2026-07.
+# mimo-v2.5 is its direct successor (same family/provider/price class).
+# Pinned here AND preflight-checked against ~/miroshark/.env so the regime
+# can never silently drift mid-batch again.
+AGENT_MODEL = "xiaomi/mimo-v2.5"
 SCALE = 3
 MAX_ROUNDS = 5
 PLATFORM = "parallel"
-N_TARGET = 10          # attempts per scenario
+N_TARGET = 12          # attempts per scenario; 12 (not 10) is a PRE-HOC
+                       # attrition allowance: the 20260517 batch showed
+                       # infra-degraded sims can burn attempts as
+                       # degenerate (n_interactions < MIN_INTERACTIONS)
 MIN_CLEAN = 8          # clean reps/scenario required for confirmatory verdicts
 MIN_INTERACTIONS = 20  # reject degenerate sims below this
 BOOT_RESAMPLES = 10000
-BRIDGE_TIMEOUT_S = 1800
+# 90 min: mimo-v2.5 (reasoning) makes prepare alone take ~35 min on entity-
+# heavy ontology draws; the old 1800s ceiling silently killed runs whose
+# prepare finished fine at ~minute 35 (observed 20260717, sim_2bb11c42d910).
+# Orchestration-only knob — does not alter sim/judge semantics.
+BRIDGE_TIMEOUT_S = 5400
+POLL_TIMEOUT_S = 3600   # per-phase (graph/prepare/run) window inside the bridge
 JUDGE_TIMEOUT_S = 1200
 
 
@@ -74,8 +89,39 @@ def _build_env() -> dict[str, str]:
         for line in envfile.read_text().splitlines():
             if line.startswith("SMART_API_KEY="):
                 env["OPENROUTER_API_KEY"] = line.split("=", 1)[1].strip()
-                break
+            elif line.startswith("MIROSHARK_INTERNAL_KEY="):
+                # backend fail-closed auth guard (miroshark 375ef84);
+                # the bridge CLI forwards this as x-miroshark-internal-key
+                env["MIROSHARK_INTERNAL_KEY"] = line.split("=", 1)[1].strip()
+    env["MIROSHARK_POLL_TIMEOUT_S"] = str(POLL_TIMEOUT_S)
     return env
+
+
+def _validate_regime(env: dict[str, str]) -> None:
+    """Fail fast if ~/miroshark/.env disagrees with the pinned regime, so a
+    batch can never mix agent/SMART/NER models across replications."""
+    envfile = Path.home() / "miroshark" / ".env"
+    vals: dict[str, str] = {}
+    if envfile.exists():
+        for line in envfile.read_text().splitlines():
+            if "=" in line and not line.startswith("#"):
+                k, v = line.split("=", 1)
+                vals[k.strip()] = v.strip()
+    expected = {
+        "WONDERWALL_MODEL_NAME": AGENT_MODEL,
+        "LLM_MODEL_NAME": AGENT_MODEL,
+        "SMART_MODEL_NAME": "x-ai/grok-4.3",
+        "NER_MODEL_NAME": "x-ai/grok-4.3",
+    }
+    bad = {k: (vals.get(k), want) for k, want in expected.items()
+           if vals.get(k) != want}
+    if bad:
+        for k, (got, want) in bad.items():
+            print(f"[fatal] regime drift: {k}={got!r}, pinned regime wants "
+                  f"{want!r}", file=sys.stderr)
+        sys.exit(2)
+    print(f"[regime] agents={AGENT_MODEL} smart/ner=x-ai/grok-4.3 "
+          f"judge={JUDGE_MODEL} — env matches pinned regime")
 
 
 def _validate_key(env: dict[str, str]) -> None:
@@ -101,6 +147,29 @@ def _validate_key(env: dict[str, str]) -> None:
         print(f"[fatal] OpenRouter key rejected ({exc}); judge would "
               f"silently degrade to all-p=0.5. Aborting.", file=sys.stderr)
         sys.exit(2)
+    # Account balance, not just key validity: the 20260703 batch burned its
+    # first 7 clean runs and then 402-cascaded when total account credits
+    # ran out mid-batch (~$0.7-0.9/run at scale=3 max_rounds=5 incl. judge).
+    req = urllib.request.Request(
+        "https://openrouter.ai/api/v1/credits",
+        headers={"Authorization": f"Bearer {key}"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            d = json.loads(r.read())["data"]
+        remaining = d["total_credits"] - d["total_usage"]
+        print(f"[keycheck] OpenRouter balance ${remaining:.2f}")
+        if remaining < 5.0:
+            print(f"[fatal] balance ${remaining:.2f} < $5 floor; a batch "
+                  f"would 402-cascade mid-run. Top up at "
+                  f"https://openrouter.ai/settings/credits first.",
+                  file=sys.stderr)
+            sys.exit(2)
+    except SystemExit:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        print(f"[warn] could not read credit balance ({exc}); continuing",
+              file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
@@ -129,12 +198,22 @@ Author: written before any simulation in this batch was started.
 
 ## Fixed regime
 - MiroShark SMART/NER model: x-ai/grok-4.3 (~/miroshark/.env, pinned)
+- Wonderwall agent model: {AGENT_MODEL} (pinned; preflight-checked against
+  ~/miroshark/.env every execution). NOTE: the 20260517 batch ran agents on
+  xiaomi/mimo-v2-flash without pinning it; that model was delisted from
+  OpenRouter before this batch. {AGENT_MODEL} is its direct successor. This
+  is a known, documented regime difference vs the 20260517 indicative batch;
+  all runs WITHIN this batch use one agent model.
 - Metrics judge model: {JUDGE_MODEL}, temperature=0.0
 - scale={SCALE}, --max-rounds {MAX_ROUNDS}, platform={PLATFORM}
 - grok-4.1-fast is deprecated and is NOT used anywhere in this batch.
 
 ## Sampling plan (no peeking-driven stopping)
 - N_TARGET = {N_TARGET} attempts per scenario (libel, redteam) = {2 * N_TARGET} bridge runs.
+- N_TARGET includes a PRE-HOC attrition allowance (12 vs the prior 10): the
+  20260517 batch showed attempts can be burned by degenerate sims
+  (n_interactions < {MIN_INTERACTIONS}). Chosen before any run in THIS batch;
+  the stopping rule below is unchanged.
 - Attempts are interleaved (libel rep1, redteam rep1, libel rep2, ...) and run
   strictly sequentially (one MiroShark backend; Wonderwall multiprocessing).
 - A run is CLEAN iff: bridge produced export.json AND metrics.json was written
@@ -191,6 +270,7 @@ soft_metrics). Aggregate: per-scenario mean +/- bootstrap 95% CI
         "preregistration_sha256": sha,
         "regime": {
             "sim_model": "x-ai/grok-4.3",
+            "agent_model": AGENT_MODEL,
             "judge_model": JUDGE_MODEL,
             "judge_temperature": 0.0,
             "scale": SCALE,
@@ -222,6 +302,17 @@ def _find_resumable() -> Optional[Path]:
 # ---------------------------------------------------------------------------
 # run one attempt
 # ---------------------------------------------------------------------------
+def _kill_stale_sims() -> None:
+    """After a bridge failure, any live run_parallel_simulation process is
+    stale by definition (attempts run strictly sequentially): the bridge's
+    subprocess timeout kills only the bridge client, NOT the backend-spawned
+    Wonderwall sim, which keeps churning CPU. Observed 20260716-17: each
+    leftover sim slows subsequent runs past BRIDGE_TIMEOUT_S, compounding
+    one hang into a cascade of timeouts."""
+    subprocess.run(["pkill", "-9", "-f", "run_parallel_simulation"],
+                   check=False, capture_output=True)
+
+
 def _run_bridge(scenario_path: Path, env: dict[str, str]) -> Path:
     cmd = [
         sys.executable, "-m", "swarm.bridges.miroshark", str(scenario_path),
@@ -262,6 +353,7 @@ def _run_judge(run_dir: Path, env: dict[str, str]) -> dict[str, Any]:
 def _execute(batch: Path) -> None:
     env = _build_env()
     _validate_key(env)
+    _validate_regime(env)
     m = _load_manifest(batch)
     total = len(m["plan"])
     for i, e in enumerate(m["plan"]):
@@ -299,6 +391,7 @@ def _execute(batch: Path) -> None:
             e["status"] = "failed"
             e["error"] = str(exc)[-500:]
             print(f"[{i+1}/{total}] {tag} FAILED: {e['error']}", file=sys.stderr)
+            _kill_stale_sims()
         _save_manifest(batch, m)
 
 

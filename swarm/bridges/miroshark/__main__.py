@@ -48,6 +48,11 @@ def main(argv: list[str] | None = None) -> int:
         scale=args.scale,
         platform=args.platform,
         max_rounds=args.max_rounds,
+        internal_key=os.environ.get("MIROSHARK_INTERNAL_KEY") or None,
+        # Per-phase poll window (graph build / prepare / run each get one).
+        # Reasoning-capable agent models (mimo-v2.5+) push prepare (~57
+        # profile generations) past the old 1800s default.
+        poll_timeout_s=float(os.environ.get("MIROSHARK_POLL_TIMEOUT_S", "1800")),
     )
     run_dir = run_scenario(args.scenario, cfg=cfg, runs_root=args.runs_root)
     print(str(run_dir))

@@ -45,6 +45,12 @@ in flight; do not modify the rubric mid-arm.
   aevolve BenchmarkAdapter (evolve governance designers; whitelist as
   integrity boundary; gate-Goodharting detector via quality_gap < 0);
   miroshark SSE event endpoint + multiseed runner.
+- **MiroShark powered study CLOSED (qopt, 2026-07-18)**: 23 clean preregistered
+  reps — the d3zi `libel<redteam<0` quality_gap ordering is NOT real (libel
+  −0.006 CI spans 0; redteam +0.034 CI excludes 0, *positive*). All three
+  hypotheses failed; blog further-qualified with the confirmatory update;
+  batch archived to swarm-artifacts. Open question spawned: why does
+  red-teaming show *favorable* selection under amplification-acceptance?
 - **Infra**: replay/checkpoint layer over the event log; sanitized opt-out
   telemetry; repo-wide PG-style cleanup (9 packages, ~30 tracked issues
   resolved as of 2026-07-18, incl. two event-log payload bugs and a
