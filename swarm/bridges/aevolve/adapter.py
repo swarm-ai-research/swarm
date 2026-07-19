@@ -207,16 +207,20 @@ class SwarmBenchmarkAdapter(_UpstreamAdapter):
     def _run_scenario(self, *, seed: int, overrides: Dict[str, Any]) -> EvaluationDetail:
         """Run the scenario headlessly with overrides merged into raw YAML.
 
-        Deep-merging the *raw* document and re-loading through the standard
-        ``load_scenario`` path keeps this adapter agnostic to loader
-        internals: whatever governance keys the loader understands, the
-        benchmark supports.
+        Merges overrides into the *raw* document at exactly 2 levels (section.key).
+        Re-loading through the standard ``load_scenario`` path keeps this adapter
+        agnostic to loader internals: whatever governance keys the loader understands,
+        the benchmark supports. Currently, allowed_overrides whitelist enforces
+        2-level keys only; dotted keys with 3+ levels would create flat keys
+        (e.g., 'a.b.c' -> raw['a']['b.c']) and should not be whitelisted.
         """
 
         from swarm.scenarios import build_orchestrator, load_scenario
 
         raw = self._load_scenario_raw()
         for dotted, value in overrides.items():
+            # Assumes exactly 2 levels: section.key. Enforced by allowed_overrides
+            # whitelist in config.py.
             section, key = dotted.split(".", 1)
             raw.setdefault(section, {})[key] = value
         raw.setdefault("simulation", {})["seed"] = seed

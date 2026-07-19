@@ -62,8 +62,12 @@ class GitlawbConfig:
         with open(path, "rb") as f:
             data = tomllib.load(f)
 
-        gitlawb_section = data.get("tool", {}).get("swarm", {}).get("gitlawb", data)
-        return cls(**{k: v for k, v in gitlawb_section.items() if hasattr(cls, k)})
+        # Try standard nested path [tool.swarm.gitlawb]; if missing, fall back to root.
+        # This supports two TOML layouts: (1) standard [tool.swarm.gitlawb] section,
+        # or (2) root-level config keys. Fallback is useful for minimal configs
+        # that omit the nested structure.
+        section = data.get("tool", {}).get("swarm", {}).get("gitlawb", data)
+        return cls(**{k: v for k, v in section.items() if hasattr(cls, k)})
 
     def to_toml(self, path: str | Path) -> None:
         """Serialize current config to a TOML file."""

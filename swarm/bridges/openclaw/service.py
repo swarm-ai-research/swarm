@@ -7,7 +7,7 @@ import logging
 from typing import Any, Optional
 
 from swarm.bridges.openclaw.config import ServiceConfig
-from swarm.bridges.openclaw.job_queue import JobQueue, SimulationFn
+from swarm.bridges.openclaw.job_queue import JobQueue, JobState, SimulationFn
 from swarm.bridges.openclaw.schemas import RunRequest
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ def create_app(
         job = queue.get(job_id)
         if job is None:
             raise HTTPException(status_code=404, detail="Job not found")
-        if job.state.value != "completed":
+        if job.state != JobState.COMPLETED:
             raise HTTPException(
                 status_code=404, detail="Metrics not available (job not completed)"
             )

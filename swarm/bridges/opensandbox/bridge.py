@@ -436,7 +436,7 @@ class OpenSandboxBridge:
 
         contract = self._config.get_contract(contract_id)
 
-        # C1: Normalize command — strip path prefixes, resolve basename
+        # C3: Normalize command — strip path prefixes, resolve basename
         cmd_tokens = command.split()
         cmd_base = posixpath.basename(cmd_tokens[0])
 
@@ -515,7 +515,7 @@ class OpenSandboxBridge:
             },
         )
 
-        # C2: Auto-check risk with re-entrancy guard
+        # C2: Check risk with re-entrancy guard (same invariant as _handle_violation)
         self._maybe_auto_intervene(agent_id)
 
         return interaction

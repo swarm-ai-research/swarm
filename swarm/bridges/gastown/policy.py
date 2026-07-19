@@ -74,9 +74,7 @@ class GasTownPolicy:
             )
 
         # Transaction tax
-        cost = 0.0
-        if self._config.transaction_tax_rate > 0:
-            cost = self._config.transaction_tax_rate
+        cost = self._config.transaction_tax_rate
 
         return PolicyResult(
             decision=PolicyDecision.APPROVE,

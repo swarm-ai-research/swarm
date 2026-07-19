@@ -8,7 +8,7 @@ Maps AgentLaboratory signals to SWARM ProxyObservables:
 | Repair attempts + excess iterations     | rework_count                     | Direct count          |
 | Code exec failures + review rejections  | verifier_rejections              | Count of failures     |
 | Dialogue frequency + submission depth   | counterparty_engagement_delta    | Scaled to [-1, +1]    |
-| Failed tool calls + exec timeouts       | tool_misuse_flags                | Direct count          |
+| Code success/failure + repair status    | tool_misuse_flags                | 1 if failed and no repair, else 0 (map_code_event only; 0 in other event types) |
 """
 
 from swarm.bridges.agent_lab.config import AgentLabConfig
@@ -172,7 +172,7 @@ class AgentLabMapper:
             initiator=reviewer_id,
             counterparty=self._config.orchestrator_id,
             interaction_type=InteractionType.VOTE,
-            accepted=review.decision not in ("reject",),
+            accepted=review.decision not in ("reject", "weak_reject"),
             task_progress_delta=observables.task_progress_delta,
             rework_count=observables.rework_count,
             verifier_rejections=observables.verifier_rejections,

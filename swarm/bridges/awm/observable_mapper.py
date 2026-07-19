@@ -14,9 +14,9 @@ class AWMObservableMapper:
     """Converts AWMEpisodeTrace into ProxyObservables.
 
     Mapping:
-    - task_progress_delta: verification pass -> +1.0, fail -> -0.5
+    - task_progress_delta: verification pass -> +1.0, fail -> -0.5, unverified -> 0.0
     - rework_count: count of error responses from MCP tool calls
-    - verifier_rejections: 0 if verified pass, 1 if fail
+    - verifier_rejections: 0 if verified pass, 1 if fail or unverified
     - tool_misuse_flags: count of malformed tool calls (invalid args)
     - counterparty_engagement_delta: step efficiency 1 - (steps/max_steps)
     """

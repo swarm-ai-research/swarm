@@ -43,7 +43,7 @@ class BeadsClient:
         self._conn.row_factory = sqlite3.Row
         self._table = self._detect_table()
         # Validate table name is from allowlist (SQL injection prevention).
-        # f-string interpolation on lines 68, 72, 78 is safe because _table
+        # f-string interpolation on lines 78, 82, 88 is safe because _table
         # is guaranteed to be "issues" or "beads" (cannot be parameterized).
         if self._table not in _VALID_TABLES:
             raise ValueError(f"Invalid table name: {self._table!r}")

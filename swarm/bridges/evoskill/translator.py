@@ -66,7 +66,8 @@ class SkillTranslator:
 
         Args:
             skill_text: Raw text content of the EvoSkill skill file.
-            name: Skill name (defaults to first line or hash).
+            name: Skill name (defaults to first line truncated to 80 characters,
+                or content hash if no text provided).
             source_branch: Git branch the skill was discovered on.
             author_id: Agent that created this skill.
             tags: Additional tags.

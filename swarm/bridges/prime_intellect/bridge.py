@@ -157,7 +157,7 @@ class PrimeIntellectBridge:
             )
             interactions.append(interaction)
         else:
-            for _j, counterparty in enumerate(agent_ids[1:], start=1):
+            for counterparty in agent_ids[1:]:
                 interaction = SoftInteraction(
                     initiator=model_agent,
                     counterparty=counterparty,

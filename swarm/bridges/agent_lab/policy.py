@@ -28,7 +28,17 @@ class PolicyDecision(Enum):
 
 @dataclass
 class PolicyResult:
-    """Result of a policy evaluation."""
+    """Result of a policy evaluation.
+
+    Attributes:
+        decision: APPROVE, DENY, or WARN outcome.
+        reason: Human-readable explanation of the decision.
+        governance_cost: Estimated cost of governance overhead (0.0-1.0) incurred
+            by this policy decision. Used to track the total cost of governance
+            enforcement across all policy decisions (phase gates, circuit breakers,
+            cost limits, review loops). Higher values indicate costlier oversight:
+            e.g., 0.1 for phase gate denial, 0.2 for circuit breaker trigger.
+    """
 
     decision: PolicyDecision
     reason: str = ""

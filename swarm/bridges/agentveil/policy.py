@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from swarm.bridges.agentveil.client import AVPClient
 from swarm.bridges.agentveil.config import AgentVeilConfig
 
 logger = logging.getLogger(__name__)
@@ -93,14 +94,8 @@ class AVPPolicy:
         Returns:
             PolicyResult with ALLOW or DENY.
         """
-        tier_ordinals = {
-            "newcomer": 0,
-            "basic": 1,
-            "trusted": 2,
-            "elite": 3,
-        }
-        min_tier_ordinal = tier_ordinals.get(self._config.min_tier, 1)
-        agent_tier_ordinal = tier_ordinals.get(tier, 0)
+        min_tier_ordinal = AVPClient.TIER_ORDINALS.get(self._config.min_tier, 1)
+        agent_tier_ordinal = AVPClient.TIER_ORDINALS.get(tier, 0)
 
         if not allowed:
             return PolicyResult(

@@ -166,7 +166,7 @@ def commons_narrative(
     # Check for collapse
     if pool_pct < 10:
         text = _COMMONS_COLLAPSE_TEMPLATE.format(a=agent_id, pool=pool_pct)
-        cooperated = True  # forced cooperation by scarcity
+        cooperated = True  # marking as cooperated; deduction gated by strategy parameter
         harvest = r.uniform(0, 2)
         scores = JudgeScores(
             progress=r.uniform(0.05, 0.15),

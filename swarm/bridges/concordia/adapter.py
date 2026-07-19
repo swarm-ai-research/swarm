@@ -63,7 +63,8 @@ class ConcordiaAdapter:
             step: Current simulation step
 
         Returns:
-            List of SoftInteraction objects (one per agent pair)
+            List of SoftInteraction objects. For single agent, returns one
+            self-interaction. For multiple agents, returns one per unique pair.
         """
         # Evaluate narrative via judge
         scores = self._judge.evaluate(narrative_text)

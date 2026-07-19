@@ -155,7 +155,7 @@ class LangChainBridge:
         self.last_payoff = self._payoff_engine.payoff_initiator(interaction)
         self._interactions.append(interaction)
 
-        self._log_interaction(interaction)
+        log_interaction_event(self._event_log, interaction)
 
         return interaction
 
@@ -174,11 +174,6 @@ class LangChainBridge:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-
-    def _log_interaction(self, interaction: SoftInteraction) -> None:
-        """Append an interaction to the EventLog as an Event."""
-        log_interaction_event(self._event_log, interaction)
-
 
     def _invoke_chain(self, prompt: str) -> tuple[Any, int]:
         """Invoke the chain with a timeout.
@@ -211,7 +206,7 @@ class LangChainBridge:
             output = self.chain.run(prompt)
         else:
             raise LangChainBridgeError(
-                f"Chain {type(self.chain).__name__!r} has no .invoke() or .run() method"
+                f"Chain {type(self.chain).__name__} has no .invoke() or .run() method"
             )
 
         if intermediate_steps > self.config.max_steps:

@@ -192,28 +192,39 @@ class LettaResponseParser:
         return None
 
     @staticmethod
+    def _extract_ids_from_collection(
+        observation: Observation, collection_attr: str, id_key: str
+    ) -> Set[str]:
+        """Extract IDs from a collection in the observation.
+
+        Args:
+            observation: The observation to extract from.
+            collection_attr: Name of the collection attribute (e.g., "visible_posts").
+            id_key: The key to extract from each collection item (e.g., "post_id").
+
+        Returns:
+            Set of non-empty ID strings.
+        """
+        collection = getattr(observation, collection_attr, [])
+        return {item.get(id_key, "") for item in collection if item.get(id_key)}
+
+    @staticmethod
     def _get_valid_post_ids(observation: Observation) -> Set[str]:
-        return {
-            p.get("post_id", "")
-            for p in observation.visible_posts
-            if p.get("post_id")
-        }
+        return LettaResponseParser._extract_ids_from_collection(
+            observation, "visible_posts", "post_id"
+        )
 
     @staticmethod
     def _get_valid_proposal_ids(observation: Observation) -> Set[str]:
-        return {
-            p.get("proposal_id", "")
-            for p in observation.pending_proposals
-            if p.get("proposal_id")
-        }
+        return LettaResponseParser._extract_ids_from_collection(
+            observation, "pending_proposals", "proposal_id"
+        )
 
     @staticmethod
     def _get_valid_agent_ids(observation: Observation) -> Set[str]:
-        return {
-            a.get("agent_id", "")
-            for a in observation.visible_agents
-            if a.get("agent_id")
-        }
+        return LettaResponseParser._extract_ids_from_collection(
+            observation, "visible_agents", "agent_id"
+        )
 
     @staticmethod
     def _noop(agent_id: str) -> Action:

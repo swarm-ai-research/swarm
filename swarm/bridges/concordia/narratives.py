@@ -256,7 +256,11 @@ def mixed_narrative(
 
 
 def _pick_pair(agents: List[str], rng: random.Random) -> Tuple[str, str]:
-    """Pick two distinct agents from the list."""
+    """Pick two agents from the list.
+
+    Returns two agents as a tuple. If fewer than 2 agents are provided,
+    returns the same agent twice.
+    """
     if len(agents) < 2:
         a = agents[0] if agents else "agent_0"
         return a, a

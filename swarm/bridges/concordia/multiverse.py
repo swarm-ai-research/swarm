@@ -165,6 +165,8 @@ class MultiverseRunner:
         for temp_idx, temp in enumerate(self._config.temperatures):
             n_for_temp = base_count + (1 if temp_idx < remainder else 0)
             for run_idx in range(n_for_temp):
+                # Use 1000 multiplier to stratify seed ranges by universe (and thus temperature),
+                # ensuring that universes at different temperatures have non-overlapping seed spaces.
                 seed = self._config.base_seed + universe_id * 1000 + run_idx
                 result = self._run_single_universe(
                     universe_id=universe_id,
