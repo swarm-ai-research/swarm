@@ -140,6 +140,16 @@ class TestRunAgreement:
         report = run_agreement(m)
         assert report.n_items == 1
 
+    def test_single_judge_returns_degenerate(self) -> None:
+        # Arm C requires >=2 judges. Single judge returns alpha=NaN → verdict="degenerate".
+        m = matrix({
+            "mock": {"x": 0.1, "y": 0.4, "z": 0.8, "w": 0.9},
+        })
+        report = run_agreement(m)
+        assert report.n_judges == 1
+        assert math.isnan(report.alpha)
+        assert report.verdict == "degenerate"
+
 
 class TestPerBin:
     def test_bins_distinct_alphas(self) -> None:

@@ -109,13 +109,24 @@ def main(argv: list[str] | None = None) -> int:
     judge_names = list(dict.fromkeys(args.judges))
     judge_scores: dict[str, dict[str, float]] = {j: {} for j in judge_names}
     judge_rationales: dict[str, dict[str, str]] = {j: {} for j in judge_names}
+    # Reuse arm B's registry so mock variants (mock_b/mock_c, seeded jitter
+    # for inter-rater machinery) resolve identically across arms.
+    from experiments.calibration_judge import JUDGE_SPECS
+
     for name in judge_names:
-        if name != "mock":
+        spec = JUDGE_SPECS.get(name)
+        if spec is None or spec["provider"] != "mock":
             raise NotImplementedError(
                 f"judge backend '{name}' requires wiring up LLMJudge.score "
-                "(see swarm/judges/judge.py). Only 'mock' is available right now."
+                "(see swarm/judges/judge.py). Only mock-provider judges "
+                f"are available inline: "
+                f"{sorted(n for n, s in JUDGE_SPECS.items() if s['provider'] == 'mock')}"
             )
-        backend = MockJudge()
+        backend = MockJudge(
+            name=name,
+            noise_sigma=float(spec.get("noise_sigma", "0")),
+            noise_seed=int(spec.get("noise_seed", "0")),
+        )
         for interaction in accepted:
             view = make_view(interaction)
             verdict = backend.score(view)

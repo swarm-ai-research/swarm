@@ -16,7 +16,9 @@ and rationale. Backends:
 
 from __future__ import annotations
 
+import hashlib
 import json
+import random
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -109,6 +111,12 @@ class MockJudge:
 
     name: str = "mock"
     rubric_version: str = RUBRIC_VERSION  # defaults to v1 for back-compat
+    # Seeded score jitter for inter-rater studies (arm C needs >=2 judges
+    # that do not agree perfectly). 0.0 = exact rubric scoring, unchanged
+    # behavior. Jitter is deterministic per (name, noise_seed, interaction_id)
+    # so runs stay reproducible from config alone.
+    noise_sigma: float = 0.0
+    noise_seed: int = 0
 
     def score(self, view: JudgeView) -> JudgeScore:
         payload = view.to_judge_payload()
@@ -127,6 +135,13 @@ class MockJudge:
                 "the unknown version on the JudgeScore, corrupting downstream "
                 "calibration artifacts."
             )
+        if self.noise_sigma > 0.0:
+            digest = hashlib.sha256(
+                f"{self.name}:{self.noise_seed}:{view.interaction_id}".encode()
+            ).hexdigest()
+            rng = random.Random(int(digest[:16], 16))
+            score = min(1.0, max(0.0, score + rng.gauss(0.0, self.noise_sigma)))
+            rationale = f"{rationale} [seeded jitter sigma={self.noise_sigma}]"
         return JudgeScore(
             interaction_id=view.interaction_id,
             judge_name=self.name,

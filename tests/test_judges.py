@@ -404,3 +404,47 @@ class TestSampler:
         a = stratified_sample(flat, per_bin=5, seed=99)
         b = stratified_sample(flat, per_bin=5, seed=99)
         assert [i.interaction_id for i in a] == [i.interaction_id for i in b]
+
+
+class TestMockJudgeJitter:
+    """Seeded jitter for inter-rater (arm C) machinery runs."""
+
+    def _view(self) -> JudgeView:
+        return JudgeView(
+            interaction_id="jitter-test-1",
+            interaction_type="COLLABORATION",
+            accepted=True,
+            initiator_label="honest_1",
+            counterparty_label="honest_2",
+            metadata={"agent_type": "honest"},
+        )
+
+    def test_zero_sigma_is_exact_rubric_scoring(self) -> None:
+        view = self._view()
+        base = MockJudge(rubric_version="rubric.v1").score(view)
+        noiseless = MockJudge(
+            name="mock_b", rubric_version="rubric.v1", noise_sigma=0.0
+        ).score(view)
+        assert noiseless.score == base.score
+
+    def test_jitter_is_deterministic_per_seed(self) -> None:
+        view = self._view()
+        judge = MockJudge(
+            name="mock_b", rubric_version="rubric.v1", noise_sigma=0.05, noise_seed=2
+        )
+        again = MockJudge(
+            name="mock_b", rubric_version="rubric.v1", noise_sigma=0.05, noise_seed=2
+        )
+        assert judge.score(view).score == again.score(view).score
+
+    def test_jitter_differs_across_judges_and_stays_bounded(self) -> None:
+        view = self._view()
+        base = MockJudge(rubric_version="rubric.v1").score(view).score
+        scores = {
+            name: MockJudge(
+                name=name, rubric_version="rubric.v1", noise_sigma=0.08, noise_seed=i
+            ).score(view).score
+            for i, name in enumerate(["mock_b", "mock_c"], start=2)
+        }
+        assert all(0.0 <= s <= 1.0 for s in scores.values())
+        assert any(s != base for s in scores.values())

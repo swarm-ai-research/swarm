@@ -59,6 +59,11 @@ def _rubric_hash(version: str) -> str:
 # the model via JUDGE_MODEL_<NAME> env var.
 JUDGE_SPECS: dict[str, dict[str, str]] = {
     "mock": {"provider": "mock"},
+    # Jittered mocks for inter-rater (arm C) machinery runs: same rubric
+    # scoring as `mock` plus small seeded per-interaction noise, so >=2
+    # judges produce non-degenerate agreement stats without LLM calls.
+    "mock_b": {"provider": "mock", "noise_sigma": "0.05", "noise_seed": "2"},
+    "mock_c": {"provider": "mock", "noise_sigma": "0.08", "noise_seed": "3"},
     "claude": {"provider": "anthropic", "model": "claude-sonnet-4-20250514"},
     "gpt4o_mini": {"provider": "openai", "model": "gpt-4o-mini"},
     "llama": {"provider": "ollama", "model": "llama3.1"},
@@ -87,8 +92,20 @@ def _build_judges(
             )
         spec = JUDGE_SPECS[name]
         if spec["provider"] == "mock":
-            judges.append(MockJudge(rubric_version=rubric_version))
-            resolved[name] = {"provider": "mock", "rubric_version": rubric_version}
+            sigma = float(spec.get("noise_sigma", "0"))
+            judges.append(
+                MockJudge(
+                    name=name,
+                    rubric_version=rubric_version,
+                    noise_sigma=sigma,
+                    noise_seed=int(spec.get("noise_seed", "0")),
+                )
+            )
+            resolved[name] = {
+                "provider": "mock",
+                "rubric_version": rubric_version,
+                "noise_sigma": str(sigma),
+            }
             continue
         model = os.environ.get(f"JUDGE_MODEL_{name.upper()}", spec.get("model", ""))
         if not model:
