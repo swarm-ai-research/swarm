@@ -3,3 +3,4 @@
 # Tracks broken mkdocstrings code directives + dead internal markdown
 # links. CI fails if --check sees ids not in this list (new breakage).
 # Fix the ref (rename/restore the target) or, if intentional, ratchet.
+
