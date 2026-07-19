@@ -138,6 +138,8 @@ async def create_post(
         tags=body.tags,
         published_at=datetime.now(timezone.utc),
         run_url=f"{base_url}/api/runs/{body.run_id}",
+        upvotes=0,
+        downvotes=0,
     )
 
     store.save(post)

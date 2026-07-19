@@ -615,6 +615,8 @@ class PostStore:
             tags=tags,
             published_at=_parse_dt(row["published_at"]),  # type: ignore[arg-type]
             run_url=row["run_url"],
+            upvotes=row["upvotes"],
+            downvotes=row["downvotes"],
         )
 
 
