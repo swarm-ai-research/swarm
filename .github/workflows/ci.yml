@@ -17,6 +17,19 @@ jobs:
       - run: python -m pip install ruff
       - run: ruff check swarm/ tests/
 
+  invariants:
+    # INVARIANTS.md must map every declared invariant to a pytest node that
+    # collects — an invariant without a running test is prose, not an
+    # invariant. See scripts/check_invariants.py.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e ".[dev,runtime]"
+      - run: python scripts/check_invariants.py
+
   kb-graph-check:
     # Fails on (a) any orphan page (no inbound links) not in .kb-graph-orphans,
     # or (b) any stale reference — a broken mkdocstrings code directive or a
@@ -206,13 +219,17 @@ jobs:
   # Add "quality-gate" as a required check in GitHub branch protection.
   quality-gate:
     if: always()
-    needs: [lint, kb-graph-check, type-check, test, agentgit-gate, render-verify]
+    needs: [lint, invariants, kb-graph-check, type-check, test, agentgit-gate, render-verify]
     runs-on: ubuntu-latest
     steps:
       - name: Check all jobs passed
         run: |
           if [[ "${{ needs.lint.result }}" != "success" ]]; then
             echo "::error::Lint failed"
+            exit 1
+          fi
+          if [[ "${{ needs.invariants.result }}" != "success" ]]; then
+            echo "::error::Invariant manifest check failed (INVARIANTS.md maps an invariant to no test, or a referenced test no longer collects)"
             exit 1
           fi
           if [[ "${{ needs.kb-graph-check.result }}" != "success" ]]; then
