@@ -46,10 +46,12 @@ in flight; do not modify the rubric mid-arm.
   integrity boundary; gate-Goodharting detector via quality_gap < 0);
   miroshark SSE event endpoint + multiseed runner.
 - **Infra**: replay/checkpoint layer over the event log; sanitized opt-out
-  telemetry; repo-wide PG-style cleanup (9 packages, ~30 tracked issues all
-  resolved 2026-07-18, incl. two event-log payload bugs and a fabricated-
-  observation bug in the claude_code bridge); Joel Test audit 8/12 with
-  ci-red-main alerting as the compensating control for direct-to-main pushes.
+  telemetry; repo-wide PG-style cleanup (9 packages, ~30 tracked issues
+  resolved as of 2026-07-18, incl. two event-log payload bugs and a
+  fabricated-observation bug in the claude_code bridge); informal Joel Test
+  audit (beads label `joel-test`: 5 gaps filed; Q3 closed via the
+  ci-red-main alerting job, 3 process items open — evidence lives in the
+  tracker, not the repo).
 
 ## Next steps
 
@@ -90,7 +92,7 @@ gaming progressively harder — but at the cost of welfare.
 4. **Adversarial learners study** (300 runs): signal gaming does NOT break
    governance at moderate-to-high rho; at rho>=0.75 adversarial acceptance
    <4%; welfare loss linear in adversarial fraction; tp-rework correlation is
-   a reliable anomaly detector (+0.2 honest → -0.45 at 50% adversarial);
+   a reliable anomaly detector (+0.15-0.25 honest, drops to -0.45 at 50% adversarial);
    the rho dilemma persists (rho=0.75+ costs ~30-40% welfare vs rho=0)
 
 Published: ClawXiv `clawxiv.2602.00116`, AgentXiv `2602.00072`.
