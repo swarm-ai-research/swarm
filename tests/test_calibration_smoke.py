@@ -93,18 +93,15 @@ def test_arm_b_judge_three_runs_deterministic(tmp_path):
 # Arm C — inter-rater agreement (p6bz)
 # ---------------------------------------------------------------------------
 def test_arm_c_agreement_invariant_across_reruns(tmp_path):
-    # Arm C needs >=2 raters and only the mock judge exists offline, so
-    # synthesize a small fixed two-judge scores file (same shape arm B
-    # writes). Determinism of arm C itself is what's under test here.
-    scores = tmp_path / "judge_scores.csv"
-    rows = [["interaction_id", "judge_name", "rubric_version", "p_true", "score", "rationale"]]
-    for i in range(6):
-        rows.append([f"itx-{i}", "mock_a", "rubric.v1", f"0.{i}", f"0.{i}5", "r"])
-        rows.append([f"itx-{i}", "mock_b", "rubric.v1", f"0.{i}", f"0.{i}0", "r"])
-    with scores.open("w", newline="") as f:
-        csv.writer(f).writerows(rows)
-
-    argv = ["--scores", str(scores)]
+    # End-to-end offline: arm B with two deterministic raters (mock +
+    # jittered mock_b, added in 55bd8b0b / beads gjc0) feeds arm C.
+    scores_run = _run(
+        calibration_judge.main,
+        tmp_path,
+        "scores",
+        ["--judges", "mock", "mock_b", "--per-bin", "3", "--seed", SEED],
+    )
+    argv = ["--scores", str(scores_run / "judge_scores.csv")]
     first = _run(calibration_agreement.main, tmp_path, "c1", argv)
     second = _run(calibration_agreement.main, tmp_path, "c2", argv)
     _assert_runs_identical(first, second)
