@@ -123,6 +123,7 @@ class AggResult:
     welfare_mean: float
     welfare_std: float
     welfare_total_mean: float
+    welfare_total_std: float
     toxicity_mean: float
     toxicity_std: float
     quality_gap_mean: float
@@ -379,6 +380,8 @@ def aggregate_results(results: List[RunResult]) -> List[AggResult]:
                 welfare_mean=float(np.mean(welfares)),
                 welfare_std=float(np.std(welfares)),
                 welfare_total_mean=float(np.mean(welfare_totals)),
+                # ddof=1: sample std across seeds — feeds the SEM error bars
+                welfare_total_std=float(np.std(welfare_totals, ddof=1)) if len(runs) > 1 else 0.0,
                 toxicity_mean=float(np.mean(toxicities)),
                 toxicity_std=float(np.std(toxicities)),
                 quality_gap_mean=float(np.mean(qgaps)),
@@ -445,7 +448,10 @@ def plot_welfare_comparison(aggs: List[AggResult], out_dir: Path) -> Path:
             continue
         pcts = [a.rogue_pct * 100 for a in data]
         welfares = [a.welfare_total_mean for a in data]
-        stds = [a.welfare_std * a.n_seeds for a in data]
+        # SEM of the plotted quantity (total welfare across seeds). The old
+        # expression scaled the std of a *different* series (per-epoch-mean
+        # welfare) by n_seeds — inflating bars by ~n^1.5 on the wrong units.
+        stds = [a.welfare_total_std / np.sqrt(a.n_seeds) for a in data]
         ax.errorbar(
             pcts, welfares, yerr=stds,
             color=COLORS[regime], linewidth=2.5, marker=MARKERS[regime], markersize=8,
@@ -479,7 +485,7 @@ def plot_toxicity_comparison(aggs: List[AggResult], out_dir: Path) -> Path:
             continue
         pcts = [a.rogue_pct * 100 for a in data]
         tox = [a.toxicity_mean for a in data]
-        stds = [a.toxicity_std for a in data]
+        stds = [a.toxicity_std / np.sqrt(a.n_seeds) for a in data]  # SEM, consistent with welfare plot
         ax.errorbar(
             pcts, tox, yerr=stds,
             color=COLORS[regime], linewidth=2.5, marker=MARKERS[regime], markersize=8,
@@ -694,7 +700,7 @@ def write_aggregated_csv(aggs: List[AggResult], path: Path) -> None:
     """Write aggregated results to CSV."""
     fieldnames = [
         "composition", "regime", "rogue_pct", "n_seeds",
-        "welfare_total_mean", "welfare_std",
+        "welfare_total_mean", "welfare_total_std", "welfare_std",
         "toxicity_mean", "toxicity_std",
         "quality_gap_mean", "avg_payoff_mean",
         "honest_payoff_mean", "opportunistic_payoff_mean", "adversarial_payoff_mean",
@@ -709,6 +715,7 @@ def write_aggregated_csv(aggs: List[AggResult], path: Path) -> None:
                 "rogue_pct": f"{a.rogue_pct:.2f}",
                 "n_seeds": a.n_seeds,
                 "welfare_total_mean": f"{a.welfare_total_mean:.4f}",
+                "welfare_total_std": f"{a.welfare_total_std:.4f}",
                 "welfare_std": f"{a.welfare_std:.4f}",
                 "toxicity_mean": f"{a.toxicity_mean:.4f}",
                 "toxicity_std": f"{a.toxicity_std:.4f}",
