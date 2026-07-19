@@ -74,6 +74,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Proposal memo: governance-owned external-judge channel — tamper-resistant anchors as a byproduct of governed runs
 
+-   :material-chart-timeline-variant: **[Dispatch Retro 2026-07-19](dispatch-retro-2026-07-19.md)**
+
+    ---
+
+    First bv-dispatch retro: prediction scorecard, mud-ledger baselines (entropy 0.88, orphan influx 88%), and the read-path lesson
+
 </div>
 
 ## Core Research Questions

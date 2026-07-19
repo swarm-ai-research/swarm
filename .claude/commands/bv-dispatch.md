@@ -81,7 +81,8 @@ Analyze the open task graph with graph theory, and show your numbers:
 Then produce the assignment: for each agent, ONE primary and ONE backup bead,
 matched to their specialty, each drawn from a different parallel track. Justify
 every pick with the actual metrics (e.g. "bd-142: unblocks 6, on critical path,
-betweenness 0.31"), not vibes.
+betweenness 0.31"), not vibes. State DIRECT unblocks separately from transitive
+ones — retro 2026-07-19 half-credited a prediction that conflated them.
 
 Consolidation quota (Big Ball of Mud discipline): at least ONE agent's primary
 per round must be consolidation work — hygiene, missing edges, stale triage,
