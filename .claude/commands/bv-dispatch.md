@@ -97,12 +97,23 @@ Before mailing anyone, write the rationale INTO each assigned bead as a comment
 (metrics + predicted unblock count + why this agent) so the reasoning survives
 outside the mail thread and a future `retro` run can score these predictions.
 
-Then send each agent a message via agent mail with: their primary + backup, the
-metrics behind the pick, and this protocol — claim the bead by marking it
-in_progress immediately; if the assignment is >4h old or an upstream bead in
-your track has closed since, do not trust it: re-run bv yourself and claim the
-top-ranked unclaimed bead from your track instead. If no agent mail channel
-exists, say so and stop — do not simulate delivery.
+Then deliver each assignment through the rig's coordination channel, in this
+order of preference:
+1. agent_messages table in runs/runs.db (schema in CLAUDE.md): one broadcast
+   row per assignment — from_agent='bv-dispatch-r<N>', to_agent='#swarm',
+   body='ASSIGN: <bead-id> -> <PERSONA> (<metrics>). <one-line scope>. Claim:
+   bd update --status in_progress, then reply CLAIM here. Backup: <id>.'
+   Also READ the channel first: ack any unacked CLAIM/DONE rows and fold them
+   into this round's analysis (a claimed bead is not assignable).
+2. Agent mail (MCP), if configured.
+If neither exists, say so and stop — do not simulate delivery. Comment stamps
+on beads remain the durable record either way; the channel is the delivery
+mechanism (beads vw8g/x3q7: stamps alone provably do not reach claimants).
+
+Claim protocol (include in every delivery): mark in_progress immediately; if
+the assignment is >4h old or an upstream bead in your track has closed since,
+do not trust it — re-run the dispatch analysis yourself and claim the
+top-ranked unclaimed bead from your track instead.
 
 **All modes:**
 
