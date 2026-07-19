@@ -3,4 +3,3 @@
 # Tracks broken mkdocstrings code directives + dead internal markdown
 # links. CI fails if --check sees ids not in this list (new breakage).
 # Fix the ref (rename/restore the target) or, if intentional, ratchet.
-link: concepts/metrics.md -> ../papers/kernel_market_governance_comparison.md

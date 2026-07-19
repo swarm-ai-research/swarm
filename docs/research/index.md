@@ -62,6 +62,18 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Spike memo: should SWARM adopt a fabro-workflow-style experiment DAG for orchestration?
 
+-   :material-table: **[Calibration CSV Schema](calibration-csv-schema.md)**
+
+    ---
+
+    Arm D's frozen joined.v1 schema — the CSV contract downstream studies join against
+
+-   :material-gauge: **[External Quality Signal Interface](external-quality-signal-interface.md)**
+
+    ---
+
+    Proposal memo: governance-owned external-judge channel — tamper-resistant anchors as a byproduct of governed runs
+
 </div>
 
 ## Core Research Questions
