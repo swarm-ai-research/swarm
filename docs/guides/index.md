@@ -14,6 +14,12 @@ Practical guides for using SWARM effectively.
 
     Define custom scenarios with YAML configuration
 
+-   :material-console-line: **[Operating Procedure (STE)](operating-procedure.md)**
+
+    ---
+
+    Run the CLI, written in ASD-STE100 Simplified Technical English
+
 -   :material-robot: **[Custom Agents](custom-agents.md)**
 
     ---
@@ -63,6 +69,7 @@ Practical guides for using SWARM effectively.
 | Guide | Description | Difficulty |
 |-------|-------------|------------|
 | [Writing Scenarios](scenarios.md) | YAML-based scenario definition | Beginner |
+| [Operating Procedure (STE)](operating-procedure.md) | CLI operation in Simplified Technical English | Beginner |
 | [Custom Agents](custom-agents.md) | Extend `BaseAgent` for custom behavior | Intermediate |
 | [Parameter Sweeps](parameter-sweeps.md) | Systematic experimentation | Intermediate |
 | [LLM Agents](llm-agents.md) | GPT/Claude integration | Advanced |
