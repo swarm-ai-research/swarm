@@ -154,3 +154,16 @@ explicitly in any downstream finding.
 
 Arm A is independent and can begin immediately. Arms B and C share the
 judge pipeline and are run in sequence.
+
+---
+
+## Post-registration addenda (append-only; not part of the registered design)
+
+- **2026-07-19 — Arm A findings & deviation analysis:**
+  [calibration-arm-a-deviation-analysis.md](calibration-arm-a-deviation-analysis.md).
+  Registered readout k\*=5.0, ECE 0.187, Brier 0.0906; outcome branch 2
+  ("report the gap honestly, re-tune k; adaptive study still unblocked")
+  applies. Includes a labeled exploratory k-extension and the
+  latent-p-unrecoverability root cause; the ECE<0.1 / Brier<0.05 numbers
+  circulating in the tracker are the c89o scenario spec, not registered
+  criteria of this document.
