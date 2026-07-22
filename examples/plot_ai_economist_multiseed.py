@@ -410,7 +410,7 @@ def main() -> int:
         description="Generate multi-seed AI Economist GTB figures"
     )
     parser.add_argument("sweep_dir", type=Path, help="Sweep output directory")
-    parser.add_argument("--copy-to-docs", action="store_true", default=True,
+    parser.add_argument("--copy-to-docs", action=argparse.BooleanOptionalAction, default=True,
                         help="Copy figures to docs/papers/figures/")
     args = parser.parse_args()
 

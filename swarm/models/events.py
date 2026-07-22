@@ -507,7 +507,10 @@ def artifact_created_event(
     )
 
     return Event(
-        event_type=EventType.MEMORY_WRITTEN,  # Reuse existing event type
+        # Deliberate reuse: artifact events share MEMORY_WRITTEN so old logs
+        # replay identically. Distinguish via artifact_id / provenance_id
+        # (which embeds "artifact_created"), not event_type.
+        event_type=EventType.MEMORY_WRITTEN,
         agent_id=agent_id,
         timestamp=timestamp,
         payload={
@@ -616,7 +619,10 @@ def intervention_event(
     )
 
     return Event(
-        event_type=EventType.GOVERNANCE_COST_APPLIED,  # Reuse existing type
+        # Deliberate reuse: interventions share GOVERNANCE_COST_APPLIED so old
+        # logs replay identically. Distinguish via intervention_id /
+        # provenance_id (embeds "governance_intervention"), not event_type.
+        event_type=EventType.GOVERNANCE_COST_APPLIED,
         agent_id=agent_id,
         timestamp=timestamp,
         payload={
@@ -664,7 +670,10 @@ def agent_message_event(
     )
 
     return Event(
-        event_type=EventType.AGENT_STATE_UPDATED,  # Reuse existing type
+        # Deliberate reuse: agent messages share AGENT_STATE_UPDATED so old
+        # logs replay identically. Distinguish via provenance_id (embeds
+        # "agent_message"), not event_type.
+        event_type=EventType.AGENT_STATE_UPDATED,
         agent_id=agent_id,
         timestamp=timestamp,
         payload={

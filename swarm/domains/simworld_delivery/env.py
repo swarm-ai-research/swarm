@@ -763,6 +763,13 @@ class DeliveryEnvironment:
                             OrderStatus.IN_TRANSIT)
         }
 
+        # Drop sharing records for orders that no longer exist; the sharing
+        # bonus is paid at delivery completion, so nothing is owed by now.
+        self._shared_orders_map = {
+            oid: sharer for oid, sharer in self._shared_orders_map.items()
+            if oid in self._orders
+        }
+
         return events
 
     # ------------------------------------------------------------------

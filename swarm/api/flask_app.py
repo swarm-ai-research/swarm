@@ -1,4 +1,10 @@
-"""GitHub App webhook handler for swarm-ai-bot."""
+"""GitHub App webhook handler for swarm-ai-bot.
+
+Standalone deployment entrypoint — intentionally not imported anywhere in
+the swarm package. External runners serve it as ``swarm.api.flask_app:app``,
+and it is omitted from coverage in pyproject.toml for the same reason.
+Do not remove as "dead code" on the strength of an import grep.
+"""
 
 import hashlib
 import hmac

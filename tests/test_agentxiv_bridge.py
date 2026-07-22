@@ -257,6 +257,14 @@ class TestScenarioGenerator:
         types = {a["type"] for a in agents}
         assert "opportunistic" in types
 
+    def test_map_agent_composition_rejects_unknown_density(self):
+        gen = ScenarioGenerator()
+        annotation = PaperAnnotation(
+            risk_profile=RiskProfile(interaction_density="hgih"),
+        )
+        with pytest.raises(ValueError, match="interaction_density"):
+            gen._map_agent_composition(annotation)
+
     def test_map_agent_composition_high_density_scales(self):
         gen = ScenarioGenerator()
         ann_low = PaperAnnotation(

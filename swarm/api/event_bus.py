@@ -108,7 +108,11 @@ class EventBus:
     async def publish(self, event: SimEvent) -> int:
         """Publish an event (async). Returns number of subscribers notified.
 
-        Safe to call from any thread — delegates to ``publish_sync``.
+        Safe to call from any thread — delegates to ``publish_sync``, which
+        never blocks the event loop: the lock is held only to snapshot the
+        subscriber list, same-loop delivery uses ``put_nowait`` (dropping on
+        full queues), and cross-loop delivery schedules via
+        ``run_coroutine_threadsafe`` without awaiting the result.
         """
         return self.publish_sync(event)
 
