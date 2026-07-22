@@ -166,6 +166,11 @@ nav:
     - Gitlawb (Live): bridges/gitlawb.md
     - OpenClaw LLM Router: bridges/openclaw-swarm-llmrouter.md
   - Research:
+    # CONVENTION (estate reconciliation 2026-07-21): this nav section lists
+    # curated highlights only. The full research corpus (prereg docs, findings
+    # memos, spike notes) is reachable via the research/index.md cards and
+    # site search — do NOT add every page here. Orphan protection is the
+    # kb-graph ratchet's job (scripts/build_kb_graph.py), not the nav's.
     - Overview: research/index.md
     - Theoretical Foundations: research/theory.md
     - Papers: research/papers.md
