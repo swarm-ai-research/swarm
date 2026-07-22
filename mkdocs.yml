@@ -134,6 +134,7 @@ nav:
     - Overview: guides/index.md
     - Claude Code: guides/claude-code.md
     - Framework Overview: guides/framework-overview.md
+    - Operating Procedure (STE): guides/operating-procedure.md
     - Governance Simulation: guides/governance-simulation.md
     - Writing Scenarios: guides/scenarios.md
     - Custom Agents: guides/custom-agents.md
