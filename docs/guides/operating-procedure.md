@@ -68,7 +68,7 @@ Do these steps to install SWARM:
 1. Type this command:
 
    ```bash
-   python -m pip install -e ".[dev,runtime]"
+   python -m pip install -e ".[dev,analysis,runtime]"
    ```
 
 2. Push the **Enter** key.
@@ -78,6 +78,11 @@ Do these steps to install SWARM:
 !!! warning
     Do not use a different Python version after the installation. A different
     version can cause an import error.
+
+!!! note "The analysis extra"
+    The `analysis` extra installs matplotlib. Procedure 5 needs matplotlib to
+    make the plots. If you install only `dev` and `runtime`, the program makes
+    no plots and shows no error.
 
 ## Procedure 2 — List the scenarios
 
@@ -139,8 +144,14 @@ python -m swarm run scenarios/baseline.yaml --seed 42 --epochs 20 --steps 10
 
 !!! warning
     Record the seed for each run. If you do not use the same seed, the program
-    makes a different result. The same scenario, the same seed, and the same
-    version always make the same result.
+    makes a different result. For a scenario with local agents, the same
+    scenario, the same seed, and the same version always make the same result.
+
+!!! note "Scenarios with LLM agents"
+    The seed does not control the LLM agents. An LLM scenario sends a
+    temperature value to an external model. The model can make a different
+    result for each run. To get the same result, use a scenario with local
+    agents.
 
 ### Stop the terminal output
 
@@ -153,7 +164,8 @@ python -m swarm run scenarios/baseline.yaml --quiet
 
 ## Procedure 4 — Save the results
 
-You can export the result to a file. Use the options in the table.
+You can export the result to a file or to a directory. Use the options in the
+table.
 
 | Option | Function |
 |---|---|
@@ -215,6 +227,7 @@ The table shows the usual faults and the corrective actions.
 | The terminal shows `... is not readable`. | The file permissions are wrong. | Change the file permissions. Then run the scenario again. |
 | The program makes a different result each run. | The seed is not constant. | Add the `--seed` option with the same number. |
 | The program shows an import error. | The Python version is wrong. | Do Procedure 1 with Python 3.10 or a later version. |
+| The plots directory is empty. | matplotlib is not installed. | Install the `analysis` extra. Do Procedure 1 with `".[dev,analysis,runtime]"`. |
 | The plots directory is empty. | The run stopped before the end. | Read the terminal for an error. Then run the scenario again. |
 
 ## Related documents
