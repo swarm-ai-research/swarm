@@ -145,3 +145,8 @@ docs/assets/kb_graph.json
 
 # Concurrent-session heartbeats (worktree-discipline guard, bead oldj)
 .claude/session-heartbeats/
+
+# Session tool caches (local-only, never commit)
+.cache/
+.claude/worktrees/
+.understand-anything/
