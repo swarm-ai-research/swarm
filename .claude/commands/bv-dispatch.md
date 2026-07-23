@@ -95,12 +95,26 @@ Analyze the open task graph with graph theory, and show your numbers:
    Blocked routes: a bead stalled on a theorem-strength gap gets a comment
    naming the exact blocker; reopen it only when a claimant names a materially
    new mechanism in the bead (retro audits these — MUD LEDGER item 5).
+7. Gate-cost ranking (erdos ecosystem lesson 7: search aggression scales
+   inversely with gate cost) — classify each exploratory bead's acceptance
+   gate:
+   - G0 mechanical: pass/fail without human judgment (failing test, DB
+     trigger, deterministic seeded benchmark, concrete counterexample).
+   - G1 replayable: seeded run whose numbers the Auditor can re-derive.
+   - G2 judgment: design decisions, prose claims, prereg interpretation.
+   Aggressive search — multiple agents, high persistence, loose priors —
+   goes only to G0/G1 beads, where a wrong confident answer dies cheaply at
+   the gate. G2 beads get ONE conservative agent plus a named reviewer;
+   never point never-give-up prompting at a judgment gate.
 
 Then produce the assignment: for each agent, ONE primary and ONE backup bead,
 matched to their specialty, each drawn from a different parallel track. Justify
 every pick with the actual metrics (e.g. "bd-142: unblocks 6, on critical path,
 betweenness 0.31"), not vibes. State DIRECT unblocks separately from transitive
 ones — retro 2026-07-19 half-credited a prediction that conflated them.
+For research beads, include the gate class (step 7) in the justification and
+let it set the aggression: G0/G1 primaries may carry "persist until the gate
+passes" instructions; G2 primaries must not.
 
 Consolidation quota (Big Ball of Mud discipline): at least ONE agent's primary
 per round must be consolidation work — hygiene, missing edges, stale triage,
@@ -155,6 +169,6 @@ with a comment naming what's missing (erdos-1038 lesson 5).
 
 **All modes:**
 
-Reply with a summary table (agent → bead → unblocks → why) and a Mermaid diagram
+Reply with a summary table (agent → bead → unblocks → gate class → why) and a Mermaid diagram
 of the dependency graph showing the critical path highlighted and each agent's
 track color-coded. Use ultrathink.
