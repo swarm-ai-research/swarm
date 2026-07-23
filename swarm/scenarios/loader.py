@@ -1,5 +1,6 @@
 """Scenario loader for YAML configuration files."""
 
+import logging
 import random
 import threading
 from dataclasses import dataclass, field
@@ -98,6 +99,8 @@ from swarm.env.state import RateLimits
 from swarm.governance.config import GovernanceConfig
 
 # Agent type registry for scripted agents
+logger = logging.getLogger(__name__)
+
 AGENT_TYPES: Dict[str, Type[BaseAgent]] = {
     "honest": HonestAgent,
     "ldt": LDTAgent,
@@ -1584,14 +1587,52 @@ def build_orchestrator(scenario: ScenarioConfig) -> Orchestrator:
     Returns:
         Configured Orchestrator with agents registered
     """
+    # Create agents first: calibration-injection wiring (below) needs their
+    # per-agent configs before the Orchestrator is constructed.
+    agents = create_agents(scenario.agent_specs, seed=scenario.orchestrator_config.seed)
+
+    # Calibration injection (beads c89o): any agent whose YAML config carries
+    # ``v_hat_target`` gets its observables solved so v_hat lands exactly on
+    # the target, and latent ground truth is drawn from the target-derived
+    # probability. Inferred from agent configs — no scenario-level knob.
+    v_hat_targets = {
+        agent.agent_id: float(agent.config["v_hat_target"])
+        for agent in agents
+        if isinstance(getattr(agent, "config", None), dict)
+        and "v_hat_target" in agent.config
+    }
+    observable_generator = None
+    proxy_computer = None
+    if v_hat_targets:
+        from swarm.core.observable_generator import (
+            CalibrationInjectionObservableGenerator,
+        )
+        from swarm.core.proxy import ProxyComputer
+
+        seed = scenario.orchestrator_config.seed
+        proxy_computer = ProxyComputer()
+        observable_generator = CalibrationInjectionObservableGenerator(
+            targets=v_hat_targets,
+            proxy_computer=proxy_computer,
+            rng=random.Random(seed + 7919) if seed is not None else None,
+        )
+        logger.info(
+            "Calibration injection active for %d agents (max v_hat error %.2e)",
+            len(v_hat_targets),
+            observable_generator.max_target_error(),
+        )
+
     # Create orchestrator
-    orchestrator = Orchestrator(config=scenario.orchestrator_config)
+    orchestrator = Orchestrator(
+        config=scenario.orchestrator_config,
+        proxy_computer=proxy_computer,
+        observable_generator=observable_generator,
+    )
 
     # Override rate limits
     orchestrator.state.rate_limits = scenario.rate_limits
 
-    # Create and register agents
-    agents = create_agents(scenario.agent_specs, seed=scenario.orchestrator_config.seed)
+    # Register agents
     for agent in agents:
         orchestrator.register_agent(agent)
 

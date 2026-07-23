@@ -126,3 +126,68 @@ def test_arm_d_join_deterministic_and_schema_complete(tmp_path):
     from swarm.calibration.joined import joined_header
 
     assert header == joined_header(["mock"])
+
+
+def test_injection_generator_pins_v_hat_exactly():
+    """c89o: closed-form observables land compute_v_hat on each target."""
+    import random
+
+    from swarm.core.observable_generator import (
+        CalibrationInjectionObservableGenerator,
+    )
+    from swarm.core.proxy import ProxyComputer
+
+    targets = {f"c{i}": t for i, t in enumerate([-1.0, -0.6, -0.2, 0.2, 0.6, 1.0])}
+    gen = CalibrationInjectionObservableGenerator(
+        targets, ProxyComputer(), rng=random.Random(0)
+    )
+    # -1.0 needs the asymptotic penalty floor; everything else is exact.
+    assert gen.max_target_error() < 3e-4
+    proxy = ProxyComputer()
+    for t in (-0.6, -0.2, 0.2, 0.6, 1.0):
+        assert abs(proxy.compute_v_hat(gen._solve_observables(t)) - t) < 1e-12
+
+
+def test_injection_ground_truth_rate_matches_latent_p():
+    """gt draws follow p_latent = compute_p(target), not the realized labels."""
+    import random
+
+    from swarm.core.observable_generator import (
+        CalibrationInjectionObservableGenerator,
+    )
+    from swarm.core.proxy import ProxyComputer
+
+    proxy = ProxyComputer()
+    gen = CalibrationInjectionObservableGenerator(
+        {"a": 0.6}, proxy, rng=random.Random(123)
+    )
+    n = 5000
+    rate = sum(1 for _ in range(n) if gen.draw_ground_truth("a") == 1) / n
+    assert abs(rate - proxy.compute_p(0.6)) < 0.02
+    assert gen.draw_ground_truth("unknown") is None
+
+
+def test_injection_scenario_end_to_end(tmp_path):
+    """Scenario run wires targets -> pinned v_hat + ground_truth in export."""
+    import json as _json
+    import subprocess
+    import sys as _sys
+
+    export = tmp_path / "export.json"
+    res = subprocess.run(
+        [
+            _sys.executable, "-m", "swarm", "run",
+            "scenarios/calibration_proxy_fidelity.yaml",
+            "--seed", "5", "--epochs", "1", "--steps", "30",
+            "--export-json", str(export), "--quiet",
+        ],
+        capture_output=True, text=True, timeout=300,
+    )
+    assert res.returncode == 0, res.stderr[-500:]
+    events = _json.loads(export.read_text())["events"]
+    cal = [e for e in events if e.get("ground_truth") is not None]
+    assert cal, "no calibration interactions captured"
+    allowed = {-1.0, -0.6, -0.2, 0.2, 0.6, 1.0}
+    for e in cal:
+        assert e["ground_truth"] in (1, -1)
+        assert any(abs(e["v_hat"] - t) < 3e-4 for t in allowed), e["v_hat"]

@@ -131,6 +131,10 @@ def history_to_interaction_records(
             "accepted": interaction.accepted,
             "p": interaction.p,
             "v_hat": interaction.v_hat,
+            # None for ordinary runs; ±1 in calibration-injection scenarios
+            # (arm A promoted, beads c89o) — consumed by
+            # experiments/calibration_fidelity.py --from-run.
+            "ground_truth": interaction.ground_truth,
         }
         records.append(record)
     return records

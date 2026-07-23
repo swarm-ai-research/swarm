@@ -167,3 +167,38 @@ judge pipeline and are run in sequence.
   latent-p-unrecoverability root cause; the ECE<0.1 / Brier<0.05 numbers
   circulating in the tracker are the c89o scenario spec, not registered
   criteria of this document.
+
+- **2026-07-22 — c89o controlled-injection scenario: registered design and
+  criteria (written and committed BEFORE the confirmatory run):**
+  - **Design:** `scenarios/calibration_proxy_fidelity.yaml` — six 2-agent
+    clusters with `v_hat_target ∈ {−1, −0.6, −0.2, +0.2, +0.6, +1}`;
+    observables solved in closed form so `ProxyComputer.compute_v_hat`
+    lands on the target (max residual 2.2e-4, on the −1 penalty-floor
+    target only); latent ground truth drawn per interaction from
+    `p_latent = compute_p(target)` with the pipeline's default
+    `sigmoid_k = 2.0`; governance fully disabled; single confirmatory run
+    at seed 42, 10 epochs × 200 steps (measured throughput ≈1.6
+    interactions/step ⇒ expected ≥500 latent draws per cluster, matching
+    arm A's registered per-bin minimum; the architect sketch's 10×20 was
+    ~12× underpowered and is amended here, pre-run).
+  - **Criteria (confirmatory):**
+    1. **ECE < 0.1** (10 equal-width bins, as arm A).
+    2. **Excess Brier < 0.02**, where excess = Brier − Σ_c (n_c/N)·p_c(1−p_c)
+       over realized cluster counts. The architect spec's raw Brier < 0.05
+       is *unachievable by any estimator* under honestly stochastic latent
+       truth: the refinement (irreducible) term alone is ≈0.174 for these
+       targets. The raw criterion was only satisfiable under old arm A's
+       quasi-deterministic generator; registering it verbatim would
+       preregister a guaranteed failure, so it is replaced pre-hoc by the
+       calibration-referenced form.
+    3. **Reliability convergence:** every occupied bin with n ≥ 100 has
+       |accuracy − mean confidence| < 0.06 (≈2.7 binomial σ at n=500,
+       p=0.5).
+  - **Analysis:** `python -m swarm run scenarios/calibration_proxy_fidelity.yaml
+    --seed 42 --export-json <out>` then
+    `python -m experiments.calibration_fidelity --from-run <out>`.
+  - **Disclosure:** development smoke runs before this registration used
+    seeds 42 (2×10 steps), 7 (2×100), and 5 (1×30) to verify plumbing and
+    measure throughput; they are excluded from the confirmatory analysis.
+    No confirmatory-length run was executed before this addendum was
+    committed.

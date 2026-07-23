@@ -82,6 +82,13 @@ class InteractionFinalizer:
 
         v_hat, p = self._proxy_computer.compute_labels(observables)
 
+        # Calibration scenarios: generators may expose a latent ground-truth
+        # draw (duck-typed, like the obfuscation offsets protocol). Drawn
+        # from the generator's *intended* latent probability — not the
+        # computed p — so injection drift shows up as calibration error.
+        draw = getattr(self._observable_generator, "draw_ground_truth", None)
+        ground_truth = draw(proposal.initiator_id) if callable(draw) else None
+
         interaction = SoftInteraction(
             interaction_id=proposal.proposal_id,
             initiator=proposal.initiator_id,
@@ -96,6 +103,7 @@ class InteractionFinalizer:
             v_hat=v_hat,
             p=p,
             tau=proposal.metadata.get("offered_transfer", 0),
+            ground_truth=ground_truth,
             metadata=proposal.metadata,
         )
 

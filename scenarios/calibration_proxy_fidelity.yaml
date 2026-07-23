@@ -1,0 +1,87 @@
+# Calibration Arm A promoted to a first-class scenario (beads c89o).
+#
+# Six agent clusters pinned to v_hat targets via controlled observable
+# injection (agent config `v_hat_target`): the loader detects the targets,
+# solves observables in closed form so ProxyComputer lands exactly on each
+# target, and draws latent ground truth per interaction from
+# p_latent = sigmoid(k * target) with the pipeline's own k.
+#
+# This makes latent probability recoverable BY CONSTRUCTION — unlike the
+# ad-hoc arm A generator (experiments/calibration_fidelity.py), whose
+# observables leaked realized v (see
+# docs/research/calibration-arm-a-deviation-analysis.md). What this
+# scenario validates is the measurement pipeline end to end: proxy math,
+# finalizer bookkeeping, export, and binning.
+#
+# Success criteria (registered in docs/research/calibration-prereg.md
+# post-registration addendum BEFORE the confirmatory run): ECE < 0.1,
+# Brier < 0.05, reliability diagram converges to the diagonal.
+#
+# Analysis: python -m experiments.calibration_fidelity --from-run <export.json>
+
+scenario_id: calibration_proxy_fidelity
+description: "Controlled v_hat injection across 6 pinned clusters; latent ground truth drawn from target-derived p"
+motif: calibration
+
+agents:
+  - type: honest
+    count: 2
+    config: { v_hat_target: -1.0 }
+  - type: honest
+    count: 2
+    config: { v_hat_target: -0.6 }
+  - type: honest
+    count: 2
+    config: { v_hat_target: -0.2 }
+  - type: honest
+    count: 2
+    config: { v_hat_target: 0.2 }
+  - type: honest
+    count: 2
+    config: { v_hat_target: 0.6 }
+  - type: honest
+    count: 2
+    config: { v_hat_target: 1.0 }
+
+governance:
+  # All levers disabled per architect spec — calibration must see raw flow.
+  transaction_tax_rate: 0.0
+  transaction_tax_split: 0.5
+  reputation_decay_rate: 1.0
+  bandwidth_cap: 10
+  staking_enabled: false
+  min_stake_to_participate: 0.0
+  circuit_breaker_enabled: false
+  audit_enabled: false
+
+simulation:
+  # Architect sketch said 10x20; measured throughput is ~1.6 interactions/
+  # step, so 10x200 is required to reach the arm-A-standard >=500 latent
+  # draws per cluster (power analysis in the prereg addendum, done BEFORE
+  # the confirmatory run).
+  n_epochs: 10
+  steps_per_epoch: 200
+  seed: 42
+
+rate_limits:
+  posts_per_epoch: 10
+  interactions_per_step: 12
+  votes_per_epoch: 50
+  tasks_per_epoch: 3
+
+payoff:
+  s_plus: 2.0
+  s_minus: 1.0
+  h: 2.0
+  theta: 0.5
+  rho_a: 0.0
+  rho_b: 0.0
+  w_rep: 1.0
+
+success_criteria:
+  min_epochs: 10
+  min_agents: 12
+
+outputs:
+  event_log: "logs/calibration_proxy_fidelity_events.jsonl"
+  metrics_csv: "logs/calibration_proxy_fidelity_metrics.csv"
