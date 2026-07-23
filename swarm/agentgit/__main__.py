@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -15,7 +16,15 @@ from swarm.agentgit.bundle import (
     verify_bundle,
     write_bundle,
 )
-from swarm.agentgit.coordination import DEFAULT_DB_PATH, CoordinationBoard
+from swarm.agentgit.coordination import (
+    DEFAULT_DB_PATH,
+    CoordinationBoard,
+    clear_claim_marker,
+    read_claim_marker,
+    resolve_agent_id,
+    resolve_shared_db_path,
+    write_claim_marker,
+)
 from swarm.agentgit.memory import KINDS, SCOPES, MemoryEntry, MemoryStore
 from swarm.agentgit.policy import AgentGitPolicy, gate_bundle
 from swarm.agentgit.push_tokens import (
@@ -230,6 +239,73 @@ def cmd_review(args: argparse.Namespace) -> int:
         print(synthesis.format_text())
     blocked = synthesis.verdict == VERDICT_BLOCK
     return 0 if not blocked or args.warn_only else 1
+
+
+def _repo_root() -> Path:
+    return Path(os.environ.get("MAIN_REPO_ROOT") or ".")
+
+
+def cmd_claim(args: argparse.Namespace) -> int:
+    """Atomic work-start: claim a task, refusing if another session holds it.
+
+    This is the duplication gate. Route ALL work-start through it: two
+    sessions cannot both claim the same task, so they cannot both build the
+    same thing (the 2026-07-22 failure). Uses the shared cross-worktree DB.
+    """
+
+    db = Path(args.db) if args.db else resolve_shared_db_path()
+    agent = args.agent or resolve_agent_id()
+    root = _repo_root()
+
+    with CoordinationBoard(db) as board:
+        if args.action == "status":
+            mine = [c for c in board.active_claims() if c["agent"] == agent]
+            others = [c for c in board.active_claims() if c["agent"] != agent]
+            print(f"agent: {agent}   db: {db}")
+            print(f"held by you ({len(mine)}): " +
+                  (", ".join(c["task_id"] for c in mine) or "-"))
+            for c in others:
+                print(f"held by {c['agent']}: {c['task_id']}")
+            return 0
+
+        if not args.task:
+            print("claim: a task id is required")
+            return 1
+
+        if args.action == "release":
+            ok = board.complete(agent, args.task)
+            marker = read_claim_marker(root)
+            if marker and marker["task_id"] == args.task:
+                clear_claim_marker(root)
+            print(f"{'RELEASED' if ok else 'NOT-HELD'} {args.task}")
+            return 0 if ok else 1
+
+        if args.action == "check":
+            # Hook gate: is the task being committed held by ANOTHER session?
+            holder = board.claim_holder(args.task)
+            if holder is not None and holder != agent:
+                print(f"COLLISION: {args.task} is claimed by {holder}, not you ({agent})")
+                return 1
+            return 0
+
+        # claim (default): atomic, refuse-on-conflict — the prevention.
+        result = board.claim(agent, args.task)
+        if not result.ok:
+            print(f"REFUSED: {args.task} is already claimed by {result.holder}.")
+            print("  Another session is doing this work. Pick different work, or")
+            print("  coordinate: python -m swarm.agentgit claim status")
+            return 2
+        write_claim_marker(root, args.task, agent)
+        # Best-effort: mark the bead in_progress so bd ready reflects the claim.
+        try:
+            subprocess.run(
+                ["bd", "update", args.task, "--status=in_progress"],
+                check=False, capture_output=True, timeout=15,
+            )
+        except (FileNotFoundError, subprocess.SubprocessError):
+            pass
+        print(f"CLAIMED {args.task} by {agent} (marker written; bead → in_progress)")
+        return 0
 
 
 def cmd_coord(args: argparse.Namespace) -> int:
@@ -663,6 +739,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the synthesis but return success even on a block verdict",
     )
     review.set_defaults(func=cmd_review)
+
+    claim = subparsers.add_parser(
+        "claim",
+        help="Atomic work-start: claim a task (refuses if another session holds it)",
+    )
+    claim.add_argument("action", choices=["claim", "release", "check", "status"],
+                       nargs="?", default="claim")
+    claim.add_argument("task", nargs="?", default="", help="Task / bead id")
+    claim.add_argument("--agent", default=None,
+                       help="Agent identity (default: $SESSION_ID or main-checkout@host)")
+    claim.add_argument("--db", default=None,
+                       help="Coordination DB (default: shared $MAIN_REPO_ROOT/runs/runs.db)")
+    claim.set_defaults(func=cmd_claim)
 
     coord = subparsers.add_parser(
         "coord",
