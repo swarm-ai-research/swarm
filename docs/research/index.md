@@ -86,6 +86,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Verified case study of the 2026 Dinitz–Garg–Goemans disproof: verifier coverage as the trust variable, pressure-lever symmetry, plausibility–certificate gap
 
+-   :material-timeline-clock: **[Long-Horizon Safety Lessons](long-horizon-safety-lessons.md)**
+
+    ---
+
+    OpenAI's 2026 long-horizon model post-mortem: action-level gates get decomposed around, trajectory-level monitoring, constraint circumvention vs. fabrication
+
 -   :material-scale-balance: **[Erdős AI-Ledger Lessons](erdos-ai-ledger-lessons.md)**
 
     ---
