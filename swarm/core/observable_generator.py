@@ -216,6 +216,26 @@ class ObfuscationObservableGenerator:
             counterparty_engagement_delta=eng,
         )
 
+    def draw_ground_truth(self, initiator_id: str) -> int | None:
+        """Latent ground truth for the initiator's current interaction.
+
+        Duck-typed by the finalizer (like the offsets protocol): if the
+        initiator agent exposes ``draw_ground_truth()`` (e.g. the
+        pressure-responsive worker, beads pins), its label is recorded on
+        the interaction. Otherwise delegates to the inner generator's
+        ``draw_ground_truth`` if it has one (calibration injection), else
+        ``None``.
+        """
+        agent = self._agents.get(initiator_id)
+        if agent is not None and hasattr(agent, "draw_ground_truth"):
+            gt = agent.draw_ground_truth()
+            if gt is not None:
+                return int(gt)
+        inner_draw = getattr(self._inner, "draw_ground_truth", None)
+        if callable(inner_draw):
+            return cast("int | None", inner_draw(initiator_id))
+        return None
+
 
 class CalibrationInjectionObservableGenerator:
     """Pin each initiator's ``v_hat`` to a configured target — arm A promoted

@@ -1,0 +1,86 @@
+# Escalating-pressure scenario (beads pins)
+#
+# Models the fabrication-under-pressure dynamic from the DGG counterexample
+# episode (docs/research/dgg-counterexample-lessons.md §2): worker agents
+# whose tasks sometimes fail face escalating demand pressure over epochs and
+# choose between honest-negative reports (look bad, harmless, ground truth
+# +1) and fabricated positives (look good, harmful, ground truth -1).
+#
+# Two acceptance regimes, one lever apart:
+#   Regime A (this file as-is): plausibility-scored — no verification;
+#     consequences flow only from proxy p. Prediction: pressure ramps →
+#     fabricated share of accepted interactions rises; proxy toxicity
+#     E[1-p | accepted] stays flat or falls (fabrication inflates p) while
+#     ground-truth harm rises — the plausibility-certificate gap signature.
+#   Regime B (flip certificate_gate_enabled: true, sweep
+#     certificate_coverage): certificate-gated — covered interactions are
+#     verified against latent ground truth; caught fabrication is penalized
+#     in cost and reputation, and adaptive workers decay their fabrication
+#     propensity when caught. Prediction: the same pressure ramp yields
+#     falling fabrication and stable ground-truth quality.
+#
+# Sweep axis for the regime comparison:
+#   /sweep escalating_pressure.yaml certificate_gate_enabled=[false,true] \
+#          certificate_coverage=[0.0,0.15,0.3,0.6,0.9]
+#
+# Ground truth is recorded per interaction (SoftInteraction.ground_truth),
+# so the PCG metric (beads mt8a) can be computed from exports once built.
+
+scenario_id: escalating_pressure
+description: "Workers under escalating demand pressure: honest-negative vs fabricated-positive reports, plausibility vs certificate-gated acceptance"
+motif: pressure
+
+agents:
+  # Workers whose fabrication propensity responds to pressure.
+  - type: pressure_responsive
+    count: 4
+    config:
+      competence: 0.55        # ~45% of tasks fail -> report choice matters
+      pressure_warmup_epochs: 5
+      pressure_ramp_epochs: 15  # pressure hits max at epoch 20
+      pressure_max: 1.0
+      fabrication_gain: 1.0
+      adaptive: true
+      caught_decay: 0.5
+
+  # Counterparties accepting/rejecting on observables-derived signals.
+  - type: honest
+    count: 4
+
+governance:
+  # Neutral baseline: no confounding levers. The regime comparison flips
+  # exactly one lever (certificate gate) per the one-lever-at-a-time norm.
+  transaction_tax_rate: 0.0
+  transaction_tax_split: 0.5
+  reputation_decay_rate: 1.0
+  bandwidth_cap: 10
+  staking_enabled: false
+  circuit_breaker_enabled: false
+  audit_enabled: false
+
+  # Regime B: flip to true and sweep coverage.
+  certificate_gate_enabled: false
+  certificate_coverage: 0.3
+  certificate_penalty: 1.5
+
+simulation:
+  n_epochs: 30              # 5 warmup + 15 ramp + 10 at full pressure
+  steps_per_epoch: 10
+  seed: 42
+
+payoff:
+  s_plus: 2.0
+  s_minus: 1.0
+  h: 2.0
+  theta: 0.5
+  rho_a: 0.1
+  rho_b: 0.1
+  w_rep: 1.0
+
+success_criteria:
+  min_epochs: 30
+  min_agents: 8
+
+outputs:
+  event_log: "logs/escalating_pressure_events.jsonl"
+  metrics_csv: "logs/escalating_pressure_metrics.csv"

@@ -8,6 +8,7 @@ from swarm.governance.admission import StakingLever
 from swarm.governance.attestation_heartbeat import AttestationHeartbeatLever
 from swarm.governance.audits import RandomAuditLever
 from swarm.governance.cascade import CascadeRiskLever
+from swarm.governance.certificate_gate import CertificateGateLever
 from swarm.governance.circuit_breaker import CircuitBreakerLever
 from swarm.governance.collusion import CollusionPenaltyLever
 from swarm.governance.config import GovernanceConfig
@@ -126,6 +127,10 @@ class GovernanceEngine:
             StakingLever(self.config),
             CircuitBreakerLever(self.config),
             RandomAuditLever(self.config, seed=seed),
+            CertificateGateLever(
+                self.config,
+                seed=None if seed is None else seed + 6007,
+            ),
             CollusionPenaltyLever(self.config),
             SecurityLever(self.config, seed=seed),
             PairCapLever(self.config),

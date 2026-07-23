@@ -5,7 +5,7 @@ import random
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
 
 import yaml
 
@@ -40,6 +40,7 @@ from swarm.agents.negotiation_agent import (
 )
 from swarm.agents.obfuscating import ObfuscatingAgent
 from swarm.agents.opportunistic import OpportunisticAgent
+from swarm.agents.pressure_responsive import PressureResponsiveAgent
 from swarm.agents.rain_river import RainAgent, RiverAgent
 from swarm.agents.ralph_agent import AdversarialRalphAgent, RalphLoopAgent
 from swarm.agents.rivals_agent import RivalsCriticAgent, RivalsProducerAgent
@@ -99,6 +100,9 @@ from swarm.env.state import RateLimits
 from swarm.governance.config import GovernanceConfig
 
 # Agent type registry for scripted agents
+if TYPE_CHECKING:
+    from swarm.core.observable_generator import ObservableGenerator
+
 logger = logging.getLogger(__name__)
 
 AGENT_TYPES: Dict[str, Type[BaseAgent]] = {
@@ -143,6 +147,8 @@ AGENT_TYPES: Dict[str, Type[BaseAgent]] = {
     "rivals_critic": RivalsCriticAgent,
     # Obfuscation Atlas agents (Lindner et al., 2026)
     "obfuscating": ObfuscatingAgent,
+    # Escalating-pressure worker (beads pins)
+    "pressure_responsive": PressureResponsiveAgent,
     # AWM (Agent World Model) agents
     "awm_agent": AWMAgent,
     # Rain/River memory agents
@@ -1601,7 +1607,7 @@ def build_orchestrator(scenario: ScenarioConfig) -> Orchestrator:
         if isinstance(getattr(agent, "config", None), dict)
         and "v_hat_target" in agent.config
     }
-    observable_generator = None
+    observable_generator: Optional["ObservableGenerator"] = None
     proxy_computer = None
     if v_hat_targets:
         from swarm.core.observable_generator import (
@@ -1620,6 +1626,32 @@ def build_orchestrator(scenario: ScenarioConfig) -> Orchestrator:
             "Calibration injection active for %d agents (max v_hat error %.2e)",
             len(v_hat_targets),
             observable_generator.max_target_error(),
+        )
+
+    # Pressure-responsive workers (beads pins) need the obfuscation wrapper
+    # so their per-act signal offsets and latent ground truth reach the
+    # finalizer. Wraps whichever generator was selected above (calibration
+    # injection or the orchestrator default). Gated on this agent class
+    # specifically — wiring it for every get_signal_manipulation() agent
+    # would silently change existing obfuscation scenarios.
+    pressure_agents = [a for a in agents if isinstance(a, PressureResponsiveAgent)]
+    if pressure_agents:
+        from swarm.core.observable_generator import (
+            DefaultObservableGenerator,
+            ObfuscationObservableGenerator,
+        )
+
+        seed = scenario.orchestrator_config.seed
+        inner = observable_generator or DefaultObservableGenerator(
+            rng=random.Random(seed + 104729) if seed is not None else None
+        )
+        observable_generator = ObfuscationObservableGenerator(
+            inner=inner,
+            agents={agent.agent_id: agent for agent in agents},
+        )
+        logger.info(
+            "Pressure-responsive wiring active for %d agents",
+            len(pressure_agents),
         )
 
     # Create orchestrator

@@ -68,7 +68,11 @@ The prediction to test: when acceptance is scored on plausibility proxies,
 pressure monotonically increases toxicity `E[1-p | accepted]` and drives
 quality gap negative; when a certificate channel gates payoff, the same
 pressure *improves* output quality (it did, in the actual episode).
-→ bead `pins`.
+→ bead `pins` — implemented as `scenarios/escalating_pressure.yaml`
+(`PressureResponsiveAgent` + `CertificateGateLever`). First 5-seed smoke:
+late-phase fabricated-accepted share 10.3% under plausibility scoring vs
+3.9% certificate-gated at coverage 0.6, with mean proxy p *rising*
+(0.67 → 0.72) as fabrication enters — the §3 signature, live.
 
 ### 3. Plausibility–certificate gap as a first-class metric
 
