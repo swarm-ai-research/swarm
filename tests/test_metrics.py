@@ -283,8 +283,70 @@ class TestPlausibilityCertificateGap:
         decomp = metrics.pcg_decomposition([])
         assert decomp["pcg_accepted"] is None
         assert decomp["pcg_rejected"] is None
+        assert decomp["pcg_calibration"] is None
+        assert decomp["pcg_selection"] is None
         assert decomp["selection_differential"] is None
+        assert decomp["overtrust"] is None
+        assert decomp["undertrust"] is None
         assert decomp["certified_coverage_accepted"] == 0.0
+
+    def test_direction_identity_pcg_equals_overtrust_minus_undertrust(self):
+        """Exact identity: pcg_accepted = overtrust - undertrust."""
+        metrics = SoftMetrics()
+        interactions = [
+            SoftInteraction(p=0.9, accepted=True, ground_truth=-1),
+            SoftInteraction(p=0.6, accepted=True, ground_truth=1),
+            SoftInteraction(p=0.3, accepted=True, ground_truth=1),
+            SoftInteraction(p=0.7, accepted=False, ground_truth=-1),
+        ]
+        d = metrics.pcg_decomposition(interactions)
+        assert d["pcg_accepted"] == pytest.approx(
+            d["overtrust"] - d["undertrust"]
+        )
+        # overtrust = 0.9/3; undertrust = (0.4 + 0.7)/3
+        assert d["overtrust"] == pytest.approx(0.3)
+        assert d["undertrust"] == pytest.approx(1.1 / 3)
+
+    def test_cause_identity_pcg_equals_calibration_plus_selection(self):
+        """Exact identity: pcg_accepted = pcg_calibration + pcg_selection."""
+        metrics = SoftMetrics()
+        interactions = [
+            SoftInteraction(p=0.9, accepted=True, ground_truth=-1),
+            SoftInteraction(p=0.6, accepted=True, ground_truth=1),
+            SoftInteraction(p=0.2, accepted=False, ground_truth=1),
+        ]
+        d = metrics.pcg_decomposition(interactions)
+        assert d["pcg_accepted"] == pytest.approx(
+            d["pcg_calibration"] + d["pcg_selection"]
+        )
+        # calibration over all certified: (0.9 + (-0.4) + (-0.8))/3
+        assert d["pcg_calibration"] == pytest.approx(-0.1)
+        assert d["pcg_selection"] == pytest.approx(0.35)
+
+    def test_overtrust_zero_without_accepted_certified_bad(self):
+        """Overtrust is identically zero when no accepted interaction is
+        certified-bad — the zero-baselined fabrication indicator."""
+        metrics = SoftMetrics()
+        interactions = [
+            SoftInteraction(p=0.6, accepted=True, ground_truth=1),
+            SoftInteraction(p=0.4, accepted=True, ground_truth=1),
+            SoftInteraction(p=0.9, accepted=False, ground_truth=-1),
+        ]
+        d = metrics.pcg_decomposition(interactions)
+        assert d["overtrust"] == 0.0
+        assert d["undertrust"] > 0.0
+
+    def test_selection_zero_when_acceptance_blind_to_truth(self):
+        """When accepted and full certified sets have the same p/gt mix,
+        the selection component vanishes and PCG is pure calibration."""
+        metrics = SoftMetrics()
+        interactions = [
+            SoftInteraction(p=0.7, accepted=True, ground_truth=1),
+            SoftInteraction(p=0.7, accepted=True, ground_truth=1),
+        ]
+        d = metrics.pcg_decomposition(interactions)
+        assert d["pcg_selection"] == pytest.approx(0.0)
+        assert d["pcg_accepted"] == pytest.approx(d["pcg_calibration"])
 
     def test_differs_from_calibration_error_by_conditioning(self):
         """PCG conditions on acceptance; calibration_error does not."""

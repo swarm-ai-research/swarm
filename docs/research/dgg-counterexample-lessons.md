@@ -103,6 +103,19 @@ damped to −0.25 under the certificate gate). Read PCG as a trend or
 against a fabrication-free baseline; `selection_differential` in the
 decomposition cancels the shared calibration offset for level comparisons.
 
+Decomposition follow-up: PCG's null is composite (calibrated proxy AND
+truth-blind acceptance), and `pcg_decomposition` now splits it exactly
+both by cause (`pcg_accepted = pcg_calibration + pcg_selection`) and by
+direction (`pcg_accepted = overtrust − undertrust`). On the live scenario
+the split is total: early `−0.386 = cal −0.386 + sel 0.000` with
+overtrust exactly 0.000; late overtrust rises to 0.054 as fabrication
+enters — `pcg_overtrust` (now per-epoch) is the zero-baselined
+fabrication indicator for deterministic-truth scenarios. The selection
+leg being identically zero also exposed a scenario gap: honest
+counterparties accept ~everything, so adverse selection is structurally
+switched off — the `mfya` sweep must add acceptance pressure
+(cautious counterparties / higher thresholds) as an axis.
+
 ### 4. Negative results are structure — credit informative failures
 
 The three "failed" rounds were the search: each converted a dead construction

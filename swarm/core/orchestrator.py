@@ -188,8 +188,11 @@ class EpochMetrics(BaseModel):
     quality_gap: float = 0.0
     # Plausibility-certificate gap (beads mt8a): acceptance-conditioned
     # drift of proxy p from certificate-derived truth, None when no
-    # accepted interaction carries a certificate.
+    # accepted interaction carries a certificate. pcg_overtrust is the
+    # zero-baselined fabrication component: mass of accepted certified-bad
+    # weighted by proxy belief (see SoftMetrics.pcg_decomposition).
     plausibility_certificate_gap: Optional[float] = None
+    pcg_overtrust: Optional[float] = None
     certified_coverage: float = 0.0
     # Projection-geometric diagnostics (see swarm/metrics/soft_metrics.py).
     quality_correlation: float = 0.0
@@ -218,6 +221,7 @@ class EpochMetrics(BaseModel):
             "toxicity_rate": self.toxicity_rate,
             "quality_gap": self.quality_gap,
             "plausibility_certificate_gap": self.plausibility_certificate_gap,
+            "pcg_overtrust": self.pcg_overtrust,
             "certified_coverage": self.certified_coverage,
             "quality_correlation": self.quality_correlation,
             "baseline_harm": self.baseline_harm,
@@ -1562,6 +1566,7 @@ class Orchestrator:
             toxicity_rate=toxicity,
             quality_gap=quality_gap,
             plausibility_certificate_gap=pcg,
+            pcg_overtrust=pcg_decomp["overtrust"],
             certified_coverage=pcg_decomp["certified_coverage_accepted"],
             quality_correlation=rho,
             baseline_harm=decomp["baseline_harm"],
