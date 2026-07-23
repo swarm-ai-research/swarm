@@ -205,3 +205,74 @@ def test_cli_coord_propose_respond_roundtrip(tmp_path, capsys):
     assert main([
         "coord", "respond", "1", "--accept", "--agent", "s2", "--db", db,
     ]) == 0
+
+
+# ---------------------------------------------------------------------------
+# atomic work-start claim entry point (duplication prevention)
+# ---------------------------------------------------------------------------
+def test_claim_refuses_task_held_by_another_session(tmp_path, monkeypatch, capsys):
+    from swarm.agentgit.__main__ import main
+
+    db = str(tmp_path / "runs.db")
+    monkeypatch.setenv("MAIN_REPO_ROOT", str(tmp_path))
+
+    monkeypatch.setenv("SESSION_ID", "session-A")
+    assert main(["claim", "claim", "task-dup", "--db", db]) == 0
+    capsys.readouterr()
+
+    # A different session must be REFUSED (exit 2) — the duplication gate.
+    monkeypatch.setenv("SESSION_ID", "session-B")
+    assert main(["claim", "claim", "task-dup", "--db", db]) == 2
+    assert "REFUSED" in capsys.readouterr().out
+
+
+def test_claim_check_detects_foreign_holder(tmp_path, monkeypatch, capsys):
+    from swarm.agentgit.__main__ import main
+
+    db = str(tmp_path / "runs.db")
+    monkeypatch.setenv("MAIN_REPO_ROOT", str(tmp_path))
+    monkeypatch.setenv("SESSION_ID", "session-A")
+    main(["claim", "claim", "task-c", "--db", db])
+    capsys.readouterr()
+
+    # holder's own check passes; a foreign session's check fails (collision).
+    assert main(["claim", "check", "task-c", "--db", db]) == 0
+    monkeypatch.setenv("SESSION_ID", "session-B")
+    assert main(["claim", "check", "task-c", "--db", db]) == 1
+    assert "COLLISION" in capsys.readouterr().out
+
+
+def test_claim_marker_written_and_cleared(tmp_path, monkeypatch):
+    from swarm.agentgit.__main__ import main
+    from swarm.agentgit.coordination import read_claim_marker
+
+    db = str(tmp_path / "runs.db")
+    monkeypatch.setenv("MAIN_REPO_ROOT", str(tmp_path))
+    monkeypatch.setenv("SESSION_ID", "session-A")
+
+    main(["claim", "claim", "task-m", "--db", db])
+    marker = read_claim_marker(tmp_path)
+    assert marker == {"task_id": "task-m", "agent": "session-A"}
+
+    main(["claim", "release", "task-m", "--db", db])
+    assert read_claim_marker(tmp_path) is None
+
+
+def test_release_lets_another_session_claim(tmp_path, monkeypatch):
+    from swarm.agentgit.__main__ import main
+
+    db = str(tmp_path / "runs.db")
+    monkeypatch.setenv("MAIN_REPO_ROOT", str(tmp_path))
+    monkeypatch.setenv("SESSION_ID", "session-A")
+    main(["claim", "claim", "task-r", "--db", db])
+    main(["claim", "release", "task-r", "--db", db])
+
+    monkeypatch.setenv("SESSION_ID", "session-B")
+    assert main(["claim", "claim", "task-r", "--db", db]) == 0
+
+
+def test_resolve_shared_db_prefers_main_repo_root(tmp_path, monkeypatch):
+    from swarm.agentgit.coordination import resolve_shared_db_path
+
+    monkeypatch.setenv("MAIN_REPO_ROOT", str(tmp_path))
+    assert resolve_shared_db_path() == tmp_path / "runs" / "runs.db"

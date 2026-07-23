@@ -25,6 +25,7 @@ cmd/audit_fix
 cmd/build_game
 cmd/check_ignore
 cmd/cherry_pick_pr
+cmd/claim
 cmd/compare_studies
 cmd/fix_ci
 cmd/guard
@@ -48,7 +49,6 @@ game.md
 getting-started/index.md
 guides/benchmarking.md
 guides/eval-metrics.md
-guides/framework-overview.md
 guides/risk-assessment.md
 incoherence_github_issues.md
 network-topology.md

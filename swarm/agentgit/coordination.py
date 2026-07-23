@@ -30,12 +30,79 @@ layer on later without changing this schema.
 from __future__ import annotations
 
 import json
+import os
+import socket
 import sqlite3
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
 DEFAULT_DB_PATH = "runs/runs.db"
+# Marker written on claim / cleared on release, so the pre-commit gate can
+# verify the committing session actually holds the task it is committing.
+CLAIM_MARKER = ".agentgit/current-claim.json"
+
+
+def resolve_shared_db_path() -> Path:
+    """The one coordination DB every worktree of this repo shares.
+
+    Claims must be visible across sessions, and concurrent sessions run in
+    separate worktrees (each with its own `runs/`). Anchoring the DB at the
+    repo's *common* git dir parent (``MAIN_REPO_ROOT``) gives all worktrees a
+    single source of truth; falls back to the local default outside git.
+    """
+
+    main_root = os.environ.get("MAIN_REPO_ROOT")
+    if main_root:
+        return Path(main_root) / DEFAULT_DB_PATH
+    try:
+        common = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
+        if common:
+            return Path(common).parent / DEFAULT_DB_PATH
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+    return Path(DEFAULT_DB_PATH)
+
+
+def resolve_agent_id() -> str:
+    """This session's coordination identity.
+
+    ``SESSION_ID`` (set per worktree by detect-session.sh) is authoritative.
+    Outside a worktree we fall back to a per-checkout id — concurrent code
+    work in one checkout is prevented by the pre-commit worktree tripwire, so
+    a shared fallback id there is acceptable (and makes the un-isolated case
+    visibly a single "main-checkout" actor rather than silently forgeable).
+    """
+
+    sid = os.environ.get("SESSION_ID")
+    if sid:
+        return sid
+    return f"main-checkout@{socket.gethostname()}"
+
+
+def write_claim_marker(repo_root: Path, task_id: str, agent: str) -> None:
+    marker = Path(repo_root) / CLAIM_MARKER
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(json.dumps({"task_id": task_id, "agent": agent}, sort_keys=True))
+
+
+def read_claim_marker(repo_root: Path) -> Optional[Dict[str, str]]:
+    marker = Path(repo_root) / CLAIM_MARKER
+    if not marker.exists():
+        return None
+    try:
+        data = json.loads(marker.read_text())
+        return {"task_id": str(data["task_id"]), "agent": str(data["agent"])}
+    except (json.JSONDecodeError, KeyError, TypeError):
+        return None
+
+
+def clear_claim_marker(repo_root: Path) -> None:
+    (Path(repo_root) / CLAIM_MARKER).unlink(missing_ok=True)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS agent_claims (
@@ -191,6 +258,15 @@ class CoordinationBoard:
             "SELECT * FROM agent_claims WHERE status = 'active' ORDER BY ts, id"
         ).fetchall()
         return [dict(r) for r in rows]
+
+    def claim_holder(self, task_id: str) -> Optional[str]:
+        """Agent currently holding ``task_id`` (read-only), or ``None``."""
+
+        row = self._conn.execute(
+            "SELECT agent FROM agent_claims WHERE task_id = ? AND status = 'active'",
+            (task_id,),
+        ).fetchone()
+        return row["agent"] if row else None
 
     # -- locks --------------------------------------------------------------
     def lock(self, agent: str, resource: str, reason: str = "") -> LockResult:
