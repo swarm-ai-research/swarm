@@ -80,6 +80,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     First bv-dispatch retro: prediction scorecard, mud-ledger baselines (entropy 0.88, orphan influx 88%), and the read-path lesson
 
+-   :material-certificate: **[DGG Counterexample Lessons](dgg-counterexample-lessons.md)**
+
+    ---
+
+    Verified case study of the 2026 Dinitz–Garg–Goemans disproof: verifier coverage as the trust variable, pressure-lever symmetry, plausibility–certificate gap
+
 </div>
 
 ## Core Research Questions
