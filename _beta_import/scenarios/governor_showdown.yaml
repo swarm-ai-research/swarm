@@ -1,0 +1,22 @@
+# The tail-mass governor from examples/governor_showdown.py, as a scenario.
+# Swap max_tail_mass to 1.0 + min_mean 0.5 to get the legacy mean governor.
+scenario_id: governor_showdown
+description: >
+  A mixed population under the risk-aware tail-mass governor: bound downside
+  tail mass and defer diffuse beliefs to audit.
+seed: 7
+
+population:
+  - {archetype: honest, count: 4}
+  - {archetype: mediocre, count: 3}
+  - {archetype: deceptive, count: 3}
+
+simulation:
+  n_epochs: 20
+  steps_per_epoch: 5
+
+governor:
+  tau: 0.4
+  max_tail_mass: 0.2
+  min_mean: null
+  defer_below_concentration: 20.0

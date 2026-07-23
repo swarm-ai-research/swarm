@@ -1,0 +1,29 @@
+# A volume-forgery attack contained by an ex-post lever stack (no belief fix).
+# Drop the governance_stack section to see the attack succeed (~56% evasion).
+scenario_id: volume_forgery_defended
+description: >
+  Three volume-forgery adversaries in a mixed population. The tail-mass governor
+  alone is fooled by their forged-sharp beliefs; a staking + circuit-breaker
+  stack judges realized outcomes and shuts them out.
+seed: 7
+
+population:
+  - {archetype: honest, count: 4}
+  - {archetype: mediocre, count: 3}
+  - {archetype: volume_forger, count: 3, forge_volume: 10}
+
+simulation:
+  n_epochs: 20
+  steps_per_epoch: 5
+
+governor:
+  tau: 0.4
+  max_tail_mass: 0.2
+  defer_below_concentration: 20.0
+
+governance_stack:
+  initial_resources: 5.0
+  levers:
+    - {type: staking, min_stake: 1.0, slash_rate: 0.5, tau: 0.4}
+    - {type: circuit_breaker, max_tail_exposure: 0.5, tau: 0.4}
+    - {type: risk_tax, rate: 1.0, tau: 0.4}
