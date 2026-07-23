@@ -9,12 +9,18 @@ repos:
     rev: v1.14.1
     hooks:
       - id: mypy
-        # gql pinned so the gitlawb bridge's import graph resolves the same
-        # way on every run: with it absent, mypy's incremental cache could
-        # record gql symbols one run and fail to rebuild them the next,
-        # crashing every commit with an internal AssertionError (beads el65).
-        # Recovery if the cache still corrupts: rm -rf .mypy_cache
-        additional_dependencies: [numpy>=1.24, pydantic>=2.0, types-PyYAML, types-requests, "gql[aiohttp,websockets]>=3.5.0"]
-        args: [--ignore-missing-imports]
-        pass_filenames: false
-        entry: mypy swarm/
+        # SCOPED TO CHANGED FILES (was repo-wide `mypy swarm/`). Repo-wide +
+        # pass_filenames:false meant ANY session's broken or WIP file blocked
+        # EVERY session's commits — a shared-checkout outage that fired
+        # repeatedly (gepa WIP, nacl/gql cache crashes; coordination bead
+        # 2026-07-22). Pre-commit is now fast local feedback on the files YOU
+        # touch; the CI `type-check` job keeps the exhaustive full-tree mypy
+        # that catches cross-file regressions, so nothing is lost as a gate.
+        # --follow-imports=silent resolves imported types without reporting
+        # another session's errors in files you didn't change.
+        # gql + pynacl pinned so bridge/identity import graphs resolve the
+        # same way every run (avoids the incremental-cache AssertionError
+        # crash class, beads el65). Recovery if cache still corrupts: rm -rf .mypy_cache
+        additional_dependencies: [numpy>=1.24, pydantic>=2.0, types-PyYAML, types-requests, "gql[aiohttp,websockets]>=3.5.0", pynacl>=1.5]
+        args: [--ignore-missing-imports, --follow-imports=silent]
+        files: ^swarm/.*\.py$

@@ -452,6 +452,32 @@ if [ -n "$STAGED_GRAPH" ] && [ -z "${SKIP_DOCS_CHECK:-}" ]; then
     rm -f /tmp/kb_graph_check.$$
 fi
 
+# ── 6c. Shared-checkout collision tripwire ──
+# Root cause of the 2026-07-22 duplicate-7ge5 incident: two sessions doing
+# code work in the SAME main checkout. A shared working tree lets each read
+# the other's UNCOMMITTED files (→ duplicated work) and shares one index
+# (→ mid-commit corruption). Worktrees make both physically impossible, and
+# CLAUDE.md already prescribes them for concurrent sessions — this enforces it.
+#
+# Fires only for non-trivial CODE commits in the main checkout with no session
+# identity. Warn by default; set AGENTGIT_REQUIRE_WORKTREE=1 to block.
+GIT_DIR_ABS=$(git rev-parse --absolute-git-dir 2>/dev/null || echo "")
+GIT_COMMON_ABS=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo "$GIT_DIR_ABS")
+STAGED_CODE_COUNT=$(git diff --cached --name-only | grep -cE '^(swarm|swarm_gym|tests|examples|experiments)/.*\.py$' || true)
+if [ "$GIT_DIR_ABS" = "$GIT_COMMON_ABS" ] && [ -z "${SESSION_ID:-}" ] && [ "${STAGED_CODE_COUNT:-0}" -ge 3 ]; then
+    echo "[swarm pre-commit] ⚠ shared-checkout code commit ($STAGED_CODE_COUNT code files) in the MAIN worktree with no SESSION_ID."
+    echo "  This is the exact setup that duplicated 7ge5 and corrupted the index on 2026-07-22."
+    echo "  Prevention: do concurrent code work in an isolated worktree —"
+    echo "    ./scripts/claude-tmux.sh 1      # launch an isolated session, or"
+    echo "    git worktree add ../swarm-\$TASK -b session/\$TASK"
+    echo "  And claim the task first so another session doesn't pick it up:"
+    echo "    python -m swarm.agentgit coord claim <bead-id>"
+    if [ -n "${AGENTGIT_REQUIRE_WORKTREE:-}" ]; then
+        echo "[swarm pre-commit] AGENTGIT_REQUIRE_WORKTREE=1 set — blocking. Move to a worktree or unset to warn-only."
+        exit 1
+    fi
+fi
+
 # ── 7. Tests ──
 # Tests run in pre-push (via `make ci`), NOT pre-commit.
 # This keeps commits fast (~2s) and avoids HEAD race conditions
