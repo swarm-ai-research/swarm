@@ -186,6 +186,11 @@ class EpochMetrics(BaseModel):
     total_votes: int = 0
     toxicity_rate: float = 0.0
     quality_gap: float = 0.0
+    # Plausibility-certificate gap (beads mt8a): acceptance-conditioned
+    # drift of proxy p from certificate-derived truth, None when no
+    # accepted interaction carries a certificate.
+    plausibility_certificate_gap: Optional[float] = None
+    certified_coverage: float = 0.0
     # Projection-geometric diagnostics (see swarm/metrics/soft_metrics.py).
     quality_correlation: float = 0.0
     baseline_harm: float = 0.0
@@ -212,6 +217,8 @@ class EpochMetrics(BaseModel):
             "total_votes": self.total_votes,
             "toxicity_rate": self.toxicity_rate,
             "quality_gap": self.quality_gap,
+            "plausibility_certificate_gap": self.plausibility_certificate_gap,
+            "certified_coverage": self.certified_coverage,
             "quality_correlation": self.quality_correlation,
             "baseline_harm": self.baseline_harm,
             "selection_credit": self.selection_credit,
@@ -1543,6 +1550,8 @@ class Orchestrator:
         rho = self.metrics_calculator.quality_correlation(interactions)
         decomp = self.metrics_calculator.toxicity_decomposition(interactions)
         saturation = self.metrics_calculator.selection_saturation(interactions)
+        pcg = self.metrics_calculator.plausibility_certificate_gap(interactions)
+        pcg_decomp = self.metrics_calculator.pcg_decomposition(interactions)
 
         return EpochMetrics(
             epoch=self.state.current_epoch,
@@ -1552,6 +1561,8 @@ class Orchestrator:
             total_votes=len(self.feed._votes),
             toxicity_rate=toxicity,
             quality_gap=quality_gap,
+            plausibility_certificate_gap=pcg,
+            certified_coverage=pcg_decomp["certified_coverage_accepted"],
             quality_correlation=rho,
             baseline_harm=decomp["baseline_harm"],
             selection_credit=decomp["selection_credit"],

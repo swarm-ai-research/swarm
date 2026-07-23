@@ -92,7 +92,16 @@ fabrication equilibrium. This composes with the existing calibration work
 (`calibration_proxy_fidelity.yaml`, ECE/Brier prereg): calibration asks
 whether p is well-scaled where ground truth is recoverable; PCG asks how far
 acceptance drifts where it is not.
-→ bead `mt8a`.
+→ bead `mt8a` — implemented as
+`SoftMetrics.plausibility_certificate_gap` / `pcg_decomposition`, surfaced
+per-epoch as `plausibility_certificate_gap` + `certified_coverage` in
+`EpochMetrics`. Empirical interpretation note from first runs on
+`scenarios/escalating_pressure.yaml`: because certificates are binary while
+p is probabilistic, the honest baseline sits *negative* (≈ −0.37 there);
+fabrication pulls PCG upward (−0.37 → −0.22 over the pressure ramp,
+damped to −0.25 under the certificate gate). Read PCG as a trend or
+against a fabrication-free baseline; `selection_differential` in the
+decomposition cancels the shared calibration offset for level comparisons.
 
 ### 4. Negative results are structure — credit informative failures
 

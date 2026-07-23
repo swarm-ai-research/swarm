@@ -176,7 +176,10 @@ handle_session_start() {
     local others
     others="$(detect_concurrent_sessions | tr '\n' ' ')"
     if [ -n "${others// /}" ]; then
-      cat <<EOWARN
+      # stderr, NOT stdout: session_start stdout is a JSON contract
+      # (test_governance_shim_bash), and this warning corrupted it whenever
+      # concurrent sessions were actually present.
+      cat >&2 <<EOWARN
 [worktree-discipline] WARNING: other live Claude session(s) (pid ${others}) are
 working in THIS shared checkout. Concurrent sessions on one working tree race
 each other's index, revert each other's files, and corrupt shared tool caches

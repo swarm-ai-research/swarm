@@ -230,6 +230,99 @@ class SoftMetrics:
             "reconstruction_error": abs(tox_direct - (baseline - credit)),
         }
 
+    def plausibility_certificate_gap(
+        self, interactions: List[SoftInteraction]
+    ) -> Optional[float]:
+        """
+        Plausibility-certificate gap: PCG = E[p - p_cert | accepted, certified]
+
+        where p_cert = (ground_truth + 1) / 2 is the certificate-derived
+        probability for interactions whose latent ground truth was recorded.
+
+        This is the acceptance-conditioned counterpart of calibration_error:
+        calibration asks whether p is well-scaled where truth is recoverable;
+        PCG asks how far the *accepted set* drifts from certified reality.
+        A persistently positive PCG is the signature of an ecosystem
+        selecting on transcript plausibility rather than verified outcomes —
+        the precondition for the fabrication equilibrium
+        (docs/research/dgg-counterexample-lessons.md §3, beads mt8a).
+
+        Interpretation note: because certificates are binary while p is
+        probabilistic, the honest baseline is typically *negative* (an
+        honest success at p=0.7 contributes -0.3). Read PCG as a trend or
+        against a fabrication-free baseline: fabricated positives
+        (high p, p_cert=0) pull it upward. For a level statistic use
+        pcg_decomposition's selection_differential, which cancels the
+        shared calibration offset.
+
+        Args:
+            interactions: List of interactions
+
+        Returns:
+            PCG over accepted-and-certified interactions, or None if no
+            accepted interaction carries a certificate.
+        """
+        gaps = [
+            i.p - (gt + 1) / 2
+            for i in interactions
+            if i.accepted and (gt := i.ground_truth) is not None
+        ]
+        if not gaps:
+            return None
+        return sum(gaps) / len(gaps)
+
+    def pcg_decomposition(self, interactions: List[SoftInteraction]) -> dict:
+        """
+        Decompose the plausibility-certificate gap by acceptance status.
+
+        The interesting quantity beyond accepted-set PCG is the selection
+        differential PCG_accepted - PCG_rejected: under adverse selection
+        on plausibility, over-scored interactions (fabricated positives)
+        are preferentially accepted, so the accepted set drifts positive
+        while the rejected set does not.
+
+        Coverage is reported alongside so a PCG computed from a thin
+        certified subset is never silently mistaken for a population
+        statement (no-silent-caps).
+
+        Returns:
+            Dict with keys pcg_accepted, pcg_rejected (each Optional),
+            selection_differential (None unless both sides certified),
+            certified_coverage_accepted, n_certified_accepted,
+            n_certified_rejected.
+        """
+
+        def _gap(batch: List[SoftInteraction]) -> Optional[float]:
+            gaps = [
+                i.p - (gt + 1) / 2
+                for i in batch
+                if (gt := i.ground_truth) is not None
+            ]
+            if not gaps:
+                return None
+            return sum(gaps) / len(gaps)
+
+        accepted = [i for i in interactions if i.accepted]
+        rejected = [i for i in interactions if not i.accepted]
+        pcg_acc = _gap(accepted)
+        pcg_rej = _gap(rejected)
+        n_cert_acc = sum(1 for i in accepted if i.ground_truth is not None)
+        n_cert_rej = sum(1 for i in rejected if i.ground_truth is not None)
+        return {
+            "pcg_accepted": pcg_acc,
+            "pcg_rejected": pcg_rej,
+            "selection_differential": (
+                pcg_acc - pcg_rej
+                if pcg_acc is not None and pcg_rej is not None
+                else None
+            ),
+            "certified_coverage_accepted": (
+                n_cert_acc / len(accepted) if accepted else 0.0
+            ),
+            "n_certified_accepted": n_cert_acc,
+            "n_certified_rejected": n_cert_rej,
+        }
+
     def selection_saturation(self, interactions: List[SoftInteraction]) -> float:
         """
         Fraction of the Cauchy-Schwarz bound on |Q| that is realized:
