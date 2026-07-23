@@ -18,6 +18,41 @@ if [ -z "$ROOT" ]; then
 fi
 cd "$ROOT"
 
+# ── Concurrent-session guard (beads oldj) ──
+# The governance shim maintains per-session heartbeats (pid-keyed, refreshed
+# on every tool call). Committing from the shared main checkout while other
+# live sessions work the same tree is the race that has repeatedly clobbered
+# staged work (exhibits in bead oldj; 2026-07-22 index war during 7ge5).
+# Default: loud warning. Set SWARM_BLOCK_CONCURRENT_COMMITS=1 to hard-fail.
+HEARTBEAT_DIR="$ROOT/.claude/session-heartbeats"
+if [ "${IS_SESSION_WORKTREE:-false}" != "true" ] && [ -d "$HEARTBEAT_DIR" ]; then
+  _now=$(date +%s); _others=""
+  for _hb in "$HEARTBEAT_DIR"/*.json; do
+    [ -e "$_hb" ] || continue
+    _pid="$(basename "$_hb" .json)"
+    [ "$_pid" = "${PPID:-$$}" ] && continue
+    _mt=$(stat -f %m "$_hb" 2>/dev/null || stat -c %Y "$_hb" 2>/dev/null || echo 0)
+    if [ $(( _now - _mt )) -le 900 ] && ps -p "$_pid" > /dev/null 2>&1; then
+      grep -q '"worktree": "true"' "$_hb" 2>/dev/null && continue
+      _others="$_others $_pid"
+    fi
+  done
+  if [ -n "${_others// /}" ]; then
+    echo "=========================================="
+    echo "[swarm pre-commit] CONCURRENT SESSIONS ON THIS CHECKOUT (pids:${_others})"
+    echo "=========================================="
+    echo "Another live session shares this working tree. Index races can revert"
+    echo "or interleave staged files mid-commit (bead oldj has the receipts)."
+    echo "Prefer worktrees: ./scripts/claude-tmux.sh N ; or coordinate via the"
+    echo "agent_messages table. Set SWARM_BLOCK_CONCURRENT_COMMITS=1 to make"
+    echo "this a hard block."
+    if [ "${SWARM_BLOCK_CONCURRENT_COMMITS:-0}" = "1" ]; then
+      echo "COMMIT BLOCKED (SWARM_BLOCK_CONCURRENT_COMMITS=1)."
+      exit 1
+    fi
+  fi
+fi
+
 # ── Branch guard (parallel session race detection) ──
 # If SESSION_BRANCH is set (by detect-session.sh), verify we're still on it.
 # Another tmux session sharing the same worktree can silently switch branches.

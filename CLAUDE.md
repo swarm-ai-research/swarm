@@ -194,6 +194,17 @@ Each session pane has these env vars set via `scripts/detect-session.sh`:
 
 Use `bd --sandbox` in worktrees to avoid contention with the main repo's beads daemon. The `/ship` command does this automatically.
 
+### Concurrency guard (heartbeats)
+
+Every session maintains a pid-keyed heartbeat in `.claude/session-heartbeats/`
+(written by the governance shim on session start and refreshed on every tool
+call). When a session that is **not** in an isolated worktree starts — or
+commits — while another live session shares the checkout, it gets a loud
+warning naming the other pids (exhibits of why: bead `oldj`). Set
+`SWARM_BLOCK_CONCURRENT_COMMITS=1` to turn the commit-time warning into a hard
+block. Worktree sessions (`IS_SESSION_WORKTREE=true`) are exempt — that is the
+sanctioned way to run concurrently.
+
 ### Inter-Session Coordination (`agent_messages`)
 
 Sessions coordinate via a shared SQLite table in `runs/runs.db` (accessible through the `sqlite_runs` MCP server). Schema:

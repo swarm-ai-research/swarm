@@ -36,6 +36,42 @@ BRANCH="${SESSION_BRANCH:-$(git branch --show-current 2>/dev/null || echo "unkno
 # Ensure sink directory exists
 mkdir -p "$(dirname "$SINK")"
 
+# ── Concurrent-session heartbeats (beads oldj) ──
+# Every live session on this checkout maintains a heartbeat file keyed by its
+# Claude process pid. Session-start and pre-commit use these to detect the
+# shared-checkout race that has repeatedly clobbered work (exhibits in bead
+# oldj; 2026-07-22: two sessions fought over the index mid-7ge5-commit).
+HEARTBEAT_DIR="${REPO_ROOT}/.claude/session-heartbeats"
+HEARTBEAT_FRESH_SECONDS=900
+SESSION_PID="${PPID:-$$}"
+
+update_heartbeat() {
+  mkdir -p "$HEARTBEAT_DIR" 2>/dev/null || return 0
+  printf '{"pid": %s, "worktree": "%s", "ts": "%s"}\n'     "$SESSION_PID" "${IS_SESSION_WORKTREE:-false}"     "$(date -u +%Y-%m-%dT%H:%M:%SZ)"     > "${HEARTBEAT_DIR}/${SESSION_PID}.json" 2>/dev/null || true
+}
+
+# Prints the pids of OTHER live main-checkout sessions (fresh heartbeat +
+# process alive), one per line. Empty output = no concurrency.
+detect_concurrent_sessions() {
+  [ -d "$HEARTBEAT_DIR" ] || return 0
+  local now f pid age mtime
+  now=$(date +%s)
+  for f in "$HEARTBEAT_DIR"/*.json; do
+    [ -e "$f" ] || continue
+    pid="$(basename "$f" .json)"
+    [ "$pid" = "$SESSION_PID" ] && continue
+    mtime=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo 0)
+    age=$(( now - mtime ))
+    if [ "$age" -gt "$HEARTBEAT_FRESH_SECONDS" ] || ! ps -p "$pid" > /dev/null 2>&1; then
+      rm -f "$f" 2>/dev/null || true   # reap dead/stale heartbeats
+      continue
+    fi
+    # Sessions isolated in their own worktree don't count as contention.
+    grep -q '"worktree": "true"' "$f" 2>/dev/null && continue
+    echo "$pid"
+  done
+}
+
 # ── Helpers ──
 
 timestamp() {
@@ -135,6 +171,22 @@ print(json.dumps({
 # ── Hook Handlers ──
 
 handle_session_start() {
+  update_heartbeat
+  if [ "${IS_SESSION_WORKTREE:-false}" != "true" ]; then
+    local others
+    others="$(detect_concurrent_sessions | tr '\n' ' ')"
+    if [ -n "${others// /}" ]; then
+      cat <<EOWARN
+[worktree-discipline] WARNING: other live Claude session(s) (pid ${others}) are
+working in THIS shared checkout. Concurrent sessions on one working tree race
+each other's index, revert each other's files, and corrupt shared tool caches
+(see beads oldj for exhibits). Strongly prefer an isolated worktree:
+  ./scripts/claude-tmux.sh N     # isolated sessions
+or coordinate via the agent_messages table before mutating git state.
+EOWARN
+    fi
+  fi
+
   # Load governance regime from scenario config or env
   local regime="${GOVERNANCE_REGIME:-default}"
   local knobs_file="${REPO_ROOT}/.letta/memory/project/governance-knobs.md"
@@ -169,6 +221,7 @@ handle_session_start() {
 }
 
 handle_pre_tool_use() {
+  update_heartbeat
   local input
   input="$(read_stdin)"
 
