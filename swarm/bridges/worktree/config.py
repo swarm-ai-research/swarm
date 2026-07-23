@@ -75,3 +75,11 @@ class WorktreeConfig:
     os_isolation_enabled: bool = False
     require_os_isolation: bool = False
     os_isolation_allow_network: bool = False
+
+    # Secret read-confinement (7ge5 slice 3). When OS isolation is active,
+    # deny reads of credential material even though general reads stay open
+    # (interpreters need their stdlib). Defaults cover the standard homedir
+    # credential locations; extend per deployment via the extra list. Paths
+    # are ~-expanded and existence-filtered at execution time.
+    os_isolation_deny_secret_reads: bool = True
+    os_isolation_extra_secret_paths: List[str] = field(default_factory=list)

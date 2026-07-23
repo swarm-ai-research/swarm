@@ -303,24 +303,33 @@ def run_gepa_optimization(
         config=config,
     )
 
-    # Extract best
-    best_yaml = result.best_candidate
+    # Extract best. gepa 0.1.0: best_candidate is the candidate mapping
+    # (component name -> text) — or a bare string for str-seeded runs; the
+    # score/eval-count attrs this code originally used (best_score,
+    # num_evaluations) do not exist on GEPAResult and would AttributeError.
+    best_candidate = result.best_candidate
+    best_yaml = (
+        best_candidate
+        if isinstance(best_candidate, str)
+        else next(iter(best_candidate.values()))
+    )
     best_params = _yaml_to_params(best_yaml)
-    best_score = result.best_score
+    best_score = result.val_aggregate_scores[result.best_idx]
+    n_evaluations = result.total_metric_calls
 
     # Save results
     summary = {
         "best_score": best_score,
         "best_params": best_params,
         "best_candidate_yaml": best_yaml,
-        "n_evaluations": result.num_evaluations,
+        "n_evaluations": n_evaluations,
     }
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2))
     (run_dir / "best_candidate.yaml").write_text(best_yaml)
 
     print("\nOptimization complete!")
     print(f"  Best score: {best_score:.4f}")
-    print(f"  Evaluations: {result.num_evaluations}")
+    print(f"  Evaluations: {n_evaluations}")
     print(f"  Results: {run_dir}/")
 
     return summary
