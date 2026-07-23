@@ -202,3 +202,20 @@ judge pipeline and are run in sequence.
     measure throughput; they are excluded from the confirmatory analysis.
     No confirmatory-length run was executed before this addendum was
     committed.
+
+- **2026-07-22 — c89o confirmatory result: ALL THREE registered criteria
+  pass.** Run `runs/20260723T011931Z_calibration_proxy_fidelity_seed42`
+  (n=2458), analysis `runs/20260723T011956Z_calibration_fidelity_scenario`:
+  **ECE 0.0128** (< 0.1), **excess Brier −0.0026** (Brier 0.1874 vs
+  realized-count refinement floor 0.1900; < 0.02), **max per-bin gap
+  0.0246** (< 0.06; all six occupied bins, including the two below the
+  n≥100 scope, pass). Conclusion for the epic: `ProxyComputer` at the
+  default k is well-calibrated when latent probability is recoverable —
+  arm A's ECE 0.187 was a property of its outcome-leaking synthetic
+  generator, not of the proxy
+  ([deviation analysis](calibration-arm-a-deviation-analysis.md)).
+  Observed and disclosed: cluster volumes are imbalanced (negative-target
+  clusters n=62/82 vs ≈560 — the ecosystem marginalizes low-p agents even
+  with governance disabled), an emergent effect that does not affect the
+  criteria; expected per-cluster n≥500 was met only for four of six
+  clusters, and every bin still clears its convergence bound with margin.
