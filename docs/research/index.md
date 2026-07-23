@@ -92,6 +92,24 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Ecosystem governance lessons from Tao's AI-contributions ledger: verification bottleneck, denominator problem, corroboration vs. collusion
 
+-   :material-file-alert: **[ARA Compiler Pilot Report](ara-pilot-report.md)**
+
+    ---
+
+    SWA-71 pilot of the Agent-Native Research Artifact compiler: evidence-layer fabrication, broken self-validation, final verdict Reject
+
+-   :material-telescope: **[CRUX Survey Analysis](cruxevals-survey-analysis.md)**
+
+    ---
+
+    How Princeton's open-world evaluations program intersects SWARM: frame match, submission opportunities, metrics-layer positioning
+
+-   :material-bridge: **[Real-Tool Eval Bridge](real-tool-eval-bridge.md)**
+
+    ---
+
+    Feasibility assessment for bridging simulated governance to real tool-using agents: 80% infrastructure exists, three gaps, reality-gap research question
+
 </div>
 
 ## Core Research Questions
