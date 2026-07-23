@@ -32,7 +32,7 @@ def _governor(mtm: float = 0.3) -> TailMassGovernor:
 def _drive(controller: AdaptiveController, governor, toxicity_seq, welfare_seq=None):
     """Feed a toxicity sequence epoch by epoch."""
     welfare_seq = welfare_seq or [5.0] * len(toxicity_seq)
-    for epoch, (tox, wf) in enumerate(zip(toxicity_seq, welfare_seq)):
+    for epoch, (tox, wf) in enumerate(zip(toxicity_seq, welfare_seq, strict=True)):
         controller.on_epoch_end(_report(epoch, tox, wf), governor, epoch)
 
 

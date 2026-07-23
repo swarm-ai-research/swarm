@@ -23,8 +23,11 @@ def _synthetic_log() -> list[BetaInteraction]:
     arm's-length traffic carries the same mean but diffuse beliefs — the scalar
     tell (mean asymmetry) is absent by construction.
     """
-    sharp = lambda: BetaBelief.from_mean_concentration(0.8, 12.0)
-    diffuse = lambda: BetaBelief.from_mean_concentration(0.8, 3.0)
+    def sharp():
+        return BetaBelief.from_mean_concentration(0.8, 12.0)
+
+    def diffuse():
+        return BetaBelief.from_mean_concentration(0.8, 3.0)
     log = []
     for _ in range(20):
         log.append(_interaction("a", "b", sharp()))

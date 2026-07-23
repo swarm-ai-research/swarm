@@ -46,7 +46,6 @@ import numpy as np
 from beta_swarm.agents import Archetype, SimAgent, make_population
 from beta_swarm.collusion import CollusionDetector
 from beta_swarm.governance import TailMassGovernor
-from beta_swarm.interaction import BetaInteraction
 from beta_swarm.levers import GovernanceStack
 from beta_swarm.payoff import DistributionalPayoffEngine
 from beta_swarm.proxy import BetaProxyComputer, ProxyObservables

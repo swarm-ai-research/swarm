@@ -2,17 +2,16 @@
 
 from pathlib import Path
 
-import numpy as np
 import pytest
 from pydantic import ValidationError
 
 from beta_swarm.agents import Archetype, make_population
 from beta_swarm.governance import TailMassGovernor
-from beta_swarm.levers import GovernanceStack, StakingLever, TailCircuitBreaker
-from beta_swarm.scenarios import ScenarioConfig, load_scenario, run_scenario
+from beta_swarm.levers import GovernanceStack
+from beta_swarm.scenarios import ScenarioConfig, run_scenario
 from beta_swarm.simulation import Simulation, SimulationConfig
 
-SCENARIOS = Path(__file__).resolve().parent.parent / "scenarios"
+SCENARIOS = Path(__file__).resolve().parent.parent.parent / "scenarios" / "beta"
 
 
 def _cfg(**overrides) -> dict:

@@ -80,7 +80,7 @@ class GovernanceLever(ABC):
     @abstractmethod
     def name(self) -> str: ...
 
-    def reset(self) -> None:
+    def reset(self) -> None:  # noqa: B027  (optional hook; stateless levers need no reset)
         """Clear any per-run internal state."""
 
     def on_epoch_start(self, epoch: int) -> LeverEffect:
@@ -226,7 +226,7 @@ class GovernanceStack:
         self.frozen: set[str] = set()
 
     def reset(self, agent_ids: list[str]) -> None:
-        self.resources = {a: self.initial_resources for a in agent_ids}
+        self.resources = dict.fromkeys(agent_ids, self.initial_resources)
         self.frozen = set()
         for lever in self.levers:
             lever.reset()

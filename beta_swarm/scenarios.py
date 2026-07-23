@@ -44,7 +44,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 from beta_swarm.adaptive import AdaptiveController
-from beta_swarm.agents import Archetype, SimAgent, make_population
+from beta_swarm.agents import Archetype, SimAgent
 from beta_swarm.governance import TailMassGovernor
 from beta_swarm.levers import (
     GovernanceLever,

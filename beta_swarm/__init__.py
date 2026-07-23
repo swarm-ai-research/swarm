@@ -50,7 +50,6 @@ from beta_swarm.payoff import (
     PayoffConfig,
 )
 from beta_swarm.proxy import BetaProxyComputer, ProxyObservables
-from beta_swarm.scenarios import ScenarioConfig, load_scenario, run_scenario
 from beta_swarm.redteam import (
     AttackCategory,
     AttackLibrary,
@@ -60,6 +59,7 @@ from beta_swarm.redteam import (
     VolumeForger,
     run_attack,
 )
+from beta_swarm.scenarios import ScenarioConfig, load_scenario, run_scenario
 from beta_swarm.simulation import (
     EpochReport,
     Simulation,

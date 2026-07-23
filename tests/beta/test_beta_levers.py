@@ -123,7 +123,9 @@ def test_stack_applies_slashes_and_freezes():
 
 def test_no_stack_is_unchanged():
     """A simulation without levers behaves identically to before."""
-    pop = lambda: make_population({Archetype.HONEST: 3, Archetype.DECEPTIVE: 2})
+    def pop():
+        return make_population({Archetype.HONEST: 3, Archetype.DECEPTIVE: 2})
+
     cfg = SimulationConfig(seed=1, n_epochs=5)
     a = Simulation(pop(), _tail_gov(), cfg).run()
     b = Simulation(pop(), _tail_gov(), cfg, levers=None).run()

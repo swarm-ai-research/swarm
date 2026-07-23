@@ -3,6 +3,7 @@
 import numpy as np
 
 from beta_swarm.agents import Archetype
+from beta_swarm.governance import TailMassGovernor
 from beta_swarm.proxy import BetaProxyComputer
 from beta_swarm.redteam import (
     AttackCategory,
@@ -12,7 +13,6 @@ from beta_swarm.redteam import (
     run_attack,
 )
 from beta_swarm.simulation import SimulationConfig
-from beta_swarm.governance import TailMassGovernor
 
 
 def _tail_gov():

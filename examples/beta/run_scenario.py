@@ -17,7 +17,7 @@ import numpy as np
 
 from beta_swarm import Archetype, load_scenario
 
-DEFAULT = Path(__file__).resolve().parent.parent / "scenarios" / "volume_forgery_defended.yaml"
+DEFAULT = Path(__file__).resolve().parent.parent.parent / "scenarios" / "beta" / "volume_forgery_defended.yaml"
 
 
 def main() -> None:

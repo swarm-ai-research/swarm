@@ -71,7 +71,7 @@ def pit_values(beliefs: Sequence[BetaBelief], outcomes: Sequence[float]) -> np.n
     """``F_i(v_i)`` per interaction — uniform on [0, 1] iff beliefs are calibrated."""
     if len(beliefs) != len(outcomes):
         raise ValueError("beliefs and outcomes must have the same length")
-    return np.array([float(b.cdf(v)) for b, v in zip(beliefs, outcomes)])
+    return np.array([float(b.cdf(v)) for b, v in zip(beliefs, outcomes, strict=True)])
 
 
 def crps(beliefs: Sequence[BetaBelief], outcomes: Sequence[float], n_grid: int = 512) -> float:
@@ -82,7 +82,7 @@ def crps(beliefs: Sequence[BetaBelief], outcomes: Sequence[float], n_grid: int =
         return 0.0
     grid = np.linspace(0.0, 1.0, n_grid)
     total = 0.0
-    for b, v in zip(beliefs, outcomes):
+    for b, v in zip(beliefs, outcomes, strict=True):
         total += float(np.trapezoid((b.cdf(grid) - (grid >= v)) ** 2, grid))
     return total / len(beliefs)
 
@@ -177,7 +177,7 @@ def calibrate_interactions(
     ]
     if not pairs:
         return None
-    beliefs, outcomes = zip(*pairs)
+    beliefs, outcomes = zip(*pairs, strict=True)
     return calibrate(list(beliefs), list(outcomes), tau=tau, n_bins=n_bins)
 
 
