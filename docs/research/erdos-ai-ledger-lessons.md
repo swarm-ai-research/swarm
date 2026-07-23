@@ -83,6 +83,43 @@ opened) is in the mail table and beads graph; retros should divide by it.
   `swarm/metrics/collusion.py` signals into the acceptance mechanism and
   measure how much fake convergence a corroboration-weighted gate admits.
 
+## Addendum (2026-07-22): the success tail — formalization latency is collapsing
+
+**Source:** [Buzzard, "Human mathematicians are being outcounterexampled"](https://xenaproject.wordpress.com/2026/07/20/human-mathematicians-are-being-outcounterexampled/)
+(Xena Project, 2026-07-20). Three machine-found counterexamples accepted in
+two months — Erdős unit distance (ChatGPT, Lean-formalized in a week; a later
+Sol formalization ran 1.2M lines in three weeks, vs. mathlib's 2.3M over nine
+years), Grothendieck's group-schemes question (Claude Fable; 1,076-line Lean
+formalization in **four hours**), and the Jacobian conjecture (Claude Fable;
+formalized into DeepMind's Formal Conjectures repo).
+
+Three refinements to the table above:
+
+1. **The verification budget is a moving target, not a constant.** Lesson 1
+   treats verification cost as the fixed asymmetry the ledger must absorb;
+   Buzzard's data shows the cost collapsing (weeks → hours) when the claim
+   class has a mechanical checker and formalization itself is AI-assisted.
+   This strengthens the case that the `a2il` claim-ledger scenario's
+   per-epoch verification budget is the right lever to *sweep, not fix*: the
+   interesting dynamics are in the transient where generation and
+   verification capacity race each other.
+2. **Counterexamples fall first because they are the cheapest claims to
+   verify** — one finite certificate, no coverage of a proof space. This is
+   selection on verifiability, not on difficulty, and it predicts which claim
+   classes flip next in any domain: whatever the acceptance gate can check
+   cheapest. (Same asymmetry dgg-counterexample-lessons.md is built on.)
+3. **Pre-formalize the conjecture, not just the proof.** Buzzard's
+   recommendation that conjectures be formally stated *before* AI attacks
+   them is the ledger's default-⚪ made ex-ante: fix the acceptance predicate
+   before search begins, so "solved" is never renegotiated after the fact.
+   Our equivalent is the prereg lock — and the erdos-1038 phantom-gate lesson
+   says to also verify the predicate actually runs.
+
+The post also surfaces a stratification concern raised in its comments
+(paywalled AI access splitting the research population into
+capability tiers) — out of scope for the ledger mapping, but a natural
+population-heterogeneity lever for the marketplace/economy scenario family.
+
 ## Prior related findings in this rig
 
 - Orchestration-side dual of this doc: search aggressiveness must be a
