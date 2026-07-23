@@ -50,6 +50,32 @@ certificates are the adverse-selection regime by construction.
 → bead `mfya`: sweep `verifier_penalty` weight and (once the metric below
 exists) verifier coverage against toxicity / quality gap.
 
+Sweep results (`experiments/pressure_coverage_sweep.py`, 50 runs:
+coverage {off, 0.15, 0.3, 0.6, 0.9} × {honest, cautious} counterparties
+× 5 seeds, run `20260723T025058Z_pressure_coverage_sweep`):
+
+- **Coverage dose-response confirmed and monotone.** Late-phase
+  fabricated-accepted share falls 0.108 → 0.036 (honest counterparties)
+  and 0.088 → 0.047 (cautious) from gate-off to coverage 0.9; overtrust
+  tracks it (0.094 → 0.031). Per-seed paired deltas are positive or zero
+  in 10/10 cells — coverage never hurt. **Returns saturate at ~0.6
+  coverage**: 0.6 and 0.9 are indistinguishable, consistent with adaptive
+  workers hitting their propensity floor — beyond a threshold, marginal
+  verification buys nothing because the behavioral response has already
+  happened.
+- **No-go (recorded per §4): the quality-gap sign flip did NOT
+  materialize at these settings.** Under plausibility scoring the late
+  quality gap stayed ≈ 0 (honest counterparties reject nothing, so the
+  gap is undefined-as-zero; cautious ones show +0.005–0.017, never
+  negative) and the PCG selection leg stayed ≤ +0.005. Why: counterparties
+  see current-interaction quality only through a trust EMA of past p, the
+  cautious threshold mostly filters low-trust honest workers rather than
+  preferentially admitting fabrications, and adaptive propensity decay
+  keeps fabrication too rare to dominate selection. The adverse-selection
+  regime needs either per-interaction p visibility at accept time,
+  non-adaptive (incorrigible) fabricators, or longer horizons — a scoped
+  follow-up, not a free consequence of pressure.
+
 ### 2. The pressure lever is symmetric — model it as an adversarial *environment*, not an adversarial agent
 
 The human contributed no domain insight, only escalating refusal to accept

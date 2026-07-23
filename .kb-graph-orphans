@@ -23,6 +23,7 @@ cmd/address_review
 cmd/audit_docs
 cmd/audit_fix
 cmd/build_game
+cmd/claim
 cmd/check_ignore
 cmd/cherry_pick_pr
 cmd/compare_studies
