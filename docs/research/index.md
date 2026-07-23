@@ -86,6 +86,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Verified case study of the 2026 Dinitz–Garg–Goemans disproof: verifier coverage as the trust variable, pressure-lever symmetry, plausibility–certificate gap
 
+-   :material-scale-balance: **[Erdős AI-Ledger Lessons](erdos-ai-ledger-lessons.md)**
+
+    ---
+
+    Ecosystem governance lessons from Tao's AI-contributions ledger: verification bottleneck, denominator problem, corroboration vs. collusion
+
 </div>
 
 ## Core Research Questions
