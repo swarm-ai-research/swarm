@@ -434,6 +434,44 @@ WorktreeConfig(os_isolation_enabled=True, require_os_isolation=True)  # fail-clo
 When enabled but no backend is available (e.g. CI/Linux without `bwrap`), the
 command still runs and `CommandResult.isolation` is recorded as `"none"` — the
 isolation status is **never silent**. Set `require_os_isolation=True` to instead
-**deny** execution when no backend exists. Reads are not restricted in this
-slice (interpreters need their stdlib); a stronger read-confining jail and
-short-lived scoped git push tokens remain follow-ups.
+**deny** execution when no backend exists.
+
+### Secret-read confinement
+
+Reads default to permissive (interpreters need their stdlib), but a granted
+command has no business reading credentials, so `wrap_command` layers a
+*targeted* read-deny on top: home-relative credential stores (`~/.ssh`,
+`~/.aws`, `~/.config/gcloud`, `~/.gnupg`, `~/.netrc`, `~/.git-credentials`,
+`~/.config/gh`) plus secret-*named* files anywhere (`.env`, `*.pem`, `*.key`,
+`id_rsa*`, `credentials`). On macOS these are SBPL `(deny file-read* …)` rules
+placed after `(allow default)` (last match wins); on Linux each secret dir is
+masked with an empty `--tmpfs`. The sandbox's own subtree stays readable even
+under a denied prefix — the task's files always win. The executor resolves the
+deny-list via `os_isolation_extra_secret_paths` config.
+
+## Scoped Push Tokens
+
+OS isolation blocks *writes and reads*; pushing to a protected ref is a
+different power. A **push grant** is a short-lived, ref-scoped capability the
+agent cannot forge: an HMAC-sealed authorization to push only to refs matching
+an explicit pattern list, only until it expires. The authority key lives with
+CI/the operator, never the agent — so an agent cannot mint its own grant,
+widen the ref scope, or extend the TTL.
+
+```bash
+# Authority (CI) mints a 15-min grant scoped to the agent's task branch:
+AGENTGIT_PUSH_AUTHORITY_KEY=... python -m swarm.agentgit push-token mint   --task task-1 --agent codex --ref-pattern 'refs/heads/agent/*' --ttl 900
+
+# The agent's git pre-push hook gates every push, fail-closed:
+#   AGENTGIT_PUSH_TOKEN=<grant>  python -m swarm.agentgit push-token prepush
+```
+
+`prepush` reads git's pre-push stdin and **denies** unless a valid, unexpired
+grant scopes every ref being pushed — no token, expired token, tampered
+scope/expiry, or an out-of-scope ref all block the push. A presented grant is
+the agent's *whole* authority envelope: it may not push outside its task's
+refs at all, even to unprotected branches. This is a client-side policy
+primitive (`swarm.agentgit.push_tokens`); pair it with server-side branch
+protection for defense in depth. "Tasks have power, not accounts": authority
+is bound to the delegated unit of work and a short TTL, not a standing
+credential.

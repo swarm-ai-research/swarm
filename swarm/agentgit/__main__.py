@@ -18,6 +18,14 @@ from swarm.agentgit.bundle import (
 from swarm.agentgit.coordination import DEFAULT_DB_PATH, CoordinationBoard
 from swarm.agentgit.memory import KINDS, SCOPES, MemoryEntry, MemoryStore
 from swarm.agentgit.policy import AgentGitPolicy, gate_bundle
+from swarm.agentgit.push_tokens import (
+    DEFAULT_PROTECTED_PATTERNS,
+    PushGrant,
+    check_push,
+    mint_push_grant,
+    parse_prepush_stdin,
+    verify_grant,
+)
 from swarm.agentgit.reputation import (
     EVENT_MERGED,
     EVENT_ROLLED_BACK,
@@ -301,6 +309,72 @@ def _format_memory(entry: MemoryEntry) -> str:
         f"[{entry.scope}/{entry.kind}] {entry.subject}: {entry.body} "
         f"(id={entry.id} v{entry.version} by {entry.author}){flag}"
     )
+
+
+def _push_authority_key(args: argparse.Namespace) -> Optional[str]:
+    return args.authority_key or os.environ.get("AGENTGIT_PUSH_AUTHORITY_KEY")
+
+
+def cmd_push_token(args: argparse.Namespace) -> int:
+    """Mint / verify short-lived, ref-scoped git push grants."""
+
+    key = _push_authority_key(args)
+    if not key:
+        print("push-token: no authority key (set --authority-key or "
+              "AGENTGIT_PUSH_AUTHORITY_KEY)")
+        return 1
+
+    if args.action == "mint":
+        if not args.ref_pattern:
+            print("push-token mint: at least one --ref-pattern is required")
+            return 1
+        grant = mint_push_grant(
+            task_id=args.task,
+            agent_id=args.agent,
+            allowed_ref_patterns=args.ref_pattern,
+            authority_key=key,
+            ttl_seconds=args.ttl,
+        )
+        print(grant.to_token())
+        return 0
+
+    if args.action == "verify":
+        token = args.token or (sys.stdin.read().strip() if not sys.stdin.isatty() else "")
+        if not token:
+            print("push-token verify: pass --token or pipe a token on stdin")
+            return 1
+        try:
+            parsed = PushGrant.from_token(token)
+        except (ValueError, TypeError):
+            print("INVALID")
+            print("- token is not valid JSON for a push grant")
+            return 1
+        ok, errors = verify_grant(parsed, authority_key=key)
+        print("VALID" if ok else "INVALID")
+        for e in errors:
+            print(f"- {e}")
+        return 0 if ok else 1
+
+    # prepush: consume git pre-push stdin, gate against the grant
+    token = args.token or os.environ.get("AGENTGIT_PUSH_TOKEN", "")
+    prepush_grant: Optional[PushGrant] = None
+    if token:
+        try:
+            prepush_grant = PushGrant.from_token(token)
+        except (ValueError, TypeError):
+            print("agentgit push-token: malformed token — failing closed", file=sys.stderr)
+            return 1
+    refs = parse_prepush_stdin(sys.stdin.read())
+    protected = args.protected or list(DEFAULT_PROTECTED_PATTERNS)
+    ok, reasons = check_push(
+        refs, grant=prepush_grant, authority_key=key, protected_patterns=protected
+    )
+    if ok:
+        return 0
+    print("agentgit push-token: push denied", file=sys.stderr)
+    for r in reasons:
+        print(f"- {r}", file=sys.stderr)
+    return 1
 
 
 def cmd_reputation(args: argparse.Namespace) -> int:
@@ -716,6 +790,43 @@ def build_parser() -> argparse.ArgumentParser:
         "--security-incident", action="store_true", help="Change caused a security incident"
     )
     reputation.set_defaults(func=cmd_reputation)
+
+    push_token = subparsers.add_parser(
+        "push-token",
+        help="Mint/verify short-lived ref-scoped git push grants; gate a pre-push",
+    )
+    push_token.add_argument("action", choices=["mint", "verify", "prepush"])
+    push_token.add_argument(
+        "--authority-key",
+        default=None,
+        help="HMAC authority key (or AGENTGIT_PUSH_AUTHORITY_KEY). The agent "
+        "must NOT hold this — it is what makes a grant unforgeable.",
+    )
+    push_token.add_argument("--task", default="", help="Task id the grant is bound to")
+    push_token.add_argument("--agent", default="", help="Agent id the grant is for")
+    push_token.add_argument(
+        "--ref-pattern",
+        action="append",
+        default=[],
+        metavar="PATTERN",
+        help="fnmatch ref pattern the grant authorizes (repeatable), e.g. "
+        "'refs/heads/agent/*'",
+    )
+    push_token.add_argument(
+        "--ttl", type=int, default=900, help="Grant lifetime in seconds (mint; default 900)"
+    )
+    push_token.add_argument(
+        "--token", default=None, help="Token to verify / gate with (verify, prepush)"
+    )
+    push_token.add_argument(
+        "--protected",
+        action="append",
+        default=[],
+        metavar="PATTERN",
+        help="Protected ref pattern for the prepush gate (repeatable; default: "
+        "main/master/tags)",
+    )
+    push_token.set_defaults(func=cmd_push_token)
     return parser
 
 

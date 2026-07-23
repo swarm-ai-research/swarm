@@ -68,6 +68,12 @@ swarm-api/
 .secrets
 secrets.yaml
 secrets.json
+# Re-include source that legitimately contains "token"/"secret" in its name —
+# the patterns above are a secret-file guard, not a ban on the word in code.
+!swarm/**/*_token*.py
+!swarm/**/*_secret*.py
+!tests/**/*_token*.py
+!tests/**/*_secret*.py
 
 # LaTeX build artifacts
 *.aux
