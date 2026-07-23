@@ -96,6 +96,21 @@ For each quantitative claim verify:
 - Do different seeds produce consistent results?
 - Is the effect robust to parameter perturbation?
 
+#### 6. Check the negative spec and the gates
+
+(erdos-1038 lessons, docs/research/erdos-1038-swarm-lessons.md)
+
+- If the bead or claim carries a negative spec (dispatch-written list of
+  insufficient outcomes for its task class), verify against that enumerated
+  list first — enumerated cheats catch what generic rigor review misses.
+  If a claim of this class has no negative spec, write one (2–3 items) as
+  part of the audit and stamp it into the bead.
+- Phantom-gate check: for every "verified"/"tested"/"CI green" statement,
+  confirm the actual gate executed — test output or run folder exists, the
+  CI job that ran was the real build/eval and not a lint or source-scan
+  proxy. A verification step everyone believes ran but never did is graded
+  UNVERIFIABLE regardless of how the surrounding claims grade.
+
 ### Output format
 
 ```

@@ -209,12 +209,27 @@ CREATE TABLE agent_messages (
 );
 -- Partial index for fast inbox queries
 CREATE INDEX idx_agent_messages_to_unacked ON agent_messages (to_agent, acked) WHERE acked = 0;
+-- Artifact-only DONE enforcement (erdos-1038 lesson 5, docs/research/erdos-1038-swarm-lessons.md):
+-- a DONE row must carry a commit hash, a runs/ path, or an explicit artifact= tag.
+CREATE TRIGGER IF NOT EXISTS done_requires_artifact
+BEFORE INSERT ON agent_messages
+FOR EACH ROW
+WHEN NEW.body LIKE 'DONE:%'
+  AND NEW.body NOT LIKE '%artifact=%'
+  AND NEW.body NOT LIKE '%runs/%'
+  AND NEW.body NOT GLOB '*[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*'
+BEGIN
+  SELECT RAISE(ABORT, 'DONE rows need a concrete artifact: commit hash, runs/ path, or artifact=<ref> (optionally gate=<check>:<result>). Status reports are not DONE - see CLAUDE.md section agent_messages');
+END;
 ```
 
 **Message conventions:**
 - `ONLINE: ready for work` — announce session start
 - `CLAIM: <beads-id>` — claim a task (check before starting work to avoid duplicates)
-- `DONE: <beads-id>: <summary>` — announce completion
+- `DONE: <beads-id>: <summary> <commit|runs/path|artifact=ref> gate=<check>:<result>` —
+  announce completion. The trigger above rejects DONE rows with no artifact reference;
+  `gate=` is convention (state which check ran and its result, or `gate=none`), enforced
+  by the `/bv-dispatch` retro rather than the trigger.
 - `BLOCKED: <description>` — ask for help
 
 **Usage from any session:**

@@ -37,6 +37,15 @@ Arguments: $ARGUMENTS
      discovered-from/blocks edges at creation time. Report the fraction,
      name the worst offender source, and propose the default-side fix
      (creation-time nudge or template) rather than another cleanup pass.
+  5. Gate execution audit (erdos-1038 lesson: verification-shaped ≠ verified;
+     docs/research/erdos-1038-swarm-lessons.md) — for each bead closed as
+     verified/tested since last retro, confirm the actual gate ran: test
+     output or run-folder path in a comment, CI run that executed (not just
+     a lint/regex proxy job), benchmark numbers from a real invocation.
+     Distinct from the rug audit: a rug is a cordoned mock cited as real; a
+     phantom gate is a verification step everyone believes ran and never
+     did. Also audit blocked-bead reopenings: each must name the materially
+     new mechanism that justified reopening (see analysis step 6).
 
 Any text after the mode word is extra operator context — honor it.
 
@@ -77,6 +86,15 @@ Analyze the open task graph with graph theory, and show your numbers:
 5. Hygiene alerts — cycles, orphans, stale in-progress beads, and MISSING EDGES
    (dependencies that plainly exist in the descriptions but were never recorded).
    List them; assign the cheapest agent to fix graph hygiene before feature work.
+6. Approach-family registry (research beads only; erdos-1038 lessons 2–4) —
+   when several open beads attack the same research question, cluster them by
+   underlying approach, not surface wording. Flag convergence: if most routes
+   collapsed into one family, redirect an agent to an underexplored family;
+   elegance or compelling early numbers are NOT grounds for letting one family
+   dominate. Keep ≥2 incompatible routes alive while the question is open.
+   Blocked routes: a bead stalled on a theorem-strength gap gets a comment
+   naming the exact blocker; reopen it only when a claimant names a materially
+   new mechanism in the bead (retro audits these — MUD LEDGER item 5).
 
 Then produce the assignment: for each agent, ONE primary and ONE backup bead,
 matched to their specialty, each drawn from a different parallel track. Justify
@@ -98,6 +116,15 @@ Before mailing anyone, write the rationale INTO each assigned bead as a comment
 (metrics + predicted unblock count + why this agent) so the reasoning survives
 outside the mail thread and a future `retro` run can score these predictions.
 
+Each assignment carries a NEGATIVE SPEC: 2–3 bead-specific insufficient
+outcomes — the known cheats for that task class (e.g. "single-seed result
+presented as general", "mock numbers without cordon", "fix that loosens the
+assertion instead of the code"). Write them into the bead comment; the Auditor
+and retro verify against this list, not against generic rigor. For research
+beads in an exploration round (approach registry active, step 6), the mail
+states the question and the agent's assigned family but OMITS the currently
+favored route — independence first, cross-pollination after routes mature.
+
 Then deliver each assignment through the rig's coordination channel, in this
 order of preference:
 1. agent_messages table in runs/runs.db (schema in CLAUDE.md): one broadcast
@@ -115,6 +142,16 @@ Claim protocol (include in every delivery): mark in_progress immediately; if
 the assignment is >4h old or an upstream bead in your track has closed since,
 do not trust it — re-run the dispatch analysis yourself and claim the
 top-ranked unclaimed bead from your track instead.
+
+DONE protocol (include in every delivery): a `DONE:` row must point at a
+concrete artifact — commit hash, run folder, or `artifact=<ref>` — and state
+which gate ran via `gate=<check>:<result>` (or `gate=none`). The artifact
+half is enforced mechanically by the `done_requires_artifact` trigger on
+agent_messages (schema in CLAUDE.md); the gate half is checked here: in
+retro mode, grep DONE rows since last retro for `gate=` and feed any
+gateless or `gate=none` completions into MUD LEDGER item 5. Status reports
+and "routine, just needs X" are not DONE; bounce them back to in_progress
+with a comment naming what's missing (erdos-1038 lesson 5).
 
 **All modes:**
 

@@ -12,7 +12,9 @@ This repo maintains task-focused LLM agent personas in `.claude/agents/*.md`. Us
 - Act on `ASSIGN:` rows matching your role: claim the bead (`bd update <bead> --status in_progress`),
   reply on the channel (`INSERT INTO agent_messages (from_agent,to_agent,body) VALUES ('<you>','#swarm','CLAIM: <bead>')`),
   then ack the row (`UPDATE agent_messages SET acked=1 WHERE id=<id>`).
-- Announce significant completions with a `DONE: <bead>: <summary>` row.
+- Announce significant completions with a `DONE: <bead>: <summary>` row including a
+  concrete artifact (commit hash, `runs/` path, or `artifact=<ref>`) and `gate=<check>:<result>`.
+  A DB trigger rejects artifact-less DONE rows — a status report is not a completion.
   Schema and conventions: CLAUDE.md § Inter-Session Coordination (`agent_messages`).
 
 ## How To Choose
@@ -63,7 +65,7 @@ Source: `.claude/agents/mechanism_designer.md`
 Focus: audits metric quality and research claims for correctness, statistical rigor, and replication status.
 Two modes:
 - **Metric quality**: definition, robustness, logging consistency, tests. Deliverables: metric implementation via `/add_metric`, tests, docs.
-- **Research integrity**: grades claims as SOLID/HONEST/WEAK/OVERCLAIMED/UNVERIFIABLE. Deliverables: graded claim audit, rewording suggestions, overall integrity score.
+- **Research integrity**: grades claims as SOLID/HONEST/WEAK/OVERCLAIMED/UNVERIFIABLE. Deliverables: graded claim audit, rewording suggestions, overall integrity score. Verifies against the bead's negative spec (enumerated insufficient outcomes) when present, and runs the phantom-gate check: any "verified/tested" statement whose gate never actually executed grades UNVERIFIABLE (docs/research/erdos-1038-swarm-lessons.md).
 Guardrails:
 - Do not silently rename metrics in exports
 - Be honest but constructive — improve claims, don't block publication
