@@ -9,6 +9,17 @@ from swarm.redteam.attacks import (
     AttackResult,
     AttackScenario,
 )
+from swarm.redteam.circumvention import (
+    CircumventionConfig,
+    TaskOutcome,
+    WorkerKind,
+    action_filter_catch_rate,
+    circumvention_success_rate,
+    honest_completion_rate,
+    mean_cumulative_suspicion_evaded,
+    simulate_episode,
+    simulate_task,
+)
 from swarm.redteam.evaluator import (
     GovernanceRobustness,
     RedTeamEvaluator,
@@ -37,4 +48,14 @@ __all__ = [
     "compute_detection_latency",
     "compute_damage_before_detection",
     "compute_governance_effectiveness",
+    # Constraint circumvention (mtht)
+    "CircumventionConfig",
+    "TaskOutcome",
+    "WorkerKind",
+    "simulate_task",
+    "simulate_episode",
+    "action_filter_catch_rate",
+    "circumvention_success_rate",
+    "honest_completion_rate",
+    "mean_cumulative_suspicion_evaded",
 ]

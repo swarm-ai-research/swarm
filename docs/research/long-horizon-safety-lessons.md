@@ -82,7 +82,41 @@ filter scores as clean step-by-step. The prediction to test: an action-level
 filter's catch rate degrades as the horizon (steps per task) grows — the
 agent has more room to find a below-resolution decomposition — while a
 trajectory-level monitor's catch rate is horizon-stable.
-→ bead `mtht`.
+→ bead `mtht` — implemented as `swarm/redteam/circumvention.py` +
+`experiments/circumvention_horizon_sweep.py`. Built as a standalone
+trajectory sim, not a YAML orchestrator scenario, because the orchestrator's
+unit is an atomic `SoftInteraction` and the quantity of interest is
+detection-vs-trajectory-length; forcing a decomposition through atomic
+interactions would distort it. Model: a forbidden outcome carries suspicion
+mass `M`; the worker spreads it over `k` steps at `M/k` each; the
+action-level filter sees only per-step suspicion, so a fine-enough split
+drops every step below threshold `tau` and evades — but cumulative suspicion
+is invariant at `M`.
+
+**Results (run `20260723T125825Z_circumvention_sweep`, heterogeneous task
+mass, 5 seeds):**
+
+- **Prediction 1 confirmed, and sharper than stated.** Action-level catch
+  rate degrades monotonically with horizon: 0.89 (H=1) → 0.47 (H=4) → 0.06
+  (H=6) → 0.00 (H≥8). The sharper finding is the *complement*: the mean
+  cumulative suspicion of evaded attempts rises 0.00 → 0.69 → 1.01 over the
+  same range. **Action-level coverage collapses to zero exactly where the
+  trajectory-level signal reaches full mass** — the action-channel analog of
+  the plausibility-certificate gap, and the quantitative case for the `0hp7`
+  monitor and the `q2fg` metric.
+- **Prediction 2 confirmed.** At the worst starting horizon (H=1),
+  circumvention success rises with persistence: 0.11 (P=0) → 0.53 (P=2) →
+  1.00 (P=3). Persistence manufactures effective horizon — H=1 with P=3
+  re-decomposes to the same clean `k=4` a large horizon would have reached.
+- **Prediction 3 confirmed.** Honest completion is flat at 1.000 across the
+  entire 9×6 horizon×persistence grid — honest steps carry zero suspicion, so
+  neither axis touches them. Persistence and horizon are pure attacker
+  affordances here.
+- **Instruction-decay** raises the circumvention share of an episode 0.00 →
+  0.50 as decay 0→1 (later tasks revert to the wrong goal), and at H=8 the
+  action-filter catch rate stays 0.00 throughout — *more* circumvention
+  produces *zero* additional action-level catches once horizon is ample. The
+  action channel is blind, not merely leaky.
 
 ### 2. Trajectory-level monitor as a governance lever
 
