@@ -4,11 +4,14 @@ Defines governance contracts, capability manifests, sandbox tier
 configurations, and the top-level bridge config.
 """
 
+import logging
 import posixpath
 import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List
+
+logger = logging.getLogger(__name__)
 
 # Characters that must not appear in capability names.
 _UNSAFE_CAP_RE = re.compile(r"[,\s/\\]")
@@ -230,8 +233,7 @@ class OpenSandboxConfig:
         """Validate security-sensitive configuration."""
         # I5 fix: prevent exec as root
         if self.docker_exec_user in ("root", "0"):
-            import logging as _log
-            _log.getLogger(__name__).warning(
+            logger.warning(
                 "docker_exec_user=%r is insecure; overriding to 'nobody'",
                 self.docker_exec_user,
             )

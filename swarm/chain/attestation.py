@@ -4,7 +4,7 @@ Usage:
     from swarm.chain.attestation import AttestationClient
 
     client = AttestationClient(rpc_url="https://mainnet.base.org", private_key="0x...")
-    tx_hash = client.submit(metrics_hash, agent_id, grade, adverse, count)
+    tx_hash = client.submit(metrics_hash, agent_id, safety_grade, adverse_selection, interaction_count)
     verified = client.verify(metrics_hash, agent_id)
 """
 
@@ -87,17 +87,6 @@ _CONTRACT_ABI: list[dict[str, Any]] = [
         "inputs": [{"name": "agentId", "type": "string"}],
         "outputs": [{"name": "", "type": "uint256[]"}],
         "stateMutability": "view",
-    },
-    {
-        "type": "event",
-        "name": "AttestationSubmitted",
-        "inputs": [
-            {"name": "attestationId", "type": "uint256", "indexed": True},
-            {"name": "metricsHash", "type": "bytes32", "indexed": True},
-            {"name": "agentId", "type": "string", "indexed": False},
-            {"name": "safetyGrade", "type": "string", "indexed": False},
-            {"name": "submitter", "type": "address", "indexed": False},
-        ],
     },
 ]
 

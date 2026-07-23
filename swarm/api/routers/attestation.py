@@ -22,7 +22,7 @@ from swarm.api.models.attestation import (
     ReceiptResponse,
 )
 from swarm.attestation.middleware import AttestationMiddleware
-from swarm.attestation.receipt import ExecutionBounds
+from swarm.attestation.receipt import AdmissibilityReceipt, ExecutionBounds
 from swarm.attestation.relay import ReceiptRelay, RelayMessage
 from swarm.attestation.signer import ReceiptSigner, ReceiptVerifier
 from swarm.models.events import Event, EventType
@@ -63,7 +63,7 @@ MiddlewareDep = Annotated[AttestationMiddleware, Depends(_get_middleware)]
 RelayDep = Annotated[ReceiptRelay, Depends(_get_relay)]
 
 
-def _receipt_to_response(receipt) -> ReceiptResponse:  # type: ignore[no-untyped-def]
+def _receipt_to_response(receipt: AdmissibilityReceipt) -> ReceiptResponse:
     return ReceiptResponse(
         receipt_id=receipt.receipt_id,
         timestamp=receipt.timestamp,

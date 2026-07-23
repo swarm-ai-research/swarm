@@ -53,8 +53,11 @@ class MarketplaceHandler(Handler):
     def handle_action(self, action: Action, state: Any) -> HandlerActionResult:
         """Dispatch a marketplace action and return a unified result.
 
-        Marketplace actions don't generate interactions/observables, so the
-        result always has ``observables=None``.
+        Marketplace actions (POST_BOUNTY, PLACE_BID, etc.) don't generate
+        interactions/observables, so the result always has ``observables=None``.
+
+        Note: settle_task is called separately and generates SoftInteraction
+        objects for governance processing. It is not invoked via handle_action.
         """
         dispatch = {
             ActionType.POST_BOUNTY: lambda: self.handle_post_bounty(
@@ -207,6 +210,7 @@ class MarketplaceHandler(Handler):
                     task_id=bounty.task_id,
                     agent_id=escrow.worker_id,
                     agent_reputation=worker_state.reputation,
+                    current_epoch=state.current_epoch,
                 )
 
         self._emit_event(
@@ -432,6 +436,7 @@ class MarketplaceHandler(Handler):
                                 "auto_resolved": True,
                             },
                             epoch=state.current_epoch,
+                            step=state.current_step,
                         )
                     )
 

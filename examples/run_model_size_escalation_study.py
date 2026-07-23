@@ -474,7 +474,7 @@ def run_episode(
 
     change_turns = max(n_turns - 1, 1)
     escalation_rate = escalation_turns / change_turns
-    de_escalation_rate_local = de_escalation_turns / change_turns
+    de_escalation_rate = de_escalation_turns / change_turns
     cooperation_rate = cooperation_turns / max(n_turns, 1)
     mean_level = total_level_sum / max(n_turns, 1)
     mean_divergence = total_divergence / max(n_turns, 1)
@@ -494,7 +494,7 @@ def run_episode(
         "outcome": metrics.outcome,
         # Model-size-specific metrics
         "escalation_rate": escalation_rate,
-        "de_escalation_rate": de_escalation_rate_local,
+        "de_escalation_rate": de_escalation_rate,
         "signal_action_divergence": mean_divergence,
         "governance_compliance": governance_compliance,
         "mean_level": mean_level,

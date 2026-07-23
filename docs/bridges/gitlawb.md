@@ -403,5 +403,5 @@ python -m swarm.bridges.gitlawb --mode daemon --repos swarm
 
 ### Source
 
-- [Bridge code](https://github.com/swarm-ai-safety/swarm/tree/main/swarm/bridges/gitlawb)
+- [Bridge code](https://github.com/swarm-ai-research/swarm/tree/main/swarm/bridges/gitlawb)
 - [Gitlawb network](https://gitlawb.com)

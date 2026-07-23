@@ -243,8 +243,7 @@ class MoltbookHandler(Handler):
 
     def _handle_post(self, action: Action, state) -> MoltbookActionResult:
         submolt = action.metadata.get("submolt") or self.config.default_submolt
-        agent_state = state.get_agent(action.agent_id)
-        agent_type = agent_state.agent_type if agent_state else AgentType.HONEST
+        agent_type = self._get_agent_type(action.agent_id, state)
 
         allowed, reason = self.check_rate_limits(
             action.agent_id, "post", state.current_step
@@ -292,8 +291,7 @@ class MoltbookHandler(Handler):
 
     def _handle_comment(self, action: Action, state) -> MoltbookActionResult:
         submolt = action.metadata.get("submolt") or self.config.default_submolt
-        agent_state = state.get_agent(action.agent_id)
-        agent_type = agent_state.agent_type if agent_state else AgentType.HONEST
+        agent_type = self._get_agent_type(action.agent_id, state)
 
         allowed, reason = self.check_rate_limits(
             action.agent_id, "comment", state.current_step
@@ -345,8 +343,7 @@ class MoltbookHandler(Handler):
 
     def _handle_verify(self, action: Action, state) -> MoltbookActionResult:
         answer = float(action.metadata.get("answer", 0.0))
-        agent_state = state.get_agent(action.agent_id)
-        agent_type = agent_state.agent_type if agent_state else AgentType.HONEST
+        agent_type = self._get_agent_type(action.agent_id, state)
 
         allowed, reason = self.check_rate_limits(
             action.agent_id, "verify", state.current_step
@@ -364,8 +361,7 @@ class MoltbookHandler(Handler):
         return result
 
     def _handle_vote(self, action: Action, state) -> MoltbookActionResult:
-        agent_state = state.get_agent(action.agent_id)
-        agent_type = agent_state.agent_type if agent_state else AgentType.HONEST
+        agent_type = self._get_agent_type(action.agent_id, state)
 
         allowed, reason = self.check_rate_limits(
             action.agent_id, "vote", state.current_step
@@ -435,60 +431,7 @@ class MoltbookHandler(Handler):
         submolt: str,
         current_step: int,
     ) -> Tuple[MoltbookPost, Optional[Any]]:
-        self._rate_limit_lever.record_action(agent_id, "post", current_step)
-        challenge = None
-        if getattr(self.governance_config, "moltbook_challenge_enabled", False):
-            challenge = self.challenge_gen.generate(
-                getattr(self.governance_config, "moltbook_challenge_difficulty", 0.5)
-            )
-            challenge.expires_at_step = current_step + getattr(
-                self.governance_config, "moltbook_challenge_window_steps", 1
-            )
-        post = self.feed.submit_content(
-            author_id=agent_id,
-            content=content,
-            submolt=submolt,
-            current_step=current_step,
-            challenge=challenge,
-        )
-        self._emit_event(
-            Event(
-                event_type=EventType.POST_SUBMITTED,
-                agent_id=agent_id,
-                payload={"post_id": post.post_id, "submolt": submolt},
-                step=current_step,
-            )
-        )
-        if challenge is not None:
-            self._challenge_lever.register(
-                post.post_id, agent_id, challenge.expires_at_step
-            )
-            self._emit_event(
-                Event(
-                    event_type=EventType.CHALLENGE_ISSUED,
-                    agent_id=agent_id,
-                    payload={
-                        "post_id": post.post_id,
-                        "challenge_id": challenge.challenge_id,
-                        "expires_at_step": challenge.expires_at_step,
-                    },
-                    step=current_step,
-                )
-            )
-            return post, challenge
-
-        post.status = ContentStatus.PUBLISHED
-        post.published_at_step = current_step
-        self.scorer.record_published(agent_id)
-        self._emit_event(
-            Event(
-                event_type=EventType.CONTENT_PUBLISHED,
-                agent_id=agent_id,
-                payload={"post_id": post.post_id},
-                step=current_step,
-            )
-        )
-        return post, None
+        return self._submit(agent_id, content, submolt, current_step, parent_id=None)
 
     def submit_comment(
         self,
@@ -498,7 +441,24 @@ class MoltbookHandler(Handler):
         submolt: str,
         current_step: int,
     ) -> Tuple[MoltbookPost, Optional[Any]]:
-        self._rate_limit_lever.record_action(agent_id, "comment", current_step)
+        return self._submit(
+            agent_id, content, submolt, current_step, parent_id=parent_id
+        )
+
+    def _submit(
+        self,
+        agent_id: str,
+        content: str,
+        submolt: str,
+        current_step: int,
+        *,
+        parent_id: Optional[str],
+    ) -> Tuple[MoltbookPost, Optional[Any]]:
+        """Shared submission path: posts have parent_id=None, comments a parent."""
+        is_comment = parent_id is not None
+        self._rate_limit_lever.record_action(
+            agent_id, "comment" if is_comment else "post", current_step
+        )
         challenge = None
         if getattr(self.governance_config, "moltbook_challenge_enabled", False):
             challenge = self.challenge_gen.generate(
@@ -515,14 +475,21 @@ class MoltbookHandler(Handler):
             challenge=challenge,
             parent_id=parent_id,
         )
-        self._emit_event(
-            Event(
+        if is_comment:
+            submitted = Event(
                 event_type=EventType.COMMENT_SUBMITTED,
                 agent_id=agent_id,
                 payload={"post_id": post.post_id, "parent_id": parent_id},
                 step=current_step,
             )
-        )
+        else:
+            submitted = Event(
+                event_type=EventType.POST_SUBMITTED,
+                agent_id=agent_id,
+                payload={"post_id": post.post_id, "submolt": submolt},
+                step=current_step,
+            )
+        self._emit_event(submitted)
         if challenge is not None:
             self._challenge_lever.register(
                 post.post_id, agent_id, challenge.expires_at_step
@@ -573,50 +540,28 @@ class MoltbookHandler(Handler):
 
         latency = max(0, current_step - post.created_at_step)
         if current_step > post.challenge.expires_at_step:
-            post.status = ContentStatus.EXPIRED
-            self.scorer.record_wasted_action(agent_id)
-            self.scorer.record_challenge_attempt(agent_id, agent_type, False, latency)
-            self._challenge_lever.resolve(post.post_id)
-            self._emit_event(
-                Event(
-                    event_type=EventType.CHALLENGE_EXPIRED,
-                    agent_id=agent_id,
-                    payload={"post_id": post.post_id},
-                    step=current_step,
-                )
+            return self._fail_challenge(
+                post,
+                agent_id,
+                agent_type,
+                latency,
+                current_step,
+                status=ContentStatus.EXPIRED,
+                event_type=EventType.CHALLENGE_EXPIRED,
             )
-            outcome = MoltbookActionOutcome(
-                task_progress_delta=0.0,
-                rework_count=1,
-                verifier_rejections=1,
-                tool_misuse_flags=0,
-                engagement_delta=0.0,
-            )
-            return self._verification_result(post, outcome, success=False)
 
         expected = round(float(post.challenge.answer), 2)
         provided = round(float(answer), 2)
         if provided != expected:
-            post.status = ContentStatus.REJECTED
-            self.scorer.record_wasted_action(agent_id)
-            self.scorer.record_challenge_attempt(agent_id, agent_type, False, latency)
-            self._challenge_lever.resolve(post.post_id)
-            self._emit_event(
-                Event(
-                    event_type=EventType.CHALLENGE_FAILED,
-                    agent_id=agent_id,
-                    payload={"post_id": post.post_id},
-                    step=current_step,
-                )
+            return self._fail_challenge(
+                post,
+                agent_id,
+                agent_type,
+                latency,
+                current_step,
+                status=ContentStatus.REJECTED,
+                event_type=EventType.CHALLENGE_FAILED,
             )
-            outcome = MoltbookActionOutcome(
-                task_progress_delta=0.0,
-                rework_count=1,
-                verifier_rejections=1,
-                tool_misuse_flags=0,
-                engagement_delta=0.0,
-            )
-            return self._verification_result(post, outcome, success=False)
 
         post.status = ContentStatus.PUBLISHED
         post.published_at_step = current_step
@@ -720,6 +665,39 @@ class MoltbookHandler(Handler):
             tool_misuse_flags=0,
             engagement_delta=quality * 0.6,
         )
+
+    def _fail_challenge(
+        self,
+        post: MoltbookPost,
+        agent_id: str,
+        agent_type: AgentType,
+        latency: int,
+        current_step: int,
+        *,
+        status: ContentStatus,
+        event_type: EventType,
+    ) -> MoltbookActionResult:
+        """Record a failed verification (expired or wrong answer)."""
+        post.status = status
+        self.scorer.record_wasted_action(agent_id)
+        self.scorer.record_challenge_attempt(agent_id, agent_type, False, latency)
+        self._challenge_lever.resolve(post.post_id)
+        self._emit_event(
+            Event(
+                event_type=event_type,
+                agent_id=agent_id,
+                payload={"post_id": post.post_id},
+                step=current_step,
+            )
+        )
+        outcome = MoltbookActionOutcome(
+            task_progress_delta=0.0,
+            rework_count=1,
+            verifier_rejections=1,
+            tool_misuse_flags=0,
+            engagement_delta=0.0,
+        )
+        return self._verification_result(post, outcome, success=False)
 
     def _verification_result(
         self,

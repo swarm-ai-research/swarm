@@ -356,7 +356,7 @@ class GitHubCMSClient:
     """Publish MkDocs content by committing Markdown to the swarm repo."""
 
     token: str = field(default_factory=lambda: os.environ.get("GITHUB_TOKEN", ""))
-    owner: str = field(default_factory=lambda: os.environ.get("GITHUB_REPO_OWNER", "swarm-ai-safety"))
+    owner: str = field(default_factory=lambda: os.environ.get("GITHUB_REPO_OWNER", "swarm-ai-research"))
     repo: str = field(default_factory=lambda: os.environ.get("GITHUB_REPO_NAME", "swarm"))
     branch: str = field(default_factory=lambda: os.environ.get("GITHUB_BRANCH", "main"))
     docs_path: str = field(default_factory=lambda: os.environ.get("MKDOCS_DOCS_PATH", "docs/"))

@@ -13,6 +13,8 @@ class DecompositionLever(GovernanceLever):
     rates suggest unstable plans.
     """
 
+    reduces_variance = True
+
     @property
     def name(self) -> str:
         return "decomposition"

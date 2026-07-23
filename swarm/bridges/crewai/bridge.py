@@ -42,6 +42,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from swarm.bridges._common import log_interaction_event
 from swarm.bridges.crewai.config import CrewAIBridgeConfig
 from swarm.core.payoff import PayoffConfig, SoftPayoffEngine
 from swarm.core.proxy import ProxyComputer, ProxyObservables
@@ -192,7 +193,13 @@ class CrewAIBridge:
                 ) from exc
 
     def _extract_interactions_from_output(self, crew_output: Any) -> List[SoftInteraction]:
-        """Extract per-task interactions from a crew output object."""
+        """Extract interactions from a crew output object.
+
+        Version-dependent behavior:
+        - CrewAI >= 0.28: Extracts one interaction per task (per-task granularity).
+        - CrewAI < 0.28: Falls back to raw output and creates a single aggregated
+          interaction (loses per-task granularity).
+        """
         interactions: List[SoftInteraction] = []
 
         # CrewAI >= 0.28 exposes .tasks_output (list of TaskOutput)
@@ -230,8 +237,9 @@ class CrewAIBridge:
         observables = self._extract_observables(result)
         v_hat, p = self._proxy.compute_labels(observables)
 
-        # Safety invariant
-        assert 0.0 <= p <= 1.0, f"p invariant violated: p={p}"
+        # Safety invariant (CLAUDE.md: p must remain in [0, 1])
+        if not (0.0 <= p <= 1.0):
+            raise ValueError(f"p invariant violated: p={p}")
 
         interaction = SoftInteraction(
             initiator=self.config.crew_id,
@@ -259,26 +267,7 @@ class CrewAIBridge:
 
     def _log_interaction(self, interaction: SoftInteraction) -> None:
         """Append an interaction to the EventLog as an Event."""
-        if self._event_log is None:
-            return
-        try:
-            from swarm.models.events import Event, EventType
-
-            event = Event(
-                event_type=EventType.INTERACTION_COMPLETED,
-                interaction_id=interaction.interaction_id,
-                initiator_id=interaction.initiator,
-                counterparty_id=interaction.counterparty,
-                payload={
-                    "p": interaction.p,
-                    "v_hat": interaction.v_hat,
-                    "accepted": interaction.accepted,
-                    "metadata": interaction.metadata,
-                },
-            )
-            self._event_log.append(event)
-        except Exception as exc:  # pragma: no cover
-            logger.warning("EventLog write failed: %s", exc)
+        log_interaction_event(self._event_log, interaction)
 
     def _extract_observables(self, result: TaskResult) -> ProxyObservables:
         """Map a TaskResult to SWARM proxy observables.

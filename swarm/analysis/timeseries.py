@@ -36,6 +36,7 @@ from swarm.analysis.theme import (
 __all__ = [
     "plot_metric_timeseries",
     "plot_toxicity_welfare",
+    "plot_selection_geometry",
     "plot_bilevel_loop",
     "plot_multi_seed_timeseries",
 ]
@@ -205,6 +206,107 @@ def plot_toxicity_welfare(
             a.legend(loc="upper right", fontsize=8)
 
     return fig, (ax_tox, ax_wel)
+
+
+# ---------------------------------------------------------------------------
+# 2b. Selection geometry (saturation + toxicity decomposition)
+# ---------------------------------------------------------------------------
+
+
+def plot_selection_geometry(
+    metrics_df_or_dict: Any,
+    *,
+    saturation_key: str = "selection_saturation",
+    baseline_key: str = "baseline_harm",
+    credit_key: str = "selection_credit",
+    epochs_key: str = "epochs",
+    saturation_ceiling: float = 0.85,
+    events: Optional[List[Dict[str, Any]]] = None,
+    title: str = "Selection Geometry Over Epochs",
+    mode: str = "dark",
+) -> Tuple[plt.Figure, Tuple[matplotlib.axes.Axes, matplotlib.axes.Axes]]:
+    """Two-panel diagnostic plot for projection-geometric metrics.
+
+    Top panel: ``selection_saturation`` = |Q| / (σ_p/√(αβ)) ∈ [0, 1].
+    A horizontal danger zone above *saturation_ceiling* marks the
+    "proxy-bound" regime where further policy tuning yields little
+    return — the proxy needs more signal, not the governor.
+
+    Bottom panel: stacks ``baseline_harm`` (population floor) and
+    ``-selection_credit`` (governance subtracting from harm) so the gap
+    between the curves equals the realised toxicity
+    ``T = baseline_harm - selection_credit``. Visual read: when the
+    bottom curve dives below zero the governor is actively pulling
+    toxicity down; when it sits near zero the proxy isn't sorting.
+
+    *metrics_df_or_dict* is a DataFrame or dict keyed by the four keys
+    above. Multi-seed values (2-D arrays) get mean+std ribbons.
+
+    Example::
+
+        from swarm.analysis.timeseries import plot_selection_geometry
+        fig, (ax_s, ax_d) = plot_selection_geometry({
+            "epochs": list(range(50)),
+            "selection_saturation": saturation_per_epoch,
+            "baseline_harm": baseline_per_epoch,
+            "selection_credit": credit_per_epoch,
+        })
+        fig.savefig("runs/latest/plots/selection_geometry.png")
+    """
+    try:
+        epochs = metrics_df_or_dict[epochs_key].tolist()
+        sat = metrics_df_or_dict[saturation_key]
+        base = metrics_df_or_dict[baseline_key]
+        cred = metrics_df_or_dict[credit_key]
+    except (AttributeError, TypeError):
+        epochs = list(metrics_df_or_dict[epochs_key])
+        sat = metrics_df_or_dict[saturation_key]
+        base = metrics_df_or_dict[baseline_key]
+        cred = metrics_df_or_dict[credit_key]
+
+    with swarm_theme(mode):
+        fig, (ax_sat, ax_decomp) = plt.subplots(
+            2, 1, sharex=True, figsize=(10, 7),
+            gridspec_kw={"hspace": 0.12},
+        )
+
+        plot_metric_timeseries(
+            ax_sat, epochs, sat,
+            label="saturation", color=COLORS.EVASION,
+        )
+        ax_sat.set_ylabel("C-S saturation |Q| / bound")
+        ax_sat.set_ylim(0.0, 1.05)
+        add_danger_zone(
+            ax_sat, saturation_ceiling, direction="above",
+            label=f"proxy-bound > {saturation_ceiling}",
+        )
+
+        plot_metric_timeseries(
+            ax_decomp, epochs, base,
+            label="baseline harm (1 − E[p])", color=COLORS.TOXICITY,
+        )
+        # Selection credit is subtractive in T = baseline − credit; plot
+        # as negative so the visual distance between the two lines is
+        # the realised toxicity.
+        neg_cred_arr, _ = _to_2d(cred)
+        neg_cred: Any = -neg_cred_arr
+        plot_metric_timeseries(
+            ax_decomp, epochs, neg_cred,
+            label="− selection credit (−β·Q)", color=COLORS.WELFARE,
+        )
+        ax_decomp.axhline(0.0, color=COLORS.TEXT_MUTED, linewidth=0.8, linestyle="--")
+        ax_decomp.set_ylabel("Toxicity decomposition")
+        ax_decomp.set_xlabel("Epoch")
+
+        if events:
+            annotate_events(ax_sat, events)
+            annotate_events(ax_decomp, events)
+
+        fig.suptitle(title, fontsize=13, y=0.97)
+        for a in (ax_sat, ax_decomp):
+            a.legend(loc="upper right", fontsize=8)
+
+    return fig, (ax_sat, ax_decomp)
 
 
 # ---------------------------------------------------------------------------

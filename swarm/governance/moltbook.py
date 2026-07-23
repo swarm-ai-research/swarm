@@ -8,7 +8,9 @@ from typing import TYPE_CHECKING, Dict, Optional
 from swarm.governance.levers import GovernanceLever, LeverEffect
 
 if TYPE_CHECKING:
+    from swarm.env.state import EnvState
     from swarm.governance.config import GovernanceConfig
+    from swarm.models.interaction import SoftInteraction
 
 
 @dataclass
@@ -46,17 +48,17 @@ class MoltbookRateLimitLever(GovernanceLever):
             self._states[agent_id] = MoltbookRateLimitState()
         return self._states[agent_id]
 
-    def on_epoch_start(self, state, epoch: int) -> LeverEffect:
+    def on_epoch_start(self, state: "EnvState | None", epoch: int) -> LeverEffect:
         for st in self._states.values():
             st.reset_epoch()
         return LeverEffect(lever_name=self.name)
 
-    def on_step(self, state, step: int) -> LeverEffect:
+    def on_step(self, state: "EnvState | None", step: int) -> LeverEffect:
         for st in self._states.values():
             st.reset_step()
         return LeverEffect(lever_name=self.name)
 
-    def can_agent_act(self, agent_id: str, state) -> bool:
+    def can_agent_act(self, agent_id: str, state: "EnvState") -> bool:
         action_type = getattr(state, "moltbook_action_type", None)
         if not action_type:
             return True
@@ -147,7 +149,7 @@ class ChallengeVerificationLever(GovernanceLever):
             if record.agent_id == agent_id
         }
 
-    def on_step(self, state, step: int) -> LeverEffect:
+    def on_step(self, state: "EnvState | None", step: int) -> LeverEffect:
         expired = [
             post_id
             for post_id, record in self._pending.items()
@@ -160,7 +162,7 @@ class ChallengeVerificationLever(GovernanceLever):
             details={"expired": expired} if expired else {},
         )
 
-    def on_interaction(self, interaction, state) -> LeverEffect:
+    def on_interaction(self, interaction: "SoftInteraction", state: "EnvState") -> LeverEffect:
         status = (
             interaction.metadata.get("moltbook_status")
             if interaction.metadata

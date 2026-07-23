@@ -109,7 +109,7 @@ class LLMConfig:
             self.base_url = "https://api.deepseek.com/v1"
 
         if self.provider not in (LLMProvider.OLLAMA, LLMProvider.OPENROUTER, LLMProvider.LLAMA_CPP) and not self.api_key:
-            # Allow None - will be read from environment
+            # Allow None: the LLM SDK will read from ANTHROPIC_API_KEY or OPENAI_API_KEY environment variables
             pass
 
         if self.provider == LLMProvider.OLLAMA and not self.base_url:

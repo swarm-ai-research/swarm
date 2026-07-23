@@ -125,7 +125,7 @@ class LeakageDetector:
             code_patterns: Regex patterns for code detection
             custom_patterns: Additional patterns by leakage type
             sensitive_keywords: Keywords indicating sensitive content
-            track_hashes: Whether to track content hashes for dedup
+            track_hashes: Whether to track content hashes for event attribution
         """
         self.pii_patterns = [
             re.compile(p, re.IGNORECASE)
@@ -188,10 +188,8 @@ class LeakageDetector:
         content_str = str(content)
         detected_events = []
 
-        # Check for duplicate content
+        # Compute content hash for event attribution
         content_hash = hashlib.sha256(content_str.encode()).hexdigest()[:16]
-        if self.track_hashes:
-            self.seen_hashes.add(content_hash)
 
         # Scan for each leakage type
         pii_matches = self._scan_patterns(content_str, self.pii_patterns)

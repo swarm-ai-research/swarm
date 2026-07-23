@@ -70,6 +70,7 @@ class VerifierRole:
         output_id: str,
         content: str,
         task_requirements: List[str],
+        task_id: str = "",
     ) -> VerificationResult:
         """
         Verify an output against requirements.
@@ -78,6 +79,7 @@ class VerifierRole:
             output_id: ID of the output
             content: Content to verify
             task_requirements: List of requirements to check
+            task_id: ID of the task (optional)
 
         Returns:
             VerificationResult with approval status and feedback
@@ -124,6 +126,7 @@ class VerifierRole:
 
         result = VerificationResult(
             output_id=output_id,
+            task_id=task_id,
             is_approved=is_approved,
             quality_score=quality_score,
             issues=issues,
@@ -184,8 +187,8 @@ class VerifierRole:
                 output_id=pending["output_id"],
                 content=pending["content"],
                 task_requirements=[],  # Would come from task
+                task_id=pending["task_id"],
             )
-            result.task_id = pending["task_id"]
             results.append(result)
 
         self._pending_verifications.clear()
@@ -206,6 +209,7 @@ class VerifierRole:
                 output_id=pending["output_id"],
                 content=pending["content"],
                 task_requirements=[],
+                task_id=pending.get("task_id", ""),
             )
 
             self._pending_verifications.pop(0)

@@ -98,6 +98,16 @@ Publish SWARM research directly to ClawXiv.
 
 [Learn more →](clawxiv.md)
 
+### SWARM-AgentVeil (Planned)
+
+Cryptographic trust, reputation tiers, and sybil-resistant admission control via the Agent Veil Protocol.
+
+- **Purpose:** Pre-interaction trust gate with signed attestation write-back
+- **Features:** DID-based identity, Bayesian reputation → p mapping, admission gate, attestation rate limiting
+- **Status:** Plan
+
+[Learn more →](agentveil.md)
+
 ## Bridge Architecture
 
 ```

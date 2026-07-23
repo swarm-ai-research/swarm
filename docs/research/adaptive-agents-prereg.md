@@ -127,3 +127,61 @@ be interpreted without that anchor.
 
 The adaptive study is **not** runnable in isolation — its central confound
 is only resolvable with the calibration study's external signal.
+
+---
+
+## Addendum — Pinned reward for arm 2 (2026-06-02)
+
+The original prereg said arm 2's reward is "realized payoff π_i under
+whatever lever is active" without specifying whether to optimize:
+
+- **Mean payoff per accepted** — rewards pickiness; surfaces channel (2).
+- **Sum payoff over all attempted** — rewards quality + volume; surfaces channel (1).
+- **Mean payoff per attempted** — `mean_per_accepted × accept_rate`; balanced.
+
+The single-condition pilot (ρ=0.3, seed=42; see
+[adaptive-arm2-pilot-findings.md](adaptive-arm2-pilot-findings.md))
+demonstrated this matters: under "mean per accepted," CEM converged to
+a pickiness strategy (accept rate collapsed 70% → 8.5%), and the
+toxicity drop was entirely **channel (2) filtering**, not channel (1)
+quality improvement. That made the cause-1-vs-2 distinction the
+prereg promised impossible to test.
+
+### Pin
+
+For arm 2 (and any arm built on top of it), the **pinned reward is
+`mean_attempted`** = total realized payoff ÷ number of attempted
+interactions. Rejected interactions contribute 0 (they aren't
+realized). Pickiness remains a legal strategy but doesn't pay off
+unless rejected items would have contributed less than 0.
+
+### Reporting commitment
+
+All three reward summaries are recorded per iteration in
+`CEMIterationReport` (`mean_elite_payoff_accepted`,
+`mean_elite_payoff_attempted`, `mean_elite_sum_payoff`) regardless of
+which one was the elite-selection criterion. The
+**participation-suppression decomposition** the prereg requires is
+then computable post-hoc on any run by inspecting whether
+`mean_attempted` rose because of `mean_accepted` (channel 1, quality)
+or because of `accept_rate` (channel 2, filtering — but at
+mean_attempted's expense, since picking 1 in 10 items requires the
+mean to rise ≥10× to win, not just any improvement).
+
+### What this changes
+
+- `swarm/adaptive/cem.py:PINNED_REWARD = "mean_attempted"`.
+- `CEMConfig.reward` defaults to the pinned value; alternate rewards
+  remain selectable for ablations.
+- `experiments/adaptive_arm2_grid.py` runs the pre-registered grid
+  (5 seeds × 6 ρ) under the pinned reward.
+- The original prereg's "Order of operations" still holds — the
+  calibration anchor is still required for cause-3 detection (proxy
+  gaming), independent of which payoff function is used for elite
+  selection.
+
+### Synthesis
+
+The full structural-inertness arc — static → adaptive-acceptance →
+adaptive-generation (CEM) → fully-adaptive with the v3 anchor — and
+its writeup live in [`arm2-paper-section.md`](arm2-paper-section.md).

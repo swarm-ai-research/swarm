@@ -27,6 +27,8 @@ def run_scenario(
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     run_dir = runs_root / f"{ts}_{sid}_miroshark"
+    # Defensive: exist_ok=False crashes on timestamp collision (second-level precision)
+    # rather than silently corrupting run data. This protects reproducibility.
     run_dir.mkdir(parents=True, exist_ok=False)
     (run_dir / "seed_document.md").write_text(seed_text)
     (run_dir / "scenario.json").write_text(json.dumps(scenario, default=str, indent=2))

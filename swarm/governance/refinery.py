@@ -19,6 +19,11 @@ class RefineryLever(GovernanceLever):
     Rejects any interaction whose proxy probability ``p`` is below
     ``refinery_p_threshold``.  Accepted interactions pass through with
     zero additional cost — the lever imposes no friction on quality work.
+
+    Contract note: rejection works by mutating ``interaction.accepted``
+    in ``on_interaction`` — the only lever that modifies its input, since
+    ``LeverEffect`` has no acceptance-override channel. Levers that run
+    after this one in the engine's loop observe the mutated value.
     """
 
     def __init__(self, config: GovernanceConfig) -> None:

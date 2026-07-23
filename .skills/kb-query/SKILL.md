@@ -25,6 +25,8 @@ rebuild the graph automatically if the JSON is missing).
 | "X is related to what" | `related <X>` | `related agent/auditor` |
 | "how does X reach Y", "connect X and Y" | `path <X> <Y>` | `path concepts/soft-labels.md papers/delegation_games.md` |
 | "what's dead/unused/disconnected" | `orphans [--kind K]` | `orphans --kind command` |
+| "key/central pages", "where do I start", "what's load-bearing" | `central [--kind K] [-n N]` | `central -n 10` |
+| "broken/stale links", "dead code refs" | `stale` | `stale` |
 
 For free-text questions ("what is X about", "what's similar to X"), prefer
 `info` followed by `related` — info gives the description, related gives the

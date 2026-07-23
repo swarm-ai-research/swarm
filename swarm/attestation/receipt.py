@@ -156,8 +156,9 @@ class AdmissibilityReceipt(BaseModel):
     def canonical_bytes(self) -> bytes:
         """Return the deterministic byte representation used for signing.
 
-        Excludes ``signature`` and ``signer_id`` so they can be set after
-        computing the digest.
+        Excludes ``signature``, ``signer_id``, and ``status`` so they can be
+        set after computing the digest.  Status must be excluded to preserve
+        receipt verifiability across status transitions (e.g., PENDING → SEALED).
         """
         obj = self.model_dump(exclude={"signature", "signer_id", "status"})
         # datetime → ISO string for JSON determinism

@@ -66,6 +66,8 @@ class PostResponse(BaseModel):
     tags: list[str] = Field(default_factory=list)
     published_at: datetime
     run_url: Optional[str] = Field(None, description="Link to full run results")
+    upvotes: int = Field(0, description="Current upvote count")
+    downvotes: int = Field(0, description="Current downvote count")
 
 
 class FeedQuery(BaseModel):

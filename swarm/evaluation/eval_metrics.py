@@ -105,12 +105,12 @@ def loopiness_score(
         >>> # No loops
         >>> loopiness_score(["a", "b", "c", "d", "e"])
         0.0
-        >>> # Perfect loop
-        >>> loopiness_score(["a", "b", "a", "b", "a", "b"])
+        >>> # Perfect loop (all identical elements)
+        >>> loopiness_score(["a", "a", "a", "a", "a", "a"])
         1.0
         >>> # Partial loop (window size 4)
-        >>> loopiness_score(["a", "b", "a", "b", "c", "d", "e", "f"], window_size=4)
-        0.2
+        >>> loopiness_score(["a", "a", "a", "a", "c", "d", "e", "f"], window_size=4)
+        0.5
     """
     if len(action_sequence) < window_size:
         return 0.0

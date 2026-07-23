@@ -9,7 +9,7 @@ or learned signal profiles).
 import random
 from typing import Any, Dict, Protocol, cast, runtime_checkable
 
-from swarm.core.proxy import ProxyObservables
+from swarm.core.proxy import ProxyComputer, ProxyObservables
 from swarm.env.state import EnvState, InteractionProposal
 from swarm.models.agent import AgentType
 
@@ -50,8 +50,8 @@ class DefaultObservableGenerator:
     the soft label p, which in turn reduces payoffs and welfare.
 
     Accepts an optional ``random.Random`` instance for deterministic
-    signal generation.  When *rng* is ``None`` the module-level
-    ``random`` functions are used (legacy behaviour).
+    signal generation.  When *rng* is ``None`` a new ``Random()`` instance
+    is created for signal generation.
     """
 
     def __init__(self, rng: random.Random | None = None) -> None:
@@ -215,3 +215,127 @@ class ObfuscationObservableGenerator:
             tool_misuse_flags=misuse,
             counterparty_engagement_delta=eng,
         )
+
+    def draw_ground_truth(self, initiator_id: str) -> int | None:
+        """Latent ground truth for the initiator's current interaction.
+
+        Duck-typed by the finalizer (like the offsets protocol): if the
+        initiator agent exposes ``draw_ground_truth()`` (e.g. the
+        pressure-responsive worker, beads pins), its label is recorded on
+        the interaction. Otherwise delegates to the inner generator's
+        ``draw_ground_truth`` if it has one (calibration injection), else
+        ``None``.
+        """
+        agent = self._agents.get(initiator_id)
+        if agent is not None and hasattr(agent, "draw_ground_truth"):
+            gt = agent.draw_ground_truth()
+            if gt is not None:
+                return int(gt)
+        inner_draw = getattr(self._inner, "draw_ground_truth", None)
+        if callable(inner_draw):
+            return cast("int | None", inner_draw(initiator_id))
+        return None
+
+
+class CalibrationInjectionObservableGenerator:
+    """Pin each initiator's ``v_hat`` to a configured target — arm A promoted
+    to a first-class scenario (beads c89o).
+
+    For agents with a ``v_hat_target`` in their YAML ``config``, observables
+    are solved in closed form so that ``ProxyComputer.compute_v_hat`` lands
+    exactly on the target (the real proxy path runs unchanged — nothing is
+    bypassed). Latent ground truth is drawn per interaction from the
+    *target*-derived probability ``p_latent = proxy.compute_p(target)``, NOT
+    from the pipeline-computed ``p`` — so any drift between the intended and
+    the computed label surfaces as calibration error instead of being
+    tautologically hidden.
+
+    Agents without a target fall through to the wrapped generator.
+
+    Exactness: continuous signals (progress, engagement) are solved exactly;
+    penalty-count signals are exponential decays that only reach −1
+    asymptotically, so targets needing the full penalty floor (t = −1) carry
+    a residual ε ≲ 3e-4 in v_hat. ``max_target_error()`` reports the
+    realized worst case for tests and prereg documentation.
+    """
+
+    _PENALTY_COUNTS = 10  # decay^10 ≈ 0 for all supported decay params
+
+    def __init__(
+        self,
+        targets: Dict[str, float],
+        proxy_computer: "ProxyComputer",
+        rng: random.Random | None = None,
+        fallback: ObservableGenerator | None = None,
+    ) -> None:
+        for agent_id, t in targets.items():
+            if not -1.0 <= t <= 1.0:
+                raise ValueError(
+                    f"v_hat_target for {agent_id} must be in [-1, 1], got {t}"
+                )
+        self._targets = dict(targets)
+        self._proxy = proxy_computer
+        self._rng: random.Random = rng or random.Random()
+        self._fallback: ObservableGenerator = fallback or DefaultObservableGenerator(
+            rng=self._rng
+        )
+
+    # -- injection ------------------------------------------------------
+
+    def _solve_observables(self, target: float) -> ProxyObservables:
+        """Closed-form observables such that compute_v_hat(obs) == target."""
+        w = self._proxy.weights  # normalized ProxyWeights
+        w_cont = w.task_progress + w.engagement_signal
+
+        def penalty_contrib(counts: int) -> float:
+            r = 2.0 * self._proxy.rework_decay**counts - 1.0
+            rej = 2.0 * self._proxy.rejection_decay**counts - 1.0
+            mis = 2.0 * self._proxy.misuse_decay**counts - 1.0
+            return w.rework_penalty * r + w.verifier_penalty * (rej + mis) / 2.0
+
+        # Prefer the clean zero-penalty branch; fall back to max penalties
+        # when the continuous signals cannot reach far enough down.
+        for counts in (0, self._PENALTY_COUNTS):
+            c = penalty_contrib(counts)
+            x = (target - c) / w_cont
+            if -1.0 <= x <= 1.0 or counts == self._PENALTY_COUNTS:
+                x = max(-1.0, min(1.0, x))
+                return ProxyObservables(
+                    task_progress_delta=x,
+                    rework_count=counts,
+                    verifier_rejections=counts,
+                    tool_misuse_flags=counts,
+                    counterparty_engagement_delta=x,
+                )
+        raise AssertionError("unreachable")  # pragma: no cover
+
+    def max_target_error(self) -> float:
+        """Worst |compute_v_hat(solved) − target| across configured targets."""
+        err = 0.0
+        for t in self._targets.values():
+            v = self._proxy.compute_v_hat(self._solve_observables(t))
+            err = max(err, abs(v - t))
+        return err
+
+    # -- ObservableGenerator protocol -----------------------------------
+
+    def generate(
+        self,
+        proposal: InteractionProposal,
+        accepted: bool,
+        state: EnvState,
+    ) -> ProxyObservables:
+        target = self._targets.get(proposal.initiator_id)
+        if target is None:
+            return self._fallback.generate(proposal, accepted, state)
+        return self._solve_observables(target)
+
+    # -- latent ground truth (duck-typed hook, see InteractionFinalizer) --
+
+    def draw_ground_truth(self, initiator_id: str) -> int | None:
+        """Draw v ∈ {+1, −1} from the target-derived latent probability."""
+        target = self._targets.get(initiator_id)
+        if target is None:
+            return None
+        p_latent = self._proxy.compute_p(target)
+        return 1 if self._rng.random() < p_latent else -1

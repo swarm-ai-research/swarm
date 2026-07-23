@@ -3,7 +3,13 @@
 import random
 from typing import Dict, List, Optional
 
-from swarm.agents.base import Action, BaseAgent, Observation, Role
+from swarm.agents.base import (
+    Action,
+    BaseAgent,
+    InteractionProposal,
+    Observation,
+    Role,
+)
 from swarm.models.agent import AgentType
 
 
@@ -55,10 +61,18 @@ class DiligentEditorAgent(BaseAgent):
 
         return self.create_noop_action()
 
-    def accept_interaction(self, proposal, observation) -> bool:
+    def accept_interaction(
+        self,
+        proposal: InteractionProposal,
+        observation: Observation,
+    ) -> bool:
         return True
 
-    def propose_interaction(self, observation, counterparty_id):
+    def propose_interaction(
+        self,
+        observation: Observation,
+        counterparty_id: str,
+    ) -> None:
         return None
 
     def _improve_content(self, page: Dict) -> str:
@@ -108,10 +122,18 @@ class PointFarmerAgent(BaseAgent):
 
         return self.create_noop_action()
 
-    def accept_interaction(self, proposal, observation) -> bool:
+    def accept_interaction(
+        self,
+        proposal: InteractionProposal,
+        observation: Observation,
+    ) -> bool:
         return True
 
-    def propose_interaction(self, observation, counterparty_id):
+    def propose_interaction(
+        self,
+        observation: Observation,
+        counterparty_id: str,
+    ) -> None:
         return None
 
     def _quick_fix(self, page: Dict) -> str:
@@ -158,10 +180,18 @@ class CollusiveEditorAgent(BaseAgent):
             content="Seed page designed for partner edits.",
         )
 
-    def accept_interaction(self, proposal, observation) -> bool:
+    def accept_interaction(
+        self,
+        proposal: InteractionProposal,
+        observation: Observation,
+    ) -> bool:
         return True
 
-    def propose_interaction(self, observation, counterparty_id):
+    def propose_interaction(
+        self,
+        observation: Observation,
+        counterparty_id: str,
+    ) -> None:
         if counterparty_id == self.partner_id:
             return None
         return None
@@ -216,10 +246,18 @@ class VandalAgent(BaseAgent):
             )
         return self.create_noop_action()
 
-    def accept_interaction(self, proposal, observation) -> bool:
+    def accept_interaction(
+        self,
+        proposal: InteractionProposal,
+        observation: Observation,
+    ) -> bool:
         return False
 
-    def propose_interaction(self, observation, counterparty_id):
+    def propose_interaction(
+        self,
+        observation: Observation,
+        counterparty_id: str,
+    ) -> None:
         return None
 
     def _vandalize(self, page: Dict) -> str:

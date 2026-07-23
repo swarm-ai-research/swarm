@@ -93,7 +93,7 @@ Report file size.
 
 The standard template lives at `docs/papers/template.tex`. All SWARM papers share the same preamble (geometry, booktabs, graphicx, hyperref, amsmath, amssymb, caption, array, longtable, float, enumitem, verbatim).
 
-> **Note**: `docs/papers/` is gitignored (artifacts live in `swarm-ai-safety/swarm-artifacts`). Paper files are generated locally and not committed to main.
+> **Note**: `docs/papers/` is gitignored (artifacts live in `swarm-ai-research/swarm-artifacts`). Paper files are generated locally and not committed to main.
 
 ## Notes
 

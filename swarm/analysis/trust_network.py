@@ -305,20 +305,20 @@ def plot_trust_network(
         # Get trust value for coloring (diverging scale: red=0.0, green=1.0)
         avg_trust = edge_trust_map[(agent_a, agent_b)]
 
-        # Diverging colormap: red -> neutral -> green
+        # Diverging colormap: red -> yellow -> green (matching matplotlib's RdYlGn)
         if avg_trust < 0.5:
-            # Red to neutral (0 to 0.5 -> red to gray)
+            # Red to yellow (0 to 0.5 -> red to yellow)
             t = avg_trust * 2  # 0 to 1
             r_val = 1.0
-            g_val = t * 0.5  # 0 to 0.5
-            b_val = t * 0.5  # 0 to 0.5
+            g_val = t  # 0 to 1 (red + green = yellow)
+            b_val = 0.0
             color: Tuple[float, float, float] = (r_val, g_val, b_val)
         else:
-            # Neutral to green (0.5 to 1 -> gray to green)
+            # Yellow to green (0.5 to 1 -> yellow to green)
             t = (avg_trust - 0.5) * 2  # 0 to 1
-            r_val = (1 - t) * 0.5  # 0.5 to 0
-            g_val = 0.5 + t * 0.5  # 0.5 to 1
-            b_val = (1 - t) * 0.5  # 0.5 to 0
+            r_val = 1 - t  # 1 to 0
+            g_val = 1.0  # stays at 1 (full green component)
+            b_val = 0.0
             color = (r_val, g_val, b_val)
 
         # Edge width proportional to interaction count

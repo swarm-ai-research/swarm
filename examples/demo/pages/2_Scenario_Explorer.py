@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -76,7 +76,7 @@ from demo.utils.formatting import format_epoch_metrics_kpis, scenario_descriptio
 
 tabs = st.tabs(list(results.keys()))
 
-for tab, (_sid, result) in zip(tabs, results.items(), strict=False):
+for tab, (_sid, result) in zip(tabs, results.items(), strict=True):
     with tab:
         st.markdown(scenario_description_card(result), unsafe_allow_html=True)
         st.markdown(

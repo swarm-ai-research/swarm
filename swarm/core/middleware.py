@@ -23,6 +23,37 @@ logger = logging.getLogger(__name__)
 
 
 # -----------------------------------------------------------------------
+# Helpers
+# -----------------------------------------------------------------------
+
+
+def _try_call_method(obj: Any, method_name: str, *args: Any, **kwargs: Any) -> bool:
+    """Try to call a method on an object, logging failures.
+
+    Args:
+        obj: Object to call method on.
+        method_name: Name of method to call.
+        *args: Positional arguments to pass to method.
+        **kwargs: Keyword arguments to pass to method.
+
+    Returns:
+        True if call succeeded, False if exception was caught.
+    """
+    try:
+        method = getattr(obj, method_name)
+        method(*args, **kwargs)
+        return True
+    except Exception:
+        logger.debug(
+            "%s.%s failed",
+            type(obj).__name__,
+            method_name,
+            exc_info=True,
+        )
+        return False
+
+
+# -----------------------------------------------------------------------
 # Protocol
 # -----------------------------------------------------------------------
 
@@ -36,7 +67,11 @@ class Middleware(ABC):
 
     @abstractmethod
     def on_epoch_end(self, ctx: "MiddlewareContext") -> None:
-        """Called at the end of each epoch."""
+        """Called at the end of each epoch.
+
+        Some implementations may be no-ops if epoch-end work is driven
+        by alternative mechanisms (e.g., callbacks).
+        """
 
     @abstractmethod
     def on_step_start(self, ctx: "MiddlewareContext") -> None:
@@ -99,36 +134,15 @@ class MiddlewarePipeline:
 
     def on_epoch_start(self, ctx: MiddlewareContext) -> None:
         for mw in self._middleware:
-            try:
-                mw.on_epoch_start(ctx)
-            except Exception:
-                logger.debug(
-                    "%s.on_epoch_start failed",
-                    type(mw).__name__,
-                    exc_info=True,
-                )
+            _try_call_method(mw, "on_epoch_start", ctx)
 
     def on_epoch_end(self, ctx: MiddlewareContext) -> None:
         for mw in self._middleware:
-            try:
-                mw.on_epoch_end(ctx)
-            except Exception:
-                logger.debug(
-                    "%s.on_epoch_end failed",
-                    type(mw).__name__,
-                    exc_info=True,
-                )
+            _try_call_method(mw, "on_epoch_end", ctx)
 
     def on_step_start(self, ctx: MiddlewareContext) -> None:
         for mw in self._middleware:
-            try:
-                mw.on_step_start(ctx)
-            except Exception:
-                logger.debug(
-                    "%s.on_step_start failed",
-                    type(mw).__name__,
-                    exc_info=True,
-                )
+            _try_call_method(mw, "on_step_start", ctx)
 
 
 # -----------------------------------------------------------------------
@@ -326,36 +340,15 @@ class HandlerLifecycleMiddleware(Middleware):
 
     def on_epoch_start(self, ctx: MiddlewareContext) -> None:
         for handler in self._registry.all_handlers():
-            try:
-                handler.on_epoch_start(ctx.state)
-            except Exception:
-                logger.debug(
-                    "Handler %s.on_epoch_start failed",
-                    type(handler).__name__,
-                    exc_info=True,
-                )
+            _try_call_method(handler, "on_epoch_start", ctx.state)
 
     def on_epoch_end(self, ctx: MiddlewareContext) -> None:
         for handler in self._registry.all_handlers():
-            try:
-                handler.on_epoch_end(ctx.state)
-            except Exception:
-                logger.debug(
-                    "Handler %s.on_epoch_end failed",
-                    type(handler).__name__,
-                    exc_info=True,
-                )
+            _try_call_method(handler, "on_epoch_end", ctx.state)
 
     def on_step_start(self, ctx: MiddlewareContext) -> None:
         for handler in self._registry.all_handlers():
-            try:
-                handler.on_step(ctx.state, ctx.state.current_step)
-            except Exception:
-                logger.debug(
-                    "Handler %s.on_step failed",
-                    type(handler).__name__,
-                    exc_info=True,
-                )
+            _try_call_method(handler, "on_step", ctx.state, ctx.state.current_step)
 
 
 class NetworkDecayMiddleware(Middleware):

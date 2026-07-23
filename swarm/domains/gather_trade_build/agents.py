@@ -138,6 +138,7 @@ class GamingWorkerPolicy(GTBWorkerPolicy):
         if gross > 0 and brackets and energy >= 0.5:
             for b in brackets:
                 thr = b.get("threshold", 0)
+                # Detect bracket proximity: income within 30% above threshold triggers income shifting
                 if thr > 0 and gross > thr and gross < thr * 1.3:
                     # Near a bracket: shift income down
                     shift = min(gross - thr + 0.5, gross * self._shift_fraction)

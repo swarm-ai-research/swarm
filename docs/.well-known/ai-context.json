@@ -21,7 +21,7 @@
     "claims_registry": "https://swarm-ai.org/claims-registry.json",
     "glossary": "https://swarm-ai.org/glossary/",
     "api_reference": "https://swarm-ai.org/api/",
-    "source_code": "https://github.com/swarm-ai-safety/swarm"
+    "source_code": "https://github.com/swarm-ai-research/swarm"
   },
   "citation": {
     "preferred_format": "Aiersilan, A. and Savitt, R. \"Soft-Label Governance for Distributional Safety in Multi-Agent Systems.\" arXiv:2604.19752, 2026.",

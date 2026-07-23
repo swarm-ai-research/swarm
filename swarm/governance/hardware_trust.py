@@ -98,7 +98,9 @@ REVERSIBLE_ACTIONS: FrozenSet[str] = frozenset({
     "file_dispute",
 })
 
-# Legacy alias kept for backward compatibility with existing tests.
+# A sample of actions blocked in constrained mode, retained because tests
+# import it. Enforcement uses the REVERSIBLE_ACTIONS allowlist above —
+# anything not on that list is blocked, not just the actions named here.
 IRREVERSIBLE_ACTIONS: FrozenSet[str] = frozenset({
     "propose_interaction",
     "submit_output",
@@ -502,7 +504,7 @@ class HardwareTrustLever(GovernanceLever):
         """Return the most recent active halt record, if any."""
         if not self._active_halt_ids:
             return None
-        # Return the latest active halt (by insertion order preserved in set;
+        # Return the latest active halt (by insertion order of the id list;
         # fall back to iterating halt records for the most recent timestamp).
         latest: Optional[HaltRecord] = None
         for halt_id in self._active_halt_ids:

@@ -20,6 +20,24 @@ from swarm.bridges.opensandbox.events import OpenSandboxEvent, OpenSandboxEventT
 
 logger = logging.getLogger(__name__)
 
+# Type alignment scoring: (agent_type, contract_tier) -> score in [0, 1]
+# Adversarial agents score highest on restricted contracts,
+# cooperative agents on premium, etc.
+_TYPE_TIER_SCORES = {
+    (AgentType.COOPERATIVE, "premium"): 1.0,
+    (AgentType.COOPERATIVE, "standard"): 0.7,
+    (AgentType.COOPERATIVE, "restricted"): 0.3,
+    (AgentType.STATIC, "premium"): 0.6,
+    (AgentType.STATIC, "standard"): 1.0,
+    (AgentType.STATIC, "restricted"): 0.5,
+    (AgentType.SELF_MODIFYING, "premium"): 0.4,
+    (AgentType.SELF_MODIFYING, "standard"): 0.8,
+    (AgentType.SELF_MODIFYING, "restricted"): 0.6,
+    (AgentType.ADVERSARIAL, "premium"): 0.1,
+    (AgentType.ADVERSARIAL, "standard"): 0.4,
+    (AgentType.ADVERSARIAL, "restricted"): 1.0,
+}
+
 
 class ScreeningProtocol:
     """Evaluate agents against governance contracts and assign tiers.
@@ -216,24 +234,8 @@ class ScreeningProtocol:
 
         resource_score = (mem_score + cpu_score) / 2.0
 
-        # Type alignment: score depends on (agent_type, contract_tier).
-        # Adversarial agents should score highest on restricted contracts,
-        # cooperative agents on premium, etc.
-        _type_tier_scores = {
-            (AgentType.COOPERATIVE, "premium"): 1.0,
-            (AgentType.COOPERATIVE, "standard"): 0.7,
-            (AgentType.COOPERATIVE, "restricted"): 0.3,
-            (AgentType.STATIC, "premium"): 0.6,
-            (AgentType.STATIC, "standard"): 1.0,
-            (AgentType.STATIC, "restricted"): 0.5,
-            (AgentType.SELF_MODIFYING, "premium"): 0.4,
-            (AgentType.SELF_MODIFYING, "standard"): 0.8,
-            (AgentType.SELF_MODIFYING, "restricted"): 0.6,
-            (AgentType.ADVERSARIAL, "premium"): 0.1,
-            (AgentType.ADVERSARIAL, "standard"): 0.4,
-            (AgentType.ADVERSARIAL, "restricted"): 1.0,
-        }
-        type_score = _type_tier_scores.get(
+        # Type alignment: score depends on (agent_type, contract_tier)
+        type_score = _TYPE_TIER_SCORES.get(
             (manifest.agent_type, contract.tier), 0.5,
         )
 

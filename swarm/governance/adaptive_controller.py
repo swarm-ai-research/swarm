@@ -88,13 +88,11 @@ class AdaptiveGovernanceController:
         governance_engine: Any,
         event_bus: EventBus,
         config: GovernanceConfig,
-        seed: Optional[int] = None,
         adaptable_params: Optional[List[AdaptableParameter]] = None,
     ) -> None:
         self._engine = governance_engine
         self._event_bus = event_bus
         self._config = config
-        self._seed = seed
 
         params = adaptable_params or DEFAULT_ADAPTABLE_PARAMS
 
@@ -107,7 +105,6 @@ class AdaptiveGovernanceController:
             config=config,
             min_evidence_epochs=config.adaptive_controller_min_evidence_epochs,
             confidence_threshold=config.adaptive_controller_confidence_threshold,
-            seed=seed,
         )
         self._crystallizer = CrystallizationGate(
             min_sustained_epochs=config.adaptive_controller_crystallization_min_epochs,
@@ -201,7 +198,9 @@ class AdaptiveGovernanceController:
                 proposal.epochs_active >= self._crystallizer._min_sustained_epochs
                 and not passed
             ):
-                # Time gate passed but alignment or human gate failed -> revert
+                # Time gate passed but alignment gate failed -> revert.
+                # (Human-review gate failure alone does not revert; the
+                # proposal stays active pending review.)
                 if gate_results.get("time", {}).get("passed", False):
                     alignment_passed = gate_results.get("alignment", {}).get(
                         "passed", True
@@ -372,8 +371,8 @@ class AdaptiveGovernanceController:
                 {
                     "proposal_id": p.proposal_id,
                     "parameter": p.parameter,
-                    "current_value": p.proposed_value,
-                    "original_value": p.current_value,
+                    "current_value": p.current_value,
+                    "original_value": p.proposed_value,
                     "epochs_active": p.epochs_active,
                     "status": p.status.value,
                 }

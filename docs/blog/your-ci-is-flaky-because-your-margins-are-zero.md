@@ -111,7 +111,7 @@ That's the trade.
 ## Reproduce It
 
 ```bash
-git clone https://github.com/swarm-ai-safety/swarm
+git clone https://github.com/swarm-ai-research/swarm
 cd swarm
 pip install -e ".[dev]"
 python -m pytest tests/test_concordia_sweep.py::TestNarrativeGenerators -v

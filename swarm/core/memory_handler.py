@@ -166,8 +166,7 @@ class MemoryHandler(Handler):
     # ------------------------------------------------------------------
 
     def _handle_write(self, action: Action, state: EnvState) -> MemoryActionResult:
-        agent_state = state.get_agent(action.agent_id)
-        agent_type = agent_state.agent_type if agent_state else AgentType.HONEST
+        agent_type = self._get_agent_type(action.agent_id, state)
 
         quality, is_poisoned = self._quality_for_agent(agent_type)
 
@@ -252,9 +251,7 @@ class MemoryHandler(Handler):
             success=True,
             observables=observables,
             initiator_id=action.agent_id,
-            counterparty_id=entry.author_id
-            if entry.author_id != action.agent_id
-            else "memory_system",
+            counterparty_id=self._get_counterparty_id(entry.author_id, action.agent_id),
             metadata=meta,
         )
 
@@ -291,9 +288,7 @@ class MemoryHandler(Handler):
             success=True,
             observables=observables,
             initiator_id=action.agent_id,
-            counterparty_id=entry.author_id
-            if entry.author_id != action.agent_id
-            else "memory_system",
+            counterparty_id=self._get_counterparty_id(entry.author_id, action.agent_id),
             metadata={
                 "memory_verification": True,
                 "entry_id": entry.entry_id,
@@ -366,9 +361,7 @@ class MemoryHandler(Handler):
             success=True,
             observables=observables,
             initiator_id=action.agent_id,
-            counterparty_id=entry.author_id
-            if entry.author_id != action.agent_id
-            else "memory_system",
+            counterparty_id=self._get_counterparty_id(entry.author_id, action.agent_id),
             metadata={
                 "memory_challenge": True,
                 "entry_id": entry.entry_id,
@@ -380,6 +373,10 @@ class MemoryHandler(Handler):
     # ------------------------------------------------------------------
     # Quality model
     # ------------------------------------------------------------------
+
+    def _get_counterparty_id(self, entry_author_id: str, actor_id: str) -> str:
+        """Determine counterparty ID: entry author if different from actor, else system."""
+        return entry_author_id if entry_author_id != actor_id else "memory_system"
 
     def _quality_for_agent(self, agent_type: AgentType) -> tuple:
         """Return (quality_score, is_poisoned) based on agent archetype."""

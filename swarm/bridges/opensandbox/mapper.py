@@ -205,7 +205,8 @@ class OpenSandboxMapper:
         """Map a periodic sandbox observation to a SoftInteraction.
 
         Used during polling to observe sandbox state without a
-        specific trigger event.
+        specific trigger event. Observations are passive status checks,
+        not acceptance/rejection outcomes.
         """
         stats = agent_stats or {}
         observables = self._stats_to_observables(stats)
@@ -215,7 +216,7 @@ class OpenSandboxMapper:
             initiator="opensandbox_orchestrator",
             counterparty=agent_id,
             interaction_type=InteractionType.COLLABORATION,
-            accepted=True,
+            accepted=False,
             task_progress_delta=observables.task_progress_delta,
             rework_count=observables.rework_count,
             verifier_rejections=observables.verifier_rejections,

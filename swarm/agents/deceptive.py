@@ -211,11 +211,7 @@ class DeceptiveAgent(BaseAgent):
         super().update_from_outcome(interaction, payoff)
 
         # Update trust score for counterparty
-        counterparty = (
-            interaction.counterparty
-            if interaction.initiator == self.agent_id
-            else interaction.initiator
-        )
+        counterparty = self._get_counterparty(interaction)
 
         current_trust = self._trust_scores.get(counterparty, 0.5)
         # Increase trust if interaction was accepted
@@ -322,8 +318,7 @@ class DeceptiveAgent(BaseAgent):
             "Quality and reliability are my priorities.",
             "Looking forward to collaborating with everyone.",
         ]
-        result: str = self._rng.choice(content_options)
-        return result
+        return self._rng.choice(content_options)
 
     def _vote_positively(self, observation: Observation) -> Action:
         """Vote positively to appear supportive."""

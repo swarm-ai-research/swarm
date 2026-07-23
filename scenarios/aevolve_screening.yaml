@@ -1,0 +1,47 @@
+# A-Evolve screening scenario — the benchmark environment behind
+# swarm/bridges/aevolve/SwarmBenchmarkAdapter.
+#
+# Deliberately small (the adapter additionally caps epochs/steps): each
+# evolution cycle evaluates many candidates, so a single evaluation must be
+# subsecond. The mixed agent population gives governance something real to
+# select against; evolved candidates may override ONLY the whitelisted
+# governance/payoff levers (see DEFAULT_ALLOWED_OVERRIDES).
+
+scenario_id: aevolve_screening
+description: "Governance-design benchmark for A-Evolve: keep accepted interactions clean without collapsing welfare"
+motif: governance_screening
+
+agents:
+  - type: honest
+    count: 3
+  - type: opportunistic
+    count: 2
+  - type: deceptive
+    count: 1
+
+governance:
+  transaction_tax_rate: 0.0
+  transaction_tax_split: 0.5
+  reputation_decay_rate: 1.0
+  bandwidth_cap: 10
+  staking_enabled: false
+  min_stake_to_participate: 0.0
+  circuit_breaker_enabled: false
+  audit_enabled: false
+
+simulation:
+  n_epochs: 5
+  steps_per_epoch: 10
+  seed: 1000  # overridden per task by the adapter
+
+payoff:
+  s_plus: 2.0
+  s_minus: 1.0
+  h: 2.0
+  theta: 0.5
+  rho_a: 0.0
+  rho_b: 0.0
+  w_rep: 1.0
+
+success_criteria:
+  toxicity_threshold: 0.3

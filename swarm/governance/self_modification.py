@@ -15,7 +15,7 @@ import json
 import threading
 import time
 import uuid
-from collections import defaultdict, deque
+from collections import Counter, defaultdict, deque
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
@@ -557,6 +557,30 @@ class SelfModificationLever(GovernanceLever):
         )
 
         # Gate 2: K_max — under lock for atomic budget check-and-update
+        approved, k_max_result = self._apply_k_max_gate_and_budget_update(
+            proposal, tau_result
+        )
+
+        return approved, tau_result, k_max_result
+
+    def _apply_k_max_gate_and_budget_update(
+        self,
+        proposal: ModificationProposal,
+        tau_result: GateResult,
+    ) -> Tuple[bool, GateResult]:
+        """Apply K_max gate and atomically update budget and history.
+
+        Executes under per-agent lock to ensure atomicity of the budget
+        check-and-update operation. Evaluates K_max gate, checks approval,
+        and transitions proposal state.
+
+        Args:
+            proposal: The proposal to evaluate and update.
+            tau_result: The tau gate result (to compute combined approval).
+
+        Returns:
+            (approved, k_max_result) where approved = tau_result.passed and k_max_result.passed
+        """
         lock = self._agent_locks[proposal.agent_id]
         with lock:
             current_budget = self._agent_budgets[proposal.agent_id]
@@ -582,7 +606,7 @@ class SelfModificationLever(GovernanceLever):
                     "; ".join(reasons),
                 )
 
-        return approved, tau_result, k_max_result
+        return approved, k_max_result
 
     def detect_oscillation(self, agent_id: str, window: int = 6) -> bool:
         """Detect if an agent is oscillating (reverting its own changes).
@@ -597,8 +621,6 @@ class SelfModificationLever(GovernanceLever):
         recent = list(history)[-window:]
         targets = [p.target_ref for p in recent]
         # Oscillation = same target modified more than twice in window
-        from collections import Counter
-
         counts = Counter(targets)
         return any(c > 2 for c in counts.values())
 
@@ -651,27 +673,9 @@ class SelfModificationLever(GovernanceLever):
         )
 
         # Gate 2: K_max (capacity gate) — under lock for atomic budget check-and-update
-        lock = self._agent_locks[proposal.agent_id]
-        with lock:
-            current_budget = self._agent_budgets[proposal.agent_id]
-            k_max_result = evaluate_k_max_gate(proposal, current_budget)
-
-            approved = tau_result.passed and k_max_result.passed
-
-            if approved:
-                # Atomic budget update
-                self._agent_budgets[proposal.agent_id] += proposal.complexity_weight
-                self._agent_history[proposal.agent_id].append(proposal)
-                proposal.constitutional_result = tau_result.passed
-                proposal.compositional_result = k_max_result.passed
-                proposal.transition(ModificationState.SANDBOXED, "gates passed")
-            else:
-                reasons = []
-                if not tau_result.passed:
-                    reasons.append(f"tau gate: {tau_result.details}")
-                if not k_max_result.passed:
-                    reasons.append(f"k_max gate: {k_max_result.details}")
-                proposal.transition(ModificationState.REJECTED, "; ".join(reasons))
+        approved, k_max_result = self._apply_k_max_gate_and_budget_update(
+            proposal, tau_result
+        )
 
         return approved, tau_result, k_max_result
 
@@ -708,13 +712,11 @@ class SelfModificationLever(GovernanceLever):
             return RiskTier.LOW
 
     def _compute_refinement_complexity(self, proposal: "RefinementProposal") -> float:
-        """Compute complexity weight for a refinement.
+        """Return the refinement's complexity weight, floored at 1.0.
 
-        Already computed in RefinementProposal.__post_init__(), but this
-        method allows for override logic if needed.
+        The weight itself is computed in RefinementProposal.__post_init__();
+        the floor guarantees every proposal costs at least one budget unit.
         """
-        # The complexity weight is already computed in __post_init__
-        # Just return it if it's already set, otherwise use default of 1.0
         result: float = max(proposal.complexity_weight, 1.0)
         return result
 
@@ -741,23 +743,18 @@ class SelfModificationLever(GovernanceLever):
         """
         details: Dict[str, Any] = {}
 
-        # Check 1: Effect direction (higher threshold_delta = more conservative)
-        effect_safe_direction = False
+        # Check 1: Effect direction (higher threshold_delta = more conservative).
+        # No acceptance_threshold_delta change (or a non-numeric one) is neutral.
+        effect_safe_direction = True
+        details["effect_safe_direction"] = True
         for key, (old, new) in proposal.effect_delta.items():
-            if key == "acceptance_threshold_delta":
-                if isinstance(old, (int, float)) and isinstance(new, (int, float)):
-                    if new > old:
-                        effect_safe_direction = True
-                        details["effect_safe_direction"] = True
-                    else:
-                        effect_safe_direction = False
-                        details["effect_safe_direction"] = False
-                        details["warning"] = f"{key}: moved in risky direction"
-
-        # If no acceptance_threshold_delta change, assume neutral
-        if "effect_safe_direction" not in details:
-            effect_safe_direction = True
-            details["effect_safe_direction"] = True
+            if key != "acceptance_threshold_delta":
+                continue
+            if isinstance(old, (int, float)) and isinstance(new, (int, float)):
+                effect_safe_direction = new > old
+                details["effect_safe_direction"] = effect_safe_direction
+                if not effect_safe_direction:
+                    details["warning"] = f"{key}: moved in risky direction"
 
         # Check 2: Condition vs performance
         # Refinement is justified if skill is under-performing

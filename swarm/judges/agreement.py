@@ -19,6 +19,8 @@ import math
 from dataclasses import dataclass
 from typing import Mapping
 
+from swarm.judges.sampler import is_in_bin
+
 JudgeName = str
 ItemId = str
 ScoreMatrix = Mapping[JudgeName, Mapping[ItemId, float]]
@@ -274,9 +276,7 @@ def agreement_by_pbin(
     bins_items: list[list[ItemId]] = [[] for _ in range(len(bin_edges) - 1)]
     for item_id, p in p_by_item.items():
         for b in range(len(bin_edges) - 1):
-            lo, hi = bin_edges[b], bin_edges[b + 1]
-            in_range = lo <= p < hi if b < len(bin_edges) - 2 else lo <= p <= hi
-            if in_range:
+            if is_in_bin(p, b, bin_edges):
                 bins_items[b].append(item_id)
                 break
 

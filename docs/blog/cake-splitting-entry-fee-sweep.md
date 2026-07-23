@@ -84,7 +84,7 @@ The sweep produces a CSV in `runs/<timestamp>_cake_entry_fee_sweep/sweep.csv` wi
 - **Joint sweep:** Sweep entry fee and redistribution rate simultaneously to map the 2D screening surface
 - **Larger populations:** 50+ agents with continuous preference distributions to test whether the S-curve hypothesis holds
 
-[GitHub](https://github.com/swarm-ai-safety/swarm)
+[GitHub](https://github.com/swarm-ai-research/swarm)
 
 ---
 

@@ -50,6 +50,11 @@ class TierraHandler(Handler):
         self._rng = rng
         self._resource_pool: float = config.total_resource_pool
         self._genome_registry: Dict[str, Dict[str, float]] = {}
+        # Registration order doubles as spawn order: the loader registers
+        # the initial population first, then the orchestrator registers each
+        # child at spawn time. Used by the "oldest" reaper mode.
+        self._spawn_order: Dict[str, int] = {}
+        self._spawn_counter: int = 0
         # Per-epoch counters
         self._births: int = 0
         self._deaths: int = 0
@@ -68,6 +73,9 @@ class TierraHandler(Handler):
 
     def register_genome(self, agent_id: str, genome_dict: Dict[str, float]) -> None:
         self._genome_registry[agent_id] = genome_dict
+        if agent_id not in self._spawn_order:
+            self._spawn_order[agent_id] = self._spawn_counter
+            self._spawn_counter += 1
 
     # ------------------------------------------------------------------
     # Helpers
@@ -177,7 +185,9 @@ class TierraHandler(Handler):
             return
 
         if self.config.reaper_mode == "oldest":
-            living.sort(key=lambda aid: state.agents[aid].resources)
+            # Earliest-registered first; unregistered agents (no genome on
+            # record) sort oldest as a conservative default.
+            living.sort(key=lambda aid: self._spawn_order.get(aid, -1))
         elif self.config.reaper_mode == "random" and self._rng is not None:
             self._rng.shuffle(living)
         else:

@@ -6,6 +6,7 @@ v3: GPU-specific memory hierarchy efficiency and precision format
 exploitation dimensions.
 """
 
+import math
 import random
 import uuid
 from typing import Any, Dict, List, Optional
@@ -152,18 +153,17 @@ class KernelOracleConfig(BaseModel):
     adversarial_quality_mean: Optional[float] = None
 
     @model_validator(mode="after")
-    def _migrate_legacy(self) -> "KernelOracleConfig":
-        """Map legacy quality_mean fields to functional_quality."""
+    def _run_validation(self) -> "KernelOracleConfig":
+        """Validate and migrate config. Maps legacy quality_mean fields and validates rates."""
+        # Migrate legacy quality_mean fields to functional_quality
         if self.honest_quality_mean is not None:
             self.honest_functional_quality = self.honest_quality_mean
         if self.opportunistic_quality_mean is not None:
             self.opportunistic_functional_quality = self.opportunistic_quality_mean
         if self.adversarial_quality_mean is not None:
             self.adversarial_functional_quality = self.adversarial_quality_mean
-        return self
 
-    @model_validator(mode="after")
-    def _validate(self) -> "KernelOracleConfig":
+        # Validate rate parameters
         for rate in (
             self.honest_functional_quality,
             self.opportunistic_functional_quality,
@@ -328,13 +328,6 @@ class KernelOracleHandler(Handler):
             return self._handle_audit_kernel(action, state)
 
         return KernelActionResult(success=False)
-
-    def _get_agent_type(self, agent_id: str, state: EnvState) -> AgentType:
-        """Look up agent type from state."""
-        agent_state = state.get_agent(agent_id)
-        if agent_state is None:
-            return AgentType.HONEST
-        return agent_state.agent_type
 
     def _get_functional_quality(self, agent_type: AgentType) -> float:
         """Get functional test quality for an agent type."""
@@ -920,7 +913,7 @@ class KernelOracleHandler(Handler):
         """Sample from Poisson distribution using inverse transform."""
         if lam <= 0:
             return 0
-        L = pow(2.718281828, -lam)
+        L = math.exp(-lam)
         k = 0
         p = 1.0
         while True:

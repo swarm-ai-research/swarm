@@ -37,10 +37,13 @@ except ImportError:
 from .config import EnvironmentTopology, SciAgentGymConfig
 from .environment import EnvironmentInstance, SciAgentGymEnvironmentManager
 from .governance import ToolCallFingerprint, ToolLoopDetector
-from .manager import EmbeddingTopology, SciEnvManager
+from .manager import SciEnvManager
 from .provider import SciAgentGymToolProvider, ToolCallResult
 from .toolkit import load_tools_for_disciplines
 from .workspace import WorkspaceManager
+
+# Backwards compatibility alias
+EmbeddingTopology = EnvironmentTopology
 
 __all__ = [
     # High-level (PR #199)

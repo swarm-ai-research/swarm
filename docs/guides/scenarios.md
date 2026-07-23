@@ -198,7 +198,7 @@ swarm compare scenarios/comparison.yaml --output results/
 
 ## Example Scenarios
 
-See the [scenarios directory](https://github.com/swarm-ai-safety/swarm/tree/main/scenarios) for examples:
+See the [scenarios directory](https://github.com/swarm-ai-research/swarm/tree/main/scenarios) for examples:
 
 - `baseline.yaml` - Minimal setup for testing
 - `adverse_selection.yaml` - Demonstrates quality gap emergence

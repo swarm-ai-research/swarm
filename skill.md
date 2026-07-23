@@ -2,7 +2,7 @@
 name: swarm-safety
 version: 1.9.0
 description: "SWARM: System-Wide Assessment of Risk in Multi-agent systems. Simulate multi-agent dynamics, test governance, study emergent risks."
-homepage: https://github.com/swarm-ai-safety/swarm
+homepage: https://github.com/swarm-ai-research/swarm
 metadata: {"category":"safety","license":"MIT","author":"Raeli Savitt"}
 ---
 
@@ -12,7 +12,7 @@ Study how intelligence swarms — and where it fails.
 
 SWARM is a research framework for studying emergent risks in multi-agent AI systems using soft (probabilistic) labels instead of binary good/bad classifications. AGI-level risks don't require AGI-level agents.
 
-Repository: `https://github.com/swarm-ai-safety/swarm`
+Repository: `https://github.com/swarm-ai-research/swarm`
 
 ## Hard Rules
 
@@ -36,7 +36,7 @@ Repository: `https://github.com/swarm-ai-safety/swarm`
 pip install swarm-safety
 
 # From source (full development)
-git clone https://github.com/swarm-ai-safety/swarm.git
+git clone https://github.com/swarm-ai-research/swarm.git
 cd swarm
 pip install -e ".[all]"
 ```
@@ -243,7 +243,7 @@ Model Moltbook's anti-human math challenges and rate limiting: obfuscated text p
   title = {SWARM: System-Wide Assessment of Risk in Multi-agent systems},
   author = {Savitt, Raeli},
   year = {2026},
-  url = {https://github.com/swarm-ai-safety/swarm}
+  url = {https://github.com/swarm-ai-research/swarm}
 }
 ```
 
@@ -252,7 +252,7 @@ Model Moltbook's anti-human math challenges and rate limiting: obfuscated text p
 - Skill metadata: `skill.json`
 - Agent discovery: `.well-known/agent.json`
 - Bridges: `docs/bridges/`
-- Full documentation: `https://github.com/swarm-ai-safety/swarm/tree/main/docs`
+- Full documentation: `https://github.com/swarm-ai-research/swarm/tree/main/docs`
 - Theoretical foundations: `docs/research/theory.md`
 - Governance guide: `docs/governance.md`
 - Red-teaming guide: `docs/red-teaming.md`

@@ -539,3 +539,77 @@ class TestCollusionDetection:
         clusters = governor.detect_collusion_clusters()
 
         assert clusters == []
+
+
+def _record_event(store, a, b, p=0.7, trust_ab=0.7, trust_ba=0.7, epoch=1):
+    """Helper: add a single relationship event with trust on both sides."""
+    store.add_relationship_event(a, b, {
+        "p": p, "payoff_a": 1.0, "payoff_b": 1.0, "epoch": epoch,
+        "trust_a_to_b": trust_ab, "trust_b_to_a": trust_ba,
+    })
+
+
+class TestStructuralCoalitionDetection:
+    """Test ReputationGovernor's graph-structural coalition wiring (beads-4ae5)."""
+
+    def test_explicit_off_preserves_pure_reputation(self, temp_store):
+        """structural_enabled=False (legacy) — recommendations come from
+        reputation alone, so a high-trust mutual clique stays "normal"
+        even though it would be flagged structurally."""
+        # Plant a mutual clique with high p (so trust=p is high)
+        ring = ["r0", "r1", "r2", "r3"]
+        for u in ring:
+            for v in ring:
+                if u != v:
+                    _record_event(temp_store, u, v, p=0.9,
+                                  trust_ab=0.9, trust_ba=0.9)
+        governor = ReputationGovernor(temp_store)
+        recs = governor.get_governance_recommendations(structural_enabled=False)
+        for r in ring:
+            assert recs[r] == "normal"
+
+    def test_default_on_flags_planted_ring(self, temp_store):
+        """Default behavior (post-beads-2iok): structural_enabled=True is
+        the default, so a planted mutual ring gets bumped off "normal"
+        without the caller passing any flag."""
+        ring = ["r0", "r1", "r2", "r3", "r4"]
+        honest = [f"h{i}" for i in range(15)]
+        for u in ring:
+            for v in ring:
+                if u != v:
+                    _record_event(temp_store, u, v, p=0.9,
+                                  trust_ab=0.9, trust_ba=0.9)
+        # Honest one-way background (no reverse edge)
+        import random as _r
+        rng = _r.Random(0)
+        for _ in range(40):
+            a, b = rng.sample(honest, 2)
+            _record_event(temp_store, a, b, p=0.6,
+                          trust_ab=0.6, trust_ba=0.0)
+
+        governor = ReputationGovernor(temp_store)
+        # No flag passed -> uses the new default (True since beads-2iok).
+        recs_default = governor.get_governance_recommendations(
+            structural_null_samples=20, structural_seed=1)
+        recs_off = governor.get_governance_recommendations(
+            structural_enabled=False)
+
+        bumped = [r for r in ring if recs_default[r] != "normal"]
+        assert len(bumped) >= 3, f"expected ≥3 bumped, got {bumped}"
+        for r in ring:
+            assert recs_off[r] == "normal"
+
+    def test_detect_structural_coalitions_returns_anomalies(self, temp_store):
+        ring = ["r0", "r1", "r2", "r3", "r4"]
+        for u in ring:
+            for v in ring:
+                if u != v:
+                    _record_event(temp_store, u, v, p=0.9,
+                                  trust_ab=0.9, trust_ba=0.9)
+        governor = ReputationGovernor(temp_store)
+        anomalies = governor.detect_structural_coalitions(
+            min_size=3, n_null_samples=20, seed=0)
+        # At least one anomaly should be the ring.
+        ring_set = set(ring)
+        best = max((len(a.members & ring_set) for a in anomalies), default=0)
+        assert best >= 4

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from swarm.bridges.sciagentgym import (
-    EmbeddingTopology,
+    EnvironmentTopology,
     SciAgentGymToolProvider,
     SciEnvManager,
     ToolCallFingerprint,
@@ -39,7 +39,7 @@ def test_env_manager_reuses_env_for_shared_topology():
         created.append(kwargs["episode_id"])
         return FakeEnv(name=kwargs["episode_id"])
 
-    manager = SciEnvManager(env_factory=factory, topology=EmbeddingTopology.SHARED_EPISODE)
+    manager = SciEnvManager(env_factory=factory, topology=EnvironmentTopology.SHARED_EPISODE)
 
     env1 = manager.get_or_create(episode_id="ep1", agent_id="a1")
     env2 = manager.get_or_create(episode_id="ep1", agent_id="a2")
@@ -51,7 +51,7 @@ def test_env_manager_reuses_env_for_shared_topology():
 def test_env_manager_uses_agent_partition_for_per_agent_topology():
     manager = SciEnvManager(
         env_factory=lambda **kwargs: FakeEnv(name=f"{kwargs['episode_id']}:{kwargs['agent_id']}"),
-        topology=EmbeddingTopology.PER_AGENT,
+        topology=EnvironmentTopology.PER_AGENT,
     )
 
     env1 = manager.get_or_create(episode_id="ep1", agent_id="a1")
@@ -106,7 +106,7 @@ def test_env_manager_close_all_calls_close_hook():
         envs.append(env)
         return env
 
-    manager = SciEnvManager(env_factory=factory, topology=EmbeddingTopology.PER_TASK)
+    manager = SciEnvManager(env_factory=factory, topology=EnvironmentTopology.PER_TASK)
     manager.get_or_create(episode_id="ep1", task_id="t1")
     manager.get_or_create(episode_id="ep1", task_id="t2")
 

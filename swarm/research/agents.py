@@ -1,5 +1,6 @@
 """Research agents for the structured research workflow."""
 
+import logging
 import re
 import uuid
 from abc import ABC, abstractmethod
@@ -16,6 +17,7 @@ except Exception:  # pragma: no cover - optional dependency
 
 from swarm.research.platforms import Paper, PlatformClient, SearchResult
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class Source:
@@ -303,11 +305,29 @@ class LiteratureAgent(ResearchAgent):
 
         Args:
             question: The research question to investigate.
-            platforms: List of platform names to search.
+            platforms: Platform client class names to search (exact match,
+                e.g. "ClawxivClient"). None or empty searches all
+                configured platforms.
 
         Returns:
             LiteratureReview with sources, gaps, and hypothesis.
         """
+        if platforms:
+            active_platforms = [
+                p for p in self.platforms if type(p).__name__ in platforms
+            ]
+            matched = {type(p).__name__ for p in active_platforms}
+            unmatched = [name for name in platforms if name not in matched]
+            if unmatched:
+                logger.warning(
+                    "run(platforms=...): no configured client matches %s "
+                    "(configured: %s)",
+                    unmatched,
+                    sorted({type(p).__name__ for p in self.platforms}),
+                )
+        else:
+            active_platforms = self.platforms
+
         all_sources: list[Source] = []
         follow_ups: list[str] = [question]
 
@@ -320,7 +340,7 @@ class LiteratureAgent(ResearchAgent):
                 queries = self._generate_queries(q, self.breadth)
 
                 for query in queries:
-                    for platform in self.platforms:
+                    for platform in active_platforms:
                         result = platform.search(query, limit=20)
                         sources = self._process_search_results(result, platform)
                         layer_sources.extend(sources)
@@ -664,7 +684,7 @@ class AnalysisAgent(ResearchAgent):
             std = float(np.std(values))
             ci = self._compute_ci(values)
 
-            mean_val: float = float(mean)
+            mean_val: float = mean
             claims.append(
                 Claim(
                     statement=f"Mean {metric}: {mean_val:.3f} (SD: {std:.3f})",
@@ -1282,12 +1302,26 @@ class CritiqueAgent(ResearchAgent):
         results: ExperimentResults,
         analysis: Analysis,
     ) -> bool:
-        """Check if alternative is consistent with data.
+        """Check if alternative is consistent with (i.e. not ruled out by) data.
 
         Uses normalized effect sizes and p-values rather than raw metric
-        values, so the check works regardless of metric scale.
+        values, so the check works regardless of metric scale. Covers the
+        closed set produced by :meth:`_generate_alternatives`:
+
+        * **null** — consistent when no claim shows a substantial or
+          significant effect.
+        * **reverse causation** — an intervention fixes causal direction, so
+          this is ruled out when the design *manipulated* parameters
+          (configs differ in parameter values). Purely observational data
+          with a claimed effect cannot rule it out.
+        * **confounding** — ruled out by a controlled sweep (exactly one
+          parameter varied). When several parameters co-vary across configs,
+          or nothing was varied at all, confounding stays on the table.
+
+        Unknown alternative strings return False (nothing to assess).
         """
-        if "null" in alternative.lower():
+        alt = alternative.lower()
+        if "null" in alt:
             # Null is consistent if effect sizes are small or p-values are large
             for claim in analysis.claims:
                 if claim.effect_size is not None and abs(claim.effect_size) > 0.5:
@@ -1295,7 +1329,41 @@ class CritiqueAgent(ResearchAgent):
                 if claim.p_value is not None and claim.p_value < 0.05:
                     return False
             return True
+
+        # Non-null alternatives explain a claimed effect; with no substantial
+        # effect claimed there is nothing for them to explain.
+        if not self._has_claimed_effect(analysis):
+            return False
+
+        n_varied = self._count_varied_parameters(results)
+        if "reverse causation" in alt:
+            # Manipulated designs fix the causal arrow for the varied knobs.
+            return n_varied == 0
+        if "confound" in alt:
+            # A clean single-parameter sweep isolates the effect; anything
+            # else (co-varied parameters, or no variation) leaves confounding
+            # viable.
+            return n_varied != 1
         return False
+
+    @staticmethod
+    def _has_claimed_effect(analysis: Analysis) -> bool:
+        """True when at least one claim reports a substantial or significant effect."""
+        for claim in analysis.claims:
+            if claim.effect_size is not None and abs(claim.effect_size) > 0.5:
+                return True
+            if claim.p_value is not None and claim.p_value < 0.05:
+                return True
+        return False
+
+    @staticmethod
+    def _count_varied_parameters(results: ExperimentResults) -> int:
+        """Number of parameters that take >=2 distinct values across configs."""
+        values: dict[str, set[str]] = {}
+        for config in results.configs:
+            for name, value in config.parameters.items():
+                values.setdefault(name, set()).add(repr(value))
+        return sum(1 for seen in values.values() if len(seen) >= 2)
 
     def _identify_confounds(self, results: ExperimentResults) -> list[str]:
         """Identify potential confounding variables."""

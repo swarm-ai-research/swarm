@@ -161,6 +161,28 @@ class TestTierraHandler:
         ]
         assert len(living) <= 3
 
+    def test_reaper_oldest_kills_by_registration_order(self):
+        """'oldest' mode must reap the earliest-registered agents, not the poorest."""
+        from swarm.env.state import EnvState
+
+        handler = self._make_handler(
+            population_cap=3, base_metabolism_cost=0.0, reaper_mode="oldest"
+        )
+        state = EnvState()
+        # Register t0..t4 in order; give the OLDEST the MOST resources so that
+        # a resources-based sort would reap the wrong agents.
+        for i in range(5):
+            state.add_agent(
+                f"t{i}", agent_type=AgentType.TIERRA,
+                initial_resources=float(100 - i * 10),
+            )
+            handler.register_genome(f"t{i}", TierraGenome().to_dict())
+
+        handler.on_step(state, 0)
+
+        frozen = {aid for aid in state.agents if state.is_agent_frozen(aid)}
+        assert frozen == {"t0", "t1"}
+
     def test_resource_conservation(self):
         """Total resources (pool + agents) should be conserved through metabolism."""
         from swarm.env.state import EnvState

@@ -274,11 +274,7 @@ class RLMAgent(BaseAgent):
         super().update_from_outcome(interaction, payoff)
 
         # Update counterparty model
-        counterparty = (
-            interaction.counterparty
-            if interaction.initiator == self.agent_id
-            else interaction.initiator
-        )
+        counterparty = self._get_counterparty(interaction)
         model = self.working_memory.get_or_create_model(counterparty)
         model.update(cooperated=interaction.accepted, payoff=payoff)
 
@@ -309,17 +305,20 @@ class RLMAgent(BaseAgent):
         for model in self.working_memory.counterparty_models.values():
             model.cooperation_rate = model.cooperation_rate * decay + 0.5 * (1 - decay)
             # Trim old cooperation history
-            max_history = max(1, int(len(model.cooperation_history) * decay))
-            if len(model.cooperation_history) > max_history:
-                model.cooperation_history = model.cooperation_history[-max_history:]
-            max_payoff = max(1, int(len(model.payoff_history) * decay))
-            if len(model.payoff_history) > max_payoff:
-                model.payoff_history = model.payoff_history[-max_payoff:]
+            model.cooperation_history = self._trim_history(model.cooperation_history, decay)
+            model.payoff_history = self._trim_history(model.payoff_history, decay)
 
         # Clear patterns on full decay
         if decay == 0.0:
             self.working_memory.counterparty_models.clear()
             self.working_memory.strategic_patterns.clear()
+
+    def _trim_history(self, history: List, decay: float) -> List:
+        """Trim history list to retain only recent items based on decay factor."""
+        max_size = max(1, int(len(history) * decay))
+        if len(history) > max_size:
+            return history[-max_size:]
+        return history
 
     # ------------------------------------------------------------------
     # Recursive reasoning engine

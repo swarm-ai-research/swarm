@@ -371,9 +371,11 @@ def main() -> int:
     # Export CSV
     csv_path = run_dir / scenario.get("outputs", {}).get("csv", "sweep_results.csv")
     if all_metrics:
-        fieldnames = list(all_metrics[0].keys())
+        # Union of keys across rows: error rows carry a different shape
+        # (config + "error") than success rows, and either may come first.
+        fieldnames = list(dict.fromkeys(k for row in all_metrics for k in row))
         with open(csv_path, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer = csv.DictWriter(f, fieldnames=fieldnames, restval="")
             writer.writeheader()
             for row in all_metrics:
                 writer.writerow(row)

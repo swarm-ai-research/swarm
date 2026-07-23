@@ -57,6 +57,7 @@ class RivalsConfig(BaseModel):
     max_retries_per_stage: int = 3
     tasks_per_epoch: int = 4
     trap_probability: float = 0.5
+    council_size: int = 3
     seed: Optional[int] = None
 
     # Critic parameters (can be overridden per-agent)
@@ -106,21 +107,6 @@ _OBS_VETO = ProxyObservables(
     verifier_rejections=1,
     counterparty_engagement_delta=-0.1,
 )
-
-_OBS_CORRECT = ProxyObservables(
-    task_progress_delta=0.8,
-    rework_count=0,
-    verifier_rejections=0,
-    counterparty_engagement_delta=0.3,
-)
-
-_OBS_WRONG = ProxyObservables(
-    task_progress_delta=-0.5,
-    rework_count=0,
-    verifier_rejections=1,
-    counterparty_engagement_delta=-0.3,
-)
-
 
 # Role constants
 _PRODUCER_ROLES = {"coder", "chart_maker", "writer"}
@@ -174,7 +160,6 @@ class RivalsHandler(Handler):
         tasks = sample_tasks(
             self._rng,
             self.config.tasks_per_epoch,
-            self.config.trap_probability,
         )
 
         # Determine available agents by role
@@ -361,10 +346,15 @@ class RivalsHandler(Handler):
         if self.config.mode == RivalsMode.ADVISORY:
             vetoed = False
 
-        # In council mode, we simulate a majority vote
+        # In council mode, we simulate a majority vote among council_size
+        # critics. Note: false positives never veto in council mode (the
+        # has_defect gate below), unlike solo-critic mode above — the
+        # council screens out spurious objections by design.
         if self.config.mode == RivalsMode.COUNCIL:
-            votes = [self._rng.random() < detection_rate for _ in range(3)]
-            vetoed = sum(votes) >= 2 if has_defect else False
+            n = self.config.council_size
+            votes = [self._rng.random() < detection_rate for _ in range(n)]
+            majority = n // 2 + 1
+            vetoed = sum(votes) >= majority if has_defect else False
 
         # Record veto history
         episode.veto_history.append({
@@ -441,7 +431,7 @@ class RivalsHandler(Handler):
                     self._pending_produce[producer_id] = episode.episode_id
 
     def _score_episode(self, episode: RivalsEpisode) -> None:
-        """Compare artifacts vs ground truth to compute final score."""
+        """Compute final score based on artifact quality."""
         # Average artifact quality as actual consistency
         qualities = list(episode.artifacts.values())
         if qualities:

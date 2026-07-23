@@ -1,10 +1,11 @@
 """Scenario loader for YAML configuration files."""
 
+import logging
 import random
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
 
 import yaml
 
@@ -39,6 +40,7 @@ from swarm.agents.negotiation_agent import (
 )
 from swarm.agents.obfuscating import ObfuscatingAgent
 from swarm.agents.opportunistic import OpportunisticAgent
+from swarm.agents.pressure_responsive import PressureResponsiveAgent
 from swarm.agents.rain_river import RainAgent, RiverAgent
 from swarm.agents.ralph_agent import AdversarialRalphAgent, RalphLoopAgent
 from swarm.agents.rivals_agent import RivalsCriticAgent, RivalsProducerAgent
@@ -98,6 +100,11 @@ from swarm.env.state import RateLimits
 from swarm.governance.config import GovernanceConfig
 
 # Agent type registry for scripted agents
+if TYPE_CHECKING:
+    from swarm.core.observable_generator import ObservableGenerator
+
+logger = logging.getLogger(__name__)
+
 AGENT_TYPES: Dict[str, Type[BaseAgent]] = {
     "honest": HonestAgent,
     "ldt": LDTAgent,
@@ -140,6 +147,8 @@ AGENT_TYPES: Dict[str, Type[BaseAgent]] = {
     "rivals_critic": RivalsCriticAgent,
     # Obfuscation Atlas agents (Lindner et al., 2026)
     "obfuscating": ObfuscatingAgent,
+    # Escalating-pressure worker (beads pins)
+    "pressure_responsive": PressureResponsiveAgent,
     # AWM (Agent World Model) agents
     "awm_agent": AWMAgent,
     # Rain/River memory agents
@@ -282,6 +291,24 @@ class ScenarioConfig:
     # Output paths
     event_log_path: Optional[Path] = None
     metrics_csv_path: Optional[Path] = None
+
+
+def _should_process_config(data: Optional[Dict[str, Any]]) -> bool:
+    """Check if config data should be processed.
+
+    Returns False if data is None/empty or explicitly disabled.
+
+    Args:
+        data: The config data dictionary
+
+    Returns:
+        True if config should be processed, False otherwise
+    """
+    if not data:
+        return False
+    if data.get("enabled") is False:
+        return False
+    return True
 
 
 def parse_governance_config(data: Dict[str, Any]) -> GovernanceConfig:
@@ -574,11 +601,7 @@ def parse_network_config(data: Dict[str, Any]) -> Optional[NetworkConfig]:
     Returns:
         NetworkConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    # Check if network is explicitly disabled
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     # Parse topology
@@ -629,10 +652,7 @@ def parse_marketplace_config(data: Dict[str, Any]) -> Optional[MarketplaceConfig
     Returns:
         MarketplaceConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     config = MarketplaceConfig(
@@ -659,10 +679,7 @@ def parse_moltipedia_config(data: Dict[str, Any]) -> Optional[MoltipediaConfig]:
     Returns:
         MoltipediaConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     config = MoltipediaConfig(
@@ -689,10 +706,7 @@ def parse_moltbook_config(data: Dict[str, Any]) -> Optional[MoltbookConfig]:
     Returns:
         MoltbookConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     config = MoltbookConfig(
@@ -716,10 +730,7 @@ def parse_memory_tier_config(data: Dict[str, Any]) -> Optional[MemoryTierConfig]
     Returns:
         MemoryTierConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     config = MemoryTierConfig(
@@ -742,10 +753,7 @@ def parse_scholar_config(data: Dict[str, Any]) -> Optional[ScholarConfig]:
     Returns:
         ScholarConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     config = ScholarConfig(
@@ -771,10 +779,7 @@ def parse_kernel_oracle_config(
     Returns:
         KernelOracleConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     return KernelOracleConfig(**data)
@@ -790,10 +795,7 @@ def parse_spawn_config(data: Dict[str, Any]) -> Optional[SpawnConfig]:
     Returns:
         SpawnConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     # Parse attribution mode
@@ -830,10 +832,7 @@ def parse_rivals_config(data: Dict[str, Any]) -> Optional[Any]:
     Returns:
         RivalsConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     from swarm.core.rivals_handler import RivalsConfig
@@ -850,10 +849,7 @@ def parse_awm_config(data: Dict[str, Any]) -> Optional[Any]:
     Returns:
         AWMConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     from swarm.bridges.awm.config import AWMConfig
@@ -870,10 +866,7 @@ def parse_letta_config(data: Dict[str, Any]) -> Optional[Any]:
     Returns:
         LettaConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     from swarm.bridges.letta.config import LettaConfig
@@ -1076,10 +1069,7 @@ def parse_tierra_config(data: Dict[str, Any]) -> Optional[Any]:
     Returns:
         TierraConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     from swarm.core.tierra_handler import TierraConfig
@@ -1096,10 +1086,7 @@ def parse_evo_game_config(data: Dict[str, Any]) -> Optional[Any]:
     Returns:
         EvoGameConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     from swarm.core.evo_game_handler import EvoGameConfig
@@ -1116,10 +1103,7 @@ def parse_resource_negotiation_config(data: Dict[str, Any]) -> Optional[Any]:
     Returns:
         ResourceNegotiationConfig if enabled, None otherwise
     """
-    if not data:
-        return None
-
-    if data.get("enabled") is False:
+    if not _should_process_config(data):
         return None
 
     from swarm.core.resource_negotiation_handler import ResourceNegotiationConfig
@@ -1230,9 +1214,6 @@ def load_scenario(path: Path) -> ScenarioConfig:
         rate_limits=rate_limits,
         agent_specs=data.get("agents", []),
         success_criteria=data.get("success_criteria", {}),
-        event_log_path=Path(outputs_data["event_log"])
-        if outputs_data.get("event_log")
-        else None,
         metrics_csv_path=Path(outputs_data["metrics_csv"])
         if outputs_data.get("metrics_csv")
         else None,
@@ -1612,14 +1593,78 @@ def build_orchestrator(scenario: ScenarioConfig) -> Orchestrator:
     Returns:
         Configured Orchestrator with agents registered
     """
+    # Create agents first: calibration-injection wiring (below) needs their
+    # per-agent configs before the Orchestrator is constructed.
+    agents = create_agents(scenario.agent_specs, seed=scenario.orchestrator_config.seed)
+
+    # Calibration injection (beads c89o): any agent whose YAML config carries
+    # ``v_hat_target`` gets its observables solved so v_hat lands exactly on
+    # the target, and latent ground truth is drawn from the target-derived
+    # probability. Inferred from agent configs — no scenario-level knob.
+    v_hat_targets = {
+        agent.agent_id: float(agent.config["v_hat_target"])
+        for agent in agents
+        if isinstance(getattr(agent, "config", None), dict)
+        and "v_hat_target" in agent.config
+    }
+    observable_generator: Optional["ObservableGenerator"] = None
+    proxy_computer = None
+    if v_hat_targets:
+        from swarm.core.observable_generator import (
+            CalibrationInjectionObservableGenerator,
+        )
+        from swarm.core.proxy import ProxyComputer
+
+        seed = scenario.orchestrator_config.seed
+        proxy_computer = ProxyComputer()
+        observable_generator = CalibrationInjectionObservableGenerator(
+            targets=v_hat_targets,
+            proxy_computer=proxy_computer,
+            rng=random.Random(seed + 7919) if seed is not None else None,
+        )
+        logger.info(
+            "Calibration injection active for %d agents (max v_hat error %.2e)",
+            len(v_hat_targets),
+            observable_generator.max_target_error(),
+        )
+
+    # Pressure-responsive workers (beads pins) need the obfuscation wrapper
+    # so their per-act signal offsets and latent ground truth reach the
+    # finalizer. Wraps whichever generator was selected above (calibration
+    # injection or the orchestrator default). Gated on this agent class
+    # specifically — wiring it for every get_signal_manipulation() agent
+    # would silently change existing obfuscation scenarios.
+    pressure_agents = [a for a in agents if isinstance(a, PressureResponsiveAgent)]
+    if pressure_agents:
+        from swarm.core.observable_generator import (
+            DefaultObservableGenerator,
+            ObfuscationObservableGenerator,
+        )
+
+        seed = scenario.orchestrator_config.seed
+        inner = observable_generator or DefaultObservableGenerator(
+            rng=random.Random(seed + 104729) if seed is not None else None
+        )
+        observable_generator = ObfuscationObservableGenerator(
+            inner=inner,
+            agents={agent.agent_id: agent for agent in agents},
+        )
+        logger.info(
+            "Pressure-responsive wiring active for %d agents",
+            len(pressure_agents),
+        )
+
     # Create orchestrator
-    orchestrator = Orchestrator(config=scenario.orchestrator_config)
+    orchestrator = Orchestrator(
+        config=scenario.orchestrator_config,
+        proxy_computer=proxy_computer,
+        observable_generator=observable_generator,
+    )
 
     # Override rate limits
     orchestrator.state.rate_limits = scenario.rate_limits
 
-    # Create and register agents
-    agents = create_agents(scenario.agent_specs, seed=scenario.orchestrator_config.seed)
+    # Register agents
     for agent in agents:
         orchestrator.register_agent(agent)
 

@@ -2,7 +2,8 @@
   "@context": {
     "@vocab": "https://schema.org/",
     "swarm": "https://swarm-ai.org/concepts/",
-    "arxiv": "https://arxiv.org/abs/"
+    "arxiv": "https://arxiv.org/abs/",
+    "sa": "https://situational-awareness.ai/"
   },
   "@graph": [
     {
@@ -11,7 +12,7 @@
       "name": "SWARM — Distributional AGI Safety Framework",
       "description": "System-Wide Assessment of Risk in Multi-agent systems. Studies how catastrophic risks emerge from populations of interacting AI agents.",
       "url": "https://swarm-ai.org",
-      "codeRepository": "https://github.com/swarm-ai-safety/swarm",
+      "codeRepository": "https://github.com/swarm-ai-research/swarm",
       "citation": [
         {
           "@type": "ScholarlyArticle",
@@ -227,6 +228,40 @@
       "description": "Degree to which agents bear ecosystem harm costs, controlled by ρ (rho) parameters.",
       "url": "https://swarm-ai.org/research/theory/",
       "isPartOf": {"@id": "https://swarm-ai.org"}
+    },
+    {
+      "@type": "CreativeWork",
+      "@id": "sa:essay",
+      "name": "Situational Awareness: The Decade Ahead",
+      "author": {"@type": "Person", "name": "Leopold Aschenbrenner"},
+      "datePublished": "2024-06",
+      "url": "https://situational-awareness.ai/",
+      "description": "Essay series arguing AGI by 2027 is plausible, an intelligence explosion follows, and managing the transition is primarily a governance and security problem.",
+      "about": [
+        {"@id": "swarm:governance-latency"},
+        {"@id": "swarm:information-asymmetry"},
+        {"@id": "swarm:variance-amplification"}
+      ]
+    },
+    {
+      "@type": "CreativeWork",
+      "@id": "sa:tracker",
+      "name": "Situational Awareness Tracker",
+      "url": "https://swarm-ai.org/research/situational-awareness-tracker/",
+      "description": "Living tracker of Situational Awareness claim status, plus a mapping from its AGI-management problems onto SWARM mechanisms.",
+      "isBasedOn": {"@id": "sa:essay"},
+      "isPartOf": {"@id": "https://swarm-ai.org"},
+      "about": [
+        {"@id": "swarm:distributional-safety"},
+        {"@id": "swarm:soft-label"},
+        {"@id": "swarm:governance"},
+        {"@id": "swarm:governance-latency"},
+        {"@id": "swarm:circuit-breaker"},
+        {"@id": "swarm:collusion-detection"},
+        {"@id": "swarm:externality-internalization"},
+        {"@id": "swarm:trust-then-exploit"},
+        {"@id": "swarm:adverse-selection"}
+      ]
     },
     {
       "@type": "DefinedTermSet",

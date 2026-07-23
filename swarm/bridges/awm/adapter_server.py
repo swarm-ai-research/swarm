@@ -42,6 +42,9 @@ _ALLOWED_PATH_CHARS = frozenset(
 )
 _ALLOWED_QUERY_CHARS = _ALLOWED_PATH_CHARS | frozenset("=&+%@!$'()*,;:")
 
+# Built-in FastAPI routes to skip during introspection
+_SKIP_BUILTIN_ROUTES = frozenset({"openapi", "swagger_ui_html", "swagger_ui_redirect", "redoc_html"})
+
 
 def _sanitize_dispatch_path(normalized: str, sep: str, query: str) -> Optional[str]:
     """Validate and rebuild the dispatch path from whitelisted characters.
@@ -333,16 +336,13 @@ def _run_verifier_subprocess(
 
 def _extract_tools_from_app(awm_app: Any) -> List[Dict[str, Any]]:
     """Introspect an AWM FastAPI app's routes and return MCP-style tool dicts."""
-    # Built-in FastAPI routes to skip
-    _SKIP_NAMES = {"openapi", "swagger_ui_html", "swagger_ui_redirect", "redoc_html"}
-
     tools: List[Dict[str, Any]] = []
     for route in awm_app.routes:
         if not hasattr(route, "endpoint"):
             continue
         endpoint = route.endpoint
         name = getattr(route, "operation_id", None) or endpoint.__name__
-        if name in _SKIP_NAMES:
+        if name in _SKIP_BUILTIN_ROUTES:
             continue
         description = getattr(route, "description", "") or ""
         summary = getattr(route, "summary", "") or ""
@@ -422,13 +422,12 @@ def build_adapter(
     # Build lookup: tool name → (method, sanitized base path)
     # Paths are validated and sanitized here at startup so that misconfigured
     # tools are caught immediately rather than during each invocation.
-    _SKIP = {"openapi", "swagger_ui_html", "swagger_ui_redirect", "redoc_html"}
     tool_meta: Dict[str, Dict[str, str]] = {}
     for route in awm_app.routes:
         if not hasattr(route, "endpoint"):
             continue
         op_id = getattr(route, "operation_id", None) or route.endpoint.__name__
-        if op_id in _SKIP:
+        if op_id in _SKIP_BUILTIN_ROUTES:
             continue
         raw_path = getattr(route, "path", "/")
         try:
@@ -583,33 +582,9 @@ def build_adapter(
                 },
                 status_code=400,
             )
-        # Additional anchoring: ensure the final dispatch path stays under the
-        # trusted base path defined by the tool metadata. The base path is
-        # pre-validated and sanitized at startup, so we use it directly here.
-        base_dispatch_path = path
-        # Require that the runtime dispatch path is either exactly the base path
-        # or a strict sub-path of it (path-prefix with '/' boundary).
-        # The '/' boundary is critical: it prevents false prefix matches where
-        # one path is a prefix of another but not a true parent directory.
-        # For example, base "/api/v1" must NOT match "/api/v1.5/users" even
-        # though "/api/v1.5/users" starts with "/api/v1". Appending "/" to the
-        # base before comparing ensures only genuine sub-paths are allowed.
-        if dispatch_relative_path != base_dispatch_path:
-            prefix = base_dispatch_path
-            if not prefix.endswith("/"):
-                prefix = prefix + "/"
-            if not dispatch_relative_path.startswith(prefix):
-                return JSONResponse(
-                    {
-                        "isError": True,
-                        "result": "Tool path must remain within its configured base path.",
-                    },
-                    status_code=400,
-                )
 
-        # Additional anchoring: ensure the final dispatch path stays under the
-        # trusted base path defined by the tool metadata. This prevents user
-        # input from changing the effective base path used for dispatch.
+        # Ensure the final dispatch path stays under the trusted base path.
+        # This prevents user input from changing the effective base path used for dispatch.
         base_path_only, base_sep, base_query = path.partition("?")
         # Strip FastAPI-style path template placeholders ({param_name}) before
         # sanitizing, so _sanitize_dispatch_path is not given raw '{' / '}'
@@ -639,6 +614,7 @@ def build_adapter(
         base_dispatch_path = base_dispatch_sanitized
         # Require that the runtime dispatch path is either exactly the base path
         # or a strict sub-path of it (path-prefix with '/' boundary).
+        # The '/' boundary prevents false prefix matches: "/api/v1" should not match "/api/v1.5/users".
         # For parameterized templates the static prefix is used as the anchor.
         if dispatch_relative_path != base_dispatch_path:
             prefix = base_dispatch_path
@@ -709,7 +685,7 @@ def build_adapter(
             if not hasattr(route, "endpoint"):
                 continue
             op_id = getattr(route, "operation_id", None) or route.endpoint.__name__
-            if op_id in _SKIP:
+            if op_id in _SKIP_BUILTIN_ROUTES:
                 continue
             raw_path = getattr(route, "path", "/")
             try:

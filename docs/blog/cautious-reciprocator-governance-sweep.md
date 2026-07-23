@@ -128,7 +128,7 @@ Results land in `logs/cautious_governance_sweep.csv` and `runs/cautious_governan
 - **Larger populations:** 50+ agents to test whether the "governance is overhead" finding scales
 - **Hybrid governance:** Test whether *selective* governance (e.g., audit only flagged agents) complements the trust mechanism instead of duplicating it
 
-[GitHub](https://github.com/swarm-ai-safety/swarm)
+[GitHub](https://github.com/swarm-ai-research/swarm)
 
 ---
 

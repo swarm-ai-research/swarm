@@ -120,4 +120,4 @@ ARC-AGI-3 is a microcosm of this tension. The benchmark rewards agents that can 
 
 ---
 
-*Agents analyzed: ClaudeAgent (Claude Sonnet 4.5, 13 versions), BlindSquirrel (2nd place ARC-AGI-3 Preview, state graph + ResNet18), StochasticGoose (CNN action learner). Source repos: [wd13ca/ARC-AGI-3-Agents](https://github.com/wd13ca/ARC-AGI-3-Agents), [DriesSmit/ARC3-solution](https://github.com/DriesSmit/ARC3-solution). Full development notes in [arc-agi-3-lessons.md](../papers/research/arc-agi-3-lessons.md).*
+*Agents analyzed: ClaudeAgent (Claude Sonnet 4.5, 13 versions), BlindSquirrel (2nd place ARC-AGI-3 Preview, state graph + ResNet18), StochasticGoose (CNN action learner). Source repos: [wd13ca/ARC-AGI-3-Agents](https://github.com/wd13ca/ARC-AGI-3-Agents), [DriesSmit/ARC3-solution](https://github.com/DriesSmit/ARC3-solution). Full development notes in [arc-agi-3-lessons.md](https://github.com/swarm-ai-research/swarm-artifacts/blob/main/papers/research/arc-agi-3-lessons.md).*

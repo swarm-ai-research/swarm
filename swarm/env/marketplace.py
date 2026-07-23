@@ -611,7 +611,11 @@ class Marketplace:
     def get_agent_bounties(self, agent_id: str) -> List[Bounty]:
         """Get all bounties posted by an agent."""
         bounty_ids = self._bounties_by_agent.get(agent_id, [])
-        return [self._bounties[bid] for bid in bounty_ids if bid in self._bounties]
+        return [
+            self._bounties[bounty_id]
+            for bounty_id in bounty_ids
+            if bounty_id in self._bounties
+        ]
 
     def get_agent_bids(self, agent_id: str) -> List[Bid]:
         """Get all bids placed by an agent."""

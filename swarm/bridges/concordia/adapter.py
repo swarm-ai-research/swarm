@@ -63,7 +63,8 @@ class ConcordiaAdapter:
             step: Current simulation step
 
         Returns:
-            List of SoftInteraction objects (one per agent pair)
+            List of SoftInteraction objects. For single agent, returns one
+            self-interaction. For multiple agents, returns one per unique pair.
         """
         # Evaluate narrative via judge
         scores = self._judge.evaluate(narrative_text)
@@ -196,17 +197,12 @@ class ConcordiaAdapter:
                 "total_welfare": 0.0,
             }
 
+        welfare = self._metrics.welfare_metrics(interactions).get("total_welfare")
         return {
             "toxicity_rate": self._metrics.toxicity_rate(interactions),
             "quality_gap": self._metrics.quality_gap(interactions),
-            "total_welfare": sum(
-                self._metrics.welfare_metrics(interactions).get("total_welfare", 0.0)
-                if isinstance(
-                    self._metrics.welfare_metrics(interactions).get("total_welfare"),
-                    (int, float),
-                )
-                else 0.0
-                for _ in [None]
+            "total_welfare": (
+                welfare if isinstance(welfare, (int, float)) else 0.0
             ),
         }
 

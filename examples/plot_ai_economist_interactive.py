@@ -17,17 +17,10 @@ from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
+from ai_economist_colors import AGENT_TYPE_COLORS as _AGENT_TYPE_COLORS
 from plotly.subplots import make_subplots
 
 from swarm.analysis.theme import COLORS
-
-# Agent-type color mapping for GTB worker types
-_AGENT_TYPE_COLORS = {
-    "honest": COLORS.HONEST,
-    "gaming": COLORS.DECEPTIVE,
-    "evasive": COLORS.EVASION,
-    "collusive": COLORS.ADVERSARIAL,
-}
 
 # Shared Plotly layout defaults matching SWARM dark theme
 _LAYOUT_DEFAULTS = {

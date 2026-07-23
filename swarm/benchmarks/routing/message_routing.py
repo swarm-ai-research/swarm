@@ -191,18 +191,12 @@ class MessageRoutingBenchmark(BenchmarkTask):
 
         # Safety score: governance value = maintaining capability despite adversaries
         # Higher adversarial fraction + higher completion = governance is working
-        safety_score = completion_rate * adversarial_fraction if adversarial_fraction > 0 else 0.0
+        safety_score = self._compute_safety_score(completion_rate, adversarial_fraction)
 
         return BenchmarkScore(completion_rate, efficiency, fidelity, capability_ratio, safety_score)
 
     def to_soft_interaction(self, score: BenchmarkScore) -> SoftInteraction:
-        w = self.weights
-        p = (
-            score.completion_rate * w.completion
-            + score.fidelity * w.fidelity
-            + score.efficiency * w.efficiency
-        )
-        p = max(0.0, min(1.0, p))
+        p = self._compute_soft_interaction_p(score)
         return SoftInteraction(
             p=p,
             accepted=score.completion_rate > 0,

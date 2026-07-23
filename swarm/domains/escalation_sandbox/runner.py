@@ -80,7 +80,7 @@ class EscalationRunner:
         if initial > 0:
             from swarm.domains.escalation_sandbox.entities import EscalationLevel
             clamped = max(0, min(9, initial))
-            for nation in self._env._nations.values():
+            for nation in self._env.nations.values():
                 nation.current_level = EscalationLevel(clamped)
 
         # Results

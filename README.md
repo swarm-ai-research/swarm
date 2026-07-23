@@ -2,11 +2,11 @@
 
 SWARM: System-Wide Assessment of Risk in Multi-agent systems
 
-[![CI](https://github.com/swarm-ai-safety/swarm/actions/workflows/ci.yml/badge.svg)](https://github.com/swarm-ai-safety/swarm/actions/workflows/ci.yml)
+[![CI](https://github.com/swarm-ai-research/swarm/actions/workflows/ci.yml/badge.svg)](https://github.com/swarm-ai-research/swarm/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![PyPI](https://img.shields.io/pypi/v/swarm-safety.svg)](https://pypi.org/project/swarm-safety/)
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/swarm-ai-safety/swarm/blob/main/examples/quickstart.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/swarm-ai-research/swarm/blob/main/examples/quickstart.ipynb)
 [![arXiv](https://img.shields.io/badge/arXiv-2604.19752-b31b1b.svg)](https://arxiv.org/abs/2604.19752)
 
 **AGI-level risks don't require AGI-level agents.** SWARM is a research framework for measuring emergent failures that only appear when many AI agents interact — even when individual agents are safe.
@@ -17,7 +17,7 @@ SWARM: System-Wide Assessment of Risk in Multi-agent systems
   </a>
 </p>
 
-<img src="https://github.com/swarm-ai-safety/swarm/raw/main/docs/images/swarm-hero.gif" alt="SWARM dashboard showing emergent risk metrics" width="100%">
+<img src="https://github.com/swarm-ai-research/swarm/raw/main/docs/images/swarm-hero.gif" alt="SWARM dashboard showing emergent risk metrics" width="100%">
 
 *Emergent risk appears at the interaction level, not the individual agent level.*
 
@@ -179,7 +179,7 @@ python examples/mvp_demo.py
 
 ### Interactive Notebook
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/swarm-ai-safety/swarm/blob/main/examples/quickstart.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/swarm-ai-research/swarm/blob/main/examples/quickstart.ipynb)
 
 The **[quickstart notebook](examples/quickstart.ipynb)** runs two scenarios end-to-end in ~5 minutes with no API keys: a cooperative baseline and an adversarial red-team that collapses around epoch 12. Includes diagnostic plots and a per-agent payoff breakdown. Click the Colab badge to run it in your browser — no local setup needed.
 
@@ -240,17 +240,17 @@ All examples run standalone with no API keys unless noted. Start with the quicks
 
 | Example | Description | Colab | Difficulty |
 |---------|-------------|-------|------------|
-| **[quickstart.ipynb](examples/quickstart.ipynb)** | Two scenarios end-to-end with plots | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/swarm-ai-safety/swarm/blob/main/examples/quickstart.ipynb) | Beginner |
+| **[quickstart.ipynb](examples/quickstart.ipynb)** | Two scenarios end-to-end with plots | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/swarm-ai-research/swarm/blob/main/examples/quickstart.ipynb) | Beginner |
 | **[reproducible_run_demo.py](examples/reproducible_run_demo.py)** | Complete reproducible workflow with artifacts | — | Beginner |
-| **[illusion_delta_minimal.py](examples/illusion_delta_minimal.py)** | Replay-based incoherence detection (3 agents) | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/swarm-ai-safety/swarm/blob/main/examples/illusion_delta_minimal.ipynb) | Beginner |
-| **[mvp_demo.py](examples/mvp_demo.py)** | Full 5-agent simulation with metric printout | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/swarm-ai-safety/swarm/blob/main/examples/mvp_demo.ipynb) | Beginner |
+| **[illusion_delta_minimal.py](examples/illusion_delta_minimal.py)** | Replay-based incoherence detection (3 agents) | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/swarm-ai-research/swarm/blob/main/examples/illusion_delta_minimal.ipynb) | Beginner |
+| **[mvp_demo.py](examples/mvp_demo.py)** | Full 5-agent simulation with metric printout | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/swarm-ai-research/swarm/blob/main/examples/mvp_demo.ipynb) | Beginner |
 | **[run_scenario.py](examples/run_scenario.py)** | Run any YAML scenario from CLI | — | Beginner |
-| **[parameter_sweep.py](examples/parameter_sweep.py)** | Sweep governance parameters and compare | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/swarm-ai-safety/swarm/blob/main/examples/parameter_sweep.ipynb) | Intermediate |
-| **[run_redteam.py](examples/run_redteam.py)** | Red-team evaluation across 8 attack vectors | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/swarm-ai-safety/swarm/blob/main/examples/run_redteam.ipynb) | Intermediate |
-| **[governance_mvp_sweep.py](examples/governance_mvp_sweep.py)** | Governance lever comparison sweep | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/swarm-ai-safety/swarm/blob/main/examples/governance_mvp_sweep.ipynb) | Intermediate |
+| **[parameter_sweep.py](examples/parameter_sweep.py)** | Sweep governance parameters and compare | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/swarm-ai-research/swarm/blob/main/examples/parameter_sweep.ipynb) | Intermediate |
+| **[run_redteam.py](examples/run_redteam.py)** | Red-team evaluation across 8 attack vectors | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/swarm-ai-research/swarm/blob/main/examples/run_redteam.ipynb) | Intermediate |
+| **[governance_mvp_sweep.py](examples/governance_mvp_sweep.py)** | Governance lever comparison sweep | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/swarm-ai-research/swarm/blob/main/examples/governance_mvp_sweep.ipynb) | Intermediate |
 | **[llm_demo.py](examples/llm_demo.py)** | LLM-backed agents (requires API key) | — | Intermediate |
-| **[ldt_composition_study.py](examples/ldt_composition_study.py)** | LDT agent composition research | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/swarm-ai-safety/swarm/blob/main/examples/ldt_composition_study.ipynb) | Advanced |
-| **[reproduce_2602_00035.py](examples/reproduce_2602_00035.py)** | Reproduce paper results | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/swarm-ai-safety/swarm/blob/main/examples/reproduce_2602_00035.ipynb) | Advanced |
+| **[ldt_composition_study.py](examples/ldt_composition_study.py)** | LDT agent composition research | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/swarm-ai-research/swarm/blob/main/examples/ldt_composition_study.ipynb) | Advanced |
+| **[reproduce_2602_00035.py](examples/reproduce_2602_00035.py)** | Reproduce paper results | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/swarm-ai-research/swarm/blob/main/examples/reproduce_2602_00035.ipynb) | Advanced |
 | **[demo/app.py](examples/demo/app.py)** | Streamlit interactive dashboard | — | Intermediate |
 
 > **Tip for Colab users:** All notebooks with a Colab badge auto-detect Colab and install SWARM from GitHub. For scripts without a notebook, add `!pip install swarm-safety` in the first cell.
@@ -442,7 +442,7 @@ To cite the software itself:
   title  = {SWARM: System-Wide Assessment of Risk in Multi-agent systems},
   author = {Savitt, Raeli},
   year   = {2026},
-  url    = {https://github.com/swarm-ai-safety/swarm}
+  url    = {https://github.com/swarm-ai-research/swarm}
 }
 ```
 
@@ -454,12 +454,12 @@ Machine-readable citation metadata: [`CITATION.cff`](CITATION.cff)
 - **Governance Mechanisms for Multi-Agent Safety** — Cross-archetype empirical study of 7 scenario types
 - **Collusion Dynamics and Network Resilience** — Progressive decline vs sustained operation under network topology effects
 
-Full paper sources and supplementary materials are in the [swarm-artifacts](https://github.com/swarm-ai-safety/swarm-artifacts) repo.
+Full paper sources and supplementary materials are in the [swarm-artifacts](https://github.com/swarm-ai-research/swarm-artifacts) repo.
 
 ## Community
 
-- [Documentation](https://github.com/swarm-ai-safety/swarm/tree/main/docs) — Full guides, API reference, and research notes
-- [GitHub Issues](https://github.com/swarm-ai-safety/swarm/issues) — Bug reports, feature requests, and [agent bounties](CONTRIBUTING.md)
+- [Documentation](https://github.com/swarm-ai-research/swarm/tree/main/docs) — Full guides, API reference, and research notes
+- [GitHub Issues](https://github.com/swarm-ai-research/swarm/issues) — Bug reports, feature requests, and [agent bounties](CONTRIBUTING.md)
 - [Twitter/X](https://x.com/ResearchSwarmAI) — @ResearchSwarmAI
 
 ## References

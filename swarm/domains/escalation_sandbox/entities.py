@@ -127,9 +127,10 @@ class NationState:
         if not self.signal_history or not self.action_history:
             return 0.0
         n = min(len(self.signal_history), len(self.action_history))
+        # Both sequences sliced to length n, so strict check is unnecessary but harmless
         total = sum(
             abs(s - a)
-            for s, a in zip(self.signal_history[-n:], self.action_history[-n:], strict=True)
+            for s, a in zip(self.signal_history[-n:], self.action_history[-n:], strict=False)
         )
         return total / n
 

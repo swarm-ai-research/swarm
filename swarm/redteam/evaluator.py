@@ -4,6 +4,7 @@ This module provides the main interface for running red-team evaluations
 against governance configurations.
 """
 
+import random
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
@@ -356,13 +357,6 @@ class RedTeamEvaluator:
             scenario=scenario,
         )
 
-        # Create orchestrator with governance config
-        # orchestrator = orchestrator_factory(self.governance_config)
-
-        # Simulate attack based on scenario parameters
-        # This is a placeholder - actual implementation would run
-        # the orchestrator with adaptive adversaries
-
         result.epochs_run = epochs
 
         # Simulate outcomes based on governance config and attack type
@@ -448,8 +442,6 @@ class RedTeamEvaluator:
         base_success *= difficulty_modifier
 
         # Determine outcome
-        import random
-
         result.attack_succeeded = random.random() < min(1.0, base_success)
         result.governance_prevented = not result.attack_succeeded
 

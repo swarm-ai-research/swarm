@@ -271,7 +271,7 @@ def cross_type_anova(df: pd.DataFrame) -> dict:
         "test": "Cross-type wealth ANOVA + Kruskal-Wallis",
         "groups": {
             label: {"mean": float(g.mean()), "std": float(g.std()), "n": len(g)}
-            for label, g in zip(group_labels, groups, strict=False)
+            for label, g in zip(group_labels, groups, strict=True)
         },
         "anova_F": float(F),
         "anova_p": float(p_anova),

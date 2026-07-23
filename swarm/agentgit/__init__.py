@@ -16,12 +16,21 @@ from swarm.agentgit.capabilities import (
     enforced_allowlist_for_chain,
     granted_commands,
 )
+from swarm.agentgit.coordination import (
+    ClaimResult,
+    CoordinationBoard,
+    LockResult,
+)
 from swarm.agentgit.identity import (
     AgentIdentity,
     AgentKeypair,
     DelegationChain,
     DelegationLink,
     sign_link,
+)
+from swarm.agentgit.memory import (
+    MemoryEntry,
+    MemoryStore,
 )
 from swarm.agentgit.policy import (
     AgentGitPolicy,
@@ -30,23 +39,84 @@ from swarm.agentgit.policy import (
     PolicyFacts,
     gate_bundle,
 )
+from swarm.agentgit.push_tokens import (
+    PushGrant,
+    check_push,
+    mint_push_grant,
+    verify_grant,
+)
+from swarm.agentgit.reputation import (
+    ReputationKey,
+    ReputationLedger,
+    TrackRecord,
+)
+from swarm.agentgit.review import (
+    DEFAULT_REVIEWERS,
+    DependencyReviewer,
+    Reviewer,
+    ReviewerReport,
+    ReviewFinding,
+    ReviewSynthesis,
+    SecurityReviewer,
+    TestCoverageReviewer,
+    run_review_panel,
+    synthesize,
+)
+from swarm.agentgit.store import (
+    append_to_log,
+    attach_note,
+    list_noted_commits,
+    read_log,
+    read_notes,
+    store_bundle,
+    verify_log,
+)
 
 __all__ = [
     "CAPABILITY_COMMANDS",
     "AgentGitPolicy",
     "AgentIdentity",
     "AgentKeypair",
+    "ClaimResult",
     "CommandRecord",
     "ConditionalRule",
+    "CoordinationBoard",
+    "LockResult",
+    "DEFAULT_REVIEWERS",
     "DelegationChain",
     "DelegationLink",
+    "DependencyReviewer",
+    "MemoryEntry",
+    "MemoryStore",
+    "PushGrant",
+    "check_push",
+    "mint_push_grant",
+    "verify_grant",
     "PolicyDecision",
     "PolicyFacts",
+    "ReputationKey",
+    "ReputationLedger",
+    "ReviewFinding",
+    "ReviewSynthesis",
+    "Reviewer",
+    "ReviewerReport",
+    "SecurityReviewer",
+    "TestCoverageReviewer",
+    "TrackRecord",
+    "append_to_log",
+    "attach_note",
     "build_bundle",
     "enforced_allowlist_for_chain",
     "gate_bundle",
     "granted_commands",
+    "list_noted_commits",
+    "read_log",
+    "read_notes",
+    "run_review_panel",
     "sign_link",
+    "store_bundle",
+    "synthesize",
     "verify_bundle",
+    "verify_log",
     "write_bundle",
 ]

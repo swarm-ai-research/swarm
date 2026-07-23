@@ -298,6 +298,8 @@ def run_matching_episode(
 
     final = _average_metrics(epoch_metrics)
 
+    # Note: matching module omits adversarial_env and tx_cost_regime (not applicable to
+    # this module's domain). See run_search_purchase_episode for comparison.
     episode_record = CSMEpisodeRecord(
         market_module=treatment.market_module.value,
         ownership_type=treatment.ownership.value,
@@ -399,6 +401,9 @@ def run_negotiation_episode(
 
     final = _average_metrics(epoch_metrics)
 
+    # Note: negotiation module only records market_module, tx_cost_regime, and adversarial_env.
+    # Ownership and specialization are not applicable to bilateral negotiation mechanics.
+    # See run_search_purchase_episode for comparison.
     episode_record = CSMEpisodeRecord(
         market_module=MarketModule.NEGOTIATION.value,
         tx_cost_regime=treatment.tx_cost_regime.value,

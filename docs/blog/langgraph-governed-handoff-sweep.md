@@ -133,7 +133,7 @@ This study used a cooperative task with no adversarial agents. The governance la
 - **Adaptive governance**: Tune parameters dynamically based on provenance chain analysis rather than fixing them per-run
 - **Larger swarms**: Scale from 4 to 8-12 agents to see if the governance sweet spot shifts
 
-The code is in [`swarm/bridges/langgraph_swarm/study_agents.py`](https://github.com/swarm-ai-safety/swarm/blob/main/swarm/bridges/langgraph_swarm/study_agents.py) and the scenario definition in [`scenarios/langgraph_governed_handoff.yaml`](https://github.com/swarm-ai-safety/swarm/blob/main/scenarios/langgraph_governed_handoff.yaml).
+The code is in [`swarm/bridges/langgraph_swarm/study_agents.py`](https://github.com/swarm-ai-research/swarm/blob/main/swarm/bridges/langgraph_swarm/study_agents.py) and the scenario definition in [`scenarios/langgraph_governed_handoff.yaml`](https://github.com/swarm-ai-research/swarm/blob/main/scenarios/langgraph_governed_handoff.yaml).
 
 ---
 

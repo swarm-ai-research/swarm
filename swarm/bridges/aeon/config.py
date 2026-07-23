@@ -91,6 +91,10 @@ class AeonConfig:
         with open(path, "rb") as f:
             data = tomllib.load(f)
 
+        # Try standard nested path [tool.swarm.aeon]; if missing, fall back to root.
+        # This supports two TOML layouts: (1) standard [tool.swarm.aeon] section,
+        # or (2) root-level config keys. Fallback is useful for minimal configs
+        # that omit the nested structure.
         section = data.get("tool", {}).get("swarm", {}).get("aeon", data)
         # Use the dataclass field names, not hasattr: fields declared with a
         # default_factory (e.g. ``repos``) are NOT class attributes, so a

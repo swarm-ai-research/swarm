@@ -333,7 +333,7 @@ BibTeX (software):
   title   = {Distributional AGI Safety Sandbox: A Practical Lab for AGI Safety Research},
   year    = {2026},
   version = {0.1.0},
-  url     = {https://github.com/swarm-ai-safety/swarm}
+  url     = {https://github.com/swarm-ai-research/swarm}
 }
 ```
 

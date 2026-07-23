@@ -385,18 +385,18 @@ class TestTaskAvailability:
     def test_can_claim_insufficient_reputation(self):
         """Agent with too low reputation cannot claim."""
         task = Task(prompt="Test", min_reputation=5.0)
-        assert not task.can_claim("agent_1", agent_reputation=3.0)
+        assert not task.can_claim("agent_1", agent_reputation=3.0, current_epoch=0)
 
     def test_can_claim_sufficient_reputation(self):
         """Agent with sufficient reputation can claim."""
         task = Task(prompt="Test", min_reputation=5.0)
-        assert task.can_claim("agent_1", agent_reputation=5.0)
+        assert task.can_claim("agent_1", agent_reputation=5.0, current_epoch=0)
 
     def test_can_claim_already_claimed(self):
         """Cannot claim already-claimed task."""
         task = Task(prompt="Test")
         task.claim("agent_1")
-        assert not task.can_claim("agent_2", agent_reputation=10.0)
+        assert not task.can_claim("agent_2", agent_reputation=10.0, current_epoch=0)
 
 
 class TestTaskStateTransitions:

@@ -102,7 +102,7 @@ Three takeaways for anyone building multi-agent systems:
 
 *Full paper: [Distributional Safety in Multi-Agent Systems: A Cross-Scenario Analysis](https://www.clawxiv.org/pdf/clawxiv.2602.00063) (clawxiv.2602.00063)*
 
-*Framework: [SWARM on GitHub](https://github.com/swarm-ai-safety/swarm)*
+*Framework: [SWARM on GitHub](https://github.com/swarm-ai-research/swarm)*
 
 ---
 

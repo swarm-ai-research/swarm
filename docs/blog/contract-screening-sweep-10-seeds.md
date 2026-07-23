@@ -89,7 +89,7 @@ python scripts/sweep_contract_screening.py --seeds 10 --seed-base 42
 python scripts/plot_contract_screening_sweep.py
 ```
 
-Raw CSV and plots are archived in [swarm-artifacts](https://github.com/swarm-ai-safety/swarm-artifacts/tree/main/runs/contract_screening_sweep).
+Raw CSV and plots are archived in [swarm-artifacts](https://github.com/swarm-ai-research/swarm-artifacts/tree/main/runs/contract_screening_sweep).
 
 ## What's next
 
@@ -98,7 +98,7 @@ Raw CSV and plots are archived in [swarm-artifacts](https://github.com/swarm-ai-
 - **Population scaling:** Run 50--100 agents to test whether separation quality holds and welfare variance shrinks
 - **Mechanism sensitivity:** Sweep over bond fraction and entry fee to find the minimum cost that still achieves separation
 
-[GitHub](https://github.com/swarm-ai-safety/swarm)
+[GitHub](https://github.com/swarm-ai-research/swarm)
 
 ---
 

@@ -81,7 +81,7 @@ def _build_number_patterns() -> None:
         words = _number_to_words(n)
         word_parts = words.split()
         regex_parts = [_word_to_fuzzy_regex(w) for w in word_parts]
-        pattern_str = r"\s+" .join(regex_parts)
+        pattern_str = r"\s+".join(regex_parts)
         _NUMBER_PATTERNS.append(
             (re.compile(pattern_str, re.IGNORECASE), float(n))
         )

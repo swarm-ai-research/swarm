@@ -45,7 +45,6 @@ class LettaSwarmClient:
     def __init__(self, config: LettaConfig) -> None:
         self.config = config
         self._client: Any = None
-        self._initialized = False
 
     def _ensure_client(self) -> Any:
         """Lazy-init the Letta SDK client."""
@@ -58,7 +57,6 @@ class LettaSwarmClient:
         if self.config.api_key:
             kwargs["token"] = self.config.api_key
         self._client = Letta(**kwargs)
-        self._initialized = True
         logger.info("Letta SDK client initialized at %s", self.config.base_url)
         return self._client
 

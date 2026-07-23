@@ -42,8 +42,12 @@ class GitObserver:
     def __init__(self, workspace_path: str) -> None:
         self._workspace_path = workspace_path
 
-    def get_pr_stats(self, worktree: str) -> dict:
+    def get_pr_stats(self, worktree: str, base: str = "main") -> dict:
         """Compute PR-related observables for a worktree/branch.
+
+        Args:
+            worktree: Path to the worktree.
+            base: Base branch to compare against (default: "main").
 
         Returns a dict with keys:
             commit_count, files_changed, review_iterations,
@@ -57,8 +61,8 @@ class GitObserver:
             "time_to_merge_hours": None,
         }
 
-        # Commit count since divergence from main
-        result = _run_git(["rev-list", "--count", "HEAD", "^main"], cwd=worktree)
+        # Commit count since divergence from base
+        result = _run_git(["rev-list", "--count", "HEAD", f"^{base}"], cwd=worktree)
         if result and result.returncode == 0:
             try:
                 stats["commit_count"] = int(result.stdout.strip())
@@ -67,7 +71,7 @@ class GitObserver:
 
         # Files changed
         result = _run_git(
-            ["diff", "--name-only", "main...HEAD"], cwd=worktree
+            ["diff", "--name-only", f"{base}...HEAD"], cwd=worktree
         )
         if result and result.returncode == 0:
             files = [f for f in result.stdout.strip().splitlines() if f]
@@ -85,16 +89,16 @@ class GitObserver:
 
         # CI failures (convention: commits with "[ci-fail]" in message)
         result = _run_git(
-            ["log", "--oneline", "--fixed-strings", "--grep=[ci-fail]", "main..HEAD"],
+            ["log", "--oneline", "--fixed-strings", "--grep=[ci-fail]", f"{base}..HEAD"],
             cwd=worktree,
         )
         if result and result.returncode == 0:
             failures = [line for line in result.stdout.strip().splitlines() if line]
             stats["ci_failures"] = len(failures)
 
-        # Time to merge (if branch has been merged into main)
+        # Time to merge (if branch has been merged into base)
         first = _run_git(
-            ["log", "--reverse", "--format=%aI", "main..HEAD"],
+            ["log", "--reverse", "--format=%aI", f"{base}..HEAD"],
             cwd=worktree,
         )
         merge = _run_git(

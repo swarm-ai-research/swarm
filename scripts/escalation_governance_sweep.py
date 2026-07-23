@@ -212,13 +212,13 @@ for axis_name, _gov_key, values, _label in SWEEP_AXES:
 matrix_arr = np.array(matrix)
 im = ax2.imshow(matrix_arr, cmap="RdYlGn_r", aspect="auto", vmin=0, vmax=100)
 ax2.set_xticks(range(len(x_labels)))
-ax2.set_xticklabels(["Val 1", "Val 2", "Val 3", "Val 4"])
+ax2.set_xticklabels(x_labels)
 ax2.set_yticks(range(len(y_labels)))
 ax2.set_yticklabels(y_labels)
 
 # Annotate cells
 for i in range(len(y_labels)):
-    for j in range(4):
+    for j in range(len(x_labels)):
         val = matrix_arr[i, j]
         ax2.text(j, i, f"{val:.0f}%", ha="center", va="center",
                  color="white" if val > 60 else "black", fontsize=10, fontweight="bold")

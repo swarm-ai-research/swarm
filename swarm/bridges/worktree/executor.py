@@ -5,7 +5,9 @@ enforce all SWARM boundary invariants on every command execution.
 """
 
 import logging
+import os
 import subprocess
+import time
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -21,7 +23,11 @@ from swarm.bridges.worktree.config import WorktreeConfig
 from swarm.bridges.worktree.events import WorktreeEvent, WorktreeEventType
 from swarm.bridges.worktree.policy import WorktreePolicy
 from swarm.bridges.worktree.sandbox import SandboxManager
-from swarm.bridges.worktree.sandbox_launch import detect_backend, wrap_command
+from swarm.bridges.worktree.sandbox_launch import (
+    default_deny_read_paths,
+    detect_backend,
+    wrap_command,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +86,23 @@ class SandboxExecutor:
         self._policy_engine = policy_engine or PolicyEngine()
         self._flow_tracker = flow_tracker or FlowTracker()
         self._leakage_detector = leakage_detector or LeakageDetector()
+
+    def _resolve_secret_read_denials(self) -> List[str]:
+        """Concrete secret paths to deny reads of, per config (7ge5 slice 3).
+
+        Existence-filtered because the bwrap backend masks each path with a
+        tmpfs mount — mounting over a nonexistent path fails the whole
+        command. Disabled config returns [] (path denial off; the macOS
+        name-pattern denials in sandbox_launch still apply).
+        """
+        if not self._config.os_isolation_deny_secret_reads:
+            return []
+        candidates = [
+            *default_deny_read_paths(),
+            *(os.path.expanduser(p)
+              for p in self._config.os_isolation_extra_secret_paths),
+        ]
+        return [p for p in candidates if os.path.exists(p)]
 
     def execute(
         self,
@@ -235,6 +258,7 @@ class SandboxExecutor:
                     sandbox_path=sandbox_path,
                     backend=backend,
                     allow_network=self._config.os_isolation_allow_network,
+                    deny_read_paths=self._resolve_secret_read_denials(),
                 )
                 isolation = backend
 
@@ -259,8 +283,6 @@ class SandboxExecutor:
         )
 
         # --- Execution ---
-        import time
-
         start = time.monotonic()
         timed_out = False
         try:

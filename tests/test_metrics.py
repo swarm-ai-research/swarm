@@ -207,6 +207,169 @@ class TestQualityGap:
         assert metrics.quality_gap(interactions) == 0.0
 
 
+class TestPlausibilityCertificateGap:
+    """Tests for PCG = E[p - p_cert | accepted, certified] (beads mt8a)."""
+
+    def test_none_without_certificates(self):
+        metrics = SoftMetrics()
+        interactions = [
+            SoftInteraction(p=0.9, accepted=True),
+            SoftInteraction(p=0.2, accepted=True),
+        ]
+        assert metrics.plausibility_certificate_gap(interactions) is None
+
+    def test_none_when_only_rejected_certified(self):
+        metrics = SoftMetrics()
+        interactions = [
+            SoftInteraction(p=0.9, accepted=False, ground_truth=-1),
+            SoftInteraction(p=0.8, accepted=True),
+        ]
+        assert metrics.plausibility_certificate_gap(interactions) is None
+
+    def test_fabricated_positives_drive_pcg_up(self):
+        """Accepted high-p interactions with ground_truth=-1 give PCG near 1."""
+        metrics = SoftMetrics()
+        interactions = [
+            SoftInteraction(p=0.9, accepted=True, ground_truth=-1),
+            SoftInteraction(p=0.8, accepted=True, ground_truth=-1),
+        ]
+        pcg = metrics.plausibility_certificate_gap(interactions)
+        assert pcg == pytest.approx(0.85)
+
+    def test_calibrated_certified_set_gives_zero(self):
+        """p matching certificates exactly yields PCG 0."""
+        metrics = SoftMetrics()
+        interactions = [
+            SoftInteraction(p=1.0, accepted=True, ground_truth=1),
+            SoftInteraction(p=0.0, accepted=True, ground_truth=-1),
+        ]
+        assert metrics.plausibility_certificate_gap(interactions) == pytest.approx(
+            0.0
+        )
+
+    def test_rejected_certified_excluded(self):
+        """Rejected interactions must not enter accepted-set PCG."""
+        metrics = SoftMetrics()
+        interactions = [
+            SoftInteraction(p=0.9, accepted=True, ground_truth=1),
+            SoftInteraction(p=0.9, accepted=False, ground_truth=-1),
+        ]
+        pcg = metrics.plausibility_certificate_gap(interactions)
+        assert pcg == pytest.approx(-0.1)
+
+    def test_decomposition_selection_differential(self):
+        """Fabricated positives accepted, honest negatives rejected →
+        positive selection differential."""
+        metrics = SoftMetrics()
+        interactions = [
+            # Accepted: over-scored fabrications
+            SoftInteraction(p=0.9, accepted=True, ground_truth=-1),
+            SoftInteraction(p=0.85, accepted=True, ground_truth=-1),
+            # Rejected: well-scored honest negatives
+            SoftInteraction(p=0.2, accepted=False, ground_truth=1),
+            # Uncertified accepted (coverage < 1)
+            SoftInteraction(p=0.7, accepted=True),
+        ]
+        decomp = metrics.pcg_decomposition(interactions)
+        assert decomp["pcg_accepted"] == pytest.approx(0.875)
+        assert decomp["pcg_rejected"] == pytest.approx(-0.8)
+        assert decomp["selection_differential"] == pytest.approx(1.675)
+        assert decomp["certified_coverage_accepted"] == pytest.approx(2 / 3)
+        assert decomp["n_certified_accepted"] == 2
+        assert decomp["n_certified_rejected"] == 1
+
+    def test_decomposition_empty(self):
+        metrics = SoftMetrics()
+        decomp = metrics.pcg_decomposition([])
+        assert decomp["pcg_accepted"] is None
+        assert decomp["pcg_rejected"] is None
+        assert decomp["selection_differential"] is None
+        assert decomp["certified_coverage_accepted"] == 0.0
+
+    def test_differs_from_calibration_error_by_conditioning(self):
+        """PCG conditions on acceptance; calibration_error does not."""
+        metrics = SoftMetrics()
+        interactions = [
+            SoftInteraction(p=0.9, accepted=True, ground_truth=-1),
+            SoftInteraction(p=0.1, accepted=False, ground_truth=-1),
+        ]
+        pcg = metrics.plausibility_certificate_gap(interactions)
+        cal = metrics.calibration_error(interactions)
+        assert pcg == pytest.approx(0.9)
+        assert cal == pytest.approx(0.5)
+
+
+class TestProjectionDiagnostics:
+    """Tests for ρ(p,a), toxicity decomposition, and C-S saturation."""
+
+    def _mixed(self):
+        # 4 interactions: 2 accepted (high p), 2 rejected (low p) → positive Q
+        return [
+            SoftInteraction(p=0.9, accepted=True),
+            SoftInteraction(p=0.7, accepted=True),
+            SoftInteraction(p=0.3, accepted=False),
+            SoftInteraction(p=0.1, accepted=False),
+        ]
+
+    def test_correlation_in_unit_interval(self):
+        rho = SoftMetrics().quality_correlation(self._mixed())
+        assert -1.0 <= rho <= 1.0
+        assert rho > 0  # accepts have higher p than rejects
+
+    def test_correlation_degenerate(self):
+        m = SoftMetrics()
+        # All accepted ⇒ Var(a)=0 ⇒ ρ=0
+        assert m.quality_correlation(
+            [SoftInteraction(p=0.5, accepted=True) for _ in range(4)]
+        ) == 0.0
+        # All same p ⇒ Var(p)=0 ⇒ ρ=0
+        assert m.quality_correlation([
+            SoftInteraction(p=0.5, accepted=True),
+            SoftInteraction(p=0.5, accepted=False),
+        ]) == 0.0
+
+    def test_correlation_perfect_sorting(self):
+        # p is an affine function of a ⇒ |ρ| = 1
+        interactions = [
+            SoftInteraction(p=1.0, accepted=True),
+            SoftInteraction(p=1.0, accepted=True),
+            SoftInteraction(p=0.0, accepted=False),
+            SoftInteraction(p=0.0, accepted=False),
+        ]
+        rho = SoftMetrics().quality_correlation(interactions)
+        assert abs(rho - 1.0) < 1e-9
+
+    def test_toxicity_decomposition_reconstructs(self):
+        d = SoftMetrics().toxicity_decomposition(self._mixed())
+        # T = baseline_harm - selection_credit, up to float noise
+        assert d["reconstruction_error"] < 1e-9
+        assert d["baseline_harm"] > 0
+        assert d["selection_credit"] > 0  # good selection ⇒ positive credit
+
+    def test_saturation_in_unit_interval(self):
+        s = SoftMetrics().selection_saturation(self._mixed())
+        assert 0.0 <= s <= 1.0 + 1e-9
+
+    def test_saturation_one_at_perfect_sorting(self):
+        interactions = [
+            SoftInteraction(p=1.0, accepted=True),
+            SoftInteraction(p=0.0, accepted=False),
+        ]
+        s = SoftMetrics().selection_saturation(interactions)
+        assert abs(s - 1.0) < 1e-9
+
+    def test_reporter_emits_diagnostics(self):
+        summary = MetricsReporter().summary(self._mixed())
+        assert summary.quality_correlation > 0
+        assert summary.baseline_harm > 0
+        assert summary.selection_credit > 0
+        # Reporter's T = baseline - credit
+        assert abs(
+            summary.toxicity_soft - (summary.baseline_harm - summary.selection_credit)
+        ) < 1e-9
+        assert 0.0 <= summary.selection_saturation <= 1.0 + 1e-9
+
+
 class TestParticipationByQuality:
     """Tests for participation by quality."""
 

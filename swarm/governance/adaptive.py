@@ -121,13 +121,11 @@ class ContemplationEvaluator:
         config: Any,
         min_evidence_epochs: int = 10,
         confidence_threshold: float = 0.8,
-        seed: Optional[int] = None,
     ) -> None:
         self._params = {p.field_name: p for p in adaptable_params}
         self._config = config
         self._min_evidence_epochs = min_evidence_epochs
         self._confidence_threshold = confidence_threshold
-        self._seed = seed
 
     def evaluate(
         self, accumulator: EvidenceAccumulator, current_epoch: int
@@ -266,7 +264,8 @@ class ContemplationEvaluator:
             if abs(actual_delta) < 1e-6:
                 continue
 
-            confidence = strength * (abs(slope) / max(abs(slope), 0.01))
+            # Dampen confidence if slope signal is very weak (< 0.01)
+            confidence = strength * min(abs(slope) / 0.01, 1.0)
 
             proposal = ThresholdProposal(
                 parameter=name,

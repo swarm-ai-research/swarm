@@ -167,16 +167,12 @@ TASK_INDEX: Dict[str, RivalsTask] = {t.task_id: t for t in TASK_CATALOG}
 def sample_tasks(
     rng: Any,
     count: int,
-    trap_probability: float = 0.5,
 ) -> List[RivalsTask]:
     """Sample tasks from the catalog.
 
     Args:
         rng: Random instance for reproducibility.
         count: Number of tasks to sample.
-        trap_probability: Probability of including traps (unused for now;
-            traps are always present in ground truth but producers may or
-            may not fall for them based on their trap_awareness).
 
     Returns:
         List of sampled tasks (with replacement if count > catalog size).

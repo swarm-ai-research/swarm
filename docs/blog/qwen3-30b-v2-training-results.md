@@ -478,7 +478,7 @@ prime rl run configs/rl/swarm-economy-v2.toml
 5. ~~**Boost reputation weight.**~~ Done — increasing from 0.3 to 0.5 raised total reward to 1.56 but reputation itself didn't budge. Weight tuning is exhausted; structural changes needed.
 6. **Training stability.** The rep=0.5 run had severe error spikes (76.6% at step 100). Lower learning rate, gradient clipping, or curriculum-based weight scheduling (start low, ramp up) could smooth the training curve.
 7. **Cross-model comparison.** Run the same environment with different base models (Llama-4-Scout, Nemotron-7B) to test whether the learned strategies are model-specific or universal.
-8. **Harder environments.** The model saturates both medium and hard at ~1.46-1.56 reward. [Next steps](../getting-started/installation.md) include: multi-round deception (bots that build trust then defect), resource scarcity mechanics, or coalition dynamics between bot factions.
+8. **Harder environments.** The model saturates both medium and hard at ~1.46-1.56 reward. Next steps include: multi-round deception (bots that build trust then defect), resource scarcity mechanics, or coalition dynamics between bot factions.
 
 ---
 

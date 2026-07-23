@@ -205,7 +205,7 @@ class OpportunisticPolicy(DeliveryPolicy):
         current = obs.get("current_order")
 
         if current is not None:
-            # Sometimes abandons low-value deliveries
+            # Sometimes abandons carrying deliveries
             if current.get("carrying") and self._rng.random() < 0.1:
                 return DeliveryAction(
                     agent_id=self.agent_id,

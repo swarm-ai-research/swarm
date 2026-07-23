@@ -23,6 +23,15 @@ from swarm.csm.types import (
 )
 
 # ---------------------------------------------------------------------------
+# Base preference weights (shared across dimensionalities)
+# ---------------------------------------------------------------------------
+
+BASE_PREFERENCE_WEIGHTS = {
+    "price": -1.0,      # Negative: lower price preferred
+    "quality": 1.0,     # Positive: higher quality preferred
+}
+
+# ---------------------------------------------------------------------------
 # Catalog generator
 # ---------------------------------------------------------------------------
 
@@ -142,15 +151,15 @@ def generate_buyer_preferences(
 
     prefs = []
     for _ in range(n_buyers):
-        if preference_dim == PreferenceDimensionality.LOW:
-            weights = {
-                "price": -float(rng.uniform(0.5, 1.5)),
-                "quality": float(rng.uniform(0.5, 2.0)),
-            }
-        else:
-            weights = {
-                "price": -float(rng.uniform(0.5, 1.5)),
-                "quality": float(rng.uniform(0.5, 2.0)),
+        # Start with randomized base weights
+        weights = {
+            "price": -float(rng.uniform(0.5, 1.5)),
+            "quality": float(rng.uniform(0.5, 2.0)),
+        }
+
+        if preference_dim == PreferenceDimensionality.HIGH:
+            # Add high-dimensional attributes
+            weights.update({
                 "durability": float(rng.uniform(0.0, 1.0)),
                 "brand": float(rng.uniform(0.0, 0.5)),
                 "shipping_speed": float(rng.uniform(0.0, 0.8)),
@@ -158,7 +167,7 @@ def generate_buyer_preferences(
                 "sustainability": float(rng.uniform(0.0, 0.4)),
                 "reviews": float(rng.uniform(0.0, 0.7)),
                 "design": float(rng.uniform(0.0, 0.3)),
-            }
+            })
             noise_std = 0.1  # High-D always has elicitation noise
 
         prefs.append(PreferenceModel(weights=weights, noise_std=noise_std))

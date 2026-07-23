@@ -48,7 +48,11 @@ def _build_llm_fn(config: ConcordiaEntityConfig) -> Optional[LLMCallable]:
     """Build an LLM callable from config.
 
     Returns ``(system_prompt, user_prompt) -> response_text``,
-    or *None* if provider is ``"none"`` (canned-response mode).
+    or *None* in any of these cases:
+      - provider is ``"none"`` (canned-response mode).
+      - provider is unknown/unrecognized.
+      - required API key is missing.
+      - required package cannot be imported (openai, anthropic, google-generativeai).
 
     Supports:
       - **OpenAI-compatible** (groq, openrouter, openai, ollama, together,

@@ -1,7 +1,7 @@
 """Soft metrics for interaction quality analysis."""
 
 import math
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 from swarm.core.payoff import SoftPayoffEngine
 from swarm.models.interaction import SoftInteraction
@@ -61,18 +61,16 @@ class SoftMetrics:
 
         return sum(1 - i.p for i in interactions) / len(interactions)
 
-    def conditional_loss_initiator(self, interactions: List[SoftInteraction]) -> float:
+    def _conditional_loss(
+        self,
+        interactions: List[SoftInteraction],
+        payoff_fn: Callable[[SoftInteraction], float],
+    ) -> float:
         """
-        Compute conditional loss for initiator: E[π_a | accepted] - E[π_a]
+        Compute E[payoff | accepted] - E[payoff] for the given payoff function.
 
         Negative values indicate adverse selection (accepted interactions
-        are worse than average for the initiator).
-
-        Args:
-            interactions: List of interactions
-
-        Returns:
-            Conditional loss (negative = adverse selection)
+        are worse than average for that party).
         """
         if not interactions:
             return 0.0
@@ -81,17 +79,22 @@ class SoftMetrics:
         if not accepted:
             return 0.0
 
-        # Average payoff for accepted
-        avg_accepted = sum(
-            self.payoff_engine.payoff_initiator(i) for i in accepted
-        ) / len(accepted)
-
-        # Average payoff overall
-        avg_all = sum(
-            self.payoff_engine.payoff_initiator(i) for i in interactions
-        ) / len(interactions)
+        avg_accepted = sum(payoff_fn(i) for i in accepted) / len(accepted)
+        avg_all = sum(payoff_fn(i) for i in interactions) / len(interactions)
 
         return avg_accepted - avg_all
+
+    def conditional_loss_initiator(self, interactions: List[SoftInteraction]) -> float:
+        """
+        Compute conditional loss for initiator: E[π_a | accepted] - E[π_a]
+
+        Args:
+            interactions: List of interactions
+
+        Returns:
+            Conditional loss (negative = adverse selection)
+        """
+        return self._conditional_loss(interactions, self.payoff_engine.payoff_initiator)
 
     def conditional_loss_counterparty(
         self, interactions: List[SoftInteraction]
@@ -105,22 +108,9 @@ class SoftMetrics:
         Returns:
             Conditional loss (negative = adverse selection)
         """
-        if not interactions:
-            return 0.0
-
-        accepted = [i for i in interactions if i.accepted]
-        if not accepted:
-            return 0.0
-
-        avg_accepted = sum(
-            self.payoff_engine.payoff_counterparty(i) for i in accepted
-        ) / len(accepted)
-
-        avg_all = sum(
-            self.payoff_engine.payoff_counterparty(i) for i in interactions
-        ) / len(interactions)
-
-        return avg_accepted - avg_all
+        return self._conditional_loss(
+            interactions, self.payoff_engine.payoff_counterparty
+        )
 
     def spread(self, interactions: List[SoftInteraction]) -> float:
         """
@@ -142,8 +132,8 @@ class SoftMetrics:
         if not accepted:
             return 0.0
 
-        avg_p_all = sum(i.p for i in interactions) / len(interactions)
-        avg_p_accepted = sum(i.p for i in accepted) / len(accepted)
+        avg_p_all = self.average_quality(interactions)
+        avg_p_accepted = self.average_quality(interactions, accepted_only=True)
 
         scale = self.payoff_engine.config.s_plus + self.payoff_engine.config.s_minus
 
@@ -172,6 +162,190 @@ class SoftMetrics:
         avg_p_rejected = sum(i.p for i in rejected) / len(rejected)
 
         return avg_p_accepted - avg_p_rejected
+
+    def quality_correlation(self, interactions: List[SoftInteraction]) -> float:
+        """
+        Pearson correlation ρ(p, a) ∈ [-1, +1] between soft labels and
+        acceptance — the projection-normalized quality gap.
+
+        Derivation: Q = E[p|a=1] - E[p|a=0] = Cov(p,a)/Var(a). Cauchy-Schwarz
+        gives |Q| ≤ σ_p / √(αβ), so ρ(p,a) = Q · √(αβ) / σ_p ∈ [-1, +1].
+
+        Returns:
+            ρ ∈ [-1, +1]; 0.0 when Var(p) or Var(a) is zero
+            (no signal to correlate).
+        """
+        n = len(interactions)
+        if n < 2:
+            return 0.0
+
+        n_acc = sum(1 for i in interactions if i.accepted)
+        if n_acc == 0 or n_acc == n:
+            return 0.0  # Var(a) = 0
+
+        alpha = n_acc / n
+        mean_p = self.average_quality(interactions)
+        var_p = self.quality_variance(interactions)
+        if var_p == 0.0:
+            return 0.0  # Var(p) = 0
+
+        cov = sum((i.p - mean_p) * ((1.0 if i.accepted else 0.0) - alpha)
+                  for i in interactions) / n
+        return cov / math.sqrt(var_p * alpha * (1 - alpha))
+
+    def toxicity_decomposition(self, interactions: List[SoftInteraction]) -> dict:
+        """
+        Decompose toxicity into baseline harm minus selection credit:
+
+            T = (1 - E[p]) - β · Q
+
+        where β = P(rejected) and Q = quality gap. The baseline term
+        is a population property; the credit term is what governance
+        can move by improving selection.
+
+        Returns:
+            Dict with keys baseline_harm, selection_credit, toxicity,
+            and reconstruction_error (|T_direct - (baseline - credit)|,
+            should be ~0 modulo float).
+        """
+        if not interactions:
+            return {
+                "baseline_harm": 0.0,
+                "selection_credit": 0.0,
+                "toxicity": 0.0,
+                "reconstruction_error": 0.0,
+            }
+
+        n = len(interactions)
+        n_acc = sum(1 for i in interactions if i.accepted)
+        beta = (n - n_acc) / n
+        baseline = 1.0 - self.average_quality(interactions)
+        q = self.quality_gap(interactions)
+        credit = beta * q
+        tox_direct = self.toxicity_rate(interactions)
+        return {
+            "baseline_harm": baseline,
+            "selection_credit": credit,
+            "toxicity": tox_direct,
+            "reconstruction_error": abs(tox_direct - (baseline - credit)),
+        }
+
+    def plausibility_certificate_gap(
+        self, interactions: List[SoftInteraction]
+    ) -> Optional[float]:
+        """
+        Plausibility-certificate gap: PCG = E[p - p_cert | accepted, certified]
+
+        where p_cert = (ground_truth + 1) / 2 is the certificate-derived
+        probability for interactions whose latent ground truth was recorded.
+
+        This is the acceptance-conditioned counterpart of calibration_error:
+        calibration asks whether p is well-scaled where truth is recoverable;
+        PCG asks how far the *accepted set* drifts from certified reality.
+        A persistently positive PCG is the signature of an ecosystem
+        selecting on transcript plausibility rather than verified outcomes —
+        the precondition for the fabrication equilibrium
+        (docs/research/dgg-counterexample-lessons.md §3, beads mt8a).
+
+        Interpretation note: because certificates are binary while p is
+        probabilistic, the honest baseline is typically *negative* (an
+        honest success at p=0.7 contributes -0.3). Read PCG as a trend or
+        against a fabrication-free baseline: fabricated positives
+        (high p, p_cert=0) pull it upward. For a level statistic use
+        pcg_decomposition's selection_differential, which cancels the
+        shared calibration offset.
+
+        Args:
+            interactions: List of interactions
+
+        Returns:
+            PCG over accepted-and-certified interactions, or None if no
+            accepted interaction carries a certificate.
+        """
+        gaps = [
+            i.p - (gt + 1) / 2
+            for i in interactions
+            if i.accepted and (gt := i.ground_truth) is not None
+        ]
+        if not gaps:
+            return None
+        return sum(gaps) / len(gaps)
+
+    def pcg_decomposition(self, interactions: List[SoftInteraction]) -> dict:
+        """
+        Decompose the plausibility-certificate gap by acceptance status.
+
+        The interesting quantity beyond accepted-set PCG is the selection
+        differential PCG_accepted - PCG_rejected: under adverse selection
+        on plausibility, over-scored interactions (fabricated positives)
+        are preferentially accepted, so the accepted set drifts positive
+        while the rejected set does not.
+
+        Coverage is reported alongside so a PCG computed from a thin
+        certified subset is never silently mistaken for a population
+        statement (no-silent-caps).
+
+        Returns:
+            Dict with keys pcg_accepted, pcg_rejected (each Optional),
+            selection_differential (None unless both sides certified),
+            certified_coverage_accepted, n_certified_accepted,
+            n_certified_rejected.
+        """
+
+        def _gap(batch: List[SoftInteraction]) -> Optional[float]:
+            gaps = [
+                i.p - (gt + 1) / 2
+                for i in batch
+                if (gt := i.ground_truth) is not None
+            ]
+            if not gaps:
+                return None
+            return sum(gaps) / len(gaps)
+
+        accepted = [i for i in interactions if i.accepted]
+        rejected = [i for i in interactions if not i.accepted]
+        pcg_acc = _gap(accepted)
+        pcg_rej = _gap(rejected)
+        n_cert_acc = sum(1 for i in accepted if i.ground_truth is not None)
+        n_cert_rej = sum(1 for i in rejected if i.ground_truth is not None)
+        return {
+            "pcg_accepted": pcg_acc,
+            "pcg_rejected": pcg_rej,
+            "selection_differential": (
+                pcg_acc - pcg_rej
+                if pcg_acc is not None and pcg_rej is not None
+                else None
+            ),
+            "certified_coverage_accepted": (
+                n_cert_acc / len(accepted) if accepted else 0.0
+            ),
+            "n_certified_accepted": n_cert_acc,
+            "n_certified_rejected": n_cert_rej,
+        }
+
+    def selection_saturation(self, interactions: List[SoftInteraction]) -> float:
+        """
+        Fraction of the Cauchy-Schwarz bound on |Q| that is realized:
+
+            saturation = |Q| / (σ_p / √(αβ))  ∈ [0, 1]
+
+        Near 1 ⇒ the selection mechanism is already extracting all the
+        sorting signal the proxy carries; further toxicity reduction
+        requires a better proxy (larger σ_p), not a better policy.
+        Returns 0.0 when the bound is undefined (σ_p = 0 or α∈{0,1}).
+        """
+        n = len(interactions)
+        if n < 2:
+            return 0.0
+        n_acc = sum(1 for i in interactions if i.accepted)
+        if n_acc == 0 or n_acc == n:
+            return 0.0
+        sigma_p = self.quality_std(interactions)
+        if sigma_p == 0.0:
+            return 0.0
+        alpha = n_acc / n
+        bound = sigma_p / math.sqrt(alpha * (1 - alpha))
+        return abs(self.quality_gap(interactions)) / bound
 
     def participation_by_quality(
         self,
@@ -319,7 +493,6 @@ class SoftMetrics:
         if not interactions:
             return {
                 "total_welfare": 0.0,
-                "total_social_surplus": 0.0,
                 "net_social_welfare": 0.0,
                 "avg_initiator_payoff": 0.0,
                 "avg_counterparty_payoff": 0.0,
@@ -328,6 +501,8 @@ class SoftMetrics:
         accepted = [i for i in interactions if i.accepted]
 
         total_welfare = sum(self.payoff_engine.total_welfare(i) for i in accepted)
+        # Social surplus charges the full externality:
+        # S_soft - E_soft = p*s+ - (1-p)*(s- + h)
         total_social = sum(self.payoff_engine.social_surplus(i) for i in accepted)
         avg_init = (
             sum(self.payoff_engine.payoff_initiator(i) for i in accepted)
@@ -342,20 +517,9 @@ class SoftMetrics:
             else 0.0
         )
 
-        # Net social welfare: private surplus minus externalities.
-        # social_surplus = S_soft - E_soft = p*s+ - (1-p)*(s- + h)
-        # This is what an economist would call welfare: the sum of all
-        # gains and losses including unpriced harm to the ecosystem.
-        net_social_welfare = (
-            sum(self.payoff_engine.social_surplus(i) for i in accepted)
-            if accepted
-            else 0.0
-        )
-
         return {
             "total_welfare": total_welfare,
-            "total_social_surplus": total_social,
-            "net_social_welfare": net_social_welfare,
+            "net_social_welfare": total_social,
             "avg_initiator_payoff": avg_init,
             "avg_counterparty_payoff": avg_counter,
         }
@@ -412,8 +576,8 @@ class SoftMetrics:
         total = 0.0
         for i in with_truth:
             # Convert ground_truth from {-1, +1} to {0, 1}
-            gt = i.ground_truth if i.ground_truth is not None else 0
-            v = (gt + 1) / 2
+            assert i.ground_truth is not None  # filtered above
+            v = (i.ground_truth + 1) / 2
             total += (i.p - v) ** 2
 
         return total / len(with_truth)
@@ -525,8 +689,8 @@ class SoftMetrics:
         total = 0.0
         for i in with_truth:
             # Convert ground_truth from {-1, +1} to {0, 1}
-            gt = i.ground_truth if i.ground_truth is not None else 0
-            v = (gt + 1) / 2
+            assert i.ground_truth is not None  # filtered above
+            v = (i.ground_truth + 1) / 2
             # Clamp p to avoid log(0)
             p_clamped = max(eps, min(1 - eps, i.p))
 
@@ -636,6 +800,15 @@ class SoftMetrics:
             return 0.0
         return sum(len(i.causal_parents) for i in synthesis) / len(synthesis)
 
+    @staticmethod
+    def _variance(values: List[float]) -> float:
+        """Population variance of values; 0.0 when fewer than 2 values."""
+        if len(values) < 2:
+            return 0.0
+
+        mean = sum(values) / len(values)
+        return sum((v - mean) ** 2 for v in values) / len(values)
+
     def quality_variance(
         self,
         interactions: List[SoftInteraction],
@@ -654,13 +827,7 @@ class SoftMetrics:
         if accepted_only:
             interactions = [i for i in interactions if i.accepted]
 
-        if len(interactions) < 2:
-            return 0.0
-
-        mean_p = sum(i.p for i in interactions) / len(interactions)
-        variance = sum((i.p - mean_p) ** 2 for i in interactions) / len(interactions)
-
-        return variance
+        return self._variance([i.p for i in interactions])
 
     def quality_std(
         self,
@@ -691,14 +858,9 @@ class SoftMetrics:
         Returns:
             Variance of initiator payoffs
         """
-        if len(interactions) < 2:
-            return 0.0
-
-        payoffs = [self.payoff_engine.payoff_initiator(i) for i in interactions]
-        mean_payoff = sum(payoffs) / len(payoffs)
-        variance = sum((p - mean_payoff) ** 2 for p in payoffs) / len(payoffs)
-
-        return variance
+        return self._variance(
+            [self.payoff_engine.payoff_initiator(i) for i in interactions]
+        )
 
     def payoff_variance_counterparty(
         self, interactions: List[SoftInteraction]
@@ -714,14 +876,9 @@ class SoftMetrics:
         Returns:
             Variance of counterparty payoffs
         """
-        if len(interactions) < 2:
-            return 0.0
-
-        payoffs = [self.payoff_engine.payoff_counterparty(i) for i in interactions]
-        mean_payoff = sum(payoffs) / len(payoffs)
-        variance = sum((p - mean_payoff) ** 2 for p in payoffs) / len(payoffs)
-
-        return variance
+        return self._variance(
+            [self.payoff_engine.payoff_counterparty(i) for i in interactions]
+        )
 
     def coefficient_of_variation(self, interactions: List[SoftInteraction]) -> dict:
         """

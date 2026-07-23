@@ -112,8 +112,6 @@ class TraceSegmenter:
             if should_split or idx == len(trace.tool_calls) - 1:
                 # Create segment
                 end_idx = idx + 1
-                if idx == len(trace.tool_calls) - 1:
-                    end_idx = len(trace.tool_calls)
 
                 segment = TraceSegment(
                     segment_id=f"{trace.episode_id}_seg_{len(segments)}",

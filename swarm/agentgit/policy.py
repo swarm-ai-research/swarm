@@ -66,6 +66,10 @@ class PolicyFacts:
     checks: Dict[str, bool]
     dependency_paths: List[str]
     overridden_rules: Set[str]
+    # Trust score in [0, 1] for the acting reputation key (see
+    # swarm.agentgit.reputation). None = no track record; ``trust_below``
+    # rules treat unknown as below-threshold (fail-closed).
+    agent_trust: Optional[float] = None
 
     @classmethod
     def from_snapshot(
@@ -73,6 +77,7 @@ class PolicyFacts:
         snapshot: GitSnapshot,
         check_results: Optional[Dict[str, bool]] = None,
         overrides: Optional[Sequence[Dict[str, Any]]] = None,
+        agent_trust: Optional[float] = None,
     ) -> "PolicyFacts":
         paths = [file.path for file in snapshot.changed_files]
         return cls(
@@ -82,6 +87,7 @@ class PolicyFacts:
             checks=dict(check_results or {}),
             dependency_paths=[p for p in paths if _is_dependency_file(p)],
             overridden_rules=_overridden_rules(overrides),
+            agent_trust=agent_trust,
         )
 
     @classmethod
@@ -90,6 +96,7 @@ class PolicyFacts:
         bundle: Dict[str, Any],
         trusted_overrides: Optional[Iterable[str]] = None,
         trusted_checks: Optional[Dict[str, bool]] = None,
+        agent_trust: Optional[float] = None,
     ) -> "PolicyFacts":
         """Build facts from a bundle for CI gating.
 
@@ -116,6 +123,10 @@ class PolicyFacts:
             added_lines=int(totals.get("additions", 0)),
             changed_files=int(totals.get("changed_files", len(files))),
             checks=dict(trusted_checks or {}),
+            # Like checks/overrides, trust is never read out of the
+            # (agent-supplied) bundle: it comes from a CI-side reputation
+            # ledger via the caller, or stays None (unknown).
+            agent_trust=agent_trust,
             # Derive dependency facts from the signed ``git.changed_files`` (the
             # same source ``from_snapshot`` uses), NOT ``provenance``: the
             # provenance block is only folded into the signed payload for schema
@@ -142,6 +153,7 @@ _CONDITION_TYPES: Dict[str, type | tuple[type, ...]] = {
     "changed_files_gt": int,
     "check_failed": str,
     "check_passed": str,
+    "trust_below": (int, float),
 }
 
 
@@ -156,10 +168,14 @@ def _validate_when(rule_id: str, when: Dict[str, Any]) -> None:
             )
         expected = _CONDITION_TYPES[key]
         # ``bool`` is a subclass of ``int``; keep the numeric thresholds strictly
-        # integral so ``added_lines_gt: true`` is flagged rather than meaning 1.
-        if expected is int and isinstance(value, bool):
+        # numeric so ``added_lines_gt: true`` / ``trust_below: true`` are
+        # flagged rather than silently meaning 1.
+        numeric_only = expected is int or (
+            isinstance(expected, tuple) and int in expected and bool not in expected
+        )
+        if numeric_only and isinstance(value, bool):
             raise ValueError(
-                f"rule {rule_id!r}: condition {key!r} expects an integer, got bool"
+                f"rule {rule_id!r}: condition {key!r} expects a number, got bool"
             )
         if not isinstance(value, expected):
             raise ValueError(
@@ -242,6 +258,13 @@ class ConditionalRule:
             return False
         if "check_passed" in when and not facts.checks.get(when["check_passed"], False):
             return False
+        if "trust_below" in when:
+            # Unknown trust (no track record) counts as below-threshold:
+            # fail-closed, because "no history" must not outrank "bad
+            # history". A known score at/above the threshold doesn't match.
+            trust = facts.agent_trust
+            if trust is not None and trust >= when["trust_below"]:
+                return False
         return True
 
     def evaluate(self, facts: PolicyFacts) -> PolicyDecision:
@@ -447,6 +470,7 @@ def gate_bundle(
     *,
     trusted_overrides: Optional[Iterable[str]] = None,
     trusted_checks: Optional[Dict[str, bool]] = None,
+    agent_trust: Optional[float] = None,
 ) -> tuple[bool, List[PolicyDecision]]:
     """Enforce a (CI/org-owned) policy against an already-attested bundle.
 
@@ -468,6 +492,7 @@ def gate_bundle(
         bundle,
         trusted_overrides=trusted_overrides,
         trusted_checks=trusted_checks,
+        agent_trust=agent_trust,
     )
     decisions = policy.evaluate_facts(facts)
     return decisions_passed(decisions), decisions

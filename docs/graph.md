@@ -14,7 +14,10 @@ checked out alongside this one — its papers, research notes, and study writeup
 
 **Drag** to pan, **scroll** to zoom, **hover** a node to see its description in
 the side panel, and **click** to open it (or focus it, in speedrun mode).
-Dashed nodes are orphans — nothing links to them yet.
+Dashed nodes are orphans — nothing links to them yet. **Node size reflects
+PageRank**: bigger pages are more central to the corpus. Hit **Key concepts**
+to spotlight the load-bearing pages, or **Show orphans** for the disconnected
+ones.
 
 <div id="kb-stats" class="kb-stats"></div>
 
@@ -24,6 +27,7 @@ Dashed nodes are orphans — nothing links to them yet.
     <label class="kb-radio"><input type="radio" name="kb-mode" id="kb-mode-browse" checked /> Browse</label>
     <label class="kb-radio" title="Click stays on the graph; the side panel shows outgoing links to click next."><input type="radio" name="kb-mode" id="kb-mode-speedrun" /> Speedrun</label>
     <button id="kb-show-orphans" class="kb-mini-btn">Show orphans</button>
+    <button id="kb-show-key" class="kb-mini-btn" title="Spotlight the most central pages by PageRank — the corpus spine and the pages whose edits ripple widest.">Key concepts</button>
     <button id="kb-toggle-semantic" class="kb-mini-btn on" title="Dashed violet edges = TF-IDF similarity suggestions, no explicit link in the corpus.">Suggestions: on</button>
   </div>
   <div class="kb-pathfinder">

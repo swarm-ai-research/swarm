@@ -71,7 +71,6 @@ class AgentRxivServer:
         self.auto_install_deps = auto_install_deps
 
         self._process: subprocess.Popen | None = None
-        self._is_running = False
 
     @property
     def is_running(self) -> bool:
@@ -163,7 +162,6 @@ class AgentRxivServer:
         if wait:
             self._wait_for_ready(timeout)
 
-        self._is_running = True
         logger.info(f"AgentRxiv server started at {self.base_url}")
 
     def _wait_for_ready(self, timeout: int = 30) -> None:
@@ -223,7 +221,6 @@ class AgentRxivServer:
             self._process.wait()
 
         self._process = None
-        self._is_running = False
         logger.info("AgentRxiv server stopped")
 
     def restart(self) -> None:

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0,<83", "wheel"]
+requires = ["setuptools>=61.0,<84", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -26,7 +26,7 @@ classifiers = [
 dependencies = [
     "numpy>=1.24",
     "pydantic>=2.0",
-    "pandas>=2.0",
+    "pandas>=2.1",
     "pyyaml>=6.0",
     "pynacl>=1.5",
 ]
@@ -94,6 +94,9 @@ concordia = [
 crewai = [
     "crewai>=0.80.0,<2.0",
 ]
+avp = [
+    "agentveil>=0.1",
+]
 awm = [
     "httpx>=0.27.0",
 ]
@@ -120,9 +123,9 @@ gamescape = [
     "gamescape",
 ]
 langgraph = [
-    "langgraph==1.2.1",
-    "langchain-core==1.4.0",
-    "langchain-anthropic==1.4.3",
+    "langgraph==1.2.9",
+    "langchain-core==1.4.9",
+    "langchain-anthropic==1.4.8",
     "langchain-ollama>=0.3.0",
     "langchain-openai>=0.3.0",
 ]
@@ -132,6 +135,13 @@ langgraph = [
 #   pip install "swarm-safety[evolve]" \
 #     "darwinian-evolver @ git+https://github.com/imbue-ai/darwinian_evolver.git"
 evolve = []
+# NOTE: a-evolve is GitHub-only and ships no LICENSE file (README claims MIT)
+# as of the pinned SHA — do NOT vendor its code; install it side-by-side:
+#   pip install "swarm-safety[aevolve]" \
+#     "a-evolve @ git+https://github.com/A-EVO-Lab/a-evolve.git@c9d4789f2be499589d543aa08e74d05d10d93177"
+# The bridge (swarm/bridges/aevolve/) soft-imports agent_evolve and stays
+# fully functional/testable without it (structural stand-in types).
+aevolve = []
 gepa = [
     "gepa>=0.1.0",
 ]
@@ -160,8 +170,8 @@ all = [
 [project.urls]
 Homepage = "https://swarm-ai.org"
 Documentation = "https://docs.swarm-ai.org"
-Repository = "https://github.com/swarm-ai-safety/swarm"
-Issues = "https://github.com/swarm-ai-safety/swarm/issues"
+Repository = "https://github.com/swarm-ai-research/swarm"
+Issues = "https://github.com/swarm-ai-research/swarm/issues"
 
 [project.scripts]
 swarm = "swarm.__main__:main"
@@ -198,10 +208,14 @@ markers = [
     "memory: mark test as memory-focused (runs with memory limits)",
     "memory_intensive: mark test as long-running memory test (>1000 epochs)",
     "perf: mark wall-clock performance budget test (run serially without coverage; tracer/xdist distort timing)",
+    "smoke: fast determinism smoke tests on the live calibration track (select with '-m smoke')",
 ]
 
 [tool.mypy]
-python_version = "3.10"
+# Must be >= 3.12: numpy's stubs use PEP 695 `type` statements, which mypy
+# rejects as syntax errors when emulating an older target version. CI runs on
+# 3.12, so check against it. Runtime support floor stays at 3.10 (requires-python).
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true

@@ -78,7 +78,7 @@ def _extract_links(text: str) -> tuple[list[str], list[str]]:
             hostname = parsed.hostname or ""
             path = parsed.path or ""
             is_own_domain = hostname == "swarm-ai.org" or hostname.endswith(".swarm-ai.org")
-            is_own_github = hostname in ("github.com", "raw.githubusercontent.com") and path.startswith("/swarm-ai-safety/")
+            is_own_github = hostname in ("github.com", "raw.githubusercontent.com") and path.startswith("/swarm-ai-research/")
             if is_own_domain or is_own_github:
                 internal.append(url)
             else:

@@ -7,6 +7,7 @@ Supports four sharing architectures:
 - COMMUNICATION: Skills referenced by ID across agents
 """
 
+import random
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional, Set
@@ -168,39 +169,20 @@ class SkillLibrary:
         Retrieves the best applicable task-specific skill for the domain.
         If none is found, falls back to the best applicable general skill.
         """
-        import random as _random
-
         # Try task-specific skills in the requested domain
         task_applicable = [
             s for s in self.get_applicable_skills(domain, context)
             if s.tier == SkillTier.TASK_SPECIFIC
         ]
         if task_applicable:
-            if _random.random() < exploration_rate:
-                return _random.choice(task_applicable)
-            return max(
-                task_applicable,
-                key=lambda s: self._performance.get(
-                    s.skill_id, SkillPerformance()
-                ).effectiveness,
-            )
+            return self._epsilon_greedy_select(task_applicable, exploration_rate)
 
         # Fallback to general-tier skills (domain-agnostic)
         general_applicable = [
             s for s in self._skills.values()
             if s.tier == SkillTier.GENERAL and self._condition_matches(s, context)
         ]
-        if general_applicable:
-            if _random.random() < exploration_rate:
-                return _random.choice(general_applicable)
-            return max(
-                general_applicable,
-                key=lambda s: self._performance.get(
-                    s.skill_id, SkillPerformance()
-                ).effectiveness,
-            )
-
-        return None
+        return self._epsilon_greedy_select(general_applicable, exploration_rate)
 
     def get_applicable_skills(
         self,
@@ -218,6 +200,29 @@ class SkillLibrary:
                 result.append(skill)
         return result
 
+    def _epsilon_greedy_select(
+        self,
+        applicable_skills: List[Skill],
+        exploration_rate: float = 0.1,
+    ) -> Optional[Skill]:
+        """Select a skill using epsilon-greedy exploration-exploitation.
+
+        With probability exploration_rate, returns a random applicable skill.
+        Otherwise returns the one with highest effectiveness.
+        """
+        if not applicable_skills:
+            return None
+
+        # Exploration: choose random skill
+        if random.random() < exploration_rate:
+            return random.choice(applicable_skills)
+
+        # Exploitation: pick skill with highest effectiveness
+        return max(
+            applicable_skills,
+            key=lambda s: self._performance.get(s.skill_id, SkillPerformance()).effectiveness,
+        )
+
     def select_best_skill(
         self,
         domain: SkillDomain,
@@ -229,22 +234,8 @@ class SkillLibrary:
         With probability exploration_rate, returns a random applicable skill.
         Otherwise returns the one with highest effectiveness.
         """
-        import random
-
         applicable = self.get_applicable_skills(domain, context)
-        if not applicable:
-            return None
-
-        # Exploration
-        if random.random() < exploration_rate:
-            return random.choice(applicable)
-
-        # Exploitation: pick by effectiveness
-        best = max(
-            applicable,
-            key=lambda s: self._performance.get(s.skill_id, SkillPerformance()).effectiveness,
-        )
-        return best
+        return self._epsilon_greedy_select(applicable, exploration_rate)
 
     @property
     def size(self) -> int:

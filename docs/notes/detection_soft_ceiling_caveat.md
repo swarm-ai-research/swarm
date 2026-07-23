@@ -1,7 +1,7 @@
 # Caveat: the soft AUROC/AUPRC = 1.00 figures are a ceiling of the generator, not a power estimate
 
 **Date**: 2026-05-25
-**Scope**: `swarm/detection/degradation.py` generative model; the headline soft-vs-binary results in [PR #450](https://github.com/swarm-ai-safety/swarm/pull/450), the blog post `docs/blog/soft-vs-binary-detection.md`, and the 2D grid note `detection_2d_grid_key_cells.md`.
+**Scope**: `swarm/detection/degradation.py` generative model; the headline soft-vs-binary results in [PR #450](https://github.com/swarm-ai-research/swarm/pull/450), the blog post `docs/blog/soft-vs-binary-detection.md`, and the 2D grid note `detection_2d_grid_key_cells.md`.
 
 ## TL;DR
 

@@ -11,6 +11,7 @@ Maps the "overwork → stance drift" phenomenon into SWARM's native
 proxy/payoff architecture.
 """
 
+import random
 from collections import deque
 from typing import Dict, List, Optional
 
@@ -45,7 +46,7 @@ class WorkRegimeAgent(BaseAgent):
         roles: Optional[List[Role]] = None,
         config: Optional[Dict] = None,
         name: Optional[str] = None,
-        rng=None,
+        rng: Optional[random.Random] = None,
     ):
         super().__init__(
             agent_id=agent_id,

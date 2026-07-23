@@ -100,4 +100,4 @@ For high-stakes evaluations, use a heterogeneous council. For quick sanity check
 
 ---
 
-*The council protocol, study data, and all review traces are available in the [SWARM repository](https://github.com/swarm-ai-safety/swarm). The full mechanics are documented in [LLM Council Mechanics](../research/llm-council-mechanics.md).*
+*The council protocol, study data, and all review traces are available in the [SWARM repository](https://github.com/swarm-ai-research/swarm). The full mechanics are documented in [LLM Council Mechanics](../research/llm-council-mechanics.md).*

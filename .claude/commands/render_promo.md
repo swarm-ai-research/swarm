@@ -2,7 +2,7 @@
 
 Render the SWARM Remotion promo video to MP4, GIF, or still frame.
 
-> **Note**: The `promo/` source code has been moved to [`swarm-ai-safety/swarm-artifacts`](https://github.com/swarm-ai-safety/swarm-artifacts). Clone that repo first if `promo/` is not present locally.
+> **Note**: The `promo/` source code has been moved to [`swarm-ai-research/swarm-artifacts`](https://github.com/swarm-ai-research/swarm-artifacts). Clone that repo first if `promo/` is not present locally.
 
 ## Usage
 
@@ -22,7 +22,7 @@ Examples:
 If `promo/` is not present, instruct the user:
 ```
 promo/ not found. Clone it from the artifacts repo:
-  git clone https://github.com/swarm-ai-safety/swarm-artifacts.git /tmp/swarm-artifacts
+  git clone https://github.com/swarm-ai-research/swarm-artifacts.git /tmp/swarm-artifacts
   cp -R /tmp/swarm-artifacts/promo ./promo
 ```
 

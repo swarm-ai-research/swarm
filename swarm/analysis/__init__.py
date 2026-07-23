@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from swarm.analysis.adverse_selection import AdverseSelectionDetector
+from swarm.analysis.aggregation import AgentSnapshot
 from swarm.analysis.dashboard import (
-    AgentSnapshot,
     DashboardConfig,
     DashboardState,
     MetricSnapshot,
@@ -14,6 +14,15 @@ from swarm.analysis.dashboard import (
     extract_agent_snapshots,
     extract_metrics_from_orchestrator,
     run_dashboard,
+)
+from swarm.analysis.delm_hillclimb import (
+    HillClimbConfig,
+    HillClimbResult,
+    Objective,
+    build_adaptive_policy_objective,
+    build_governance_objective,
+    plot_trajectory,
+    run_delm_hillclimb,
 )
 from swarm.analysis.dolt_export import export_run_summary_to_dolt, export_to_dolt
 from swarm.analysis.enhanced_dashboard import (
@@ -66,6 +75,14 @@ __all__ = [
     "SweepResult",
     "SweepRunner",
     "quick_sweep",
+    # DeLM hill-climbing optimizer
+    "HillClimbConfig",
+    "HillClimbResult",
+    "Objective",
+    "build_governance_objective",
+    "build_adaptive_policy_objective",
+    "plot_trajectory",
+    "run_delm_hillclimb",
     # Dashboard
     "DashboardConfig",
     "DashboardState",

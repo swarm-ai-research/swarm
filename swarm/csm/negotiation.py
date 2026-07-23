@@ -158,6 +158,33 @@ class NegotiationEngine:
         self.adversarial_env = adversarial_env
         self.rng = rng or np.random.default_rng()
 
+    def _make_agreement_result(
+        self,
+        state: NegotiationState,
+        price: float,
+        round_num: int,
+        b_surplus: float,
+        s_surplus: float,
+        total_compute: float,
+        manip_attempted: bool,
+        manip_succeeded: bool,
+    ) -> NegotiationResult:
+        """Construct a NegotiationResult for an agreed outcome."""
+        return NegotiationResult(
+            negotiation_id=state.negotiation_id,
+            buyer_id=state.buyer_id,
+            seller_id=state.seller_id,
+            agreed=True,
+            agreement_price=price,
+            rounds_used=round_num + 1,
+            buyer_surplus=b_surplus,
+            seller_surplus=s_surplus,
+            total_surplus=b_surplus + s_surplus,
+            compute_spent=total_compute,
+            manipulation_attempted=manip_attempted,
+            manipulation_succeeded=manip_succeeded,
+        )
+
     def run_negotiation(
         self,
         state: NegotiationState,
@@ -211,19 +238,9 @@ class NegotiationEngine:
                 b_surplus = state.buyer_reservation - price
                 s_surplus = price - state.seller_reservation
 
-                return NegotiationResult(
-                    negotiation_id=state.negotiation_id,
-                    buyer_id=state.buyer_id,
-                    seller_id=state.seller_id,
-                    agreed=True,
-                    agreement_price=price,
-                    rounds_used=round_num + 1,
-                    buyer_surplus=b_surplus,
-                    seller_surplus=s_surplus,
-                    total_surplus=b_surplus + s_surplus,
-                    compute_spent=total_compute,
-                    manipulation_attempted=manip_attempted,
-                    manipulation_succeeded=manip_succeeded,
+                return self._make_agreement_result(
+                    state, price, round_num, b_surplus, s_surplus,
+                    total_compute, manip_attempted, manip_succeeded
                 )
 
             # Check if seller accepts buyer's offer
@@ -235,19 +252,9 @@ class NegotiationEngine:
                 b_surplus = state.buyer_reservation - price
                 s_surplus = price - state.seller_reservation
 
-                return NegotiationResult(
-                    negotiation_id=state.negotiation_id,
-                    buyer_id=state.buyer_id,
-                    seller_id=state.seller_id,
-                    agreed=True,
-                    agreement_price=price,
-                    rounds_used=round_num + 1,
-                    buyer_surplus=b_surplus,
-                    seller_surplus=s_surplus,
-                    total_surplus=b_surplus + s_surplus,
-                    compute_spent=total_compute,
-                    manipulation_attempted=manip_attempted,
-                    manipulation_succeeded=manip_succeeded,
+                return self._make_agreement_result(
+                    state, price, round_num, b_surplus, s_surplus,
+                    total_compute, manip_attempted, manip_succeeded
                 )
 
         # No agreement

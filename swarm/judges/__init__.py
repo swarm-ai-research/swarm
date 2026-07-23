@@ -7,13 +7,16 @@ sees the interaction. See docs/research/calibration-prereg.md.
 """
 
 from swarm.judges.judge import (
+    DEFAULT_RUBRIC_VERSION,
     RUBRIC_PATH,
     RUBRIC_VERSION,
+    RUBRICS,
     Judge,
     JudgeScore,
     LLMJudge,
     MockJudge,
     load_rubric,
+    rubric_path,
 )
 from swarm.judges.sampler import bin_counts, stratified_sample
 from swarm.judges.views import (
@@ -24,18 +27,21 @@ from swarm.judges.views import (
 )
 
 __all__ = [
+    "DEFAULT_RUBRIC_VERSION",
     "FORBIDDEN_FIELDS",
     "Judge",
     "JudgeScore",
     "JudgeView",
     "LLMJudge",
     "MockJudge",
+    "RUBRICS",
     "RUBRIC_PATH",
     "RUBRIC_VERSION",
     "assert_view_is_orthogonal",
     "bin_counts",
     "load_rubric",
     "make_view",
+    "rubric_path",
     "stratified_sample",
 ]
 

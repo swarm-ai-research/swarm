@@ -94,3 +94,89 @@ def test_guardrail_max_decrease_accepts_welfare_increase() -> None:
     )
     assert ok
     assert not errors
+
+
+class TestConsistentWithData:
+    """Regression for beads lhro: non-null alternatives are actually checked.
+
+    Previously only the null case was implemented; reverse causation and
+    confounding returned False unconditionally, so the critique agent never
+    surfaced either as a live alternative.
+    """
+
+    def _agent(self):
+        from swarm.research.agents import CritiqueAgent
+
+        return CritiqueAgent()
+
+    def _analysis(self, effect_size=0.8, p_value=0.01):
+        from swarm.research.agents import Analysis, Claim
+
+        return Analysis(claims=[
+            Claim(
+                statement="s", metric="toxicity", value=0.4,
+                confidence_interval=(0.3, 0.5),
+                effect_size=effect_size, p_value=p_value,
+            )
+        ])
+
+    def _results(self, param_sets):
+        from swarm.research.agents import ExperimentConfig, ExperimentResults
+
+        return ExperimentResults(configs=[
+            ExperimentConfig(name=f"c{i}", parameters=params)
+            for i, params in enumerate(param_sets)
+        ])
+
+    def test_reverse_causation_viable_without_manipulation(self):
+        agent = self._agent()
+        observational = self._results([{"tax": 0.1}])  # single config: no manipulation
+        assert agent._consistent_with_data(
+            "Reverse causation of H", observational, self._analysis()
+        )
+
+    def test_reverse_causation_ruled_out_by_intervention(self):
+        agent = self._agent()
+        manipulated = self._results([{"tax": 0.0}, {"tax": 0.2}])
+        assert not agent._consistent_with_data(
+            "Reverse causation of H", manipulated, self._analysis()
+        )
+
+    def test_confounding_ruled_out_by_single_parameter_sweep(self):
+        agent = self._agent()
+        sweep = self._results([{"tax": 0.0}, {"tax": 0.2}])
+        assert not agent._consistent_with_data(
+            "Confounding explains H", sweep, self._analysis()
+        )
+
+    def test_confounding_viable_when_parameters_covary(self):
+        agent = self._agent()
+        covaried = self._results([
+            {"tax": 0.0, "audit": False},
+            {"tax": 0.2, "audit": True},
+        ])
+        assert agent._consistent_with_data(
+            "Confounding explains H", covaried, self._analysis()
+        )
+
+    def test_non_null_alternatives_moot_without_claimed_effect(self):
+        agent = self._agent()
+        observational = self._results([{"tax": 0.1}])
+        weak = self._analysis(effect_size=0.1, p_value=0.6)
+        assert not agent._consistent_with_data(
+            "Reverse causation of H", observational, weak
+        )
+        assert not agent._consistent_with_data(
+            "Confounding explains H", observational, weak
+        )
+
+    def test_null_semantics_unchanged(self):
+        agent = self._agent()
+        results = self._results([{"tax": 0.1}])
+        assert agent._consistent_with_data(
+            "Null hypothesis: no effect", results,
+            self._analysis(effect_size=0.1, p_value=0.6),
+        )
+        assert not agent._consistent_with_data(
+            "Null hypothesis: no effect", results, self._analysis()
+        )

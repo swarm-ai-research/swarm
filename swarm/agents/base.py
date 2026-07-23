@@ -391,6 +391,21 @@ class BaseAgent(ABC):
         """
         pass
 
+    def _get_counterparty(self, interaction: SoftInteraction) -> str:
+        """Extract the counterparty from an interaction.
+
+        Args:
+            interaction: The completed interaction.
+
+        Returns:
+            The ID of the counterparty (the other agent in the interaction).
+        """
+        return (
+            interaction.counterparty
+            if interaction.initiator == self.agent_id
+            else interaction.initiator
+        )
+
     def update_from_outcome(
         self,
         interaction: SoftInteraction,
@@ -406,11 +421,7 @@ class BaseAgent(ABC):
         self._interaction_history.append(interaction)
 
         # Determine counterparty
-        counterparty = (
-            interaction.counterparty
-            if interaction.initiator == self.agent_id
-            else interaction.initiator
-        )
+        counterparty = self._get_counterparty(interaction)
 
         # Update counterparty trust memory.
         # Accepted interactions provide full signal (alpha=0.3).
@@ -495,6 +506,14 @@ class BaseAgent(ABC):
         self._counterparty_memory[counterparty_id] = trust
         return trust
 
+    def get_counterparty_memory(self) -> Dict[str, float]:
+        """Get a copy of the counterparty trust memory.
+
+        Returns:
+            Dict mapping counterparty agent ID to trust score in [0, 1]
+        """
+        return self._counterparty_memory.copy()
+
     def apply_memory_decay(self, epoch: int) -> None:
         """
         Apply memory decay at epoch boundary.
@@ -524,8 +543,9 @@ class BaseAgent(ABC):
         # For complete memory loss (rain agents), also clear interaction history
         if decay == 0.0:
             # Clear detailed interaction memory but keep aggregate stats
-            # This preserves the agent's internal state while losing specifics
+            # (reputation, counters on agent state survive; specifics do not).
             self._counterparty_memory.clear()
+            self._interaction_history.clear()
 
     def update_counterparty_trust(self, counterparty_id: str, new_p: float) -> None:
         """
@@ -563,22 +583,6 @@ class BaseAgent(ABC):
 
         # Load trust priors (counterparty_memory)
         self._counterparty_memory = snapshot.counterparty_trust.copy()
-
-    def should_post(self, observation: Observation) -> bool:
-        """Determine if agent should create a post."""
-        return observation.can_post
-
-    def should_vote(self, observation: Observation) -> bool:
-        """Determine if agent should vote."""
-        return observation.can_vote and len(observation.visible_posts) > 0
-
-    def should_interact(self, observation: Observation) -> bool:
-        """Determine if agent should initiate an interaction."""
-        return observation.can_interact
-
-    def should_claim_task(self, observation: Observation) -> bool:
-        """Determine if agent should claim a task."""
-        return observation.can_claim_task and len(observation.available_tasks) > 0
 
     def create_noop_action(self) -> Action:
         """Create a no-op action."""

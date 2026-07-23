@@ -30,7 +30,7 @@ This repo is set up as a **Claude Code template** for SWARM-style research work:
 
 ### Artifacts repo
 
-Large/supplementary files live in a separate repo: [`swarm-ai-safety/swarm-artifacts`](https://github.com/swarm-ai-safety/swarm-artifacts). This includes:
+Large/supplementary files live in a separate repo: [`swarm-ai-research/swarm-artifacts`](https://github.com/swarm-ai-research/swarm-artifacts). This includes:
 - Historical experiment runs, Lean proofs, promo site, research notes, reference papers, `IMPLEMENTATION_PLAN.md`, `DESIGN_CRITIQUE.md`.
 
 These directories are gitignored in main. Local `runs/` and `docs/papers/` are still used as working directories — they just aren't committed here.
@@ -194,6 +194,17 @@ Each session pane has these env vars set via `scripts/detect-session.sh`:
 
 Use `bd --sandbox` in worktrees to avoid contention with the main repo's beads daemon. The `/ship` command does this automatically.
 
+### Concurrency guard (heartbeats)
+
+Every session maintains a pid-keyed heartbeat in `.claude/session-heartbeats/`
+(written by the governance shim on session start and refreshed on every tool
+call). When a session that is **not** in an isolated worktree starts — or
+commits — while another live session shares the checkout, it gets a loud
+warning naming the other pids (exhibits of why: bead `oldj`). Set
+`SWARM_BLOCK_CONCURRENT_COMMITS=1` to turn the commit-time warning into a hard
+block. Worktree sessions (`IS_SESSION_WORKTREE=true`) are exempt — that is the
+sanctioned way to run concurrently.
+
 ### Inter-Session Coordination (`agent_messages`)
 
 Sessions coordinate via a shared SQLite table in `runs/runs.db` (accessible through the `sqlite_runs` MCP server). Schema:
@@ -209,12 +220,27 @@ CREATE TABLE agent_messages (
 );
 -- Partial index for fast inbox queries
 CREATE INDEX idx_agent_messages_to_unacked ON agent_messages (to_agent, acked) WHERE acked = 0;
+-- Artifact-only DONE enforcement (erdos-1038 lesson 5, docs/research/erdos-1038-swarm-lessons.md):
+-- a DONE row must carry a commit hash, a runs/ path, or an explicit artifact= tag.
+CREATE TRIGGER IF NOT EXISTS done_requires_artifact
+BEFORE INSERT ON agent_messages
+FOR EACH ROW
+WHEN NEW.body LIKE 'DONE:%'
+  AND NEW.body NOT LIKE '%artifact=%'
+  AND NEW.body NOT LIKE '%runs/%'
+  AND NEW.body NOT GLOB '*[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*'
+BEGIN
+  SELECT RAISE(ABORT, 'DONE rows need a concrete artifact: commit hash, runs/ path, or artifact=<ref> (optionally gate=<check>:<result>). Status reports are not DONE - see CLAUDE.md section agent_messages');
+END;
 ```
 
 **Message conventions:**
 - `ONLINE: ready for work` — announce session start
 - `CLAIM: <beads-id>` — claim a task (check before starting work to avoid duplicates)
-- `DONE: <beads-id>: <summary>` — announce completion
+- `DONE: <beads-id>: <summary> <commit|runs/path|artifact=ref> gate=<check>:<result>` —
+  announce completion. The trigger above rejects DONE rows with no artifact reference;
+  `gate=` is convention (state which check ran and its result, or `gate=none`), enforced
+  by the `/bv-dispatch` retro rather than the trigger.
 - `BLOCKED: <description>` — ask for help
 
 **Usage from any session:**
@@ -229,6 +255,11 @@ UPDATE agent_messages SET acked = 1 WHERE id = <msg_id>;
 
 If the table doesn't exist (fresh `runs.db`), create it with the schema above.
 
+For atomic claims, advisory file/module locks, structured proposals, and early
+conflict detection (beyond `CLAIM:` message strings), prefer the coordination
+primitives in the same database: `python -m swarm.agentgit coord claim|lock|conflicts|propose|status`
+(see `docs/agentgit_mvp.md` § Machine-Speed Coordination).
+
 ## Paper Author Resolution
 
 When `/write_paper` or `/compile_paper` needs an author name, resolve in this order:
@@ -242,6 +273,8 @@ Never guess or infer from the OS username.
 ## Test fix discipline
 
 - When fixing a flaky test, prefer making it deterministic (set seeds, constrain inputs) over loosening assertions.
+- Before fixing a beads-filed bug, verify the cited code at HEAD first (`grep` the cited lines, `git log -S` the symbol): in multi-session periods ~30% of filed bugs are already fixed — the filer worked from a stale snapshot. Close those with the fixing commit hash as evidence instead of re-fixing.
+- After rewriting a source file with a script (python heredoc, sed -i), a same-second mtime can defeat Python's bytecode-cache invalidation: imports then silently run the OLD code while the file shows the new code (observed twice on 2026-07-18). If a just-edited module behaves as if unchanged, `rm -rf` the package's `__pycache__` (or run `python -B`) before debugging further.
 
 ## Blog post disclaimers
 

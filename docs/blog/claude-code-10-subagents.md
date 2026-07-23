@@ -21,7 +21,7 @@ Subagents fix this. Each Task tool call launches an independent agent with its o
 
 ## The 10-agent pattern
 
-Here's what 10 concurrent subagents look like in practice. We used this to parallelize a full study — [scenario design](../papers/research_swarm_governance.md), parameter sweeps, metric auditing, and writeup — across specialized agents:
+Here's what 10 concurrent subagents look like in practice. We used this to parallelize a full study — [scenario design](https://github.com/swarm-ai-research/swarm-artifacts/blob/main/papers/research_swarm_governance.md), parameter sweeps, metric auditing, and writeup — across specialized agents:
 
 | Agent | Role | Tools used |
 |-------|------|------------|

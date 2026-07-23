@@ -418,5 +418,4 @@ class InteractionMetadata(TypedDict, total=False):
 
     # Kernel
     submission_id: str
-    challenge_id_kernel: str
     speedup: float

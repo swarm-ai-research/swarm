@@ -94,18 +94,18 @@ def make_llm_client(
     from openai import OpenAI
 
     defaults = PROVIDER_DEFAULTS[provider]
-    api_key = (
+    client_key = (
         "ollama"
         if provider == "ollama"
         else os.environ.get(defaults["api_key_env"], "")
     )
-    if not api_key and provider != "ollama":
+    if not client_key and provider != "ollama":
         raise RuntimeError(
             f"Missing {defaults['api_key_env']} environment variable for {provider}"
         )
 
     client = OpenAI(
-        api_key=api_key,
+        api_key=client_key,
         base_url=defaults["base_url"],
         timeout=timeout if provider != "ollama" else 300.0,
     )

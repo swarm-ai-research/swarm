@@ -23,7 +23,11 @@ def extract_structural_features(
 def extract_behavioral_features(
     interactions: Iterable[SoftInteraction],
 ) -> Dict[str, float]:
-    """Build within-episode behavioral feature vector."""
+    """Build within-episode behavioral feature vector.
+
+    Computes uncertainty as 1.0 - abs(2 * p - 1.0) for each interaction.
+    Precondition: SoftInteraction.p must be in [0.0, 1.0] per the type contract.
+    """
     rows = list(interactions)
     if not rows:
         return {

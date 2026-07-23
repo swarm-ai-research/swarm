@@ -20,7 +20,6 @@ import json
 import re
 import sys
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 
@@ -77,7 +76,7 @@ def parse_prose_review(prose: str) -> Dict[str, Any]:
     # Sentiment analysis for verdict
     positive_signals = len(
         re.findall(
-            r"(excellent|well.written|strong|good|clear|impressive|thorough)",
+            r"(excellent|well\.written|strong|good|clear|impressive|thorough)",
             prose,
             re.IGNORECASE,
         )
@@ -184,7 +183,7 @@ def extract_topics(text_list: List[str]) -> List[str]:
     topic_patterns = {
         "methodology": r"method|approach|design|experiment",
         "reproducibility": r"reproduc|replica|seed|random",
-        "statistics": r"statistic|p.value|confidence|significance",
+        "statistics": r"statistic|p\.value|confidence|significance",
         "clarity": r"clear|clarity|readable|understand",
         "novelty": r"novel|original|new|contribution",
         "rigor": r"rigor|thorough|comprehensive",
@@ -192,7 +191,7 @@ def extract_topics(text_list: List[str]) -> List[str]:
         "data": r"data|evidence|empirical|result",
         "writing": r"writ|prose|grammar|style",
         "structure": r"structur|organ|section|flow",
-        "citations": r"cit|reference|prior.work|related",
+        "citations": r"cit|reference|prior\.work|related",
         "limitations": r"limit|caveat|scope|constraint",
         "figures": r"figure|table|visual|plot|graph",
         "code": r"code|implement|software|artifact",

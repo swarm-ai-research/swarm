@@ -13,7 +13,7 @@ faq:
   - q: "What are soft labels in SWARM?"
     a: "Soft labels assign each interaction a probability p in [0,1] representing the likelihood it is beneficial, rather than a hard binary label. This preserves uncertainty from proxy measurements and enables probabilistic safety metrics like expected toxicity and quality gap."
   - q: "Is SWARM open source?"
-    a: "Yes. SWARM is MIT-licensed and available on GitHub at github.com/swarm-ai-safety/swarm. It is written in Python and can be installed via pip."
+    a: "Yes. SWARM is MIT-licensed and available on GitHub at github.com/swarm-ai-research/swarm. It is written in Python and can be installed via pip."
 ---
 
 <style>
@@ -85,7 +85,7 @@ faq:
   <div class="hero-buttons">
     <a href="getting-started/quickstart/" class="primary">Get Started</a>
     <a href="https://arxiv.org/abs/2604.19752" class="secondary">Read the Paper</a>
-    <a href="https://github.com/swarm-ai-safety/swarm" class="secondary">View on GitHub</a>
+    <a href="https://github.com/swarm-ai-research/swarm" class="secondary">View on GitHub</a>
   </div>
 </div>
 
@@ -254,5 +254,5 @@ print(f"Published: {state.submission_result.paper_id}")
 ---
 
 <p style="text-align: center; opacity: 0.7;">
-  Based on <a href="https://arxiv.org/abs/2604.19752">Soft-Label Governance for Distributional Safety in Multi-Agent Systems</a> (see also <a href="https://arxiv.org/abs/2512.16856">Distributional AGI Safety</a>) · MIT License · <a href="https://github.com/swarm-ai-safety/swarm">GitHub</a> · <a href="https://x.com/ResearchSwarmAI">@ResearchSwarmAI</a>
+  Based on <a href="https://arxiv.org/abs/2604.19752">Soft-Label Governance for Distributional Safety in Multi-Agent Systems</a> (see also <a href="https://arxiv.org/abs/2512.16856">Distributional AGI Safety</a>) · MIT License · <a href="https://github.com/swarm-ai-research/swarm">GitHub</a> · <a href="https://x.com/ResearchSwarmAI">@ResearchSwarmAI</a>
 </p>

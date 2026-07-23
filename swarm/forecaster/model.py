@@ -14,11 +14,13 @@ def _sigmoid(value: np.ndarray) -> np.ndarray:
 
 def _auc_roc(y_true: Sequence[int], y_score: Sequence[float]) -> float:
     """Compute AUC-ROC from scores; returns 0.5 if undefined."""
+    if len(y_true) != len(y_score):
+        raise ValueError("y_true and y_score must have equal length")
     positives = [
-        score for label, score in zip(y_true, y_score, strict=False) if label == 1
+        score for label, score in zip(y_true, y_score, strict=True) if label == 1
     ]
     negatives = [
-        score for label, score in zip(y_true, y_score, strict=False) if label == 0
+        score for label, score in zip(y_true, y_score, strict=True) if label == 0
     ]
     if not positives or not negatives:
         return 0.5
@@ -81,7 +83,11 @@ class IncoherenceForecaster:
         feature_rows: Sequence[Mapping[str, float]],
         labels: Sequence[int],
     ) -> "IncoherenceForecaster":
-        """Train logistic model on feature rows."""
+        """Train logistic model on feature rows.
+
+        Extracts union of all feature names across rows. Missing keys in individual rows
+        are filled with 0.0 during vectorization.
+        """
         if len(feature_rows) != len(labels):
             raise ValueError("feature_rows and labels must have equal length")
         if not feature_rows:
@@ -126,7 +132,7 @@ class IncoherenceForecaster:
         feature_rows: Sequence[Mapping[str, float]],
         labels: Sequence[int],
     ) -> Dict[str, float]:
-        """Compute holdout metrics including AUC and calibration summary."""
+        """Compute holdout metrics: AUC, Brier score, expected calibration error, and mean predicted risk."""
         probs = [self.predict_proba(row) for row in feature_rows]
         y_true = [int(label) for label in labels]
         brier = float(np.mean((np.array(probs) - np.array(y_true, dtype=float)) ** 2))

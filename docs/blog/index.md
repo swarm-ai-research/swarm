@@ -19,6 +19,35 @@ Posts about SWARM research findings, framework updates, and multi-agent safety.
   </div>
 </div>
 
+## June 2026
+
+<div class="blog-post" data-tags="theory governance" markdown>
+
+**Jun 24** — [Dynamic Toxicity Failure Modes: One Mechanism Out of Six Does All the Damage](dynamic-toxicity-failure-modes.md)
+<span class="blog-tag">Governance</span> <span class="blog-tag">Theory</span>
+
+We tested six dynamic toxicity feedback loops (trust erosion, contagion, proxy calibration drift, and aggressive/combined variants) against a static baseline, 42 seeds each. Five were harmless. One — *proxy calibration drift* — deterministically collapsed net welfare from +2.87 to −1.54, and did it while private surplus stayed positive (+5.72) the whole way down. Volume metrics say "PASS" while welfare is destroyed; detector durability under drift matters more than peak accuracy.
+
+</div>
+
+<div class="blog-post" data-tags="evaluation theory" markdown>
+
+**Jun 23** — [Replication Deflation: How 50 Seeds Killed Our d=2.75 Screening Effect](screening-replication-deflation.md)
+<span class="blog-tag">Methodology</span> <span class="blog-tag">Replication</span>
+
+Our 10-seed confirmatory arm reported a *d=2.75* long-horizon screening effect under tight governance. A pre-registered 50-seed replication deflated it to *d=0.38* (non-significant under Bonferroni) — and surfaced a real, smaller effect (d=0.76) we'd been overlooking under *moderate* governance. A false positive we caught on ourselves: the headline was wrong in both magnitude and governance regime, and the deflation is the finding.
+
+</div>
+
+<div class="blog-post" data-tags="theory evaluation" markdown>
+
+**Jun 6** — [Selection geometry: when a metric breaking is the diagnostic](selection-geometry-when-breaking-is-the-diagnostic.md)
+<span class="blog-tag">Theory</span> <span class="blog-tag">Evaluation</span>
+
+We re-derived the quality gap as `Cov(p,a)/Var(a)`, got a Cauchy-Schwarz bound, and built `selection_saturation = |Q|·√(αβ)/σ_p` as a unit-normalized adverse-selection metric. Three AUROC studies, 81 000 cells. v1 saturated at AUROC=1.0 (too easy). v2 showed toxicity and saturation are complementary across governor strictness. v3 added a `v̂`-inflating adversary and *inverted* the v2 ranking — but the inversion is the cause-3 fingerprint: rising toxicity AUROC + falling saturation AUROC = proxy gaming, detectable from metric geometry alone without ground truth.
+
+</div>
+
 ## May 2026
 
 <div class="blog-post" data-tags="evaluation theory" markdown>

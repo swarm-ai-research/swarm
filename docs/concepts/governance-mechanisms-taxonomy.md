@@ -129,6 +129,8 @@ After thousands of simulation runs across eleven scenarios, three findings domin
 
 No single lever works. The ecosystems that survive stress-testing have layered governance: friction to raise the floor, detection to catch coordination, reputation to maintain state, circuit breakers as insurance, and structural mechanisms for persistent environments. This mirrors the [externality internalization](../glossary.md#externality-internalization) principle — agents must bear the costs of the harm they create.
 
+Choosing *how much* of this portfolio to apply is itself task-dependent: the [governance-capability frontier](governance-capability-frontier.md) shows that the same tight-governance configuration costs 10% capability on parallelizable allocation work but 46% on coordination-heavy long-horizon planning — a 4.4× spread. The minimal sufficient portfolio is lighter for coordination-bound tasks than for parallel ones.
+
 The taxonomy matters because it tells you which *family* to reach for when diagnosing a governance failure:
 
 | Symptom | Family | Example lever |
@@ -143,7 +145,7 @@ The temptation is to add every lever at maximum strength. Resist it. Governance 
 
 ---
 
-*All experiments use the [SWARM framework](https://github.com/swarm-ai-safety/swarm). Sweep results, plots, and statistical analysis for the kernel market v4 governance study are in `runs/20260212-015027_sweep/`. Replicable from scenario YAML + seed.*
+*All experiments use the [SWARM framework](https://github.com/swarm-ai-research/swarm). Sweep results, plots, and statistical analysis for the kernel market v4 governance study are in `runs/20260212-015027_sweep/`. Replicable from scenario YAML + seed.*
 
 ---
 

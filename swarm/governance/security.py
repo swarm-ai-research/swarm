@@ -84,6 +84,13 @@ class SecurityLever(GovernanceLever):
 
         Runs threat detection and applies epoch-level penalties
         and quarantine actions.
+
+        Note:
+            interaction_history may be cleared at the end of this method
+            based on the `security_clear_history_on_epoch` config setting.
+            This affects the semantics of the min_interactions check: if
+            history is cleared, subsequent min_interactions validations are
+            over per-epoch samples; otherwise they validate rolling history.
         """
         if not getattr(self.config, "security_enabled", False):
             return LeverEffect(lever_name=self.name)

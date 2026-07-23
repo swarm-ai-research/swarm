@@ -90,9 +90,9 @@ class CascadeRiskLever(GovernanceLever):
             if risk > max_risk:
                 max_risk = risk
                 # Find who initiated the parent interaction
-                parent_ix = self._credit_engine.get_interaction(parent_id)
-                if parent_ix:
-                    blame_agent = parent_ix.initiator
+                parent_interaction = self._credit_engine.get_interaction(parent_id)
+                if parent_interaction:
+                    blame_agent = parent_interaction.initiator
 
         if max_risk < self.config.cascade_risk_threshold or not blame_agent:
             return LeverEffect(lever_name=self.name)

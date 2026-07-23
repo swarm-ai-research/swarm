@@ -370,6 +370,57 @@ class AWMHandler(Handler):
         self._write_sets[agent_id] |= tables
         return False
 
+    def _run_verification_and_map(
+        self, trace: AWMEpisodeTrace, agent_id: str
+    ) -> tuple:
+        """Run verification and observable mapping for a completed episode.
+
+        Returns:
+            Tuple of (p, observables) where p is the soft label probability.
+        """
+        verification_result = self._execute_verification(trace, agent_id)
+        trace.verified = verification_result.get("passed", False)
+        trace.verification_details = verification_result
+
+        p = self._verifier.verify_and_score(verification_result)
+        observables = self._mapper.map(trace)
+        return p, observables
+
+    def _emit_task_completed_event(
+        self, agent_id: str, trace: AWMEpisodeTrace, p: float
+    ) -> None:
+        """Emit an AWM_TASK_COMPLETED event with standard payload."""
+        self._emit_event(Event(
+            event_type=EventType.AWM_TASK_COMPLETED,
+            agent_id=agent_id,
+            payload={
+                "episode_id": trace.episode_id,
+                "verified": trace.verified,
+                "steps_used": trace.steps_used,
+                "error_count": trace.error_count,
+                "malformed_count": trace.malformed_count,
+                "soft_p": p,
+            },
+        ))
+
+    def _create_completion_result(
+        self, agent_id: str, trace: AWMEpisodeTrace, p: float,
+        observables: Any
+    ) -> HandlerActionResult:
+        """Create a completion result for a finished AWM episode."""
+        return HandlerActionResult(
+            success=True,
+            observables=observables,
+            initiator_id=agent_id,
+            counterparty_id=agent_id,
+            metadata={
+                "episode_id": trace.episode_id,
+                "verified": trace.verified,
+                "soft_p": p,
+                "steps_used": trace.steps_used,
+            },
+        )
+
     def _handle_batch_mode(
         self, action: Action, state: EnvState
     ) -> HandlerActionResult:
@@ -406,43 +457,15 @@ class AWMHandler(Handler):
         # Phase 4: end transaction (rollback on conflict)
         self._end_agent_transaction(agent_id, commit=not conflict_occurred)
 
-        # Run verification
-        verification_result = self._execute_verification(trace, agent_id)
-        trace.verified = verification_result.get("passed", False)
-        trace.verification_details = verification_result
-
-        p = self._verifier.verify_and_score(verification_result)
-        observables = self._mapper.map(trace)
+        # Run verification and map observables
+        p, observables = self._run_verification_and_map(trace, agent_id)
 
         self._completed_episodes.append(trace)
         self._traces.pop(agent_id, None)
         self._assignments.pop(agent_id, None)
 
-        self._emit_event(Event(
-            event_type=EventType.AWM_TASK_COMPLETED,
-            agent_id=agent_id,
-            payload={
-                "episode_id": trace.episode_id,
-                "verified": trace.verified,
-                "steps_used": trace.steps_used,
-                "error_count": trace.error_count,
-                "malformed_count": trace.malformed_count,
-                "soft_p": p,
-            },
-        ))
-
-        return HandlerActionResult(
-            success=True,
-            observables=observables,
-            initiator_id=agent_id,
-            counterparty_id=agent_id,
-            metadata={
-                "episode_id": trace.episode_id,
-                "verified": trace.verified,
-                "soft_p": p,
-                "steps_used": trace.steps_used,
-            },
-        )
+        self._emit_task_completed_event(agent_id, trace, p)
+        return self._create_completion_result(agent_id, trace, p, observables)
 
     def _handle_tool_call(
         self, action: Action, state: EnvState
@@ -506,13 +529,8 @@ class AWMHandler(Handler):
         # Phase 4: end any open transaction before verification
         self._end_agent_transaction(agent_id, commit=True)
 
-        # Run verification
-        verification_result = self._execute_verification(trace, agent_id)
-        trace.verified = verification_result.get("passed", False)
-        trace.verification_details = verification_result
-
-        p = self._verifier.verify_and_score(verification_result)
-        observables = self._mapper.map(trace)
+        # Run verification and map observables
+        p, observables = self._run_verification_and_map(trace, agent_id)
 
         # Track completed episode
         self._completed_episodes.append(trace)
@@ -522,31 +540,8 @@ class AWMHandler(Handler):
         self._assignments.pop(agent_id, None)
         self._last_results.pop(agent_id, None)
 
-        self._emit_event(Event(
-            event_type=EventType.AWM_TASK_COMPLETED,
-            agent_id=agent_id,
-            payload={
-                "episode_id": trace.episode_id,
-                "verified": trace.verified,
-                "steps_used": trace.steps_used,
-                "error_count": trace.error_count,
-                "malformed_count": trace.malformed_count,
-                "soft_p": p,
-            },
-        ))
-
-        return HandlerActionResult(
-            success=True,
-            observables=observables,
-            initiator_id=agent_id,
-            counterparty_id=agent_id,
-            metadata={
-                "episode_id": trace.episode_id,
-                "verified": trace.verified,
-                "soft_p": p,
-                "steps_used": trace.steps_used,
-            },
-        )
+        self._emit_task_completed_event(agent_id, trace, p)
+        return self._create_completion_result(agent_id, trace, p, observables)
 
     def _execute_tool_call(
         self, tc_data: Dict[str, Any], agent_id: str

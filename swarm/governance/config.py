@@ -41,6 +41,14 @@ class GovernanceConfig(BaseModel):
     audit_penalty_multiplier: float = 2.0
     audit_threshold_p: float = 0.5
 
+    # Certificate gate (beads pins): with probability certificate_coverage,
+    # an interaction whose latent ground truth is recorded gets verified
+    # against it — unlike audits, which condition on the proxy p. A caught
+    # fabrication (ground_truth == -1) is penalized in cost and reputation.
+    certificate_gate_enabled: bool = False
+    certificate_coverage: float = 0.3
+    certificate_penalty: float = 1.5
+
     # Collusion detection
     collusion_detection_enabled: bool = False
     collusion_frequency_threshold: float = 2.0  # Z-score for unusual frequency
@@ -180,6 +188,7 @@ class GovernanceConfig(BaseModel):
     # Loop detector
     loop_detector_enabled: bool = False
     loop_detector_quality_threshold: float = 0.4  # avg p threshold for quality loops
+    loop_detector_repetition_threshold: float = 0.6  # proportion threshold for repetition loops
     loop_detector_tool_misuse_threshold: int = 5  # total tool misuse flags for loop
     loop_detector_rework_threshold: int = 10  # total rework count for loop
     loop_detector_penalty_multiplier: float = 1.5  # cost multiplier for loop detection
@@ -281,6 +290,10 @@ class GovernanceConfig(BaseModel):
             raise ValueError("audit_penalty_multiplier must be non-negative")
         if not 0.0 <= self.audit_threshold_p <= 1.0:
             raise ValueError("audit_threshold_p must be in [0, 1]")
+        if not 0.0 <= self.certificate_coverage <= 1.0:
+            raise ValueError("certificate_coverage must be in [0, 1]")
+        if self.certificate_penalty < 0:
+            raise ValueError("certificate_penalty must be non-negative")
         if self.collusion_frequency_threshold <= 0:
             raise ValueError("collusion_frequency_threshold must be positive")
         if not 0.0 <= self.collusion_correlation_threshold <= 1.0:
@@ -453,6 +466,8 @@ class GovernanceConfig(BaseModel):
         # Loop detector validation
         if not 0.0 <= self.loop_detector_quality_threshold <= 1.0:
             raise ValueError("loop_detector_quality_threshold must be in [0, 1]")
+        if not 0.0 <= self.loop_detector_repetition_threshold <= 1.0:
+            raise ValueError("loop_detector_repetition_threshold must be in [0, 1]")
         if self.loop_detector_tool_misuse_threshold < 0:
             raise ValueError("loop_detector_tool_misuse_threshold must be non-negative")
         if self.loop_detector_rework_threshold < 0:

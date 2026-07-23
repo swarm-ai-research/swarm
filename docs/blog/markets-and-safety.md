@@ -84,7 +84,7 @@ python -m swarm run scenarios/adversarial_redteam_v1.yaml --seed 42
 python -m swarm run scenarios/collusion_detection.yaml --seed 42
 ```
 
-Full paper: [Distributional AGI Safety](../research/papers.md) | [GitHub](https://github.com/swarm-ai-safety/swarm)
+Full paper: [Distributional AGI Safety](../research/papers.md) | [GitHub](https://github.com/swarm-ai-research/swarm)
 
 ## References
 

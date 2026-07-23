@@ -547,22 +547,6 @@ def fig5_welfare_comparison():
     ax.set_xticklabels(short_labels, rotation=45, ha="right", fontsize=FONT_SIZE - 2)
     ax.set_ylabel("Welfare per Epoch")
 
-    # Regime group labels (brackets)
-    regime_xs = {
-        "Cooperative": (x_adjusted[0], x_adjusted[2]),
-        "Contested":   (x_adjusted[3], x_adjusted[7]),
-        "Adv. Collapse": (x_adjusted[8], x_adjusted[10]),
-    }
-    for rname, (x0, x1) in regime_xs.items():
-        (x0 + x1) / 2
-        regime_colors_map.get(rname, C_GRAY)
-        if "Collapse" in rname:
-            pass
-        elif "Contest" in rname:
-            pass
-        else:
-            pass
-
     # Add a note about emergent capabilities being an outlier
     ec_idx = all_scenarios.index("emergent_capabilities")
     ax.annotate("9x baseline\n(cooperative ceiling)",

@@ -78,7 +78,7 @@ def _collect_tracked_changes(repo: Path, base_ref: str) -> List[ChangedFile]:
         additions, deletions = line_counts.get(path, (0, 0))
         files.append(
             ChangedFile(
-                path=_normalise_path(path),
+                path=_normalize_path(path),
                 status=status_code,
                 additions=additions,
                 deletions=deletions,
@@ -91,7 +91,7 @@ def _collect_untracked_changes(repo: Path) -> List[ChangedFile]:
     output = _git(repo, ["ls-files", "--others", "--exclude-standard"])
     files: List[ChangedFile] = []
     for raw in output.splitlines():
-        path = _normalise_path(raw)
+        path = _normalize_path(raw)
         full_path = repo / path
         files.append(
             ChangedFile(
@@ -111,7 +111,7 @@ def _parse_numstat(output: str) -> dict[str, tuple[int, int]]:
         if len(parts) < 3:
             continue
         added, deleted, path = parts[0], parts[1], parts[-1]
-        counts[_normalise_path(path)] = (_parse_count(added), _parse_count(deleted))
+        counts[_normalize_path(path)] = (_parse_count(added), _parse_count(deleted))
     return counts
 
 
@@ -141,7 +141,7 @@ def _dedupe(files: List[ChangedFile]) -> List[ChangedFile]:
     return list(by_path.values())
 
 
-def _normalise_path(path: str) -> str:
+def _normalize_path(path: str) -> str:
     return Path(path).as_posix()
 
 

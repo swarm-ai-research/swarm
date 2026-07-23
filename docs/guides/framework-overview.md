@@ -54,7 +54,7 @@ pip install swarm-safety
 Or install from source for development:
 
 ```bash
-git clone https://github.com/swarm-ai-safety/swarm.git
+git clone https://github.com/swarm-ai-research/swarm.git
 cd swarm
 pip install -e ".[dev,runtime]"
 ```

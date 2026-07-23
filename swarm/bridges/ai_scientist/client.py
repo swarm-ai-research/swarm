@@ -28,6 +28,24 @@ class AIScientistClient:
     def __init__(self, config: AIScientistClientConfig | None = None) -> None:
         self._config = config or AIScientistClientConfig()
 
+    @staticmethod
+    def _strip_timestamp_prefix(name: str) -> str:
+        """Strip timestamp prefix from directory name if present.
+
+        Converts YYYYMMDD_HHMMSS_idea_name to idea_name.
+        If no timestamp prefix is found, returns the original name.
+
+        Args:
+            name: Directory name that may have timestamp prefix.
+
+        Returns:
+            Name with timestamp prefix stripped, or original name if no prefix.
+        """
+        parts = name.split("_", 2)
+        if len(parts) >= 3 and parts[0].isdigit() and parts[1].isdigit():
+            return parts[2]
+        return name
+
     def parse_idea(
         self,
         ideas_data: List[Dict[str, Any]],
@@ -87,9 +105,7 @@ class AIScientistClient:
         idea_name = os.path.basename(idea_dir)
 
         # Strip timestamp prefix if present (format: YYYYMMDD_HHMMSS_idea_name)
-        parts = idea_name.split("_", 2)
-        if len(parts) >= 3 and parts[0].isdigit() and parts[1].isdigit():
-            idea_name = parts[2]
+        idea_name = self._strip_timestamp_prefix(idea_name)
 
         events.append(
             AIScientistEvent(
@@ -167,9 +183,7 @@ class AIScientistClient:
         events: List[AIScientistEvent] = []
         idea_name = os.path.basename(idea_dir)
 
-        parts = idea_name.split("_", 2)
-        if len(parts) >= 3 and parts[0].isdigit() and parts[1].isdigit():
-            idea_name = parts[2]
+        idea_name = self._strip_timestamp_prefix(idea_name)
 
         latex_dir = os.path.join(idea_dir, "latex")
         if os.path.isdir(latex_dir):
@@ -293,9 +307,7 @@ class AIScientistClient:
         # Review
         review_path = os.path.join(idea_dir, "review.txt")
         idea_name = os.path.basename(idea_dir)
-        parts = idea_name.split("_", 2)
-        if len(parts) >= 3 and parts[0].isdigit() and parts[1].isdigit():
-            idea_name = parts[2]
+        idea_name = self._strip_timestamp_prefix(idea_name)
 
         if os.path.isfile(review_path):
             events.extend(self.parse_review(review_path, idea_name))
@@ -332,10 +344,7 @@ class AIScientistClient:
                 continue
 
             # Extract idea name
-            idea_name = entry
-            parts = entry.split("_", 2)
-            if len(parts) >= 3 and parts[0].isdigit() and parts[1].isdigit():
-                idea_name = parts[2]
+            idea_name = self._strip_timestamp_prefix(entry)
 
             # Add idea events from ideas.json
             if ideas_data:

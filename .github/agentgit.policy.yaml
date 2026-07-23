@@ -1,0 +1,52 @@
+# CI/org-owned AgentGit policy, enforced by the `agentgit-gate` job in
+# .github/workflows/ci.yml against every provenance bundle committed under
+# .agentgit/. This judges what an agent actually did (the bundle's signed
+# facts) against what this repo allows — independent of whatever policy the
+# agent self-attested with. See docs/agentgit_mvp.md § Conditional Policy &
+# CI Gate.
+#
+# Trust boundaries at gate time (enforced by `swarm.agentgit gate`):
+# - The bundle's own `checks` and `provenance.overrides` are agent-supplied
+#   and ignored; CI passes the authoritative pytest result via --check, and
+#   overrides must be added to the workflow invocation explicitly.
+# - Check-based rules fail closed for any check CI does not supply.
+
+# Path scoping is left to conditional rules; the fixed allow-list stays
+# permissive so this org gate composes with the (narrower) task policies
+# agents attest with.
+allowed_paths:
+  - "**"
+
+rules:
+  # Dependency-manifest changes need a supply-chain scan result. CI does not
+  # run one yet, so this fails closed: an agent bundle that touches a
+  # manifest/lockfile blocks until a human adds --override to the workflow
+  # invocation (or a supply-chain-scan check is wired up).
+  - id: deps-need-supply-chain-scan
+    when: {dependency_changed: true}
+    action: require_check
+    check: supply-chain-scan
+
+  # Sensitive surfaces require an explicit human override to merge.
+  - id: sensitive-paths-need-security-review
+    when:
+      paths_match:
+        - "*auth*"
+        - "*secret*"
+        - "*credential*"
+        - "*.env*"
+        - ".github/workflows/*"
+        - ".claude/hooks/*"
+    action: require_review
+
+  # CI supplies the real pytest verdict from the `test` job; the agent's
+  # self-attested check result is never trusted here.
+  - id: tests-must-pass
+    when: {check_failed: pytest}
+    action: deny
+
+  # Surface very large agent diffs without blocking on size alone.
+  - id: large-change-escalates
+    when: {added_lines_gt: 2000}
+    action: require_review
+    severity: warning

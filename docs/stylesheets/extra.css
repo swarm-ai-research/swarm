@@ -335,6 +335,8 @@ mjx-container[jax="CHTML"][display="true"] {
   color: var(--md-default-fg-color--light); text-transform: lowercase;
 }
 .kb-info-desc { margin: 0.5rem 0; color: var(--md-default-fg-color--light); }
+.kb-info-metrics { margin: 0.35rem 0; font-size: 0.72rem; color: var(--md-default-fg-color--light); font-variant-numeric: tabular-nums; }
+.kb-key-badge { display: inline-block; padding: 0 0.35em; margin: 0 0.15em; border-radius: 0.5em; background: #f59e0b; color: #1f2937; font-size: 0.68rem; font-weight: 600; }
 .kb-info-open { display: inline-block; margin: 0.3rem 0 0.6rem; font-size: 0.78rem; }
 .kb-info h4 { font-size: 0.75rem; margin: 0.6rem 0 0.25rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--md-default-fg-color--light); border: none; }
 .kb-info-outs { margin: 0; padding-left: 1rem; }

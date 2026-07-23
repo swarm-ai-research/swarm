@@ -186,6 +186,16 @@ class EpochMetrics(BaseModel):
     total_votes: int = 0
     toxicity_rate: float = 0.0
     quality_gap: float = 0.0
+    # Plausibility-certificate gap (beads mt8a): acceptance-conditioned
+    # drift of proxy p from certificate-derived truth, None when no
+    # accepted interaction carries a certificate.
+    plausibility_certificate_gap: Optional[float] = None
+    certified_coverage: float = 0.0
+    # Projection-geometric diagnostics (see swarm/metrics/soft_metrics.py).
+    quality_correlation: float = 0.0
+    baseline_harm: float = 0.0
+    selection_credit: float = 0.0
+    selection_saturation: float = 0.0
     avg_payoff: float = 0.0
     total_welfare: float = 0.0
     net_social_welfare: float = 0.0
@@ -207,6 +217,12 @@ class EpochMetrics(BaseModel):
             "total_votes": self.total_votes,
             "toxicity_rate": self.toxicity_rate,
             "quality_gap": self.quality_gap,
+            "plausibility_certificate_gap": self.plausibility_certificate_gap,
+            "certified_coverage": self.certified_coverage,
+            "quality_correlation": self.quality_correlation,
+            "baseline_harm": self.baseline_harm,
+            "selection_credit": self.selection_credit,
+            "selection_saturation": self.selection_saturation,
             "avg_payoff": self.avg_payoff,
             "total_welfare": self.total_welfare,
             "net_social_welfare": self.net_social_welfare,
@@ -396,7 +412,6 @@ class Orchestrator:
                 governance_engine=self.governance_engine,
                 event_bus=self._event_bus,
                 config=self.config.governance_config,
-                seed=self.config.seed,
             )
             self._on_epoch_end.append(self._adaptive_controller.on_epoch_end)
 
@@ -934,19 +949,8 @@ class Orchestrator:
         # Store per-sample p-proxy values for incrimination analysis.
         # True p is only available after handler execution, so we
         # differentiate pre-execution proxies based on action agreement:
-        # resampled actions that DIFFER from the original suspicious action
-        # suggest the agent is capable of benign behavior (higher p proxy),
-        # while actions matching the original confirm suspicion (lower p).
         selected.metadata["resample_p_proxy"] = p_proxy
-        original_sig = self._action_signature(original_action)
-        per_sample_p = []
-        for ra in resample_actions:
-            if self._action_signature(ra) != original_sig:
-                # Divergent action → exonerating evidence
-                per_sample_p.append(min(1.0, p_proxy + 0.3))
-            else:
-                # Matching action → confirming suspicion
-                per_sample_p.append(p_proxy)
+        per_sample_p = self._compute_resample_p_values(original_action, resample_actions, p_proxy)
         selected.metadata["resample_p_values"] = per_sample_p
 
         return selected
@@ -1017,16 +1021,30 @@ class Orchestrator:
         selected.metadata["resample_n_samples"] = n_samples
         selected.metadata["resample_blocked"] = was_blocked
         selected.metadata["resample_p_proxy"] = p_proxy
+        per_sample_p = self._compute_resample_p_values(original_action, resample_actions, p_proxy)
+        selected.metadata["resample_p_values"] = per_sample_p
+
+        return selected
+
+    def _compute_resample_p_values(
+        self, original_action: Action, resample_actions: List[Action], p_proxy: float
+    ) -> List[float]:
+        """Compute per-sample p-proxy values for resample evidence.
+
+        Resampled actions that DIFFER from the original suspicious action
+        suggest the agent is capable of benign behavior (higher p proxy),
+        while actions matching the original confirm suspicion (lower p).
+        """
         original_sig = self._action_signature(original_action)
         per_sample_p = []
         for ra in resample_actions:
             if self._action_signature(ra) != original_sig:
+                # Divergent action → exonerating evidence
                 per_sample_p.append(min(1.0, p_proxy + 0.3))
             else:
+                # Matching action → confirming suspicion
                 per_sample_p.append(p_proxy)
-        selected.metadata["resample_p_values"] = per_sample_p
-
-        return selected
+        return per_sample_p
 
     def _majority_action(self, actions: List[Action]) -> Action:
         """Choose majority action signature with deterministic tie-break."""
@@ -1323,7 +1341,7 @@ class Orchestrator:
                     "child_type": child_type_key,
                     "depth": self._spawn_tree.get_depth(child_id),
                     "inherited_reputation": inherited_rep,
-                    "initial_resources": spawn_cfg.initial_child_resources,
+                    "initial_resources": child_initial_resources,
                     "spawn_cost": spawn_cfg.spawn_cost,
                 },
                 epoch=self.state.current_epoch,
@@ -1529,6 +1547,11 @@ class Orchestrator:
         toxicity = self.metrics_calculator.toxicity_rate(interactions)
         quality_gap = self.metrics_calculator.quality_gap(interactions)
         welfare = self.metrics_calculator.welfare_metrics(interactions)
+        rho = self.metrics_calculator.quality_correlation(interactions)
+        decomp = self.metrics_calculator.toxicity_decomposition(interactions)
+        saturation = self.metrics_calculator.selection_saturation(interactions)
+        pcg = self.metrics_calculator.plausibility_certificate_gap(interactions)
+        pcg_decomp = self.metrics_calculator.pcg_decomposition(interactions)
 
         return EpochMetrics(
             epoch=self.state.current_epoch,
@@ -1538,6 +1561,12 @@ class Orchestrator:
             total_votes=len(self.feed._votes),
             toxicity_rate=toxicity,
             quality_gap=quality_gap,
+            plausibility_certificate_gap=pcg,
+            certified_coverage=pcg_decomp["certified_coverage_accepted"],
+            quality_correlation=rho,
+            baseline_harm=decomp["baseline_harm"],
+            selection_credit=decomp["selection_credit"],
+            selection_saturation=saturation,
             avg_payoff=welfare.get("avg_initiator_payoff", 0),
             total_welfare=welfare.get("total_welfare", 0),
             net_social_welfare=welfare.get("net_social_welfare", 0),

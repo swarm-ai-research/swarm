@@ -72,7 +72,13 @@ class ScenarioGenerator:
         density = annotation.risk_profile.interaction_density
 
         # Base counts scaled by density
-        scale = {"low": 1, "medium": 2, "high": 3}.get(density, 2)
+        density_scale = {"low": 1, "medium": 2, "high": 3}
+        if density not in density_scale:
+            raise ValueError(
+                f"Unknown interaction_density {density!r}; "
+                f"expected one of {sorted(density_scale)}"
+            )
+        scale = density_scale[density]
 
         honest_count = 3 * scale
         opportunistic_count = 0

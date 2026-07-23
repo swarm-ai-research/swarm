@@ -22,7 +22,7 @@ pip install swarm-safety
 Clone the repository and install in development mode:
 
 ```bash
-git clone https://github.com/swarm-ai-safety/swarm.git
+git clone https://github.com/swarm-ai-research/swarm.git
 cd swarm
 pip install -e ".[dev]"
 ```

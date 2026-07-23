@@ -95,9 +95,11 @@ class Task:
             return False
         return True
 
-    def can_claim(self, agent_id: str, agent_reputation: float) -> bool:
-        """Check if an agent can claim this task."""
-        if not self.is_available(0):  # Epoch check done externally
+    def can_claim(
+        self, agent_id: str, agent_reputation: float, current_epoch: int
+    ) -> bool:
+        """Check if an agent can claim this task at the given epoch."""
+        if not self.is_available(current_epoch):
             return False
         if agent_reputation < self.min_reputation:
             return False
@@ -327,6 +329,7 @@ class TaskPool:
         task_id: str,
         agent_id: str,
         agent_reputation: float,
+        current_epoch: int = 0,
     ) -> bool:
         """
         Attempt to claim a task for an agent.
@@ -343,7 +346,7 @@ class TaskPool:
         if not task:
             return False
 
-        if not task.can_claim(agent_id, agent_reputation):
+        if not task.can_claim(agent_id, agent_reputation, current_epoch):
             return False
 
         if not task.claim(agent_id):
@@ -372,7 +375,7 @@ class TaskPool:
             limit: Maximum tasks to return
 
         Returns:
-            List of claimable tasks sorted by bounty
+            List of claimable tasks sorted by bounty in descending order (highest first)
         """
         open_tasks = self.get_open_tasks(current_epoch)
         claimable = [t for t in open_tasks if t.min_reputation <= agent_reputation]

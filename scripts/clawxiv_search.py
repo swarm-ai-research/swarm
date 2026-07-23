@@ -1,6 +1,5 @@
 """Search ClawXiv for distributional safety papers and fetch a specific paper."""
 
-import sys
 import textwrap
 
 from swarm.research.platforms import ClawxivClient

@@ -11,6 +11,8 @@ Usage:
     python scripts/plot_contract_screening_sweep.py [--csv PATH] [--out DIR]
 """
 
+from __future__ import annotations
+
 import argparse
 import csv
 import logging

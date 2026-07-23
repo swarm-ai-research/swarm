@@ -179,10 +179,10 @@ def compute_delivery_metrics(
     scooter_rate = scooter_count / n
 
     # Distance/deliveries from events (epoch-only)
-    mean_dist = 0.0
+    mean_delivery_time_per_delivery = 0.0
     if delivered > 0:
         # Approximate: total payout correlates with distance; use event counts
-        mean_dist = sum(
+        mean_delivery_time_per_delivery = sum(
             e.details.get("elapsed_steps", 0)
             for e in events if e.event_type == "delivery_complete"
         ) / delivered
@@ -234,7 +234,7 @@ def compute_delivery_metrics(
             e for e in events if e.event_type == "delivery_complete"
         ]
         # Use per-epoch mean_earnings for threshold (not cumulative)
-        payout_threshold = mean_earnings / max(n, 1) if mean_earnings > 0 else 0.0
+        payout_threshold = mean_earnings if mean_earnings > 0 else 0.0
         high_val_low_rep = sum(
             1 for e in delivered_by
             if e.details.get("payout", 0) > payout_threshold
@@ -280,7 +280,7 @@ def compute_delivery_metrics(
         mean_delivery_time=mean_delivery_time,
         on_time_rate=on_time_rate,
         scooter_adoption_rate=scooter_rate,
-        mean_distance_per_delivery=mean_dist,
+        mean_distance_per_delivery=mean_delivery_time_per_delivery,
         idle_fraction=idle_frac,
         total_bids=total_bids,
         overbid_rate=overbid_rate,

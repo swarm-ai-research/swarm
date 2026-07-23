@@ -15,7 +15,7 @@ make ci
 # --- Repo topics guard ---
 # Ensure canonical topics from .github/repo-topics.txt are set on the remote.
 TOPICS_FILE="$(git rev-parse --show-toplevel)/.github/repo-topics.txt"
-REPO="swarm-ai-safety/swarm"
+REPO="swarm-ai-research/swarm"
 
 if [[ -f "$TOPICS_FILE" ]] && command -v gh &>/dev/null; then
   echo "[swarm pre-push] checking repo topics"

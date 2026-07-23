@@ -39,15 +39,11 @@ class SpawnMetricsCollector:
 
     def __init__(self) -> None:
         self._spawns_this_epoch: int = 0
-        self._rejections_this_epoch: int = 0
         self._payoff_redistributed_this_epoch: float = 0.0
         self._payoff_by_depth: Dict[int, List[float]] = {}
 
     def record_spawn(self, depth: int) -> None:
         self._spawns_this_epoch += 1
-
-    def record_rejection(self, reason: str) -> None:
-        self._rejections_this_epoch += 1
 
     def record_redistribution(self, amount: float) -> None:
         self._payoff_redistributed_this_epoch += abs(amount)
@@ -96,6 +92,5 @@ class SpawnMetricsCollector:
     def reset_epoch(self) -> None:
         """Reset per-epoch counters."""
         self._spawns_this_epoch = 0
-        self._rejections_this_epoch = 0
         self._payoff_redistributed_this_epoch = 0.0
         self._payoff_by_depth.clear()

@@ -266,11 +266,14 @@ def main():
     print("-" * 78)
     print()
 
+    # --- Grid tables ---
+    # Define the column header label once for all grid tables
+    tax_audit_label = "tax \\ audit"
+
     # --- Grid table: M_eff ---
     print("M_eff Grid (tax_rate x audit_probability):")
     print("-" * 78)
     # Header row
-    tax_audit_label = "tax \\ audit"
     header = f"{tax_audit_label:<12}"
     for audit in AUDIT_PROBS:
         header += f"  {audit:<10}"
@@ -291,7 +294,6 @@ def main():
     # --- Grid table: Governance Reduction Ratio ---
     print("Governance Reduction Ratio (1 - M_eff/M_pref):")
     print("-" * 78)
-    tax_audit_label = "tax \\ audit"
     header = f"{tax_audit_label:<12}"
     for audit in AUDIT_PROBS:
         header += f"  {audit:<10}"
@@ -309,7 +311,6 @@ def main():
     # --- Grid table: Toxicity ---
     print("Avg Toxicity Grid:")
     print("-" * 78)
-    tax_audit_label = "tax \\ audit"
     header = f"{tax_audit_label:<12}"
     for audit in AUDIT_PROBS:
         header += f"  {audit:<10}"
@@ -327,7 +328,6 @@ def main():
     # --- Grid table: Welfare ---
     print("Total Welfare Grid:")
     print("-" * 78)
-    tax_audit_label = "tax \\ audit"
     header = f"{tax_audit_label:<12}"
     for audit in AUDIT_PROBS:
         header += f"  {audit:<10}"
@@ -345,7 +345,6 @@ def main():
     # --- Grid table: Agents Surviving ---
     print("Agents Surviving Grid:")
     print("-" * 78)
-    tax_audit_label = "tax \\ audit"
     header = f"{tax_audit_label:<12}"
     for audit in AUDIT_PROBS:
         header += f"  {audit:<10}"

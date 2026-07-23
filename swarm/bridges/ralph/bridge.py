@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import List, Optional
 
+from swarm.bridges._common import trim_to_half
 from swarm.bridges.ralph.config import RalphConfig
 from swarm.bridges.ralph.events import RalphEvent
 from swarm.bridges.ralph.mapper import RalphMapper
@@ -78,15 +79,11 @@ class RalphBridge:
         return list(self._interactions)
 
     def _record_event(self, event: RalphEvent) -> None:
-        if len(self._events) >= self._config.max_events:
-            self._events = self._events[-self._config.max_events // 2 :]
+        self._events = trim_to_half(self._events, self._config.max_events)
         self._events.append(event)
 
     def _record_interaction(self, interaction: SoftInteraction) -> None:
-        if len(self._interactions) >= self._config.max_interactions:
-            self._interactions = self._interactions[
-                -self._config.max_interactions // 2 :
-            ]
+        self._interactions = trim_to_half(self._interactions, self._config.max_interactions)
         self._interactions.append(interaction)
         if self._event_log is not None:
             self._event_log.append(

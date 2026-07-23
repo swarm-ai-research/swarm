@@ -324,7 +324,7 @@ class SandboxManager:
         return deleted
 
     def _validate_path_under_root(self, path: str) -> None:
-        """Validate that path is strictly under sandbox_root.
+        """Validate that path is under or equal to sandbox_root.
 
         Raises:
             ValueError: If path is not under sandbox_root.

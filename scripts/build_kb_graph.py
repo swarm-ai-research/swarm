@@ -51,8 +51,8 @@ OUT_PATH = DOCS_DIR / "assets" / "kb_graph.json"
 
 ARTIFACTS_DIR = Path(os.environ.get("SWARM_ARTIFACTS", REPO_ROOT.parent / "swarm-artifacts"))
 
-GITHUB_BLOB_REPO = "https://github.com/swarm-ai-safety/swarm/blob/main"
-GITHUB_BLOB_ARTIFACTS = "https://github.com/swarm-ai-safety/swarm-artifacts/blob/main"
+GITHUB_BLOB_REPO = "https://github.com/swarm-ai-research/swarm/blob/main"
+GITHUB_BLOB_ARTIFACTS = "https://github.com/swarm-ai-research/swarm-artifacts/blob/main"
 
 # Excluded subdirs under docs/ that hold built/vendored assets.
 DOC_EXCLUDE = {"game-app", "javascripts", "stylesheets", "overrides", "assets",
@@ -360,22 +360,30 @@ def _resolve_python_path(dotted: str) -> Path | None:
     return None
 
 
-def _code_pass(nodes: list[Node]) -> list[tuple[str, str]]:
+def _code_pass(nodes: list[Node]) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
     """Mine api docs for mkdocstrings directives.
 
-    Returns the explicit (src_doc_id, code_node_id) edges to add. Mutates
-    ``nodes`` in place to register a new code node per unique source file
-    referenced. Code nodes are linked to GitHub source for the *file* (not
-    the dotted symbol), which is what the graph actually navigates between.
+    Returns ``(edges, broken)`` where ``edges`` is the explicit
+    (src_doc_id, code_node_id) list to add and ``broken`` is the list of
+    (src_doc_id, dotted) directives whose dotted name resolves to no source
+    file at all. Resolution falls back to the nearest existing package prefix,
+    so this catches a deleted/renamed *module path* (e.g. the whole module
+    moved) — not a renamed symbol inside a module that still exists. Mutates
+    ``nodes`` in place to register a new code node
+    per unique source file referenced. Code nodes are linked to GitHub source
+    for the *file* (not the dotted symbol), which is what the graph actually
+    navigates between.
     """
     by_id = {n.id: n for n in nodes}
     edges: list[tuple[str, str]] = []
+    broken: list[tuple[str, str]] = []
     for n in nodes:
         if n.kind != "doc" or n.section != "api":
             continue
         for dotted in MKDOCSTRINGS_RE.findall(n.text):
             src = _resolve_python_path(dotted)
             if not src:
+                broken.append((n.id, dotted))
                 continue
             rel = src.relative_to(REPO_ROOT).as_posix()
             cid = f"code/{rel}"
@@ -391,7 +399,7 @@ def _code_pass(nodes: list[Node]) -> list[tuple[str, str]]:
                 nodes.append(code_node)
                 by_id[cid] = code_node
             edges.append((n.id, cid))
-    return edges
+    return edges, broken
 
 
 def _module_doc(src: Path) -> str:
@@ -406,13 +414,96 @@ def _module_doc(src: Path) -> str:
     return " ".join(m.group(2).strip().split())[:300]
 
 
+def _path_present(p: Path) -> bool:
+    """True if ``p`` is part of the corpus we're building from.
+
+    Mirrors the tracked-file filter used by the source providers so that
+    dead-link detection stays consistent between a local working tree and a
+    fresh CI checkout: when --check/--update-baseline restrict the walk to
+    git-tracked files, a link target only "exists" if it's tracked too.
+    """
+    if _TRACKED_FILES is not None:
+        return p.resolve() in _TRACKED_FILES
+    return p.exists()
+
+
+def _dead_links(nodes: list[Node]) -> list[tuple[str, str]]:
+    """Find internal markdown links in docs that point at a missing file.
+
+    Only considers relative links ending in .md/.yaml (the corpus link kinds);
+    external URLs, mailto, and bare anchors are ignored. Returns
+    (src_doc_id, raw_target) pairs. A link is "dead" when the resolved target
+    is not present in the corpus per ``_path_present`` — i.e. a typo or a file
+    that was moved/deleted without updating the link.
+    """
+    dead: list[tuple[str, str]] = []
+    for n in nodes:
+        if n.kind != "doc":
+            continue
+        src_dir = REPO_ROOT / Path(n.source_path).parent
+        for raw in MD_LINK_RE.findall(n.text):
+            t = raw.strip()
+            if t.startswith("<") and t.endswith(">"):
+                t = t[1:-1]
+            t = t.split(" ", 1)[0].split("#", 1)[0].split("?", 1)[0]
+            if not t or t.startswith(("http://", "https://", "mailto:", "//")):
+                continue
+            if not (t.endswith(".md") or t.endswith(".yaml")):
+                continue
+            target = (src_dir / t).resolve()
+            if not _path_present(target):
+                dead.append((n.id, t))
+    return dead
+
+
+def _pagerank(node_ids: list[str], out_by: dict[str, list[str]],
+              damping: float = 0.85, iters: int = 60, tol: float = 1e-9
+              ) -> dict[str, float]:
+    """PageRank over the explicit-edge graph.
+
+    Measures how central a page is to the corpus: a node is important if many
+    important pages link to it. Dangling nodes (no outbound links) redistribute
+    their rank uniformly so the scores stay a probability distribution that
+    sums to ~1. ``out_by`` must contain explicit edges only (semantic
+    suggestions are excluded upstream).
+    """
+    n = len(node_ids)
+    if n == 0:
+        return {}
+    # Build inbound adjacency + out-degree from the explicit out lists.
+    in_by: dict[str, list[str]] = {nid: [] for nid in node_ids}
+    outdeg: dict[str, int] = {}
+    for src in node_ids:
+        outs = out_by.get(src, [])
+        outdeg[src] = len(outs)
+        for dst in outs:
+            if dst in in_by:
+                in_by[dst].append(src)
+    dangling = [nid for nid in node_ids if outdeg[nid] == 0]
+
+    rank = dict.fromkeys(node_ids, 1.0 / n)
+    base = (1.0 - damping) / n
+    for _ in range(iters):
+        dangling_share = damping * sum(rank[d] for d in dangling) / n
+        nxt = {}
+        delta = 0.0
+        for nid in node_ids:
+            inflow = sum(rank[src] / outdeg[src] for src in in_by[nid])
+            nxt[nid] = base + dangling_share + damping * inflow
+            delta += abs(nxt[nid] - rank[nid])
+        rank = nxt
+        if delta < tol:
+            break
+    return rank
+
+
 def build_graph() -> dict:
     nodes: list[Node] = []
     for fn in (_docs_nodes, _scenario_nodes, _command_nodes,
                _agent_nodes, _role_nodes, _artifacts_nodes):
         nodes.extend(fn())
 
-    explicit_edges = _code_pass(nodes)
+    explicit_edges, broken_code = _code_pass(nodes)
     by_id: dict[str, Node] = {n.id: n for n in nodes}
 
     # Lookup tables for resolution.
@@ -478,6 +569,10 @@ def build_graph() -> dict:
     for src, dst in _semantic_edges(nodes, seen):
         add(src, dst, "semantic")
 
+    # PageRank over the explicit-edge structure (semantic edges excluded, since
+    # out_by only holds real links). Surfaces the load-bearing pages.
+    pagerank = _pagerank([n.id for n in nodes], out_by)
+
     # finalize + drop body text
     out_nodes = []
     for n in nodes:
@@ -489,17 +584,42 @@ def build_graph() -> dict:
             "in": in_by[n.id], "out": out_by[n.id],
             "indegree": len(in_by[n.id]), "outdegree": len(out_by[n.id]),
             "orphan": len(in_by[n.id]) == 0,
+            "pagerank": round(pagerank.get(n.id, 0.0), 6),
         })
+
+    # Stale references: broken mkdocstrings code directives + dead internal
+    # markdown links. Each gets a stable id for the CI ratchet.
+    stale_refs: list[dict] = []
+    for src_id, dotted in broken_code:
+        stale_refs.append({
+            "kind": "code", "source": src_id, "target": dotted,
+            "id": f"code: {src_id} -> {dotted}",
+        })
+    for src_id, raw in _dead_links(nodes):
+        stale_refs.append({
+            "kind": "link", "source": src_id, "target": raw,
+            "id": f"link: {src_id} -> {raw}",
+        })
+    stale_refs.sort(key=lambda s: s["id"])
+
+    top_central = sorted(out_nodes, key=lambda x: x["pagerank"], reverse=True)[:15]
 
     return {
         "nodes": out_nodes,
         "edges": edges,
+        "stale_refs": stale_refs,
         "stats": {
             "node_count": len(out_nodes),
             "edge_count": len(edges),
             "orphan_count": sum(1 for n in out_nodes if n["orphan"]),
+            "stale_count": len(stale_refs),
             "by_kind": _count_by(out_nodes, "kind"),
             "artifacts_included": any(n["source_repo"] == "artifacts" for n in out_nodes),
+            "top_central": [
+                {"id": n["id"], "title": n["title"], "kind": n["kind"],
+                 "pagerank": n["pagerank"]}
+                for n in top_central
+            ],
         },
     }
 
@@ -619,9 +739,24 @@ def write_graph(graph: dict | None = None) -> Path:
 def _report(graph: dict) -> None:
     s = graph["stats"]
     print(f"KB graph: {s['node_count']} nodes, {s['edge_count']} edges, "
-          f"{s['orphan_count']} orphans")
+          f"{s['orphan_count']} orphans, {s.get('stale_count', 0)} stale refs")
     print("By kind:", ", ".join(f"{k}={v}" for k, v in sorted(s["by_kind"].items())))
     print(f"Artifacts included: {s['artifacts_included']}")
+
+    top = s.get("top_central", [])
+    if top:
+        print("\nMost central pages (PageRank):")
+        for n in top[:10]:
+            print(f"  {n['pagerank']:.4f}  [{n['kind']}] {n['id']}")
+
+    stale = graph.get("stale_refs", [])
+    if stale:
+        print(f"\nStale references ({len(stale)}):")
+        for r in stale[:30]:
+            print(f"  ! {r['id']}")
+        if len(stale) > 30:
+            print(f"  ... and {len(stale) - 30} more")
+
     orphans = [n for n in graph["nodes"] if n["orphan"]]
     if orphans:
         # Surface only the first 30 to keep CLI output readable.
@@ -631,13 +766,14 @@ def _report(graph: dict) -> None:
 
 
 BASELINE_PATH = REPO_ROOT / ".kb-graph-orphans"
+STALE_BASELINE_PATH = REPO_ROOT / ".kb-graph-stale"
 
 
-def _load_baseline() -> set[str]:
-    if not BASELINE_PATH.exists():
+def _load_baseline(path: Path = BASELINE_PATH) -> set[str]:
+    if not path.exists():
         return set()
     out: set[str] = set()
-    for raw in BASELINE_PATH.read_text(encoding="utf-8").splitlines():
+    for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
@@ -645,15 +781,25 @@ def _load_baseline() -> set[str]:
     return out
 
 
-def _write_baseline(orphan_ids: set[str]) -> None:
-    body = (
+def _write_baseline(ids: set[str], path: Path = BASELINE_PATH,
+                    header: str | None = None) -> None:
+    body = header or (
         "# Knowledge-graph orphan baseline — auto-generated by\n"
         "#   python scripts/build_kb_graph.py --update-baseline\n"
         "# CI fails if --check sees ids not in this list (new orphans).\n"
         "# Trim entries here as you densify the graph; never add by hand.\n"
     )
-    body += "\n".join(sorted(orphan_ids)) + "\n"
-    BASELINE_PATH.write_text(body, encoding="utf-8")
+    body += "\n".join(sorted(ids)) + "\n"
+    path.write_text(body, encoding="utf-8")
+
+
+_STALE_HEADER = (
+    "# Knowledge-graph STALE-reference baseline — auto-generated by\n"
+    "#   python scripts/build_kb_graph.py --update-baseline\n"
+    "# Tracks broken mkdocstrings code directives + dead internal markdown\n"
+    "# links. CI fails if --check sees ids not in this list (new breakage).\n"
+    "# Fix the ref (rename/restore the target) or, if intentional, ratchet.\n"
+)
 
 
 def _git_tracked_paths() -> set[Path] | None:
@@ -688,11 +834,15 @@ def _run_check(update: bool) -> int:
     write_graph(g)
     _report(g)
     current = {n["id"] for n in g["nodes"] if n["orphan"]}
+    current_stale = {r["id"] for r in g.get("stale_refs", [])}
 
     if update:
         _write_baseline(current)
-        print(f"\nUpdated baseline ({len(current)} orphan ids) at "
-              f"{BASELINE_PATH.relative_to(REPO_ROOT)}")
+        _write_baseline(current_stale, STALE_BASELINE_PATH, _STALE_HEADER)
+        print(f"\nUpdated baselines: {len(current)} orphan ids at "
+              f"{BASELINE_PATH.relative_to(REPO_ROOT)}, "
+              f"{len(current_stale)} stale refs at "
+              f"{STALE_BASELINE_PATH.relative_to(REPO_ROOT)}")
         return 0
 
     baseline = _load_baseline()
@@ -705,15 +855,36 @@ def _run_check(update: bool) -> int:
         if len(fixed) > 10:
             print(f"  ... and {len(fixed) - 10} more")
         print("  -> consider `--update-baseline` to ratchet the budget down.")
+
+    stale_baseline = _load_baseline(STALE_BASELINE_PATH)
+    new_stale = sorted(current_stale - stale_baseline)
+    fixed_stale = sorted(stale_baseline - current_stale)
+    if fixed_stale:
+        print(f"\nGood news: {len(fixed_stale)} baseline stale refs are now resolved:")
+        for x in fixed_stale[:10]:
+            print(f"  + {x}")
+        if len(fixed_stale) > 10:
+            print(f"  ... and {len(fixed_stale) - 10} more")
+        print("  -> consider `--update-baseline` to ratchet the budget down.")
+
+    rc = 0
     if new:
         print(f"\nNEW ORPHANS ({len(new)}) — not in {BASELINE_PATH.name}:")
         for x in new:
             print(f"  ! {x}")
         print("\nFix by linking these pages from somewhere in the corpus, "
               "or (if intentional) update the baseline.")
-        return 1
-    print("\nNo new orphans vs baseline. ✓")
-    return 0
+        rc = 1
+    if new_stale:
+        print(f"\nNEW STALE REFS ({len(new_stale)}) — not in {STALE_BASELINE_PATH.name}:")
+        for x in new_stale:
+            print(f"  ! {x}")
+        print("\nFix by restoring/renaming the target (a moved code symbol or "
+              "deleted page), or (if intentional) update the baseline.")
+        rc = 1
+    if rc == 0:
+        print("\nNo new orphans or stale refs vs baseline. ✓")
+    return rc
 
 
 if __name__ == "__main__":

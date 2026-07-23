@@ -10,8 +10,8 @@ from swarm.models.agent import AgentType
 class DiligentRecorderAgent(BaseAgent):
     """Honest agent that writes accurate facts and promotes carefully.
 
-    Prioritizes: write accurate facts > verify others' entries >
-    challenge suspicious entries > promote verified entries.
+    Prioritizes: challenge suspicious entries > verify others' entries >
+    promote verified entries > write accurate facts.
     """
 
     def __init__(

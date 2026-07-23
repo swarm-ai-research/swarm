@@ -168,12 +168,6 @@ def _layout_tree(node: AgentNode, x: float = 0, y: float = 0,
     return positions
 
 
-def _count_leaves(node: AgentNode) -> int:
-    if not node.children:
-        return 1
-    return sum(_count_leaves(c) for c in node.children)
-
-
 def plot_trees(actual: AgentNode, attempted: AgentNode, out_path: Path) -> None:
     try:
         import matplotlib

@@ -386,11 +386,7 @@ class CollaborativeAgent(BaseAgent):
         """
         super().update_from_outcome(interaction, payoff)
         # Promote high-quality partners into the coalition
-        counterparty = (
-            interaction.counterparty
-            if interaction.initiator == self.agent_id
-            else interaction.initiator
-        )
+        counterparty = self._get_counterparty(interaction)
         trust = self.compute_counterparty_trust(counterparty)
         if trust >= 0.65 and len(self._coalition) < self.coalition_size:
             self._coalition.add(counterparty)
@@ -562,8 +558,8 @@ class AdaptiveAgent(BaseAgent):
     ) -> bool:
         """Accept when the initiator clears the current adaptive threshold.
 
-        With probability ``self.explore_probability`` an unknown initiator is
-        also accepted to enable exploration of new partners.
+        With probability ``self.explore_probability``, any initiator is
+        accepted to enable exploration of new partners.
 
         Args:
             proposal: Incoming interaction proposal.
@@ -633,7 +629,7 @@ class AdaptiveAgent(BaseAgent):
 
     def _is_acceptable(self, agent_id: str) -> bool:
         """Accept based on adaptive threshold, with occasional exploration."""
-        # Exploration: accept a stranger with small probability
+        # Exploration: accept any agent with small probability
         if self._rng.random() < self.explore_probability:
             return True
         trust = self.compute_counterparty_trust(agent_id)

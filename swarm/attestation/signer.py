@@ -91,7 +91,7 @@ class ReceiptVerifier:
         if receipt.signature is None:
             return False
 
-        # Recompute over canonical (excludes signature & signer_id)
+        # Recompute over canonical (excludes signature, signer_id, & status)
         canonical = receipt.canonical_bytes()
         expected = hmac.new(self._key, canonical, hashlib.sha256).hexdigest()
         return hmac.compare_digest(expected, receipt.signature)

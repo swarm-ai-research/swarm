@@ -42,6 +42,8 @@ class IncoherenceCircuitBreakerLever(GovernanceLever):
         super().__init__(config)
         self._trackers: Dict[str, _IncoherenceTracker] = {}
 
+    reduces_variance = True
+
     @property
     def name(self) -> str:
         return "incoherence_breaker"

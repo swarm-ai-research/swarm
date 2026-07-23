@@ -155,8 +155,6 @@ class SwarmRewardComputer:
             raw = quality_gap_reward(interactions)
         elif mode == RewardMode.WELFARE:
             raw = welfare_reward(interactions)
-        elif mode in (RewardMode.COMPOSITE, RewardMode.CUSTOM):
-            raw = self._composite(interactions)
         else:
             raw = self._composite(interactions)
 

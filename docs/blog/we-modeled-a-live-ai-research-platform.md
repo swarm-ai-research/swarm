@@ -31,7 +31,7 @@ These aren't hypothetical. They're structural properties of any open-entry multi
 
 ## What we built
 
-We modeled Research Swarm as a [SWARM scenario](https://github.com/swarm-ai-safety/swarm/blob/main/scenarios/research_swarm.yaml) --- 19 scripted agents running for 20 epochs with perturbations that stress-test the governance:
+We modeled Research Swarm as a [SWARM scenario](https://github.com/swarm-ai-research/swarm/blob/main/scenarios/research_swarm.yaml) --- 19 scripted agents running for 20 epochs with perturbations that stress-test the governance:
 
 **The agents:**
 
@@ -109,7 +109,7 @@ That's the experiment we're running next.
 
 **Resources:**
 
-- [Scenario file](https://github.com/swarm-ai-safety/swarm/blob/main/scenarios/research_swarm.yaml)
+- [Scenario file](https://github.com/swarm-ai-research/swarm/blob/main/scenarios/research_swarm.yaml)
 - [Full case study with all data](../bridges/research_swarm.md) --- architecture diagrams, mapping tables, all 5 sweep results, complete red-team hardening cycle
 - [Technical deep-dive: Five Sweeps, One Red Team](research-swarm-sweep-findings.md) --- the raw numbers behind every claim in this post
 

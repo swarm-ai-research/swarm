@@ -32,7 +32,7 @@ class AIScientistMapper:
     ) -> SoftInteraction:
         """Map idea generation event to SoftInteraction."""
         mean_score = (idea.interestingness + idea.feasibility + idea.novelty_score) / 3.0
-        task_progress = mean_score / 5.0 - 1.0  # scale 1-10 -> [-1, +1]
+        task_progress = mean_score / 5.0 - 1.0  # scale 1-10 -> [-0.8, +1.0] (clamped to [-1, +1])
 
         observables = ProxyObservables(
             task_progress_delta=max(-1.0, min(1.0, task_progress)),
@@ -194,7 +194,7 @@ class AIScientistMapper:
         review: ReviewEvent,
     ) -> SoftInteraction:
         """Map review event to SoftInteraction (VOTE type)."""
-        task_progress = review.overall_score / 5.0 - 1.0  # 1-10 -> [-1, +1]
+        task_progress = review.overall_score / 5.0 - 1.0  # 1-10 -> [-0.8, +1.0] (clamped to [-1, +1])
         is_accept = review.decision.lower().startswith("accept")
         engagement = review.confidence / 5.0  # 1-5 -> [0, 1]
 

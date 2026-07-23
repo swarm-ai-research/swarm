@@ -151,7 +151,7 @@ python -m swarm run scenarios/threshold_dancer_vs_cautious.yaml \
 
 The ThresholdDancer agent is at `swarm/agents/threshold_dancer.py`. The scenario config is at `scenarios/threshold_dancer_vs_cautious.yaml` (30 epochs default, 3 cautious + 2 honest + 3 dancers).
 
-[GitHub](https://github.com/swarm-ai-safety/swarm)
+[GitHub](https://github.com/swarm-ai-research/swarm)
 
 ---
 

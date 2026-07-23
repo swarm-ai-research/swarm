@@ -139,6 +139,16 @@ class TestDeliveryEnvironment:
         expired = [o for o in env.orders.values() if o.status == OrderStatus.EXPIRED]
         assert len(expired) == 1
 
+    def test_shared_orders_pruned_on_epoch_end(self, env: DeliveryEnvironment) -> None:
+        env.generate_orders(count=1)
+        order_id = next(iter(env.orders))
+        env._shared_orders_map[order_id] = "agent_a"
+        env.orders[order_id].status = OrderStatus.EXPIRED
+
+        env.end_epoch()
+
+        assert order_id not in env._shared_orders_map
+
 
 class TestDeliveryPolicies:
     def test_conscientious_bids_on_available(self) -> None:

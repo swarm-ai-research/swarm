@@ -8,6 +8,8 @@ from pydantic import BaseModel, Field, model_validator
 class CrewAIBridgeConfig(BaseModel):
     """Configuration for mapping CrewAI crew runs to SWARM interactions.
 
+    Instances are mutable, allowing optional runtime configuration adjustments.
+
     Attributes:
         crew_id: Identifier for this crew in SWARM (used as initiator_id).
         proxy_sigmoid_k: Steepness of sigmoid for v_hat → p.

@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 class AgentStatus(str, Enum):
     """Agent registration status."""
 
-    PENDING = "pending_review"
+    PENDING_REVIEW = "pending_review"
     APPROVED = "approved"
     REJECTED = "rejected"
     SUSPENDED = "suspended"

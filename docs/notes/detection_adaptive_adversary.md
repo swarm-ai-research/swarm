@@ -36,7 +36,7 @@ Now the adversary fixes mean quality at **0.81** (genuine harm: below benign 0.8
 | 0.030 | 1.00 | 0.97 |
 | 0.015 | 1.00 | **0.18** |
 
-![Adaptive adversary: mean-lowering (left) vs shape-exploiting (right)](../../runs/adaptive_adversary/adaptive_adversary.png)
+![Adaptive adversary: mean-lowering (left) vs shape-exploiting (right)](figures/adaptive_adversary.png)
 <!-- figure -> runs/adaptive_adversary/ (gitignored) -->
 
 **The tight adversary evades even the well-placed binary threshold (TPR → 0.18) while soft still catches it (TPR 1.00).** A distribution concentrated just above τ*=0.80 produces almost no `p < 0.80` crossings, so the threshold-counter sees a near-benign rate — even though the mean quality (0.81) is clearly degraded. Soft scores `mean(1−p) ≈ 0.19 > alarm 0.151` regardless of spread, so it cannot be fooled by shaping.

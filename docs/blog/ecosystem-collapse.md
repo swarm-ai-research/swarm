@@ -71,7 +71,7 @@ The interesting stuff is at the boundaries.
 Five minutes, no API keys:
 
 ```bash
-git clone https://github.com/swarm-ai-safety/swarm.git
+git clone https://github.com/swarm-ai-research/swarm.git
 cd swarm
 pip install -e ".[dev,runtime]"
 jupyter notebook examples/quickstart.ipynb
@@ -90,7 +90,7 @@ print(f"Final welfare: {history[-1].total_welfare:.2f}")
 print(f"Avg toxicity: {sum(m.toxicity_rate for m in history) / len(history):.3f}")
 ```
 
-The repo includes 20+ scenario configs, 2200+ tests, and a SQLite database of all runs for reproducibility. The full paper with detailed methodology is at [`docs/papers/distributional_agi_safety.md`](https://github.com/swarm-ai-safety/swarm/blob/main/docs/papers/distributional_agi_safety.md).
+The repo includes 20+ scenario configs, 2200+ tests, and a SQLite database of all runs for reproducibility. The full paper with detailed methodology is at [`docs/papers/distributional_agi_safety.md`](https://github.com/swarm-ai-research/swarm/blob/main/docs/papers/distributional_agi_safety.md).
 
 ## References
 

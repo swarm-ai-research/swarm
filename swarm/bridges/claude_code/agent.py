@@ -91,6 +91,35 @@ class ClaudeCodeAgent(BaseAgent):
         )
         self._spawned = True
 
+    def _dispatch_with_fallback(
+        self, prompt: str, counterparty_id: str, fallback, log_error: bool = False
+    ):
+        """Dispatch a task to the bridge, returning fallback on connection failure.
+
+        Args:
+            prompt: Prompt text to dispatch
+            counterparty_id: ID of the counterparty
+            fallback: Value to return if dispatch fails
+            log_error: Whether to log the error
+
+        Returns:
+            Interaction result from bridge, or fallback if connection fails
+        """
+        try:
+            return self._bridge.dispatch_task(
+                agent_id=self.agent_id,
+                prompt=prompt,
+                counterparty_id=counterparty_id,
+            )
+        except (ConnectionError, RuntimeError) as e:
+            if log_error:
+                logger.warning(
+                    "Agent %s failed to dispatch: %s, returning fallback",
+                    self.agent_id,
+                    e,
+                )
+            return fallback
+
     def act(self, observation: Observation) -> Action:
         """Decide on an action by consulting the Claude Code agent.
 
@@ -109,18 +138,14 @@ class ClaudeCodeAgent(BaseAgent):
         prompt = self._observation_to_prompt(observation)
 
         # Dispatch through the bridge
-        try:
-            interaction = self._bridge.dispatch_task(
-                agent_id=self.agent_id,
-                prompt=prompt,
-                counterparty_id="swarm_orchestrator",
-            )
-        except (ConnectionError, RuntimeError) as e:
-            logger.warning(
-                "Agent %s failed to dispatch: %s, returning NOOP",
-                self.agent_id,
-                e,
-            )
+        interaction = self._dispatch_with_fallback(
+            prompt=prompt,
+            counterparty_id="swarm_orchestrator",
+            fallback=None,
+            log_error=True,
+        )
+
+        if interaction is None:
             return self.create_noop_action()
 
         # Map the interaction result to a SWARM action
@@ -145,13 +170,14 @@ class ClaudeCodeAgent(BaseAgent):
             f"Should you accept? Respond with just YES or NO."
         )
 
-        try:
-            interaction = self._bridge.dispatch_task(
-                agent_id=self.agent_id,
-                prompt=prompt,
-                counterparty_id=proposal.initiator_id,
-            )
-        except (ConnectionError, RuntimeError):
+        interaction = self._dispatch_with_fallback(
+            prompt=prompt,
+            counterparty_id=proposal.initiator_id,
+            fallback=None,
+            log_error=False,
+        )
+
+        if interaction is None:
             return False  # Fail-closed: reject on connection failure
 
         # Parse the response
@@ -175,13 +201,14 @@ class ClaudeCodeAgent(BaseAgent):
             f"Write a brief proposal message (1-2 sentences)."
         )
 
-        try:
-            interaction = self._bridge.dispatch_task(
-                agent_id=self.agent_id,
-                prompt=prompt,
-                counterparty_id=counterparty_id,
-            )
-        except (ConnectionError, RuntimeError):
+        interaction = self._dispatch_with_fallback(
+            prompt=prompt,
+            counterparty_id=counterparty_id,
+            fallback=None,
+            log_error=False,
+        )
+
+        if interaction is None:
             return None
 
         content = interaction.metadata.get("response_preview", "")

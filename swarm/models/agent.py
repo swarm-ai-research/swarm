@@ -100,6 +100,10 @@ class AgentState(BaseModel):
     def record_received(self, accepted: bool, p: float) -> None:
         """Record a received interaction."""
         self.interactions_received += 1
+        if accepted:
+            self.interactions_accepted += 1
+        else:
+            self.interactions_rejected += 1
 
         # Update running average
         n = self.interactions_received

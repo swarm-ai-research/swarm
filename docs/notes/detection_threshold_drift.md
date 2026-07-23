@@ -32,7 +32,7 @@ Detectors: soft toxicity, `bin@0.50` (naive threshold), `bin@0.78` (≈ class bo
 
 (Realized benign FPR under drift also drifts toward 0.000 — the alarm goes *quiet*, which looks reassuring but is catastrophic: it's quiet because it's missing everything.)
 
-![AUROC stays flat under drift while detection rate at the committed alarm collapses](../../runs/threshold_drift/threshold_drift.png)
+![AUROC stays flat under drift while detection rate at the committed alarm collapses](figures/threshold_drift.png)
 <!-- figure regenerated to runs/threshold_drift/ (gitignored) -->
 
 ## What this means
@@ -53,7 +53,7 @@ The location drift above is rank-preserving, so AUROC is invariant for both dete
 | 18 | 0.878 / 0.877 | 0.866 / **0.500** |
 | 21 | 0.894 / 0.894 | 0.890 / **0.500** |
 
-![Compression drift: soft AUROC invariant, fixed-threshold binary collapses](../../runs/threshold_drift/compression_drift.png)
+![Compression drift: soft AUROC invariant, fixed-threshold binary collapses](figures/compression_drift.png)
 <!-- figure -> runs/threshold_drift/ (gitignored) -->
 
 **Soft AUROC is invariant (Δ≈0.000); the fixed-boundary binary detector collapses to chance.** The per-agent soft score `mean(1−p′) = 0.5 − (mean_p − 0.5)·c` is an *affine, order-preserving* transform of `mean_p` with the same `c` for every agent — so agent ranking, hence AUROC, is unchanged. A fixed threshold has no such invariance: as the range compresses toward 0.5, both classes slide below 0.78 and the detector goes blind. (`bin@0.50` is also invariant here, but only because compression preserves the sign of `p−0.5` — and it's blind to begin with since both classes sit above 0.5.)

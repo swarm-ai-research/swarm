@@ -366,7 +366,7 @@ def format_results(
 def analyze(scenario_path: Path, seeds: List[int]) -> Tuple[str, Dict[str, Any], List[Dict[str, Any]]]:
     """Run the full analysis pipeline.
 
-    Returns (formatted_text, summary_dict).
+    Returns (formatted_text, summary_dict, csv_rows).
     """
     scenario = load_scenario(scenario_path)
     groups = detect_groups(scenario.agent_specs)

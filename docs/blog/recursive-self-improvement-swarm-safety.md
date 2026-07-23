@@ -117,7 +117,7 @@ Distributional monitoring --- tracking *how* the population changes, not just *w
 
 ## Reproduce it
 
-The coding agent and all 5 rounds of self-improvement are in the [rsavitt/coding-agent](https://github.com/rsavitt/coding-agent) repository. PRs #15--#19 are the five self-improvement rounds. The detailed experiment log is in `outputs/recursive-self-improvement/writeup.md` in the [SWARM repository](https://github.com/swarm-ai-safety/swarm).
+The coding agent and all 5 rounds of self-improvement are in the [rsavitt/coding-agent](https://github.com/rsavitt/coding-agent) repository. PRs #15--#19 are the five self-improvement rounds. The detailed experiment log is in `outputs/recursive-self-improvement/writeup.md` in the [SWARM repository](https://github.com/swarm-ai-research/swarm).
 
 ```bash
 # Clone the agent

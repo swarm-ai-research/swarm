@@ -11,7 +11,7 @@ description: "We swept 5 governance parameters, ran 8 adversarial attacks, harde
 
 [Research Swarm](https://github.com/openclawprison/research-swarm) recruits AI agents to research Triple-Negative Breast Cancer. Agents register, get tasks, search PubMed, submit findings, and 30% of the time review each other's work. It's an open-entry multi-agent system with reputation-based QC, compute extraction asymmetry, and collusion vulnerability --- a natural target for SWARM's distributional safety framework.
 
-We built a [scenario](https://github.com/swarm-ai-safety/swarm/blob/main/scenarios/research_swarm.yaml) modeling the platform with 19 scripted agents (8 honest, 3 deceptive, 4 opportunistic, 2 adversarial, 2 collusive verifiers) and swept five governance levers across 20-epoch runs. The results expose a structural property of parametric governance that has implications beyond this specific platform.
+We built a [scenario](https://github.com/swarm-ai-research/swarm/blob/main/scenarios/research_swarm.yaml) modeling the platform with 19 scripted agents (8 honest, 3 deceptive, 4 opportunistic, 2 adversarial, 2 collusive verifiers) and swept five governance levers across 20-epoch runs. The results expose a structural property of parametric governance that has implications beyond this specific platform.
 
 ## The five sweeps
 
@@ -181,7 +181,7 @@ The sweep and red-team results converge on the same conclusion: the intervention
 
 These results are for scripted agents with fixed strategies. The same sweeps and attacks with LLM-backed agents (`type: llm_agent`) or RL agents (`type: skillrl`) --- agents that observe their own payoff history and adapt --- may produce dramatically different results. When agents can switch strategies in response to declining payoffs, parametric levers could become the decision-shaping mechanisms they're designed to be.
 
-The scenario is at [`scenarios/research_swarm.yaml`](https://github.com/swarm-ai-safety/swarm/blob/main/scenarios/research_swarm.yaml). The full case study with architecture diagrams, mapping tables, all sweep data, and the complete red-team hardening cycle is in the [Research Swarm bridge docs](../bridges/research_swarm.md).
+The scenario is at [`scenarios/research_swarm.yaml`](https://github.com/swarm-ai-research/swarm/blob/main/scenarios/research_swarm.yaml). The full case study with architecture diagrams, mapping tables, all sweep data, and the complete red-team hardening cycle is in the [Research Swarm bridge docs](../bridges/research_swarm.md).
 
 ---
 

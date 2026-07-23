@@ -1,8 +1,9 @@
 """Persistent graph memory store for SWARM agents.
 
 This module provides a local-first (no external service dependency) persistent
-graph memory system inspired by MiroFish's Zep Cloud integration. It stores
-agent memories, interaction history, and relationship graphs to JSON files.
+graph memory system for storing agent memories, interaction history, and
+relationship graphs to JSON files. Designed for integration with external
+tools like MiroShark for cascading analysis.
 
 The store is thread-safe using file locking and supports bulk save/load
 operations for efficient memory management across runs.
@@ -173,47 +174,37 @@ class GraphMemoryStore:
 
     def _read_lock(self) -> Any:
         """Context manager for read locking."""
-
-        class ReadLock:
-            def __init__(self, path: Path):
-                self.path = path
-                self.lock_file = None
-
-            def __enter__(self):
-                # Create lock file if needed
-                lock_path = Path(str(self.path) + ".lock")
-                self.lock_file = open(lock_path, "w")
-                fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_SH)
-                return self
-
-            def __exit__(self, exc_type, exc_val, exc_tb):
-                if self.lock_file:
-                    fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_UN)
-                    self.lock_file.close()
-
-        return ReadLock(self.store_path)
+        return self._FileLock(self.store_path, fcntl.LOCK_SH)
 
     def _write_lock(self) -> Any:
         """Context manager for write locking."""
+        return self._FileLock(self.store_path, fcntl.LOCK_EX)
 
-        class WriteLock:
-            def __init__(self, path: Path):
-                self.path = path
-                self.lock_file = None
+    class _FileLock:
+        """Parameterized file lock context manager for shared or exclusive locking."""
 
-            def __enter__(self):
-                # Create lock file if needed
-                lock_path = Path(str(self.path) + ".lock")
-                self.lock_file = open(lock_path, "w")
-                fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_EX)
-                return self
+        def __init__(self, path: Path, lock_type: int):
+            """Initialize file lock.
 
-            def __exit__(self, exc_type, exc_val, exc_tb):
-                if self.lock_file:
-                    fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_UN)
-                    self.lock_file.close()
+            Args:
+                path: Path to the file being locked
+                lock_type: fcntl lock type (fcntl.LOCK_SH for read, fcntl.LOCK_EX for write)
+            """
+            self.path = path
+            self.lock_type = lock_type
+            self.lock_file = None
 
-        return WriteLock(self.store_path)
+        def __enter__(self):
+            # Create lock file if needed
+            lock_path = Path(str(self.path) + ".lock")
+            self.lock_file = open(lock_path, "w")
+            fcntl.flock(self.lock_file.fileno(), self.lock_type)
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            if self.lock_file:
+                fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_UN)
+                self.lock_file.close()
 
     def _persist(self) -> None:
         """Write current state to disk atomically."""
@@ -297,9 +288,15 @@ class GraphMemoryStore:
         with self._read_lock():
             result = {}
             for agent_id in self._snapshots:
-                snapshot = self.load(agent_id)
-                if snapshot:
+                if agent_id not in self._snapshots or not self._snapshots[agent_id]:
+                    continue
+                try:
+                    data = self._snapshots[agent_id][-1]
+                    snapshot = AgentMemorySnapshot.from_dict(data)
+                    snapshot.validate()
                     result[agent_id] = snapshot
+                except (IndexError, ValueError) as e:
+                    logger.warning(f"Failed to load snapshot for {agent_id}: {e}")
             return result
 
     def get_relationship(
@@ -453,8 +450,8 @@ def _from_agents_helper(
 
     for interaction in agent.get_interaction_history():
         if interaction.accepted:
-            # Determine payoff (simplified: using interaction quality as proxy)
-            payoff = interaction.p  # In a real system, use actual payoff from SoftPayoffEngine
+            # Measure payoff from interaction quality probability
+            payoff = interaction.p  # Proxy for expected payoff based on interaction quality
             total_payoff += payoff
 
             # Create summary (don't store full SoftInteraction object)
@@ -474,7 +471,7 @@ def _from_agents_helper(
     snapshot = AgentMemorySnapshot(
         agent_id=agent.agent_id,
         agent_type=agent.agent_type.value,
-        counterparty_trust=agent._counterparty_memory.copy(),
+        counterparty_trust=agent.get_counterparty_memory(),
         interaction_summaries=interaction_summaries,
         total_interactions=len(agent._interaction_history),
         total_payoff=total_payoff,
@@ -485,7 +482,7 @@ def _from_agents_helper(
     return snapshot
 
 
-# Attach helper as classmethod
-AgentMemorySnapshot.from_agents = classmethod(  # type: ignore[attr-defined]
-    lambda cls, agent, run_id, epoch: _from_agents_helper(agent, run_id, epoch)
+# Attach helper as staticmethod
+AgentMemorySnapshot.from_agents = staticmethod(  # type: ignore[attr-defined]
+    lambda agent, run_id, epoch: _from_agents_helper(agent, run_id, epoch)
 )

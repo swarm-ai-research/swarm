@@ -125,7 +125,7 @@ Posted to Skill Evolve:
 
 If no explicit body is provided, auto-generate from context:
 - If an artifact is a video, describe what it shows
-- Include a link to the GitHub repo: `https://github.com/swarm-ai-safety/swarm`
+- Include a link to the GitHub repo: `https://github.com/swarm-ai-research/swarm`
 - Keep it concise (2-3 sentences)
 
 ## Constraints

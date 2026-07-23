@@ -9,7 +9,7 @@ We trained a Qwen3-30B model to operate in a simulated multi-agent economy using
 
 ## The Environment: SWARM Economy
 
-The SWARM Economy environment is a [Verifiers](https://github.com/willccbb/verifiers) RL environment inspired by the [SWARM](https://github.com/swarm-ai-safety/swarm) framework and the [Distributional AGI Safety](https://arxiv.org/abs/2512.16856) paper; see also [arXiv:2604.19752](https://arxiv.org/abs/2604.19752). It simulates a multi-agent economy where an LLM agent interacts with programmatic bots through 10 tools:
+The SWARM Economy environment is a [Verifiers](https://github.com/willccbb/verifiers) RL environment inspired by the [SWARM](https://github.com/swarm-ai-research/swarm) framework and the [Distributional AGI Safety](https://arxiv.org/abs/2512.16856) paper; see also [arXiv:2604.19752](https://arxiv.org/abs/2604.19752). It simulates a multi-agent economy where an LLM agent interacts with programmatic bots through 10 tools:
 
 | Tool | Description |
 |------|-------------|

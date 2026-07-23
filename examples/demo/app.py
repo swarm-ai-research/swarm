@@ -32,7 +32,7 @@ st.sidebar.markdown(
 )
 st.sidebar.markdown("---")
 st.sidebar.markdown(
-    "[Source Code](https://github.com/swarm-ai-safety/swarm)"
+    "[Source Code](https://github.com/swarm-ai-research/swarm)"
 )
 st.sidebar.markdown(
     "[Paper](https://arxiv.org/abs/2604.19752) "

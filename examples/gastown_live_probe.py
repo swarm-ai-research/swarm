@@ -275,7 +275,7 @@ def main() -> None:
     print("RANKING (by p)")
     print("=" * 70)
     ranked = sorted(
-        zip(interactions, issues, strict=False), key=lambda x: x[0].p, reverse=True
+        zip(interactions, issues, strict=True), key=lambda x: x[0].p, reverse=True
     )
     for i, (inter, iss) in enumerate(ranked, 1):
         short_id = iss["id"].replace("distributional-agi-safety-", "")

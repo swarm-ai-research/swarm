@@ -15,7 +15,7 @@ This isn't about the model getting better. It's about the eval getting better. T
 
 ## The three fixes
 
-Between run 1 and run 2, commit [`0da4c7e`](https://github.com/swarm-ai-safety/swarm) applied these changes to `swarm_economy.py`:
+Between run 1 and run 2, commit [`0da4c7e`](https://github.com/swarm-ai-research/swarm) applied these changes to `swarm_economy.py`:
 
 ### Fix 1: Stop killing rollouts on text-only turns
 
@@ -145,4 +145,4 @@ This suggests that for RL training on this environment, longer episodes or more 
 
 ---
 
-*Eval jobs: Run 1 `swarm_economy_openai_gpt_4.1_mini_20260212_205322_b3c5c09f` (pre-fix), Run 2 `swarm_economy_openai_gpt_4.1_mini_20260212_230113_539f4dc4` (post-fix). Model: openai/gpt-4.1-mini via Prime Intellect inference. Environment: swarm-economy (local). Fixes applied in commit `0da4c7e`. Full environment code at [`environments/swarm_economy/swarm_economy.py`](https://github.com/swarm-ai-safety/swarm/blob/main/environments/swarm_economy/swarm_economy.py).*
+*Eval jobs: Run 1 `swarm_economy_openai_gpt_4.1_mini_20260212_205322_b3c5c09f` (pre-fix), Run 2 `swarm_economy_openai_gpt_4.1_mini_20260212_230113_539f4dc4` (post-fix). Model: openai/gpt-4.1-mini via Prime Intellect inference. Environment: swarm-economy (local). Fixes applied in commit `0da4c7e`. Full environment code at [`environments/swarm_economy/swarm_economy.py`](https://github.com/swarm-ai-research/swarm/blob/main/environments/swarm_economy/swarm_economy.py).*

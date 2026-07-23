@@ -10,6 +10,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from swarm.bridges._common import trim_to_half
 from swarm.bridges.gastown.beads import BeadsClient
 from swarm.bridges.gastown.config import GasTownConfig
 from swarm.bridges.gastown.events import GasTownEvent
@@ -210,15 +211,11 @@ class GasTownBridge:
     # --- Internal helpers ---
 
     def _record_event(self, event: GasTownEvent) -> None:
-        if len(self._events) >= self._config.max_events:
-            self._events = self._events[-self._config.max_events // 2 :]
+        self._events = trim_to_half(self._events, self._config.max_events)
         self._events.append(event)
 
     def _record_interaction(self, interaction: SoftInteraction) -> None:
-        if len(self._interactions) >= self._config.max_interactions:
-            self._interactions = self._interactions[
-                -self._config.max_interactions // 2 :
-            ]
+        self._interactions = trim_to_half(self._interactions, self._config.max_interactions)
         self._interactions.append(interaction)
         self._log_interaction(interaction)
 

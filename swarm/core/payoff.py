@@ -56,16 +56,7 @@ class PayoffConfig(BaseModel):
 
     def to_dict(self) -> dict:
         """Convert to dictionary."""
-        return {
-            "s_plus": self.s_plus,
-            "s_minus": self.s_minus,
-            "h": self.h,
-            "theta": self.theta,
-            "rho_a": self.rho_a,
-            "rho_b": self.rho_b,
-            "w_rep": self.w_rep,
-            "sigmoid_k": self.sigmoid_k,
-        }
+        return self.model_dump()
 
 
 @dataclass
@@ -275,6 +266,9 @@ class SoftPayoffEngine:
         Returns:
             (pi_a, pi_b): Initiator and counterparty payoffs
         """
+        # Formulas deliberately inlined rather than calling expected_surplus/
+        # expected_harm: this is the per-interaction hot path and the method-
+        # call overhead trips test_payoffs_both_within_budget's 50ms budget.
         p = interaction.p
         S_soft = p * self.config.s_plus - (1 - p) * self.config.s_minus
         E_soft = (1 - p) * self.config.h
@@ -297,11 +291,12 @@ class SoftPayoffEngine:
 
     def total_welfare(self, interaction: SoftInteraction) -> float:
         """
-        Compute total welfare (sum of payoffs minus externality).
+        Compute total private welfare: W = π_a + π_b.
 
-        W = π_a + π_b + E_soft (externality not internalized)
-
-        With full internalization (ρ_a + ρ_b = 1), this equals S_soft.
+        Transfers (τ) cancel between the parties. Externality harm enters
+        only through the internalized shares (ρ_a, ρ_b); the uninternalized
+        remainder is excluded here — see social_surplus for the version
+        that charges the full externality.
 
         Args:
             interaction: The soft interaction

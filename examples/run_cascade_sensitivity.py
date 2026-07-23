@@ -33,7 +33,6 @@ from swarm.scenarios import build_orchestrator, load_scenario
 
 THRESHOLDS = [0.2, 0.35, 0.5, 0.65, 0.8]
 P_THRESHOLDS = [0.15, 0.3, 0.45, 0.6]
-WINDOWS = [100, 200, 400]
 SEEDS = [42, 123, 456]
 N_EPOCHS = 5
 STEPS_PER_EPOCH = 20

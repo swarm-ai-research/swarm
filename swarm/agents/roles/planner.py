@@ -175,7 +175,7 @@ class PlannerRole:
         Decide on a planning-related action.
 
         Returns:
-            Action if planning action needed, None otherwise
+            None to signal planning needed or if no action needed
         """
         # Check if we have active tasks needing plans
         for task in observation.active_tasks:

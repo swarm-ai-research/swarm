@@ -68,6 +68,9 @@ class DeliveryEnvironment:
         self._current_step = 0
         self._current_epoch = 0
 
+        # Shared orders tracking
+        self._shared_orders_map: dict[str, str] = {}
+
         # Generate depot locations
         self._depots: list[tuple[float, float]] = []
         for _ in range(config.city.num_depots):
@@ -204,6 +207,14 @@ class DeliveryEnvironment:
                     agent_id=agent_id,
                 )
             else:
+                # Unknown action types are recorded as waits (without the
+                # idle_steps accounting a deliberate WAIT gets) — warn so
+                # a typo'd or unhandled action type is visible in logs.
+                logger.warning(
+                    "Unknown delivery action type %r from %s; treating as wait",
+                    action.action_type,
+                    agent_id,
+                )
                 evt = DeliveryEvent(
                     event_type="wait",
                     step=self._current_step,
@@ -752,6 +763,13 @@ class DeliveryEnvironment:
                             OrderStatus.IN_TRANSIT)
         }
 
+        # Drop sharing records for orders that no longer exist; the sharing
+        # bonus is paid at delivery completion, so nothing is owed by now.
+        self._shared_orders_map = {
+            oid: sharer for oid, sharer in self._shared_orders_map.items()
+            if oid in self._orders
+        }
+
         return events
 
     # ------------------------------------------------------------------
@@ -790,7 +808,6 @@ class DeliveryEnvironment:
         v_hat = max(-1.0, min(1.0, v_hat))
 
         # Apply sigmoid: p = 1 / (1 + exp(-k * v_hat))
-        import math
         try:
             p = 1.0 / (1.0 + math.exp(-_DEFAULT_SIGMOID_K * v_hat))
         except OverflowError:
@@ -806,8 +823,6 @@ class DeliveryEnvironment:
     @property
     def _shared_orders(self) -> dict[str, str]:
         """Track which orders were shared and by whom."""
-        if not hasattr(self, "_shared_orders_map"):
-            self._shared_orders_map: dict[str, str] = {}
         return self._shared_orders_map
 
     # ------------------------------------------------------------------

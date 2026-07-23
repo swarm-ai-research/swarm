@@ -8,6 +8,7 @@ from swarm.governance.admission import StakingLever
 from swarm.governance.attestation_heartbeat import AttestationHeartbeatLever
 from swarm.governance.audits import RandomAuditLever
 from swarm.governance.cascade import CascadeRiskLever
+from swarm.governance.certificate_gate import CertificateGateLever
 from swarm.governance.circuit_breaker import CircuitBreakerLever
 from swarm.governance.collusion import CollusionPenaltyLever
 from swarm.governance.config import GovernanceConfig
@@ -126,6 +127,10 @@ class GovernanceEngine:
             StakingLever(self.config),
             CircuitBreakerLever(self.config),
             RandomAuditLever(self.config, seed=seed),
+            CertificateGateLever(
+                self.config,
+                seed=None if seed is None else seed + 6007,
+            ),
             CollusionPenaltyLever(self.config),
             SecurityLever(self.config, seed=seed),
             PairCapLever(self.config),
@@ -470,15 +475,9 @@ class GovernanceEngine:
         if self._incoherence_forecaster is None:
             return list(self._levers)
 
-        variance_names = {
-            "self_ensemble",
-            "incoherence_breaker",
-            "decomposition",
-            "incoherence_friction",
-        }
         active: List[GovernanceLever] = []
         for lever in self._levers:
-            if lever.name in variance_names and not self._adaptive_variance_active:
+            if lever.reduces_variance and not self._adaptive_variance_active:
                 continue
             active.append(lever)
         return active

@@ -2,13 +2,10 @@
 
 from typing import Any, Dict, List
 
-AGENT_COLORS = {
-    "honest": "#28a745",
-    "opportunistic": "#ffc107",
-    "deceptive": "#6c757d",
-    "adversarial": "#dc3545",
-    "adaptive_adversary": "#e83e8c",
-}
+from .formatting import AGENT_TYPE_COLORS
+
+# Use AGENT_TYPE_COLORS as the single source of truth for agent type colors
+AGENT_COLORS = AGENT_TYPE_COLORS
 
 
 def metrics_over_time(
@@ -106,7 +103,7 @@ def metrics_over_time(
         accepted = [m.accepted_interactions for m in epoch_metrics]
         total = [m.total_interactions for m in epoch_metrics]
         acc_rate = [
-            a / t if t > 0 else 0 for a, t in zip(accepted, total, strict=False)
+            a / t if t > 0 else 0 for a, t in zip(accepted, total, strict=True)
         ]
         fig.add_trace(
             go.Scatter(

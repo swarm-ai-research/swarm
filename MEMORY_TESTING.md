@@ -234,5 +234,5 @@ The `@memory_limit` decorator only works on Unix-like systems. Windows tests wil
 ## Contact
 
 For questions or issues with memory testing:
-- File an issue: https://github.com/swarm-ai-safety/swarm/issues
+- File an issue: https://github.com/swarm-ai-research/swarm/issues
 - Tag: `memory`, `testing`, `ci`

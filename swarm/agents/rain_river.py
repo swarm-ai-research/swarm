@@ -152,10 +152,14 @@ class ConfigurableMemoryAgent(HonestAgent):
 
 class AdversarialRainAgent(HonestAgent):
     """
-    Adversarial agent variant with rain (discontinuous) memory.
+    Honest agent with rain (discontinuous) memory and adversarial type label.
 
-    Useful for studying whether adversarial behavior is more or less
-    effective when the adversary cannot track victim history.
+    NOTE: Despite the name, this agent inherits HonestAgent's act() method
+    and exhibits honest behavior. Only the agent_type field is set to ADVERSARIAL,
+    which affects metrics and how other agents perceive it, not its actual behavior.
+
+    Useful for studying whether the adversarial type label affects how honest agents
+    are treated when they cannot track other agent history.
     """
 
     def __init__(
@@ -186,10 +190,14 @@ class AdversarialRainAgent(HonestAgent):
 
 class AdversarialRiverAgent(HonestAgent):
     """
-    Adversarial agent variant with river (continuous) memory.
+    Honest agent with river (continuous) memory and adversarial type label.
 
-    Useful for studying whether adversarial behavior is more effective
-    when the adversary can track victim history and reputation.
+    NOTE: Despite the name, this agent inherits HonestAgent's act() method
+    and exhibits honest behavior. Only the agent_type field is set to ADVERSARIAL,
+    which affects metrics and how other agents perceive it, not its actual behavior.
+
+    Useful for studying whether the adversarial type label affects how honest agents
+    are treated when they can track victim history and reputation.
     """
 
     def __init__(

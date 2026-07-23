@@ -30,9 +30,8 @@ class LettaAgent(BaseAgent):
     """Agent that delegates to a Letta (MemGPT) stateful runtime.
 
     The agent is created lazily: ``_lazy_init()`` must be called with
-    a ``LettaSwarmClient`` and ``LettaMemoryMapper`` before the first
-    ``act()`` call. The orchestrator does this after
-    ``LettaLifecycleManager.start()``.
+    a ``LettaLifecycleManager`` before the first ``act()`` call.
+    The orchestrator does this after ``LettaLifecycleManager.start()``.
 
     Config keys (from scenario YAML ``letta:`` sub-section):
         persona: str - Agent persona/behavioral instructions
@@ -211,11 +210,7 @@ class LettaAgent(BaseAgent):
             return
 
         # Write outcome to archival memory
-        counterparty = (
-            interaction.counterparty
-            if interaction.initiator == self.agent_id
-            else interaction.initiator
-        )
+        counterparty = self._get_counterparty(interaction)
         outcome_record = {
             "type": "interaction_outcome",
             "counterparty": counterparty,

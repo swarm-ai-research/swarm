@@ -24,6 +24,17 @@ def _sanitize_agent_content(text: str) -> str:
     return text
 
 
+def _get_safe_task_prompt(task: Dict[str, Any]) -> str:
+    """Extract and sanitize task prompt for safe display.
+
+    Sanitize BEFORE truncating: truncation can split an injection
+    pattern into a form the sanitizer no longer recognizes.
+    """
+    return _sanitize_agent_content(
+        task.get("prompt", "No description")
+    )[:50]
+
+
 # =============================================================================
 # Persona System Prompts
 # =============================================================================
@@ -363,9 +374,7 @@ def format_observation(observation: Observation) -> str:
         lines.append("")
         lines.append("## Available Tasks")
         for task in observation.available_tasks[:5]:
-            safe_prompt = _sanitize_agent_content(
-                task.get("prompt", "No description")[:50]
-            )
+            safe_prompt = _get_safe_task_prompt(task)
             lines.append(
                 f"- [{task.get('task_id', 'unknown')[:8]}] "
                 f"[{safe_prompt}] "
@@ -377,9 +386,7 @@ def format_observation(observation: Observation) -> str:
         lines.append("")
         lines.append("## Your Active Tasks")
         for task in observation.active_tasks:
-            safe_prompt = _sanitize_agent_content(
-                task.get("prompt", "No description")[:50]
-            )
+            safe_prompt = _get_safe_task_prompt(task)
             lines.append(
                 f"- [{task.get('task_id', 'unknown')[:8]}] "
                 f"[{safe_prompt}] "

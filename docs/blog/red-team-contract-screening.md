@@ -131,9 +131,9 @@ python examples/run_redteam.py --mode full
 # See scenarios/contract_screening.yaml for tuned thresholds
 ```
 
-Reports archived in [swarm-artifacts](https://github.com/swarm-ai-safety/swarm-artifacts):
-- [`20260221-081106_redteam_contract_screening_no_collusion/`](https://github.com/swarm-ai-safety/swarm-artifacts/tree/main/runs/20260221-081106_redteam_contract_screening_no_collusion)
-- [`20260221-081953_redteam_contract_screening_with_collusion/`](https://github.com/swarm-ai-safety/swarm-artifacts/tree/main/runs/20260221-081953_redteam_contract_screening_with_collusion)
+Reports archived in [swarm-artifacts](https://github.com/swarm-ai-research/swarm-artifacts):
+- [`20260221-081106_redteam_contract_screening_no_collusion/`](https://github.com/swarm-ai-research/swarm-artifacts/tree/main/runs/20260221-081106_redteam_contract_screening_no_collusion)
+- [`20260221-081953_redteam_contract_screening_with_collusion/`](https://github.com/swarm-ai-research/swarm-artifacts/tree/main/runs/20260221-081953_redteam_contract_screening_with_collusion)
 
 ## What's next
 
@@ -142,7 +142,7 @@ Reports archived in [swarm-artifacts](https://github.com/swarm-ai-safety/swarm-a
 - **Adaptive red team:** Run adversaries that observe the collusion threshold and adjust coordination intensity to stay just below it
 - **Larger populations:** Test whether the false-positive problem shrinks with 50--100 agents (it should --- interaction frequency distributes more evenly)
 
-[GitHub](https://github.com/swarm-ai-safety/swarm)
+[GitHub](https://github.com/swarm-ai-research/swarm)
 
 ---
 

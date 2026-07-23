@@ -248,11 +248,7 @@ class ThresholdDancer(BaseAgent):
         """Update ledger after interaction outcome."""
         super().update_from_outcome(interaction, payoff)
 
-        counterparty = (
-            interaction.counterparty
-            if interaction.initiator == self.agent_id
-            else interaction.initiator
-        )
+        counterparty = self._get_counterparty(interaction)
 
         ledger = self._get_or_create_ledger(counterparty)
         ledger.interaction_count += 1

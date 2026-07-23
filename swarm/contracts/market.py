@@ -201,12 +201,11 @@ class ContractMarket:
     ) -> SoftInteraction:
         """Route an interaction through the appropriate contract protocol.
 
-        Routing logic:
+        Routing logic (agents default to default_market if not in membership):
         - If both agents are in the same contract -> use that contract
-        - If agents are in different contracts -> use the lower-protection
-          contract (conservative: don't grant protections the other party
-          didn't sign up for)
-        - If either agent has no membership -> use default market
+        - If agents are in different contracts or either agent lacks membership
+          -> use default market (conservative: don't grant protections the other
+          party didn't sign up for)
 
         Args:
             interaction: The raw interaction.

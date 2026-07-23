@@ -169,7 +169,7 @@ def obfuscation_over_time_data(
 
     data: Dict[str, Any] = {"environments": {}}
     for env, env_results in groups.items():
-        # Pick first result for time series
+        # Extract time series for each result with epoch metrics
         for r in env_results:
             if r.epoch_metrics:
                 epochs = list(range(len(r.epoch_metrics)))

@@ -75,7 +75,8 @@ class LLMAgent(BaseAgent):
         # Lazy-loaded clients
         self._anthropic_client = None
         self._openai_client = None
-        self._llama_model = None  # llama-cpp-python Llama instance (Option B)
+        # Llama CPP can use either: (A) llama-cpp-python direct client, or (B) OpenAI-compatible API
+        self._llama_model = None  # llama-cpp-python Llama instance (Option A)
 
         # Memori middleware (lazy-loaded from config dict)
         self._memori_middleware = None
@@ -298,8 +299,8 @@ class LLMAgent(BaseAgent):
         )
 
         text = response.content[0].text
-        input_tokens = response.usage.input_tokens
-        output_tokens = response.usage.output_tokens
+        input_tokens = response.usage.input_tokens if response.usage else 0
+        output_tokens = response.usage.output_tokens if response.usage else 0
 
         if self.llm_config.cost_tracking:
             self.usage_stats.record_usage(
@@ -334,8 +335,8 @@ class LLMAgent(BaseAgent):
         )
 
         text = response.choices[0].message.content
-        input_tokens = response.usage.prompt_tokens
-        output_tokens = response.usage.completion_tokens
+        input_tokens = response.usage.prompt_tokens if response.usage else 0
+        output_tokens = response.usage.completion_tokens if response.usage else 0
 
         if self.llm_config.cost_tracking:
             self.usage_stats.record_usage(
@@ -1037,9 +1038,9 @@ class LLMAgent(BaseAgent):
         """
         Create an interaction proposal for a counterparty.
 
-        For LLM agents, this is typically handled by the act() method
-        returning a PROPOSE_INTERACTION action. This method is provided
-        for compatibility but delegates to act().
+        LLM agents propose interactions only via act() returning a
+        PROPOSE_INTERACTION action; this method exists for interface
+        compatibility and always returns None.
 
         Args:
             observation: Current observation

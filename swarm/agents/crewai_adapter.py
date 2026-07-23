@@ -32,6 +32,7 @@ from __future__ import annotations
 import concurrent.futures
 import json
 import logging
+import math
 import random
 import re
 from enum import Enum
@@ -60,6 +61,7 @@ MAX_CONTENT_LENGTH = 10_000
 MAX_RATIONALE_LENGTH = 2_000
 MAX_ID_LENGTH = 200
 MAX_METADATA_KEYS = 20
+MAX_METADATA_KEY_LENGTH = 200
 MAX_METADATA_VALUE_LENGTH = 1_000
 MAX_RAW_TRACE_LENGTH = 2_000
 MAX_DELIBERATION_MEMORY = 200
@@ -465,6 +467,33 @@ def build_crew(
     return crew
 
 
+def _make_crewai_tool(
+    tool_name: str,
+    description: str,
+    tool_adapter: CrewAIToolAdapter,
+    method_name: str,
+) -> Any:
+    """Factory function to create a CrewAI tool class.
+
+    Args:
+        tool_name: Snake_case name of the tool (e.g., "get_agent_state")
+        description: Human-readable description
+        tool_adapter: The CrewAIToolAdapter instance
+        method_name: Name of the adapter method to call (e.g., "get_agent_state")
+    """
+    from crewai.tools import BaseTool as CrewBaseTool
+
+    class DynamicCrewAITool(CrewBaseTool):
+        name: str = tool_name
+        description: str = description
+
+        def _run(self) -> str:
+            method = getattr(tool_adapter, method_name)
+            return json.dumps(method())
+
+    return DynamicCrewAITool()
+
+
 def _build_crewai_tools(tool_adapter: CrewAIToolAdapter) -> list:
     """Create CrewAI-compatible tool wrappers from the tool adapter.
 
@@ -472,65 +501,20 @@ def _build_crewai_tools(tool_adapter: CrewAIToolAdapter) -> list:
     return plain callables (some CrewAI versions accept both).
     """
     try:
-        from crewai.tools import BaseTool as CrewBaseTool
-
-        class GetAgentStateTool(CrewBaseTool):
-            name: str = "get_agent_state"
-            description: str = "Get the agent's own state (reputation, resources, etc.)"
-
-            def _run(self) -> str:
-                return json.dumps(tool_adapter.get_agent_state())
-
-        class GetVisiblePostsTool(CrewBaseTool):
-            name: str = "get_visible_posts"
-            description: str = "Get recent visible posts in the feed"
-
-            def _run(self) -> str:
-                return json.dumps(tool_adapter.get_visible_posts())
-
-        class GetAvailableTasksTool(CrewBaseTool):
-            name: str = "get_available_tasks"
-            description: str = "Get tasks available for claiming"
-
-            def _run(self) -> str:
-                return json.dumps(tool_adapter.get_available_tasks())
-
-        class GetPendingProposalsTool(CrewBaseTool):
-            name: str = "get_pending_proposals"
-            description: str = "Get interaction proposals pending acceptance"
-
-            def _run(self) -> str:
-                return json.dumps(tool_adapter.get_pending_proposals())
-
-        class GetVisibleAgentsTool(CrewBaseTool):
-            name: str = "get_visible_agents"
-            description: str = "Get visible agent summaries"
-
-            def _run(self) -> str:
-                return json.dumps(tool_adapter.get_visible_agents())
-
-        class GetEcosystemMetricsTool(CrewBaseTool):
-            name: str = "get_ecosystem_metrics"
-            description: str = "Get ecosystem health metrics"
-
-            def _run(self) -> str:
-                return json.dumps(tool_adapter.get_ecosystem_metrics())
-
-        class GetAvailableBountiesTool(CrewBaseTool):
-            name: str = "get_available_bounties"
-            description: str = "Get marketplace bounties open for bidding"
-
-            def _run(self) -> str:
-                return json.dumps(tool_adapter.get_available_bounties())
+        # Define tool specifications as (name, description, adapter_method_name)
+        tool_specs = [
+            ("get_agent_state", "Get the agent's own state (reputation, resources, etc.)", "get_agent_state"),
+            ("get_visible_posts", "Get recent visible posts in the feed", "get_visible_posts"),
+            ("get_available_tasks", "Get tasks available for claiming", "get_available_tasks"),
+            ("get_pending_proposals", "Get interaction proposals pending acceptance", "get_pending_proposals"),
+            ("get_visible_agents", "Get visible agent summaries", "get_visible_agents"),
+            ("get_ecosystem_metrics", "Get ecosystem health metrics", "get_ecosystem_metrics"),
+            ("get_available_bounties", "Get marketplace bounties open for bidding", "get_available_bounties"),
+        ]
 
         return [
-            GetAgentStateTool(),
-            GetVisiblePostsTool(),
-            GetAvailableTasksTool(),
-            GetPendingProposalsTool(),
-            GetVisibleAgentsTool(),
-            GetEcosystemMetricsTool(),
-            GetAvailableBountiesTool(),
+            _make_crewai_tool(name, desc, tool_adapter, method)
+            for name, desc, method in tool_specs
         ]
     except ImportError:
         # Fallback: return empty tools list if crewai.tools is unavailable
@@ -543,19 +527,36 @@ def _build_crewai_tools(tool_adapter: CrewAIToolAdapter) -> list:
 # ---------------------------------------------------------------------------
 
 
+def _sanitize_key(key: str) -> str:
+    """Sanitize a metadata key: truncate and strip non-printable chars."""
+    # Strip non-printable/control characters (keep printable ASCII + unicode)
+    cleaned = re.sub(r"[\x00-\x1f\x7f-\x9f]", "", key)
+    return cleaned[:MAX_METADATA_KEY_LENGTH]
+
+
 def _sanitize_crew_metadata(raw: Dict[str, Any]) -> Dict[str, Any]:
-    """Sanitize crew-supplied metadata.
+    """Sanitize crew-supplied metadata (parity with the Swarms adapter).
 
     * Limits number of keys to ``MAX_METADATA_KEYS``.
+    * Sanitizes key names (truncation, control char stripping).
     * Only allows str, int, float, bool values.
+    * Rejects non-finite floats (NaN, Inf).
     * Truncates string values to ``MAX_METADATA_VALUE_LENGTH``.
     """
     sanitized: Dict[str, Any] = {}
     for key, value in list(raw.items())[:MAX_METADATA_KEYS]:
+        clean_key = _sanitize_key(str(key))
+        if not clean_key:
+            continue
         if isinstance(value, str):
-            sanitized[key] = value[:MAX_METADATA_VALUE_LENGTH]
-        elif isinstance(value, (int, float, bool)):
-            sanitized[key] = value
+            sanitized[clean_key] = value[:MAX_METADATA_VALUE_LENGTH]
+        elif isinstance(value, bool):
+            # Check bool before int/float since bool is subclass of int
+            sanitized[clean_key] = value
+        elif isinstance(value, (int, float)):
+            if isinstance(value, float) and not math.isfinite(value):
+                continue  # Drop NaN, Inf, -Inf
+            sanitized[clean_key] = value
         # Drop complex/nested values silently
     return sanitized
 
@@ -747,7 +748,9 @@ class CrewBackedAgent(BaseAgent):
 
     def _get_executor_pool(self) -> concurrent.futures.ThreadPoolExecutor:
         """Return (and lazily create) a reusable single-thread pool."""
-        if self._executor_pool is None or self._executor_pool._shutdown:
+        if self._executor_pool is None or getattr(
+            self._executor_pool, "_shutdown", False
+        ):
             self._executor_pool = concurrent.futures.ThreadPoolExecutor(
                 max_workers=1,
                 thread_name_prefix=f"crewai-{self.agent_id}",

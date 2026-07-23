@@ -252,8 +252,16 @@ class ClaudeCodeBridge:
         """
         start_time = time.monotonic()
 
-        # Send prompt and get response
+        # Send prompt and wait for the real response via the event stream.
+        # ask() returns None on timeout; failing loudly here is deliberate —
+        # logging a fabricated response would corrupt the observational
+        # record (see beads 2331).
         message = self._client.ask(agent_id, prompt)
+        if message is None:
+            raise TimeoutError(
+                f"No response from agent {agent_id!r} within the ask() "
+                "timeout; refusing to record a fabricated interaction"
+            )
 
         elapsed_ms = int((time.monotonic() - start_time) * 1000)
 
@@ -490,21 +498,25 @@ class ClaudeCodeBridge:
 
     # --- Event logging ---
 
+    def _truncate_list_to_half(self, lst: List[Any], max_size: int) -> List[Any]:
+        """Truncate a list to half its max size if it exceeds max_size."""
+        if len(lst) >= max_size:
+            return lst[-max_size // 2 :]
+        return lst
+
     def _record_bridge_event(self, event: BridgeEvent) -> None:
         """Record a bridge event to the internal log."""
-        if len(self._bridge_events) >= self._config.max_bridge_events:
-            self._bridge_events = self._bridge_events[
-                -self._config.max_bridge_events // 2 :
-            ]
+        self._bridge_events = self._truncate_list_to_half(
+            self._bridge_events, self._config.max_bridge_events
+        )
         self._bridge_events.append(event)
         self._client._dispatch_event(event)
 
     def _record_interaction(self, interaction: SoftInteraction) -> None:
         """Record an interaction, enforcing the configured cap."""
-        if len(self._interactions) >= self._config.max_interactions:
-            self._interactions = self._interactions[
-                -self._config.max_interactions // 2 :
-            ]
+        self._interactions = self._truncate_list_to_half(
+            self._interactions, self._config.max_interactions
+        )
         self._interactions.append(interaction)
 
     def _log_interaction(self, interaction: SoftInteraction) -> None:

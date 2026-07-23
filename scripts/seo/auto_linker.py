@@ -122,6 +122,15 @@ _HTML_TAG = re.compile(r"<[^>]+>")
 _TABLE_ROW = re.compile(r"^\|.*\|$", re.MULTILINE)
 
 
+def _build_no_link_spans(text: str) -> list[tuple[int, int]]:
+    """Build a list of character spans where links should not be inserted."""
+    no_link_spans: list[tuple[int, int]] = []
+    for pattern in [_CODE_BLOCK, _INLINE_CODE, _EXISTING_LINK, _HEADING, _FRONTMATTER, _HTML_TAG, _TABLE_ROW]:
+        for m in pattern.finditer(text):
+            no_link_spans.append((m.start(), m.end()))
+    return no_link_spans
+
+
 def _compute_rel_link(from_path: str, to_path: str) -> str:
     """Compute a relative link from one doc to another."""
     from_parts = Path(from_path).parent.parts
@@ -178,10 +187,7 @@ def _find_insertion_points(
     insertions: list[LinkInsertion] = []
 
     # Build a mask of "no-link zones"
-    no_link_spans: list[tuple[int, int]] = []
-    for pattern in [_CODE_BLOCK, _INLINE_CODE, _EXISTING_LINK, _HEADING, _FRONTMATTER, _HTML_TAG, _TABLE_ROW]:
-        for m in pattern.finditer(text):
-            no_link_spans.append((m.start(), m.end()))
+    no_link_spans = _build_no_link_spans(text)
 
     def _in_no_link_zone(start: int, end: int) -> bool:
         return any(s <= start < e or s < end <= e for s, e in no_link_spans)
@@ -278,10 +284,7 @@ def _apply_insertions(text: str, insertions: list[LinkInsertion], from_path: str
     # Re-find each insertion point and apply from end to start
     changes: list[tuple[int, int, str]] = []
 
-    no_link_spans: list[tuple[int, int]] = []
-    for pattern in [_CODE_BLOCK, _INLINE_CODE, _EXISTING_LINK, _HEADING, _FRONTMATTER, _HTML_TAG, _TABLE_ROW]:
-        for m in pattern.finditer(text):
-            no_link_spans.append((m.start(), m.end()))
+    no_link_spans = _build_no_link_spans(text)
 
     used_targets: set[str] = set()
 
@@ -474,7 +477,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Auto-link swarm-ai.org docs")
     parser.add_argument("--docs", default="docs", help="Path to docs/ directory")
-    parser.add_argument("--dry-run", action="store_true", default=True, help="Preview only (default)")
+    parser.add_argument("--dry-run", action="store_true", help="Preview only (default)")
     parser.add_argument("--apply", action="store_true", help="Actually write changes")
     parser.add_argument("--related", action="store_true", help="Add Related Pages sections")
     parser.add_argument("--max-links", type=int, default=5, help="Max new links per page")

@@ -1,5 +1,6 @@
 """Dual reporting for soft and hard metrics."""
 
+import math
 from dataclasses import dataclass, replace
 from typing import Any, Dict, List, Mapping, Optional
 
@@ -53,6 +54,16 @@ class MetricsSummary:
     payoff_variance_initiator: float = 0.0
     payoff_variance_counterparty: float = 0.0
 
+    # Projection-geometric diagnostics for the quality gap.
+    # quality_correlation: ρ(p,a) ∈ [-1,+1], normalized quality gap.
+    # baseline_harm:       1 - E[p],     population-level harm floor.
+    # selection_credit:    β · Q,        toxicity reduction from selection.
+    # selection_saturation: |Q| / (σ_p/√(αβ)) ∈ [0,1], C-S bound fill.
+    quality_correlation: float = 0.0
+    baseline_harm: float = 0.0
+    selection_credit: float = 0.0
+    selection_saturation: float = 0.0
+
     # Incoherence metrics (optional replay-driven additions)
     incoherence_disagreement: float = 0.0
     incoherence_error: float = 0.0
@@ -75,6 +86,10 @@ class MetricsSummary:
                 "conditional_loss_counterparty": self.conditional_loss_counterparty,
                 "spread": self.spread,
                 "quality_gap": self.quality_gap,
+                "quality_correlation": self.quality_correlation,
+                "baseline_harm": self.baseline_harm,
+                "selection_credit": self.selection_credit,
+                "selection_saturation": self.selection_saturation,
                 "average_quality": self.average_quality,
                 "uncertain_fraction": self.uncertain_fraction,
             },
@@ -169,9 +184,10 @@ class MetricsReporter:
         """
         Compute comprehensive summary of all metrics.
 
-        Optimised via a single pass through the interaction list: payoffs,
-        quality accumulators, and counts are gathered together so we avoid
-        O(N) re-filtering for each individual metric.
+        Optimised via a single pass through the interaction list for core metrics:
+        payoffs, quality accumulators, and counts are gathered together to avoid
+        O(N) re-filtering. Note: calibration metrics (brier_score, log_loss, etc.)
+        perform additional passes when ground_truth is available.
 
         Args:
             interactions: List of interactions
@@ -373,6 +389,22 @@ class MetricsReporter:
             max(0.0, sum_pi_b_sq / n - avg_pi_b_all * avg_pi_b_all) if n >= 2 else 0.0
         )
 
+        # Projection-geometric decomposition of toxicity:
+        #   T = (1 - E[p]) - β · Q   (baseline harm − selection credit)
+        # and normalized gap ρ(p,a) = Q · √(αβ) / σ_p (Pearson correlation).
+        alpha = acceptance_rate
+        beta = 1.0 - alpha
+        baseline_harm = 1.0 - avg_p
+        selection_credit = beta * quality_gap
+        sigma_p = math.sqrt(quality_var)
+        ab = alpha * beta
+        if sigma_p > 0.0 and ab > 0.0:
+            quality_correlation = quality_gap * math.sqrt(ab) / sigma_p
+            selection_saturation = abs(quality_gap) * math.sqrt(ab) / sigma_p
+        else:
+            quality_correlation = 0.0
+            selection_saturation = 0.0
+
         # Calibration metrics require ground_truth (uncommon path); delegate to
         # SoftMetrics which handles the None-return case gracefully.
         brier = self.soft_metrics.brier_score(interactions)
@@ -406,6 +438,10 @@ class MetricsReporter:
             calibration_error=cal_error,
             expected_calibration_error=ece,
             quality_variance=quality_var,
+            quality_correlation=quality_correlation,
+            baseline_harm=baseline_harm,
+            selection_credit=selection_credit,
+            selection_saturation=selection_saturation,
             payoff_variance_initiator=payoff_var_a,
             payoff_variance_counterparty=payoff_var_b,
         )
@@ -564,6 +600,13 @@ class MetricsReporter:
             f"  Toxicity (P(p<0.5|acc)):    {summary.toxicity_hard:.3f}",
             f"  High quality acceptance:    {summary.high_quality_acceptance:.1%}",
             f"  Low quality acceptance:     {summary.low_quality_acceptance:.1%}",
+            "",
+            "SELECTION GEOMETRY",
+            "-" * 30,
+            f"  Quality correlation ρ(p,a): {summary.quality_correlation:+.3f}  [-1, +1]",
+            f"  Baseline harm (1-E[p]):     {summary.baseline_harm:.3f}",
+            f"  Selection credit (β·Q):     {summary.selection_credit:+.3f}",
+            f"  C-S saturation |Q|/bound:   {summary.selection_saturation:.1%}",
         ]
 
         if verbose:
@@ -683,6 +726,23 @@ class MetricsReporter:
                     (
                         "Conditional loss (counterparty)",
                         summary.conditional_loss_counterparty,
+                    ),
+                ]
+            )
+        )
+        lines.append("")
+
+        lines.append("## Selection geometry")
+        lines.append("")
+        lines.extend(
+            render_table(
+                [
+                    ("Quality correlation ρ(p,a)", summary.quality_correlation),
+                    ("Baseline harm (1 − E[p])", summary.baseline_harm),
+                    ("Selection credit (β · Q)", summary.selection_credit),
+                    (
+                        "C-S saturation (|Q| / σ_p/√(αβ))",
+                        summary.selection_saturation,
                     ),
                 ]
             )

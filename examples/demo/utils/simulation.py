@@ -26,6 +26,29 @@ MAX_EPOCHS = 50
 MAX_STEPS_PER_EPOCH = 30
 
 
+# Shared callback helpers to avoid duplication
+def _make_on_interaction_callback(aggregator):
+    """Create an on_interaction callback for the aggregator."""
+    def on_interaction(interaction, payoff_a, payoff_b):
+        aggregator.record_interaction(interaction)
+        aggregator.record_payoff(interaction.initiator, payoff_a)
+        aggregator.record_payoff(interaction.counterparty, payoff_b)
+    return on_interaction
+
+
+def _make_on_epoch_callback(orchestrator, aggregator):
+    """Create an on_epoch callback for the aggregator."""
+    def on_epoch(epoch_metrics):
+        agent_states = {
+            aid: orchestrator.state.get_agent(aid) for aid in orchestrator._agents
+        }
+        aggregator.finalize_epoch(
+            epoch=orchestrator.state.current_epoch - 1,
+            agent_states=agent_states,
+        )
+    return on_epoch
+
+
 def _requires_llm(data: dict) -> bool:
     """Return True if scenario YAML uses LLM-backed agents."""
     for agent_spec in data.get("agents", []):
@@ -107,24 +130,10 @@ def run_scenario(scenario_path: str, seed: Optional[int] = None) -> Dict[str, An
     )
 
     # Wire up interaction recording
-    def on_interaction(interaction, payoff_a, payoff_b):
-        aggregator.record_interaction(interaction)
-        aggregator.record_payoff(interaction.initiator, payoff_a)
-        aggregator.record_payoff(interaction.counterparty, payoff_b)
-
-    orchestrator._on_interaction_complete.append(on_interaction)
+    orchestrator._on_interaction_complete.append(_make_on_interaction_callback(aggregator))
 
     # Wire up epoch finalization
-    def on_epoch(epoch_metrics):
-        agent_states = {
-            aid: orchestrator.state.get_agent(aid) for aid in orchestrator._agents
-        }
-        aggregator.finalize_epoch(
-            epoch=orchestrator.state.current_epoch - 1,
-            agent_states=agent_states,
-        )
-
-    orchestrator._on_epoch_end.append(on_epoch)
+    orchestrator._on_epoch_end.append(_make_on_epoch_callback(orchestrator, aggregator))
 
     # Run
     epoch_metrics_list = orchestrator.run()
@@ -261,23 +270,9 @@ def run_custom(
         seed=seed,
     )
 
-    def on_interaction(interaction, payoff_a, payoff_b):
-        aggregator.record_interaction(interaction)
-        aggregator.record_payoff(interaction.initiator, payoff_a)
-        aggregator.record_payoff(interaction.counterparty, payoff_b)
+    orchestrator._on_interaction_complete.append(_make_on_interaction_callback(aggregator))
 
-    orchestrator._on_interaction_complete.append(on_interaction)
-
-    def on_epoch(epoch_metrics):
-        agent_states = {
-            aid: orchestrator.state.get_agent(aid) for aid in orchestrator._agents
-        }
-        aggregator.finalize_epoch(
-            epoch=orchestrator.state.current_epoch - 1,
-            agent_states=agent_states,
-        )
-
-    orchestrator._on_epoch_end.append(on_epoch)
+    orchestrator._on_epoch_end.append(_make_on_epoch_callback(orchestrator, aggregator))
 
     epoch_metrics_list = orchestrator.run()
     history = aggregator.end_simulation()

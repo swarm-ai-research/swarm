@@ -5,14 +5,6 @@ from __future__ import annotations
 import yaml
 
 # Known optional keys and their expected types / constraints.
-# Each entry maps a canonical key (and its alias) to a validation function
-# that returns an error string or None.
-_KEY_ALIASES: dict[str, str] = {
-    "n_agents": "agents",
-    "n_epochs": "epochs",
-    "steps": "steps_per_epoch",
-}
-
 _INT_GE1_KEYS = {"agents", "n_agents", "epochs", "n_epochs", "steps_per_epoch", "steps"}
 _INT_KEYS = {"seed"}
 

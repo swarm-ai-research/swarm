@@ -133,8 +133,8 @@ class TimeHorizonMetrics:
         Default target is 8 hours (480 min) at 80% reliability,
         Bradley's prediction for mid-2026.
 
-        Returns ratio of effective_horizon / target_horizon.
-        Value of 1.0 means target achieved.
+        Returns ratio of effective_horizon / target_horizon, clamped to [0.0, 1.0].
+        Value of 1.0 means target achieved or exceeded.
         """
         effective = self.effective_horizon(threshold)
         if effective is None:

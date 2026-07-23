@@ -222,9 +222,10 @@ class ReproducibilityEvaluator(BaseEvaluator):
                 )
 
             if result_variance is not None and result_variance > 0:
-                weaknesses.append(
-                    f"Result variance across replays: {result_variance:.4f}"
-                ) if result_variance > tolerance else None
+                if result_variance > tolerance:
+                    weaknesses.append(
+                        f"Result variance across replays: {result_variance:.4f}"
+                    )
         else:
             weaknesses.append("No replay results provided for verification")
             score_components.append(0.0)

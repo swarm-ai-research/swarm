@@ -25,6 +25,7 @@ import concurrent.futures
 import logging
 from typing import Any, List, Optional
 
+from swarm.bridges._common import log_interaction_event
 from swarm.bridges.langchain.config import LangChainBridgeConfig
 from swarm.core.payoff import PayoffConfig, SoftPayoffEngine
 from swarm.core.proxy import ProxyComputer, ProxyObservables
@@ -154,7 +155,7 @@ class LangChainBridge:
         self.last_payoff = self._payoff_engine.payoff_initiator(interaction)
         self._interactions.append(interaction)
 
-        self._log_interaction(interaction)
+        log_interaction_event(self._event_log, interaction)
 
         return interaction
 
@@ -173,30 +174,6 @@ class LangChainBridge:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-
-    def _log_interaction(self, interaction: SoftInteraction) -> None:
-        """Append an interaction to the EventLog as an Event."""
-        if self._event_log is None:
-            return
-        try:
-            from swarm.models.events import Event, EventType
-
-            event = Event(
-                event_type=EventType.INTERACTION_COMPLETED,
-                interaction_id=interaction.interaction_id,
-                initiator_id=interaction.initiator,
-                counterparty_id=interaction.counterparty,
-                payload={
-                    "p": interaction.p,
-                    "v_hat": interaction.v_hat,
-                    "accepted": interaction.accepted,
-                    "metadata": interaction.metadata,
-                },
-            )
-            self._event_log.append(event)
-        except Exception as exc:  # pragma: no cover
-            logger.warning("EventLog write failed: %s", exc)
-
 
     def _invoke_chain(self, prompt: str) -> tuple[Any, int]:
         """Invoke the chain with a timeout.
@@ -229,7 +206,7 @@ class LangChainBridge:
             output = self.chain.run(prompt)
         else:
             raise LangChainBridgeError(
-                f"Chain {type(self.chain).__name__!r} has no .invoke() or .run() method"
+                f"Chain {type(self.chain).__name__} has no .invoke() or .run() method"
             )
 
         if intermediate_steps > self.config.max_steps:

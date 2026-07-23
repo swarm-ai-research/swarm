@@ -12,6 +12,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
+from swarm.env.stats import gini
+
 
 @dataclass
 class AuctionConfig:
@@ -133,9 +135,9 @@ class DworkinAuction:
     4. Repeat until market clears (demand ~ supply for all resources)
     5. Verify envy-freeness: no agent prefers another's bundle at clearing prices
 
-    Connection to soft labels: agent effective endowments can be modulated by
-    reputation (derived from average p history), linking the allocation
-    mechanism to the quality signal pipeline.
+    Agents participate with budgets provided via AuctionBid objects,
+    enabling integration with external quality signal pipelines (e.g., budgets
+    can be adjusted based on reputation before passing to the auction).
     """
 
     def __init__(self, config: Optional[AuctionConfig] = None) -> None:
@@ -357,20 +359,4 @@ class DworkinAuction:
 
         0 = perfect equality, 1 = maximum inequality.
         """
-        if not allocations:
-            return 0.0
-
-        utilities = sorted(a.utility for a in allocations.values())
-        n = len(utilities)
-        if n == 0 or sum(utilities) == 0:
-            return 0.0
-
-        cumulative = 0.0
-        total = sum(utilities)
-        gini_sum = 0.0
-
-        for i, u in enumerate(utilities):
-            cumulative += u
-            gini_sum += (2 * (i + 1) - n - 1) * u
-
-        return gini_sum / (n * total)
+        return gini(a.utility for a in allocations.values())

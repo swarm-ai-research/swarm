@@ -283,7 +283,7 @@ def fix_paper(paper_id: str, dry_run: bool = False) -> bool:
     # Fetch paper
     data = get_paper(paper_id)
     if not data:
-        print(f"  Failed to fetch paper")
+        print("  Failed to fetch paper")
         return False
 
     content = data.get("content", "")
@@ -308,7 +308,7 @@ def fix_paper(paper_id: str, dry_run: bool = False) -> bool:
     )
 
     if before_result.passed:
-        print(f"  Already passes validation, skipping")
+        print("  Already passes validation, skipping")
         return True
 
     # Fix content
@@ -342,7 +342,7 @@ def fix_paper(paper_id: str, dry_run: bool = False) -> bool:
         )
 
     if dry_run:
-        print(f"  DRY RUN - would update")
+        print("  DRY RUN - would update")
         return after_result.passed
 
     # Update
@@ -350,9 +350,9 @@ def fix_paper(paper_id: str, dry_run: bool = False) -> bool:
         paper_id, new_content, "Added standard section headers for clarity"
     )
     if success:
-        print(f"  Updated successfully")
+        print("  Updated successfully")
     else:
-        print(f"  Update failed")
+        print("  Update failed")
 
     return success
 

@@ -11,7 +11,6 @@ Sweeps intelligence_quality configurations across persona pairings.
 from __future__ import annotations
 
 import copy
-import json
 import sys
 import time
 from pathlib import Path
@@ -23,6 +22,8 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 matplotlib.use("Agg")
+
+from sweep_utils import load_checkpoint, log, save_checkpoint  # noqa: E402
 
 from swarm.domains.escalation_sandbox.agents import (  # noqa: E402
     EscalationAgentBridge,
@@ -69,24 +70,6 @@ OUTDIR = Path("runs/escalation_asymmetric_info")
 OUTDIR.mkdir(parents=True, exist_ok=True)
 PROGRESS_FILE = OUTDIR / "progress.log"
 CHECKPOINT_FILE = OUTDIR / "checkpoint.json"
-
-
-def log(msg: str) -> None:
-    print(msg, flush=True)
-    with open(PROGRESS_FILE, "a") as f:
-        f.write(f"[{time.strftime('%H:%M:%S')}] {msg}\n")
-
-
-def load_checkpoint() -> dict:
-    if CHECKPOINT_FILE.exists():
-        with open(CHECKPOINT_FILE) as f:
-            return json.load(f)
-    return {}
-
-
-def save_checkpoint(completed: dict) -> None:
-    with open(CHECKPOINT_FILE, "w") as f:
-        json.dump(completed, f, indent=2)
 
 
 def run_asymmetric_match(
@@ -188,7 +171,7 @@ log(f"{len(INFO_CONDITIONS)} info conditions × {len(PAIRINGS)} pairings × "
     f"{len(INFO_CONDITIONS) * len(PAIRINGS) * len(SEEDS)} runs")
 log("=" * 80)
 
-completed = load_checkpoint()
+completed = load_checkpoint(CHECKPOINT_FILE)
 results: dict[str, dict[str, list[EscalationMetrics]]] = {}
 
 total = len(INFO_CONDITIONS) * len(PAIRINGS) * len(SEEDS)
@@ -223,7 +206,7 @@ for pairing_name, (persona_a, persona_b) in PAIRINGS.items():
 
                 metrics_list.append(m)
                 completed[run_key] = m.to_dict()
-                save_checkpoint(completed)
+                save_checkpoint(completed, CHECKPOINT_FILE)
 
                 nuc = m.outcome in ("nuclear_exchange", "mutual_destruction")
                 log(f"      -> nuc={nuc}, div={m.signal_action_divergence:.3f}, "

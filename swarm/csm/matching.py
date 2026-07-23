@@ -112,13 +112,13 @@ class DeferredAcceptance(MatchingMechanism):
             congestion_index=congestion,
         )
 
-    def _rank_others(
+    def _compute_sorted_scores(
         self,
         rankers: List[MatchCandidate],
         targets: List[MatchCandidate],
         rng: np.random.Generator,
-    ) -> List[List[int]]:
-        """Each ranker scores targets by preference utility, returns sorted indices."""
+    ) -> List[List[tuple]]:
+        """Compute sorted (index, score) tuples for each ranker's evaluation of targets."""
         rankings = []
         for ranker in rankers:
             scores = []
@@ -129,8 +129,18 @@ class DeferredAcceptance(MatchingMechanism):
                     u += float(rng.normal(0, ranker.preferences.noise_std))
                 scores.append((j, u))
             scores.sort(key=lambda x: x[1], reverse=True)
-            rankings.append([idx for idx, _ in scores])
+            rankings.append(scores)
         return rankings
+
+    def _rank_others(
+        self,
+        rankers: List[MatchCandidate],
+        targets: List[MatchCandidate],
+        rng: np.random.Generator,
+    ) -> List[List[int]]:
+        """Each ranker scores targets by preference utility, returns sorted indices."""
+        sorted_scores = self._compute_sorted_scores(rankers, targets, rng)
+        return [[idx for idx, _ in scores] for scores in sorted_scores]
 
     def _rank_as_dict(
         self,
@@ -139,18 +149,8 @@ class DeferredAcceptance(MatchingMechanism):
         rng: np.random.Generator,
     ) -> List[Dict[int, int]]:
         """Each ranker returns dict mapping target index -> rank (0 = best)."""
-        result = []
-        for ranker in rankers:
-            scores = []
-            for j, target in enumerate(targets):
-                u = ranker.preferences.utility(target.attributes, 0.0)
-                if ranker.preferences.noise_std > 0:
-                    u += float(rng.normal(0, ranker.preferences.noise_std))
-                scores.append((j, u))
-            scores.sort(key=lambda x: x[1], reverse=True)
-            rank_map = {idx: rank for rank, (idx, _) in enumerate(scores)}
-            result.append(rank_map)
-        return result
+        sorted_scores = self._compute_sorted_scores(rankers, targets, rng)
+        return [{idx: rank for rank, (idx, _) in enumerate(scores)} for scores in sorted_scores]
 
     def _compute_welfare(
         self,

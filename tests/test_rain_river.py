@@ -335,3 +335,36 @@ class TestMemoryConfigEdgeCases:
         assert not config.is_rain
         assert not config.is_river
         assert config.average_persistence == 0.5
+
+
+class TestRainClearsInteractionHistory:
+    """Regression for beads e2rx: decay==0 must clear interaction specifics."""
+
+    def test_rain_clears_interaction_history_too(self):
+        from swarm.models import SoftInteraction
+
+        agent = RainAgent(agent_id="test")
+        agent._counterparty_memory["other"] = 0.9
+        agent._interaction_history.append(
+            SoftInteraction(initiator="test", counterparty="other", p=0.8)
+        )
+
+        agent.apply_memory_decay(epoch=1)
+
+        assert agent._counterparty_memory == {}
+        # Complete memory loss means the detailed history goes with it —
+        # previously only trust was cleared and specifics survived.
+        assert len(agent._interaction_history) == 0
+
+    def test_partial_persistence_keeps_history(self):
+        from swarm.models import SoftInteraction
+
+        config = MemoryConfig.hybrid(0.5)
+        agent = ConfigurableMemoryAgent(agent_id="test", memory_config=config)
+        agent._interaction_history.append(
+            SoftInteraction(initiator="test", counterparty="other", p=0.8)
+        )
+
+        agent.apply_memory_decay(epoch=1)
+
+        assert len(agent._interaction_history) == 1

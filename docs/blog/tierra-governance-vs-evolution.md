@@ -7,13 +7,13 @@ description: "A red-team evaluation of our Tierra artificial life scenario gave 
 
 **Date:** 2026-02-24
 
-A red-team evaluation of our [Tierra artificial life scenario](https://github.com/swarm-ai-safety/swarm/blob/main/scenarios/tierra.yaml) gave it a split grade: **A-** for evolutionary resilience (adversarial genomes go extinct naturally) but **F** for institutional governance (all levers disabled by design). Every run also produced exactly 1 species — a monoculture vulnerable to environmental shocks.
+A red-team evaluation of our [Tierra artificial life scenario](https://github.com/swarm-ai-research/swarm/blob/main/scenarios/tierra.yaml) gave it a split grade: **A-** for evolutionary resilience (adversarial genomes go extinct naturally) but **F** for institutional governance (all levers disabled by design). Every run also produced exactly 1 species — a monoculture vulnerable to environmental shocks.
 
 The natural question: what happens when you layer governance on top of evolution?
 
 ## The experiment
 
-We created a [governed Tierra variant](https://github.com/swarm-ai-safety/swarm/blob/main/scenarios/tierra_governed.yaml) that enables four institutional mechanisms on top of the same evolutionary substrate:
+We created a [governed Tierra variant](https://github.com/swarm-ai-research/swarm/blob/main/scenarios/tierra_governed.yaml) that enables four institutional mechanisms on top of the same evolutionary substrate:
 
 | Lever | Setting | Purpose |
 |---|---|---|
@@ -64,7 +64,7 @@ This experiment reveals a nuanced picture of the governance-evolution relationsh
 
 3. **The monoculture problem requires environmental pressure, not just governance.** To get real speciation, you'd need either higher mutation rates, niche differentiation (different resource types), or environmental perturbation. Governance protects existing diversity but can't conjure it from nothing.
 
-4. **Population cost is real and constant.** The 12% population reduction is a steady-state cost, not a transient one. This matches our findings from the [GasTown governance cost study](../papers/gastown_governance_cost.md) — safety levers impose ongoing overhead.
+4. **Population cost is real and constant.** The 12% population reduction is a steady-state cost, not a transient one. This matches our findings from the [GasTown governance cost study](https://github.com/swarm-ai-research/swarm-artifacts/blob/main/papers/gastown_governance_cost.md) — safety levers impose ongoing overhead.
 
 ## Red-team hardening: F to C in three iterations
 
@@ -97,7 +97,7 @@ The remaining 3 successful attacks (Resource Drain, Timing Attack, Governance Ga
 
 ## What's next
 
-- **Adaptive governance**: Wire the governed variant into the [adaptive governance controller](https://github.com/swarm-ai-safety/swarm/blob/main/swarm/governance/adaptive_controller.py) so levers auto-tune based on observed attack patterns, diversity, and toxicity.
+- **Adaptive governance**: Wire the governed variant into the [adaptive governance controller](https://github.com/swarm-ai-research/swarm/blob/main/swarm/governance/adaptive_controller.py) so levers auto-tune based on observed attack patterns, diversity, and toxicity.
 - **Environmental perturbation**: Add resource shocks or niche specialization to create conditions where speciation can emerge, then measure whether the diversity-preserving reaper actually prevents species extinction.
 - **Longer horizons**: Run 200+ epochs to test whether the diversity advantage compounds or plateaus.
 

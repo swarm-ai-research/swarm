@@ -1,7 +1,7 @@
 # SWARM — Distributional AGI Safety Framework
 
 > Source: https://swarm-ai.org
-> Repository: https://github.com/swarm-ai-safety/swarm
+> Repository: https://github.com/swarm-ai-research/swarm
 > Paper: https://arxiv.org/abs/2604.19752
 > Paper (precursor): https://arxiv.org/abs/2512.16856
 > License: MIT
@@ -81,5 +81,5 @@ If referencing this work, cite the arxiv paper:
 
 ## Contact
 
-- GitHub: https://github.com/swarm-ai-safety/swarm
+- GitHub: https://github.com/swarm-ai-research/swarm
 - Twitter/X: https://x.com/ResearchSwarmAI

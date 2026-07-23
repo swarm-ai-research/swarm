@@ -8,6 +8,7 @@ mutable references so all state reads are live.
 
 from __future__ import annotations
 
+import logging
 import random
 from typing import Any, Dict, Optional
 
@@ -19,6 +20,8 @@ from swarm.env.network import AgentNetwork
 from swarm.env.state import EnvState
 from swarm.env.tasks import TaskPool, TaskStatus
 from swarm.models.agent import AgentState
+
+logger = logging.getLogger(__name__)
 
 
 class ObservationBuilder:
@@ -120,7 +123,13 @@ class ObservationBuilder:
             try:
                 handler.on_pre_observation(agent_id, self._state)
                 fields = handler.build_observation_fields(agent_id, self._state)
-            except Exception:
+            except Exception as e:
+                logger.exception(
+                    "Handler %s failed to build observation fields for agent %s",
+                    type(handler).__name__,
+                    agent_id,
+                    exc_info=e,
+                )
                 continue
             mapping = handler.observation_field_mapping()
             for key, value in fields.items():

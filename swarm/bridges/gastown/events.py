@@ -4,11 +4,14 @@ Defines typed event structures for bead lifecycle, PR workflow,
 CI status, and agent lifecycle events observed from a GasTown workspace.
 """
 
+import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 
 def _utcnow() -> datetime:
@@ -91,10 +94,18 @@ class GasTownEvent:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GasTownEvent":
-        """Deserialize from dict with safe type handling."""
+        """Deserialize from dict with safe type handling.
+
+        If event_type is missing or invalid, logs a warning and defaults
+        to GOVERNANCE_ACTION to indicate a parse failure.
+        """
         try:
             event_type = GasTownEventType(data["event_type"])
-        except (ValueError, KeyError):
+        except (ValueError, KeyError) as exc:
+            logger.warning(
+                "Failed to parse event_type from dict: %s. Defaulting to GOVERNANCE_ACTION. "
+                "Data: %s", exc, data
+            )
             event_type = GasTownEventType.GOVERNANCE_ACTION
         return cls(
             event_id=data.get("event_id", str(uuid.uuid4())),

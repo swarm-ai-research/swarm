@@ -146,7 +146,7 @@ python -m pytest tests/test_self_optimizer.py -v
 python runs/self_optimizer_seed42/plot_self_optimizer.py
 ```
 
-The full scenario, agent implementation, test suite, and plotting code are in the [SWARM repository](https://github.com/swarm-ai-safety/swarm).
+The full scenario, agent implementation, test suite, and plotting code are in the [SWARM repository](https://github.com/swarm-ai-research/swarm).
 
 ---
 

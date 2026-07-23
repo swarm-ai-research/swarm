@@ -12,6 +12,9 @@ class AsyncActionQueue:
     The API layer resolves that Future via ``submit_action`` when the agent's
     HTTP request arrives.  If no request arrives within ``timeout_ms``, the
     Future resolves to ``None`` so the orchestrator can substitute a NOOP.
+
+    Rate-limiting: Each agent is limited to ``_max_actions_per_step`` per step.
+    Call ``reset_step()`` at the start of each step to clear per-agent counts.
     """
 
     def __init__(self, timeout_ms: int = 5000) -> None:
@@ -53,6 +56,10 @@ class AsyncActionQueue:
 
         Returns ``True`` if there was a waiter, ``False`` otherwise.
         Rate-limits each agent to ``_max_actions_per_step`` per step.
+
+        Note: Rate-limit counter is persistent across calls. Call ``reset_step()``
+        at the start of each step to clear per-agent counts, otherwise the limit
+        will be enforced across step boundaries.
         """
         # Rate-limit check.
         count = self._action_counts.get(agent_id, 0)

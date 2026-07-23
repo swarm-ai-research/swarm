@@ -1,8 +1,8 @@
 site_name: "SWARM — Open-Source Multi-Agent AI Safety Framework"
 site_description: "SWARM: System-Wide Assessment of Risk in Multi-agent systems - A Distributional AGI Safety framework"
 site_url: https://www.swarm-ai.org
-repo_url: https://github.com/swarm-ai-safety/swarm
-repo_name: swarm-ai-safety/swarm
+repo_url: https://github.com/swarm-ai-research/swarm
+repo_name: swarm-ai-research/swarm
 
 theme:
   name: material
@@ -85,6 +85,11 @@ plugins:
       enable_creation_date: true
       fallback_to_build_date: true
       enable_git_follow: false
+      # Decouple this plugin's git-history warnings (shallow-clone / git-follow
+      # quirks) from `mkdocs --strict`. The strict gate exists to catch broken
+      # links and nav, not flaky date-resolution noise. Real link/nav warnings
+      # come from mkdocs core and still abort the build.
+      strict: false
   - rss:
       match_path: "blog/.*"
       date_from_meta:
@@ -117,6 +122,7 @@ nav:
     - Deception: concepts/deception.md
     - Coordination Risks: concepts/coordination-risks.md
     - Governance Taxonomy: concepts/governance-mechanisms-taxonomy.md
+    - Governance-Capability Frontier: concepts/governance-capability-frontier.md
     - Time Horizons: concepts/time-horizons.md
     - Recursive Research: concepts/recursive-research.md
   - Tutorials:
@@ -128,6 +134,7 @@ nav:
     - Overview: guides/index.md
     - Claude Code: guides/claude-code.md
     - Framework Overview: guides/framework-overview.md
+    - Operating Procedure (STE): guides/operating-procedure.md
     - Governance Simulation: guides/governance-simulation.md
     - Writing Scenarios: guides/scenarios.md
     - Custom Agents: guides/custom-agents.md
@@ -160,16 +167,22 @@ nav:
     - Gitlawb (Live): bridges/gitlawb.md
     - OpenClaw LLM Router: bridges/openclaw-swarm-llmrouter.md
   - Research:
+    # CONVENTION (estate reconciliation 2026-07-21): this nav section lists
+    # curated highlights only. The full research corpus (prereg docs, findings
+    # memos, spike notes) is reachable via the research/index.md cards and
+    # site search — do NOT add every page here. Orphan protection is the
+    # kb-graph ratchet's job (scripts/build_kb_graph.py), not the nav's.
     - Overview: research/index.md
     - Theoretical Foundations: research/theory.md
     - Papers: research/papers.md
     - Agent Publishing Guide: research/agent-publishing.md
     - Reflexivity: research/reflexivity.md
     - AI Index 2025: research/ai-index-2025.md
+    - Situational Awareness Tracker: research/situational-awareness-tracker.md
     - Self-Modification Governance: research/self-modification-governance-byline.md
     - Self-Modification Governance Implementation Checklist: research/self-mod-governance-implementation-checklist.md
-    - InitRunner vs SWARM Comparison: research/initrunner-swarm-comparison.md
     - AIRS-Bench Governance Analysis: research/airs-bench-governance-analysis.md
+    - Neurosymbolic Behavior Classification: research/neurosymbolic-behavior.md
   - Comparison: comparison.md
   - SWARM vs Alternatives: swarm-vs-alternatives.md
   - Glossary: glossary.md
@@ -177,6 +190,9 @@ nav:
   - Game: game.md
   - Blog:
     - blog/index.md
+    - "Dynamic Toxicity Failure Modes: One Mechanism Out of Six Does All the Damage": blog/dynamic-toxicity-failure-modes.md
+    - "When the Crowd Amplifies the Worst — and When the Metric Doesn't Hold": blog/amplification-adverse-selection-miroshark.md
+    - "Replication Deflation: How 50 Seeds Killed Our d=2.75 Screening Effect": blog/screening-replication-deflation.md
     - "When the Benchmark Says Pass: Soft Labels vs Binary Thresholds": blog/soft-vs-binary-detection.md
     - "SimWorld's Delivery Agents Look Profitable. They're Also Adversely Selected.": blog/simworld-delivery-what-profit-misses.md
     - "The Shape of the Capability–Safety Frontier": blog/capability-safety-pareto-frontier.md
@@ -221,7 +237,7 @@ nav:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/swarm-ai-safety/swarm
+      link: https://github.com/swarm-ai-research/swarm
     - icon: fontawesome/brands/x-twitter
       link: https://x.com/ResearchSwarmAI
   generator: false

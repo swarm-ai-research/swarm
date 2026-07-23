@@ -46,7 +46,7 @@ $$\text{Toxicity} = E[1-p \mid \text{accepted}]$$
 
 **What it measures:** The difference in quality between accepted and rejected interactions.
 
-$$\text{[Quality Gap](../papers/kernel_market_governance_comparison.md)} = E[p \mid \text{accepted}] - E[p \mid \text{rejected}]$$
+$$\text{Quality Gap} = E[p \mid \text{accepted}] - E[p \mid \text{rejected}]$$
 
 | Value | Interpretation |
 |-------|----------------|

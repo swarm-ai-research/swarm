@@ -106,7 +106,7 @@ pip install swarm-safety
 python scripts/escalation_asymmetric_info_sweep.py
 ```
 
-Results cached in `runs/escalation_asymmetric_info/checkpoint.json`. Plots regenerate from cache. Full run artifacts available in [swarm-artifacts](https://github.com/swarm-ai-safety/swarm-artifacts).
+Results cached in `runs/escalation_asymmetric_info/checkpoint.json`. Plots regenerate from cache. Full run artifacts available in [swarm-artifacts](https://github.com/swarm-ai-research/swarm-artifacts).
 
 ---
 

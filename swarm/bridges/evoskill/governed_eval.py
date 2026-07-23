@@ -229,20 +229,7 @@ class GovernedEvalLoop:
             pi_a, pi_b = self._engine.payoffs_both(oracle_ix)
             payoffs.append((pi_a, pi_b))
 
-        accepted = [ix for ix in interactions if ix.accepted]
-        toxicity = self._metrics.toxicity_rate(accepted) if accepted else 0.0
-        quality_gap = self._metrics.quality_gap(interactions)
-        avg_welfare = (
-            sum(a + b for a, b in payoffs) / (2 * len(payoffs))
-            if payoffs else 0.0
-        )
-
-        return {
-            "toxicity": toxicity,
-            "quality_gap": quality_gap,
-            "avg_welfare": avg_welfare,
-            "n_interactions": len(interactions),
-        }
+        return self._compute_metrics(interactions, payoffs)
 
     def _run_governed(
         self,
@@ -273,9 +260,25 @@ class GovernedEvalLoop:
             pi_a, pi_b = self._engine.payoffs_both(gov_ix)
             payoffs.append((pi_a, pi_b))
 
-        accepted = [ix for ix in governed_interactions if ix.accepted]
+        return self._compute_metrics(governed_interactions, payoffs)
+
+    def _compute_metrics(
+        self,
+        interactions: List[SoftInteraction],
+        payoffs: List[tuple],
+    ) -> Dict[str, float]:
+        """Compute metrics dict from interactions and payoffs.
+
+        Args:
+            interactions: List of SoftInteraction objects to analyze.
+            payoffs: List of (pi_a, pi_b) tuples from the engine.
+
+        Returns:
+            Dict with toxicity, quality_gap, avg_welfare, and n_interactions.
+        """
+        accepted = [ix for ix in interactions if ix.accepted]
         toxicity = self._metrics.toxicity_rate(accepted) if accepted else 0.0
-        quality_gap = self._metrics.quality_gap(governed_interactions)
+        quality_gap = self._metrics.quality_gap(interactions)
         avg_welfare = (
             sum(a + b for a, b in payoffs) / (2 * len(payoffs))
             if payoffs else 0.0
@@ -285,7 +288,7 @@ class GovernedEvalLoop:
             "toxicity": toxicity,
             "quality_gap": quality_gap,
             "avg_welfare": avg_welfare,
-            "n_interactions": len(governed_interactions),
+            "n_interactions": len(interactions),
         }
 
     @staticmethod

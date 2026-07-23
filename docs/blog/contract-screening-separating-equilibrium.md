@@ -119,7 +119,7 @@ The scenario YAML, contract implementations, and all 67 unit tests are in the re
 - **Multi-seed sweeps:** Run 100+ seeds to characterize the distribution of screening outcomes
 - **Belief dynamics:** Study how pool quality beliefs evolve when adversaries occasionally infiltrate
 
-[GitHub](https://github.com/swarm-ai-safety/swarm)
+[GitHub](https://github.com/swarm-ai-research/swarm)
 
 ---
 

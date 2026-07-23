@@ -267,10 +267,10 @@ class SkillRLAgent(BaseAgent):
             self._last_seen_epoch = epoch
             self.skill_evolution.on_epoch_start(epoch)
 
-        # Run periodic refinement and promotion at epoch boundaries
-        # Note: env_state not available here, so governance evaluation is skipped
-        # unless the agent has been configured with a governance_lever and
-        # the environment provides metrics through another channel.
+        # Run periodic refinement and promotion at epoch boundaries.
+        # env_state is not available here; an attached governance_lever is
+        # still honored — refinements are evaluated against default baseline
+        # metrics rather than silently auto-approved.
         self._maybe_refine(epoch, env_state=None)
         self._maybe_promote(epoch)
 
@@ -398,7 +398,7 @@ class SkillRLAgent(BaseAgent):
                 agent_id=self.agent_id,
                 interaction_id=interaction.interaction_id,
                 epoch=self.skill_evolution._current_epoch,
-                step=0,
+                step=0,  # SkillRL records all invocations as epoch-level events
                 payoff=payoff,
                 p=interaction.p,
                 library=self.skill_library,
@@ -458,13 +458,20 @@ class SkillRLAgent(BaseAgent):
         if not proposals:
             return
 
-        # Apply governance if enabled
-        if governance_lever is not None and env_state is not None:
+        # Apply governance if enabled. A lever with no env_state still gates:
+        # evaluation falls back to default baseline metrics below — silently
+        # auto-approving self-modifications past an attached lever would be a
+        # governance bypass.
+        if governance_lever is not None:
             approved_proposals = []
 
             for proposal in proposals:
-                # Get agent metrics from environment state
-                agent_metrics = env_state.get_agent_metrics(self.agent_id) if hasattr(env_state, 'get_agent_metrics') else {}
+                # Get agent metrics from environment state (when available)
+                agent_metrics = (
+                    env_state.get_agent_metrics(self.agent_id)
+                    if env_state is not None and hasattr(env_state, 'get_agent_metrics')
+                    else {}
+                )
                 baseline = {k: getattr(v, 'mean', 0.0) for k, v in agent_metrics.items()}
                 uncertainties = {k: getattr(v, 'std', 0.1) for k, v in agent_metrics.items()}
 

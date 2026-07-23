@@ -162,7 +162,11 @@ class MessageBus:
             self._allowed_routes = routes
 
     def add_validator(self, validator: MessageValidator) -> None:
-        """Add a message validator.  Return a reason string to block."""
+        """Add a message validator.
+
+        The validator callable receives a BusMessage and should return None to allow
+        or an Optional[str] reason string to block the message.
+        """
         with self._lock:
             self._validators.append(validator)
 

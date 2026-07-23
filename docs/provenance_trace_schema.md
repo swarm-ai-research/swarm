@@ -287,7 +287,7 @@ Potential future additions:
 
 ## Related Documentation
 
-- [Event Schema](https://github.com/swarm-ai-safety/swarm/blob/main/swarm/models/events.py) — Full Event model
-- [Event Log](https://github.com/swarm-ai-safety/swarm/blob/main/swarm/logging/event_log.py) — JSONL logger
-- [Export Utilities](https://github.com/swarm-ai-safety/swarm/blob/main/swarm/analysis/export.py) — Simulation result exporters
-- [Simulated API Schema](https://github.com/swarm-ai-safety/swarm/blob/main/swarm/env/simulated_apis/SCHEMA.md) — Alternative provenance approach
+- [Event Schema](https://github.com/swarm-ai-research/swarm/blob/main/swarm/models/events.py) — Full Event model
+- [Event Log](https://github.com/swarm-ai-research/swarm/blob/main/swarm/logging/event_log.py) — JSONL logger
+- [Export Utilities](https://github.com/swarm-ai-research/swarm/blob/main/swarm/analysis/export.py) — Simulation result exporters
+- [Simulated API Schema](https://github.com/swarm-ai-research/swarm/blob/main/swarm/env/simulated_apis/SCHEMA.md) — Alternative provenance approach

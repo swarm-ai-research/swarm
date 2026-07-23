@@ -155,3 +155,31 @@ Without this command, CI triage requires manually: checking `gh run list`, fetch
 - **`/preflight`** — catches issues *before* commit; `/fix-ci` fixes issues *after* CI fails remotely
 - **`/lint-fix`** — handles only ruff fixes; `/fix-ci` handles all CI job categories
 - **`/healthcheck`** — checks code health broadly; `/fix-ci` targets specific CI failures
+
+## `--watch [sha]` mode
+
+Poll a CI run to conclusion instead of triaging an already-finished failure.
+Added after a session hand-rolled this loop four times (retro 2026-07-18).
+
+- `/fix-ci --watch` — watch the run for the current HEAD sha
+- `/fix-ci --watch <sha>` — watch the run for a specific commit (short sha ok)
+
+Behavior:
+
+1. Resolve the sha (`git rev-parse --short=8 HEAD` when omitted).
+2. Poll in a background Bash task (never a foreground sleep loop):
+   ```bash
+   for i in $(seq 1 10); do
+     STATUS=$(gh run list --branch main --workflow CI --limit 8 \
+       --json conclusion,headSha,status \
+       -q '.[] | select(.headSha[0:8]=="<sha>") | "\(.status) \(.conclusion)"' | head -1)
+     [[ "$STATUS" == completed* ]] && break
+     sleep 90
+   done
+   ```
+3. On `completed success`: report green and stop.
+4. On `completed failure`: fall through to the normal /fix-ci triage flow
+   (fetch `--log-failed`, classify, fix) for that run automatically.
+5. Runs queue behind other pushes in this repo — expect several minutes;
+   poll interval below 60s is wasted quota.
+

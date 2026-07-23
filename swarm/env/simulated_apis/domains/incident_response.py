@@ -86,7 +86,7 @@ class IncidentResponseService(SimulatedApiService):
         return {"ok": True}
 
     def _handle_rotate_key(self, key_id: str) -> Dict[str, Any]:
-        self.state.setdefault("rotated_keys", set())
+        self.state.setdefault("rotated_keys", [])
         rotated: List[str] = list(self.state.get("rotated_keys", []))
         if key_id not in rotated:
             rotated.append(key_id)
@@ -123,12 +123,3 @@ class IncidentResponseService(SimulatedApiService):
     def _handle_timeline(self) -> Dict[str, Any]:
         # The API service itself does not store a timeline; provide audit events as proxy.
         return {"timeline": list(self.state.get("_audit", []))}
-
-    def _handle_audit_log(self, query: str = "") -> Dict[str, Any]:
-        events = list(self.state.get("_audit", []))
-        if query:
-            events = [e for e in events if query in str(e)]
-        return {"events": events[-100:]}
-
-    def _handle_diff_state(self) -> Dict[str, Any]:
-        return {"state": self.snapshot_state()}

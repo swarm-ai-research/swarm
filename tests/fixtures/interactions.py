@@ -40,7 +40,7 @@ def generate_benign_batch(
         v_hat = (p - 0.5) * 2  # Approximate inverse sigmoid
 
         interaction = SoftInteraction(
-            interaction_id=str(uuid.uuid4()),
+            interaction_id=str(uuid.UUID(int=random.getrandbits(128), version=4)),
             timestamp=base_time + timedelta(seconds=i),
             initiator=f"agent_{random.randint(1, 10)}",
             counterparty=f"agent_{random.randint(11, 20)}",
@@ -102,7 +102,7 @@ def generate_toxic_batch(
         v_hat = (p - 0.5) * 2
 
         interaction = SoftInteraction(
-            interaction_id=str(uuid.uuid4()),
+            interaction_id=str(uuid.UUID(int=random.getrandbits(128), version=4)),
             timestamp=base_time + timedelta(seconds=i),
             initiator=f"toxic_agent_{random.randint(1, 5)}",
             counterparty=f"victim_agent_{random.randint(1, 10)}",
@@ -199,7 +199,7 @@ def generate_adversarial_scenario(
         p = max(0.1, min(0.95, p))  # Clamp
 
         interaction = SoftInteraction(
-            interaction_id=str(uuid.uuid4()),
+            interaction_id=str(uuid.UUID(int=random.getrandbits(128), version=4)),
             timestamp=base_time + timedelta(seconds=time_idx),
             initiator=f"honest_{random.randint(1, 10)}",
             counterparty=f"honest_{random.randint(1, 10)}",
@@ -227,7 +227,7 @@ def generate_adversarial_scenario(
         target = f"honest_{random.randint(1, 10)}"
 
         interaction = SoftInteraction(
-            interaction_id=str(uuid.uuid4()),
+            interaction_id=str(uuid.UUID(int=random.getrandbits(128), version=4)),
             timestamp=base_time
             + timedelta(
                 seconds=burst_start + i * 0.5  # Rapid fire
@@ -282,7 +282,7 @@ def generate_uncertain_batch(
         v_hat = (p - 0.5) * 2
 
         interaction = SoftInteraction(
-            interaction_id=str(uuid.uuid4()),
+            interaction_id=str(uuid.UUID(int=random.getrandbits(128), version=4)),
             timestamp=base_time + timedelta(seconds=i),
             initiator=f"agent_{random.randint(1, 20)}",
             counterparty=f"agent_{random.randint(1, 20)}",
@@ -361,7 +361,7 @@ def generate_self_optimizer_scenario(
             v_hat = max(-1.0, min(1.0, (p - 0.5) * 2))
 
             interaction = SoftInteraction(
-                interaction_id=str(uuid.uuid4()),
+                interaction_id=str(uuid.UUID(int=random.getrandbits(128), version=4)),
                 timestamp=epoch_base + timedelta(seconds=i),
                 initiator=f"honest_{random.randint(1, 5)}",
                 counterparty=f"honest_{random.randint(1, 5)}",
@@ -398,7 +398,7 @@ def generate_self_optimizer_scenario(
             accepted = random.random() < 0.90
 
             interaction = SoftInteraction(
-                interaction_id=str(uuid.uuid4()),
+                interaction_id=str(uuid.UUID(int=random.getrandbits(128), version=4)),
                 timestamp=epoch_base + timedelta(seconds=honest_per_epoch + i),
                 initiator=f"optimizer_{random.randint(1, 3)}",
                 counterparty=f"honest_{random.randint(1, 5)}",
@@ -485,7 +485,7 @@ def generate_obfuscation_scenario(
             p = random.uniform(0.7, 0.95)
             v_hat = max(-1.0, min(1.0, (p - 0.5) * 2))
             epoch_interactions.append(SoftInteraction(
-                interaction_id=str(uuid.uuid4()),
+                interaction_id=str(uuid.UUID(int=random.getrandbits(128), version=4)),
                 timestamp=epoch_base + timedelta(seconds=idx),
                 initiator=f"honest_{random.randint(1, 4)}",
                 counterparty=f"honest_{random.randint(5, 8)}",
@@ -508,7 +508,7 @@ def generate_obfuscation_scenario(
             p = random.uniform(0.1, 0.35)
             v_hat = max(-1.0, min(1.0, (p - 0.5) * 2))
             epoch_interactions.append(SoftInteraction(
-                interaction_id=str(uuid.uuid4()),
+                interaction_id=str(uuid.UUID(int=random.getrandbits(128), version=4)),
                 timestamp=epoch_base + timedelta(seconds=idx),
                 initiator=f"blatant_{random.randint(1, 2)}",
                 counterparty=f"honest_{random.randint(5, 8)}",
@@ -532,7 +532,7 @@ def generate_obfuscation_scenario(
             p = random.uniform(0.6, 0.9)
             v_hat = max(-1.0, min(1.0, (p - 0.5) * 2))
             epoch_interactions.append(SoftInteraction(
-                interaction_id=str(uuid.uuid4()),
+                interaction_id=str(uuid.UUID(int=random.getrandbits(128), version=4)),
                 timestamp=epoch_base + timedelta(seconds=idx),
                 initiator=f"policy_obf_{random.randint(1, 3)}",
                 counterparty=f"honest_{random.randint(5, 8)}",
@@ -564,7 +564,7 @@ def generate_obfuscation_scenario(
             p = max(0.0, min(1.0, p))
             v_hat = max(-1.0, min(1.0, (p - 0.5) * 2))
             epoch_interactions.append(SoftInteraction(
-                interaction_id=str(uuid.uuid4()),
+                interaction_id=str(uuid.UUID(int=random.getrandbits(128), version=4)),
                 timestamp=epoch_base + timedelta(seconds=idx),
                 initiator=f"activation_obf_{random.randint(1, 2)}",
                 counterparty=f"honest_{random.randint(5, 8)}",
@@ -629,7 +629,7 @@ def generate_from_observables(
         v_hat, p = proxy_computer.compute_labels(obs)
 
         interaction = SoftInteraction(
-            interaction_id=str(uuid.uuid4()),
+            interaction_id=str(uuid.UUID(int=random.getrandbits(128), version=4)),
             timestamp=base_time + timedelta(seconds=i),
             initiator=f"agent_{i % 10}",
             counterparty=f"agent_{(i + 5) % 10}",

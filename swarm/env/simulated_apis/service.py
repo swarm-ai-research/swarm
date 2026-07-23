@@ -151,6 +151,17 @@ class SimulatedApiService:
             parent_event_hash=parent_event_hash,
         )
 
+    def _handle_audit_log(self, query: str = "") -> Dict[str, Any]:
+        """Query audit log by substring filter."""
+        events = list(self.state.get("_audit", []))
+        if query:
+            events = [e for e in events if query in str(e)]
+        return {"events": events[-100:]}
+
+    def _handle_diff_state(self) -> Dict[str, Any]:
+        """Return a snapshot of the current service state."""
+        return {"state": self.snapshot_state()}
+
     @staticmethod
     def _deepcopy_json(obj: Any) -> Any:
         # Deterministic, json-compatible deep copy.

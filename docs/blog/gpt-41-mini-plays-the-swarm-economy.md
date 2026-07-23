@@ -100,7 +100,7 @@ Specific things we want to test:
 
 ---
 
-*Eval job: `swarm_economy_openai_gpt_4.1_mini_20260212_205322_b3c5c09f`. Model: openai/gpt-4.1-mini via Prime Intellect inference. Environment: swarm-economy (local, 200 scenarios, 20 evaluated, 4 rollouts each). ~2min wall-clock. Full environment code at [`environments/swarm_economy/swarm_economy.py`](https://github.com/swarm-ai-safety/swarm/blob/main/environments/swarm_economy/swarm_economy.py).*
+*Eval job: `swarm_economy_openai_gpt_4.1_mini_20260212_205322_b3c5c09f`. Model: openai/gpt-4.1-mini via Prime Intellect inference. Environment: swarm-economy (local, 200 scenarios, 20 evaluated, 4 rollouts each). ~2min wall-clock. Full environment code at [`environments/swarm_economy/swarm_economy.py`](https://github.com/swarm-ai-research/swarm/blob/main/environments/swarm_economy/swarm_economy.py).*
 
 ---
 

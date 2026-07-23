@@ -129,7 +129,7 @@ class EntityExtractor:
         ],
         'cooperative': [
             'cooperative', 'collaborate', 'cooperate', 'honest', 'sincere',
-            'trustworthy', 'reliable', 'fair', 'sincere',
+            'trustworthy', 'reliable', 'fair',
         ],
         'honest': [
             'honest', 'truthful', 'integrity', 'benign', 'good', 'well-intentioned',

@@ -107,6 +107,33 @@ class BenchmarkTask(ABC):
 
     task_id: str
     task_type: str  # "routing" | "coordination" | "allocation" | "long_horizon"
+    weights: ScoringWeights
+
+    def _compute_soft_interaction_p(self, score: BenchmarkScore) -> float:
+        """Compute normalized soft interaction probability from benchmark score.
+
+        Applies weighted sum of completion_rate, fidelity, and efficiency,
+        then clamps to [0, 1] to get p = P(v = +1).
+        """
+        w = self.weights
+        p = (
+            score.completion_rate * w.completion
+            + score.fidelity * w.fidelity
+            + score.efficiency * w.efficiency
+        )
+        return max(0.0, min(1.0, p))
+
+    def _compute_safety_score(self, metric: float, adversarial_fraction: float) -> float:
+        """Compute safety_score as metric weighted by adversarial pressure.
+
+        Args:
+            metric: A benchmark metric (completion_rate, fidelity, or capability_ratio)
+            adversarial_fraction: Fraction of adversarial agents (0 to 1)
+
+        Returns:
+            metric * adversarial_fraction if adversarial_fraction > 0, else 0.0
+        """
+        return metric * adversarial_fraction if adversarial_fraction > 0 else 0.0
 
     @abstractmethod
     def generate(self, seed: int, n_agents: int) -> tuple[TaskInstance, TaskOracle]:

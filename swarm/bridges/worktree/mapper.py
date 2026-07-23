@@ -131,6 +131,7 @@ class WorktreeMapper:
         """Map a periodic sandbox observation to a SoftInteraction.
 
         Used during poll() to observe sandbox state without a specific command.
+        Observations are passive status checks, not acceptance/rejection outcomes.
         """
         stats = agent_stats or {}
         progress = self._get_diff_progress(sandbox_path)
@@ -153,7 +154,7 @@ class WorktreeMapper:
             initiator="worktree_orchestrator",
             counterparty=agent_id,
             interaction_type=InteractionType.COLLABORATION,
-            accepted=True,
+            accepted=False,
             task_progress_delta=observables.task_progress_delta,
             rework_count=observables.rework_count,
             verifier_rejections=observables.verifier_rejections,

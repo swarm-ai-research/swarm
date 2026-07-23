@@ -36,7 +36,8 @@ def compute_epoch_reward(
 ) -> float:
     """Compute epoch-level reward signal for RL-style policies.
 
-    reward = coin_weight * net_income + house_weight * houses - fine_paid
+    net_income = gross_income - tax_paid - fine_paid
+    reward = coin_weight * net_income + house_weight * houses
     """
     net = worker.gross_income_this_epoch - tax_paid - fine_paid
     return coin_weight * net + house_weight * worker.houses_built

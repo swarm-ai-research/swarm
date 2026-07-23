@@ -99,7 +99,7 @@ def plot_grouped_bar(plt, df: pd.DataFrame, params: list[str], metric: str,
 
 
 def plot_payoff_by_agent_type(plt, df: pd.DataFrame, params: list[str],
-                              output_dir: Path) -> Path:
+                              output_dir: Path) -> Path | None:
     """Side-by-side panels showing payoffs for each agent type."""
     agent_cols = [c for c in df.columns if c.endswith("_payoff") and c != "avg_payoff"]
     n_types = len(agent_cols)

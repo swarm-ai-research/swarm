@@ -148,7 +148,7 @@ uv run harness resample runs/<timestamp> --session 2 --request 5 --count 10
 
 Experiment configs are in `~/agent-lens/experiments/`. Trajectories, diffs, and API captures are in `~/agent-lens/runs/`.
 
-[GitHub (SWARM)](https://github.com/swarm-ai-safety/swarm) | [GitHub (agent-lens)](https://github.com/dreadnode/agent-lens)
+[GitHub (SWARM)](https://github.com/swarm-ai-research/swarm) | [GitHub (agent-lens)](https://github.com/dreadnode/agent-lens)
 
 ---
 

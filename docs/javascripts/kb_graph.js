@@ -107,9 +107,25 @@
             (KIND_COLORS[k] || "#999") + '">' +
             (KIND_LABELS[k] || k) + ": " + byKind[k] + "</span>";
         });
+        var staleN = graph.stats.stale_count || 0;
         stats.innerHTML = "<b>" + graph.stats.node_count + " nodes</b> · <b>" +
-          graph.stats.edge_count + " edges</b> · " + parts.join(" ");
+          graph.stats.edge_count + " edges</b> · " +
+          (graph.stats.orphan_count || 0) + " orphans · " +
+          staleN + " stale refs · " + parts.join(" ");
       }
+
+      // Node size is driven by PageRank (corpus centrality) rather than raw
+      // degree — a page linked from a few very central pages should look more
+      // important than one linked from many leaf pages. Scale relative to the
+      // max so the dynamic range is stable regardless of corpus size.
+      var maxPr = 0;
+      graph.nodes.forEach(function (n) { if ((n.pagerank || 0) > maxPr) maxPr = n.pagerank; });
+      if (maxPr <= 0) maxPr = 1;
+
+      // Top-N central node ids for the "Key concepts" highlighter, taken from
+      // the precomputed stats (falls back to empty if an older graph json).
+      var centralIds = {};
+      (graph.stats.top_central || []).forEach(function (c) { centralIds[c.id] = true; });
 
       var adj = {};        // all edges
       var adjReal = {};    // explicit edges only (BFS uses this — semantic edges are suggestions)
@@ -126,6 +142,7 @@
           id: n.id, label: n.title, section: n.section, kind: n.kind,
           color: KIND_COLORS[n.kind] || "#888",
           deg: (n.indegree + n.outdegree),
+          pr: Math.round((n.pagerank || 0) / maxPr * 100),
           orphan: n.orphan
         }});
       });
@@ -143,8 +160,8 @@
             "background-color": "data(color)",
             "label": "data(label)",
             "font-size": 5,
-            "width": "mapData(deg, 0, 40, 6, 38)",
-            "height": "mapData(deg, 0, 40, 6, 38)",
+            "width": "mapData(pr, 0, 100, 6, 40)",
+            "height": "mapData(pr, 0, 100, 6, 40)",
             "text-wrap": "wrap", "text-max-width": 60,
             "color": "#334155", "min-zoomed-font-size": 8,
             "border-width": 0
@@ -168,7 +185,8 @@
           { selector: "node.path", style: { "border-width": 3, "border-color": "#111827", "z-index": 99 }},
           { selector: "edge.path", style: { "width": 3, "line-color": "#111827",
             "target-arrow-color": "#111827", "opacity": 1, "z-index": 99 }},
-          { selector: "node.orphan-hit", style: { "border-width": 3, "border-color": "#dc2626" }}
+          { selector: "node.orphan-hit", style: { "border-width": 3, "border-color": "#dc2626" }},
+          { selector: "node.key-hit", style: { "border-width": 3, "border-color": "#f59e0b" }}
         ],
         // cose layout tuned for the larger multi-source graph
         layout: { name: "cose", animate: false, nodeRepulsion: 5000,
@@ -230,6 +248,10 @@
           '<h3>' + esc(node.title) + '</h3>' +
           '<span class="kb-info-kind">' + esc(kindLabel) + '</span></div>' +
           (node.description ? '<p class="kb-info-desc">' + esc(node.description) + '</p>' : '') +
+          '<p class="kb-info-metrics">PageRank ' +
+            (node.pagerank != null ? node.pagerank.toFixed(4) : "—") +
+            (centralIds[node.id] ? ' <span class="kb-key-badge">key concept</span>' : '') +
+            ' · in ' + (node.indegree || 0) + ' · out ' + (node.outdegree || 0) + '</p>' +
           openLink +
           '<h4>Out (' + (node.out || []).length + ')</h4>' +
           (outs ? '<ul class="kb-info-outs">' + outs + '</ul>' : '<p class="kb-info-empty">No outgoing links.</p>');
@@ -360,6 +382,7 @@
       orphanBtn.onclick = function () {
         orphansOn = !orphansOn;
         orphanBtn.classList.toggle("on", orphansOn);
+        if (keyOn) { keyOn = false; keyBtn.classList.remove("on"); keyBtn.textContent = "Key concepts"; }
         if (orphansOn) {
           cy.nodes().addClass("faded").removeClass("orphan-hit");
           cy.nodes("[?orphan]").removeClass("faded").addClass("orphan-hit");
@@ -367,6 +390,27 @@
         } else {
           cy.nodes().removeClass("faded").removeClass("orphan-hit");
           orphanBtn.textContent = "Show orphans";
+        }
+      };
+
+      // ---- key-concept (PageRank) highlighter ----
+      // Spotlights the most central pages — the corpus spine you'd want a
+      // newcomer to read first, and the pages whose edits ripple widest.
+      var keyBtn = document.getElementById("kb-show-key");
+      var keyOn = false;
+      if (keyBtn) keyBtn.onclick = function () {
+        keyOn = !keyOn;
+        keyBtn.classList.toggle("on", keyOn);
+        if (orphansOn) { orphansOn = false; orphanBtn.classList.remove("on"); orphanBtn.textContent = "Show orphans"; }
+        cy.nodes().removeClass("orphan-hit");
+        if (keyOn) {
+          var key = cy.nodes().filter(function (nd) { return centralIds[nd.id()]; });
+          cy.nodes().addClass("faded").removeClass("key-hit");
+          key.removeClass("faded").addClass("key-hit");
+          keyBtn.textContent = "Show all (" + key.length + " key concepts)";
+        } else {
+          cy.nodes().removeClass("faded").removeClass("key-hit");
+          keyBtn.textContent = "Key concepts";
         }
       };
     }

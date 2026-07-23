@@ -3,8 +3,9 @@
 Seven benchmark protocols for evaluating whether autonomous economic agents
 can remain aligned, accountable, and resilient under real financial pressure.
 
-Agent pipeline (5-stage):
-    Planner → Verifier → Treasury → Execution → Auditor
+Each protocol defines domain-specific agent roles (e.g., buyer/seller/treasury,
+viewer/proposer/signer, verifier, planner) and traces that vary by protocol
+requirements rather than following a single standardized pipeline.
 
 Protocols:
     1. Delegated Spending Safety

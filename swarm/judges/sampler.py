@@ -13,6 +13,16 @@ import random
 from typing import Any, Iterable
 
 
+def is_in_bin(p: float, b: int, bin_edges: tuple[float, ...]) -> bool:
+    """Check if p falls within bin b according to bin_edges.
+
+    Uses half-open intervals [lo, hi) for all bins except the last,
+    which uses [lo, hi] to ensure the rightmost edge is included.
+    """
+    lo, hi = bin_edges[b], bin_edges[b + 1]
+    return lo <= p < hi if b < len(bin_edges) - 2 else lo <= p <= hi
+
+
 def stratified_sample(
     interactions: Iterable[Any],
     per_bin: int,
@@ -26,6 +36,11 @@ def stratified_sample(
     them and the caller is responsible for noticing the underflow (we log
     it via the return value's length, not via a hard failure — a bin
     being short is often the point).
+
+    Args:
+        bin_edges: Strictly monotonically increasing sequence of bin boundaries.
+            Must have length >= 2. Behavior is undefined for reversed, duplicate,
+            or non-monotonic edges. Typically in [0.0, 1.0] for probability bins.
     """
     rng = random.Random(seed)
     pool = list(interactions)
@@ -36,9 +51,7 @@ def stratified_sample(
     for interaction in pool:
         p = float(getattr(interaction, "p", 0.5))
         for b in range(len(bin_edges) - 1):
-            lo, hi = bin_edges[b], bin_edges[b + 1]
-            in_range = lo <= p < hi if b < len(bin_edges) - 2 else lo <= p <= hi
-            if in_range:
+            if is_in_bin(p, b, bin_edges):
                 by_bin[b].append(interaction)
                 break
 
@@ -55,14 +68,18 @@ def bin_counts(
     interactions: Iterable[Any],
     bin_edges: tuple[float, ...] = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0),
 ) -> list[int]:
-    """Count interactions per p-bin (using same bin convention as the sampler)."""
+    """Count interactions per p-bin (using same bin convention as the sampler).
+
+    Args:
+        bin_edges: Strictly monotonically increasing sequence of bin boundaries.
+            Must have length >= 2. Behavior is undefined for reversed, duplicate,
+            or non-monotonic edges. Typically in [0.0, 1.0] for probability bins.
+    """
     counts = [0] * (len(bin_edges) - 1)
     for interaction in interactions:
         p = float(getattr(interaction, "p", 0.5))
         for b in range(len(bin_edges) - 1):
-            lo, hi = bin_edges[b], bin_edges[b + 1]
-            in_range = lo <= p < hi if b < len(bin_edges) - 2 else lo <= p <= hi
-            if in_range:
+            if is_in_bin(p, b, bin_edges):
                 counts[b] += 1
                 break
     return counts

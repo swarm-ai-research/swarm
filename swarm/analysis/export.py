@@ -12,6 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+import numpy as np
+
 from swarm.analysis.aggregation import (
     AgentSnapshot,
     EpochSnapshot,
@@ -120,15 +122,19 @@ def history_to_interaction_records(
         record = {
             "event_type": "interaction",
             "interaction_id": interaction.interaction_id,
-            "timestamp": interaction.timestamp.isoformat() if hasattr(interaction, 'timestamp') and interaction.timestamp else None,
-            "epoch": interaction.metadata.get('epoch', 0) if interaction.metadata else 0,
-            "step": interaction.metadata.get('step', 0) if interaction.metadata else 0,
+            "timestamp": interaction.timestamp.isoformat(),
+            "epoch": interaction.metadata.get('epoch', 0),
+            "step": interaction.metadata.get('step', 0),
             "initiator": interaction.initiator,
             "counterparty": interaction.counterparty,
-            "interaction_type": interaction.interaction_type.value if hasattr(interaction.interaction_type, 'value') else str(interaction.interaction_type),
+            "interaction_type": interaction.interaction_type.value,
             "accepted": interaction.accepted,
             "p": interaction.p,
             "v_hat": interaction.v_hat,
+            # None for ordinary runs; ±1 in calibration-injection scenarios
+            # (arm A promoted, beads c89o) — consumed by
+            # experiments/calibration_fidelity.py --from-run.
+            "ground_truth": interaction.ground_truth,
         }
         records.append(record)
     return records
@@ -521,8 +527,6 @@ def generate_summary_report(
         acceptance_rate = (
             total_accepted / total_interactions if total_interactions > 0 else 0
         )
-
-        import numpy as np
 
         toxicity_values = [s.toxicity_rate for s in history.epoch_snapshots]
         welfare_values = [s.total_welfare for s in history.epoch_snapshots]

@@ -10,6 +10,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from swarm.bridges._common import trim_to_half
 from swarm.bridges.opensandbox.events import OpenSandboxEvent, OpenSandboxEventType
 
 logger = logging.getLogger(__name__)
@@ -390,8 +391,7 @@ class Observer:
         payload: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Append an event with bounded growth."""
-        if len(self._events) >= self._max_events:
-            self._events = self._events[-self._max_events // 2 :]
+        self._events = trim_to_half(self._events, self._max_events)
         self._events.append(
             OpenSandboxEvent(
                 event_type=event_type,

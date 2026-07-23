@@ -58,7 +58,7 @@ runs/
 | **Event Log** | `logs/events_<timestamp>.jsonl` | Append-only JSONL event stream |
 
 !!! note "Runs Directory"
-    The `runs/` directory is gitignored. For long-term storage, archive runs to the [swarm-artifacts](https://github.com/swarm-ai-safety/swarm-artifacts) repository.
+    The `runs/` directory is gitignored. For long-term storage, archive runs to the [swarm-artifacts](https://github.com/swarm-ai-research/swarm-artifacts) repository.
 
 ## Complete Reproduction Workflow
 
@@ -277,7 +277,7 @@ For long-term storage and sharing, use the separate artifacts repository:
 
 ```bash
 # Clone artifacts repo (large files, historical runs)
-git clone https://github.com/swarm-ai-safety/swarm-artifacts.git
+git clone https://github.com/swarm-ai-research/swarm-artifacts.git
 
 # Copy your run to artifacts
 cp -r runs/20260216-184200_baseline_seed42 \

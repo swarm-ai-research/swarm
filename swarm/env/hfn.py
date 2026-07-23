@@ -13,6 +13,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Deque, Dict, List, Optional
 
+from swarm.env.stats import gini
+
 
 @dataclass
 class HFNConfig:
@@ -481,14 +483,4 @@ class HFNEngine:
                 agent_id = trade[role]
                 agent_trades[agent_id] = agent_trades.get(agent_id, 0) + 1
 
-        if not agent_trades:
-            return 0.0
-
-        counts = sorted(agent_trades.values())
-        n = len(counts)
-        total = sum(counts)
-        if total == 0:
-            return 0.0
-
-        gini_sum = sum((2 * (i + 1) - n - 1) * c for i, c in enumerate(counts))
-        return gini_sum / (n * total)
+        return gini(agent_trades.values())

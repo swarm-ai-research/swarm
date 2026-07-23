@@ -1,6 +1,6 @@
 ---
 date: 2026-05-16
-description: "MiroShark's agents never down-vote, so we derived acceptance from amplification. Single runs showed a concentrated libel cascade more adversely selected than diffuse red-teaming — but a preregistered fixed-regime multi-seed follow-up did NOT replicate that libel<redteam<0 ordering: it is regime-fragile, not a property. The durable result is the non-circular amplification metric and a cautionary tale about single-seed LLM-judged safety metrics."
+description: "MiroShark's agents never down-vote, so we derived acceptance from amplification. Single runs showed a concentrated libel cascade more adversely selected than diffuse red-teaming — but the preregistered powered replication (23 clean runs) retired that libel<redteam<0 ordering: libel shows no selection effect and red-team selection is slightly POSITIVE. The durable result is the non-circular amplification metric and a worked example of preregistering the test that kills your own headline."
 author: "SWARM Team"
 keywords:
   - adverse selection multi-agent
@@ -9,9 +9,12 @@ keywords:
   - LLM judge sensitivity
   - soft labels distributional safety
 claims:
-  - metric: "Headline ordering did NOT replicate (preregistered follow-up)"
-    value: "libel ≈ redteam (Δ≈+0.002)"
-    description: "A preregistered fixed-regime multi-seed study (grok-4.3 sim+judge, SHA-256-hashed prereg before any run) was run. At the underpowered n=3/scenario it reached before an external infra/quota wall, the libel<redteam<0 ordering did NOT hold (libel mean qg -0.064 vs redteam -0.067; one extra libel draw collapsed the n=2 gap and exploded its variance; H1/H2 not supported, H3 fail-to-reject). The ordering is regime-fragile, not a scenario property. A powered >=8/scenario run remains open, blocked on external OpenAI quota."
+  - metric: "POWERED preregistered study (2026-07): ordering is not real; red-team selection slightly POSITIVE"
+    value: "libel -0.006 [CI -0.042,+0.036]; redteam +0.034 [CI +0.011,+0.054]"
+    description: "The powered preregistered study completed: 23 clean replications (libel n=11, redteam n=12, >=8 required) under a fixed pinned regime (sim SMART/NER grok-4.3, agents mimo-v2.5, judge grok-4.3 T=0). ALL THREE preregistered hypotheses failed: H1 (libel<redteam) Δ=-0.040 CI [-0.082,+0.007] crosses 0; H2 (libel<0) CI includes 0 — libel shows NO selection effect; H3 (redteam≈0) is INVERTED — redteam quality_gap is significantly positive (favorable selection). The single-pair libel<redteam<0 ordering was sampling noise."
+  - metric: "Underpowered first attempt (2026-05, superseded)"
+    value: "libel ≈ redteam (Δ≈+0.002) at n=3"
+    description: "The first preregistered attempt (grok-4.3 sim+judge, SHA-256-hashed prereg before any run) was capped at an underpowered n=3/scenario by an external infra/quota wall: the libel<redteam<0 ordering did not hold there either (H1/H2 not supported, H3 fail-to-reject). Superseded by the completed powered study above, which confirms non-replication with confidence intervals."
   - metric: "Single-seed ordering (observed, not replicated)"
     value: "libel < redteam < 0"
     description: "In single runs under both grok-4.1-fast and grok-4.3 judges, the concentrated libel cascade had a more negative quality_gap than diffuse red-teaming (g4.1f: -0.059 vs -0.037; g4.3: -0.027 vs -0.022). Sign/ordering survived the judge swap, magnitude compressed ~50% — but this is what those particular single seeds showed, and the preregistered multi-seed follow-up did not reproduce it. Read as a hypothesis, not a finding."
@@ -24,12 +27,12 @@ claims:
   - metric: "Durable contribution: non-circular amplification metric"
     value: "quality_gap unpinned"
     description: "MiroShark agents never down-vote (dislikes/reports identically 0), so acceptance is derived from the amplification graph while p is judged independently from content. This unpins quality_gap/spread non-circularly and is the result that survives — shipped in swarm/bridges/miroshark/metrics.py."
-abstract: "The SWARM-to-MiroShark bridge hardcoded accepted=True, pinning quality_gap and spread at 0. The obvious fix - rejection from dislikes/reports - was dead: those counters are identically zero in every MiroShark run. We defined acceptance by amplification instead (content other agents quoted/replied/liked/reposted is accepted; ignored content is rejected), with p judged independently so quality_gap stays non-circular - and that method is the durable result. Single runs then showed a tempting selection signal: the concentrated libel cascade more adversely selected than diffuse red-teaming, an ordering even robust to swapping the LLM judge. We did not stop there. A preregistered fixed-regime multi-seed follow-up did NOT replicate the libel<redteam<0 ordering (libel ≈ redteam, one extra draw collapsed it); combined with its non-robustness to regenerating the simulation and judge-dominated absolute toxicity/welfare, the lesson is that the headline ordering is regime-fragile, not a property. This post is primarily a cautionary tale about LLM-judged, single-seed safety metrics - and a worked example of preregistering the test that retired our own headline."
+abstract: "The SWARM-to-MiroShark bridge hardcoded accepted=True, pinning quality_gap and spread at 0. The obvious fix - rejection from dislikes/reports - was dead: those counters are identically zero in every MiroShark run. We defined acceptance by amplification instead (content other agents quoted/replied/liked/reposted is accepted; ignored content is rejected), with p judged independently so quality_gap stays non-circular - and that method is the durable result. Single runs then showed a tempting selection signal: the concentrated libel cascade more adversely selected than diffuse red-teaming, an ordering even robust to swapping the LLM judge. We did not stop there. A preregistered replication - underpowered in May, completed at power in July with 23 clean runs - found the ordering is not real: libel selection is indistinguishable from zero, and red-team selection is slightly positive. This post is primarily a cautionary tale about LLM-judged, single-seed safety metrics - and a worked example of preregistering the test that retired our own headline."
 ---
 
 # When the Crowd Amplifies the Worst — and When the Metric Doesn't Hold
 
-*MiroShark's agents never press "report," so we measured rejection by amplification. Single runs gave us a clean adverse-selection ordering — then a preregistered multi-seed follow-up failed to reproduce it. The non-circular metric is the keeper; the headline ordering isn't.*
+*MiroShark's agents never press "report," so we measured rejection by amplification. Single runs gave us a clean adverse-selection ordering — then the preregistered replication, at full power, found no libel effect at all and a slightly* positive *red-team one. The non-circular metric is the keeper; the headline ordering isn't.*
 
 ---
 
@@ -70,7 +73,7 @@ What MiroShark agents *do* do is engage with each other's content — 313 of 379
 
 ## The tempting result: concentration *appeared* to amplify adverse selection
 
-> **Read this section as the hypothesis, not the conclusion.** The ordering below looked robust across judges in single runs — but the preregistered multi-seed follow-up ([Update, 2026-05-18](#update-2026-05-18-the-preregistered-powered-follow-up-did-not-replicate-the-ordering)) did **not** reproduce it. Kept here because the *reasoning* that made it tempting, and how it failed, is the point of the post.
+> **Read this section as the hypothesis, not the conclusion.** The ordering below looked robust across judges in single runs — but the preregistered replication (two attempts; Updates below) found it is **not real**. Kept here because the *reasoning* that made it tempting, and how it failed, is the point of the post.
 
 With acceptance defined by amplification, the concentrated libel cascade (a few injector/amplifier agents pumping a false narrative) showed a **more negative quality_gap** than diffuse red-teaming in single runs. And — temptingly — that *ordering* survived swapping the LLM judge:
 
@@ -81,7 +84,7 @@ With acceptance defined by amplification, the concentrated libel cascade (a few 
 | Libel cascade | grok-4.3 | **−0.027** | +0.014 |
 | Red-team (run A) | grok-4.3 | **−0.022** | +0.006 |
 
-Under *both* judges, in these single runs: `libel < redteam < 0` — robust to a judge swap (grok-4.3 just compresses magnitudes ~50%). That judge-robustness is exactly what made it tempting to call a finding. It was not one: regenerating the simulation kills it (next section), and the preregistered multi-seed study could not reproduce it (Update). What *does* survive is the weaker, methodological point — aggregate toxicity barely distinguishes these two worlds while a *selection* metric at least responds to them, which is the argument for developing distributional, selection-aware metrics, not evidence about libel vs. red-team specifically.
+Under *both* judges, in these single runs: `libel < redteam < 0` — robust to a judge swap (grok-4.3 just compresses magnitudes ~50%). That judge-robustness is exactly what made it tempting to call a finding. It was not one: regenerating the simulation kills it (next section), and the preregistered replication could not reproduce it (Updates below). What *does* survive is the weaker, methodological point: aggregate toxicity barely distinguishes these two worlds, while a *selection* metric at least responds to them. That is an argument for developing distributional, selection-aware metrics — not evidence about libel vs. red-team specifically.
 
 ## The result that doesn't hold: the signal is single-seed
 
@@ -111,13 +114,13 @@ Toxicity doubles, welfare flips strongly negative — from a judge change alone.
 ## What to actually take away
 
 - **The amplification-as-acceptance method is sound and now shipped.** It unpins `quality_gap`/`spread` and is non-circular. That is the durable contribution.
-- **Selection-aware metrics surface structure that aggregate toxicity hides** — the libel-vs-redteam ordering is invisible to a toxicity count and visible to `quality_gap`, robustly across judges.
+- **Selection-aware metrics surface structure that aggregate toxicity hides** — in the single runs, the libel-vs-redteam ordering was invisible to a toxicity count and visible to `quality_gap`, across both judges.
 - **But:** the specific magnitudes, the absolute toxicity/welfare, and even the *existence* of redteam adverse selection are not robust to single-seed variance, simulation model, or judge model. Treat them as hypotheses, not results.
-- **Next:** a multi-seed study under a single fixed model regime (sim + judge), with confidence intervals, before any of the magnitudes are quoted as findings.
+- **Next:** a multi-seed study under a single fixed model regime (sim + judge), with confidence intervals, before any of the magnitudes are quoted as findings. *(Since done — see the Updates below; all three hypotheses failed.)*
 
 This post started as "the crowd amplifies the worst." It ended as "the crowd amplified the worst in the runs we happened to generate, the ordering looked judge-robust, and then we preregistered the replication and it did not hold." We ran the test that retired our own headline — that is the honest version, and the one worth publishing.
 
-## Update (2026-05-18): the preregistered powered follow-up did not replicate the ordering
+## Update (2026-05-18): the preregistered follow-up stalled underpowered — and still did not show the ordering
 
 The "Next" above was attempted. We preregistered a fixed-regime multi-seed study (hypotheses, fixed N, stopping rule, and an explicit no-reproducible-seeds caveat written and SHA-256-hashed *before* any run — `sha256 386420a3…`; orchestrator `scripts/multiseed_miroshark.py`): grok-4.3 for **both** the MiroShark SMART/NER simulation and the metrics judge, scale=3, 5 rounds, target ≥8 independent stochastic replications per scenario.
 
@@ -136,9 +139,30 @@ A single additional libel draw (qg ≈ +0.06) collapsed the libel mean from −0
 
 The powered ≥8/scenario study remains open (beads `distributional-agi-safety-qopt`), blocked on the external OpenAI ontology-model quota, not on anything in SWARM. The preregistration, per-run manifest, and indicative `SUMMARY.md` live in the (gitignored) batch dir `runs/20260517-142704_multiseed_miroshark/`; they are **not** yet in `swarm-artifacts` because the study is incomplete — they will be archived only when a powered run finishes, to avoid presenting an aborted batch as a result.
 
+## Update (2026-07-18): the powered study completed — the ordering is not real, and red-team selection is slightly *positive*
+
+The powered run the May update was waiting on is done. Fresh preregistration (SHA-256 `ce846868…`, hashed before any run), same hypotheses, and a fully pinned regime — now covering the Wonderwall *agent* model too. That omission from the May prereg turned out to matter: `xiaomi/mimo-v2-flash` was delisted from OpenRouter between the batches, so this study ran on its direct successor, `xiaomi/mimo-v2.5`, disclosed in the prereg as a known regime difference. Every run within the batch used the one pinned regime, enforced by a fail-fast preflight. Target: 12 attempts per scenario, ≥8 clean replications required, no adaptive stopping — and the batch ran all 24 attempts to exhaustion even after the threshold was met.
+
+**Result: 23 clean replications (libel n=11, redteam n=12). All three preregistered hypotheses failed.**
+
+| Preregistered metric (clean runs) | n | mean `quality_gap` | bootstrap 95% CI |
+|---|---|---|---|
+| libel cascade | 11 | **−0.006** | [−0.042, +0.036] |
+| red-team | 12 | **+0.034** | [**+0.011**, +0.054] |
+
+- **H1** (libel < redteam): Δ = −0.040, 95% CI [−0.082, **+0.007**], Welch t=−1.69 — trends the predicted direction but crosses zero. **Not supported.**
+- **H2** (libel < 0, adverse selection): CI includes 0. **Not supported** — at n=11 the libel cascade shows *no* selection effect at all.
+- **H3** (redteam ≈ 0): **Inverted.** The red-team CI *excludes* zero on the positive side: a small but significant *favorable* selection — the ecosystem amplified slightly higher-quality content in red-team worlds.
+
+So the single-pair `libel < redteam < 0` ordering this post originally led with is, at power, simply not there: libel selection is indistinguishable from zero, and red-team selection is significantly the *opposite* sign of the original observation. The May n=3 attempt hinted as much; the powered study settles it. The durable contributions stand exactly as the post argued: the non-circular amplification metric, and the hard-earned rule — quote no single-seed, LLM-judged safety number before a preregistered replication.
+
+Caveats, stated plainly: replications remain independent stochastic draws (no seed parameter exists; documented in the prereg), one degenerate libel sim (n_int=6) was excluded by the preregistered n≥20 cleanliness rule, and the agent-model difference vs. the May runs is disclosed above. The operational cost of getting here — an OpenRouter account drained mid-batch, orchestration timeouts silently killing healthy slow runs after the reasoning-model switch, and a Docker engine failure that ended with Neo4j running natively — is recorded in the batch manifest; every failure mode now has a guard in `scripts/multiseed_miroshark.py`.
+
+The full batch — preregistration, per-run manifest with per-attempt error trails, all 24 run dirs, and `SUMMARY.md` — is archived in [`swarm-artifacts/research/miroshark-amplification/multiseed-20260703/`](https://github.com/swarm-ai-research/swarm-artifacts/tree/main/research/miroshark-amplification/multiseed-20260703).
+
 ## Raw data & reproduction
 
-All three five-round runs — `export.json`, the grok-4.3 `metrics.json`/`judgments.json`, *and* the preserved grok-4.1-fast judge outputs that make the controlled comparison possible — are archived in [`swarm-artifacts/research/miroshark-amplification/`](https://github.com/swarm-ai-safety/swarm-artifacts/tree/main/research/miroshark-amplification), with a README walking the full table and reproduction commands. The amplification metric itself is `swarm/bridges/miroshark/metrics.py` in the main repo. Inspect the judgments, disagree with our `p` calls, re-run with a different judge — the point of publishing the raw runs is that the fragility above is checkable, not asserted.
+The original three five-round runs — `export.json`, the grok-4.3 `metrics.json`/`judgments.json`, *and* the preserved grok-4.1-fast judge outputs that make the controlled comparison possible — are archived in [`swarm-artifacts/research/miroshark-amplification/`](https://github.com/swarm-ai-research/swarm-artifacts/tree/main/research/miroshark-amplification), with a README walking the full table and reproduction commands. The amplification metric itself is `swarm/bridges/miroshark/metrics.py` in the main repo. Inspect the judgments, disagree with our `p` calls, re-run with a different judge — the point of publishing the raw runs is that the fragility above is checkable, not asserted.
 
 ---
 

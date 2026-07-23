@@ -192,6 +192,21 @@ class AWMServerManager:
         self._next_port += 1
         return port
 
+    def _create_server_instance(self, agent_id: str, port: int) -> AWMServerInstance:
+        """Create an AWMServerInstance with configuration from self.config."""
+        return AWMServerInstance(
+            agent_id=agent_id,
+            port=port,
+            environment_id=self.config.environment_id,
+            envs_path=str(self.config.envs_path),
+            live_mode=self.config.live_mode,
+            server_command_template=self.config.server_command_template,
+            host=self.config.host,
+            startup_timeout=self.config.server_startup_timeout,
+            health_check_interval=self.config.health_check_interval,
+            data_path=str(self.config.data_path),
+        )
+
     async def start_server(self, agent_id: str) -> Optional[AWMServerInstance]:
         """Start (or return existing) server for an agent.
 
@@ -214,18 +229,7 @@ class AWMServerManager:
             return self._shared_server
 
         port = self._allocate_port()
-        server = AWMServerInstance(
-            agent_id="shared",
-            port=port,
-            environment_id=self.config.environment_id,
-            envs_path=str(self.config.envs_path),
-            live_mode=self.config.live_mode,
-            server_command_template=self.config.server_command_template,
-            host=self.config.host,
-            startup_timeout=self.config.server_startup_timeout,
-            health_check_interval=self.config.health_check_interval,
-            data_path=str(self.config.data_path),
-        )
+        server = self._create_server_instance("shared", port)
         await server.start()
         self._shared_server = server
         self._servers[agent_id] = server
@@ -250,18 +254,7 @@ class AWMServerManager:
             return None
 
         port = self._allocate_port()
-        server = AWMServerInstance(
-            agent_id=agent_id,
-            port=port,
-            environment_id=self.config.environment_id,
-            envs_path=str(self.config.envs_path),
-            live_mode=self.config.live_mode,
-            server_command_template=self.config.server_command_template,
-            host=self.config.host,
-            startup_timeout=self.config.server_startup_timeout,
-            health_check_interval=self.config.health_check_interval,
-            data_path=str(self.config.data_path),
-        )
+        server = self._create_server_instance(agent_id, port)
         await server.start()
         self._servers[agent_id] = server
         return server

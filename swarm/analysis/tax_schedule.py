@@ -33,6 +33,32 @@ from swarm.analysis.theme import (
 # ---------------------------------------------------------------------------
 
 
+def build_step_function(
+    brackets: Sequence[float],
+    rates: Sequence[float],
+) -> Tuple[List[float], List[float]]:
+    """Build x/y arrays for a step-function plot of tax rates.
+
+    Args:
+        brackets: Income thresholds for bracket boundaries.
+        rates: Marginal tax rate for each bracket.
+
+    Returns:
+        Tuple of (xs, ys) lists defining the step function vertices.
+    """
+    brackets = list(brackets)
+    rates = list(rates)
+    max_income = brackets[-1] * 1.5 if len(brackets) > 1 else 100_000
+    xs: List[float] = []
+    ys: List[float] = []
+    for i, rate in enumerate(rates):
+        lower = brackets[i]
+        upper = brackets[i + 1] if i + 1 < len(brackets) else max_income
+        xs.extend([lower, upper])
+        ys.extend([rate, rate])
+    return xs, ys
+
+
 def compute_effective_rate(
     brackets: Sequence[float],
     rates: Sequence[float],
@@ -109,14 +135,8 @@ def plot_tax_schedule(
     rates = list(rates)
 
     # Build the step-function x/y arrays.
+    xs, ys = build_step_function(brackets, rates)
     max_income = brackets[-1] * 1.5 if len(brackets) > 1 else 100_000
-    xs: List[float] = []
-    ys: List[float] = []
-    for i, rate in enumerate(rates):
-        lower = brackets[i]
-        upper = brackets[i + 1] if i + 1 < len(brackets) else max_income
-        xs.extend([lower, upper])
-        ys.extend([rate, rate])
 
     ax.plot(xs, ys, color=COLORS.WELFARE, linewidth=2.0, label="Marginal rate")
 
@@ -228,28 +248,14 @@ def plot_tax_schedule_comparison(
         # --- Old schedule (faded) ---
         old_b = list(schedule_old["brackets"])
         old_r = list(schedule_old["rates"])
-        max_income_old = old_b[-1] * 1.5 if len(old_b) > 1 else 100_000
-        xs_old: List[float] = []
-        ys_old: List[float] = []
-        for i, rate in enumerate(old_r):
-            lower = old_b[i]
-            upper = old_b[i + 1] if i + 1 < len(old_b) else max_income_old
-            xs_old.extend([lower, upper])
-            ys_old.extend([rate, rate])
+        xs_old, ys_old = build_step_function(old_b, old_r)
         ax.plot(xs_old, ys_old, color=COLORS.TEXT_MUTED, linewidth=1.6,
                 alpha=0.45, label="Old schedule")
 
         # --- New schedule (full opacity) ---
         new_b = list(schedule_new["brackets"])
         new_r = list(schedule_new["rates"])
-        max_income_new = new_b[-1] * 1.5 if len(new_b) > 1 else 100_000
-        xs_new: List[float] = []
-        ys_new: List[float] = []
-        for i, rate in enumerate(new_r):
-            lower = new_b[i]
-            upper = new_b[i + 1] if i + 1 < len(new_b) else max_income_new
-            xs_new.extend([lower, upper])
-            ys_new.extend([rate, rate])
+        xs_new, ys_new = build_step_function(new_b, new_r)
         ax.plot(xs_new, ys_new, color=COLORS.WELFARE, linewidth=2.0,
                 label="New schedule")
 
@@ -308,14 +314,7 @@ def plot_tax_schedule_evolution(
 
             b = list(schedule["brackets"])
             r = list(schedule["rates"])
-            max_income = b[-1] * 1.5 if len(b) > 1 else 100_000
-            xs: List[float] = []
-            ys: List[float] = []
-            for i, rate in enumerate(r):
-                lower = b[i]
-                upper = b[i + 1] if i + 1 < len(b) else max_income
-                xs.extend([lower, upper])
-                ys.extend([rate, rate])
+            xs, ys = build_step_function(b, r)
 
             ax.plot(xs, ys, color=color, linewidth=1.4,
                     alpha=0.4 + 0.6 * frac, label=f"Epoch {epoch}")

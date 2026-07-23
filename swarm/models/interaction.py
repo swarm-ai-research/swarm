@@ -25,7 +25,8 @@ class SoftInteraction(BaseModel):
     An interaction between two agents with soft (probabilistic) labels.
 
     The soft label p represents P(v = +1), the probability that the
-    interaction is beneficial rather than harmful.
+    interaction is beneficial rather than harmful. The value of p is
+    constrained to the range [0, 1].
     """
 
     # Identity

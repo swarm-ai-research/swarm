@@ -19,6 +19,7 @@ from swarm.domains.gather_trade_build.entities import (
     ResourceType,
     WorkerState,
 )
+from swarm.domains.gather_trade_build.metrics import compute_gini
 from swarm.domains.gather_trade_build.tax_schedule import TaxSchedule
 
 logger = logging.getLogger(__name__)
@@ -388,40 +389,14 @@ class GTBEnvironment:
         )
 
     def _handle_trade_buy(self, worker: WorkerState, action: GTBAction) -> GTBEvent:
-        # Enforce collusion-triggered trade restrictions
-        restrict_until = self._trade_restricted.get(worker.agent_id, 0)
-        if self._current_epoch < restrict_until:
-            return GTBEvent(
-                event_type="trade_fail", step=self._current_step,
-                epoch=self._current_epoch, agent_id=worker.agent_id,
-                details={"reason": "trade_restricted_collusion"},
-            )
-        if worker.energy < self._config.energy_cost_trade:
-            return GTBEvent(
-                event_type="trade_fail", step=self._current_step,
-                epoch=self._current_epoch, agent_id=worker.agent_id,
-                details={"reason": "no_energy"},
-            )
-        price = max(self._config.market.price_floor,
-                     min(action.price, self._config.market.price_ceiling))
-        order = MarketOrder(
-            agent_id=worker.agent_id,
-            resource_type=action.resource_type,
-            quantity=max(0, action.quantity),
-            price_per_unit=price,
-            is_buy=True,
-            step=self._current_step,
-        )
-        self._buy_orders.append(order)
-        worker.energy -= self._config.energy_cost_trade
-        return GTBEvent(
-            event_type="order_placed", step=self._current_step,
-            epoch=self._current_epoch, agent_id=worker.agent_id,
-            details={"side": "buy", "resource": action.resource_type.value,
-                      "qty": action.quantity, "price": price},
-        )
+        return self._handle_trade(worker, action, is_buy=True)
 
     def _handle_trade_sell(self, worker: WorkerState, action: GTBAction) -> GTBEvent:
+        return self._handle_trade(worker, action, is_buy=False)
+
+    def _handle_trade(
+        self, worker: WorkerState, action: GTBAction, *, is_buy: bool
+    ) -> GTBEvent:
         # Enforce collusion-triggered trade restrictions
         restrict_until = self._trade_restricted.get(worker.agent_id, 0)
         if self._current_epoch < restrict_until:
@@ -443,15 +418,19 @@ class GTBEnvironment:
             resource_type=action.resource_type,
             quantity=max(0, action.quantity),
             price_per_unit=price,
-            is_buy=False,
+            is_buy=is_buy,
             step=self._current_step,
         )
-        self._sell_orders.append(order)
+        if is_buy:
+            self._buy_orders.append(order)
+        else:
+            self._sell_orders.append(order)
         worker.energy -= self._config.energy_cost_trade
         return GTBEvent(
             event_type="order_placed", step=self._current_step,
             epoch=self._current_epoch, agent_id=worker.agent_id,
-            details={"side": "sell", "resource": action.resource_type.value,
+            details={"side": "buy" if is_buy else "sell",
+                      "resource": action.resource_type.value,
                       "qty": action.quantity, "price": price},
         )
 
@@ -834,7 +813,7 @@ class GTBEnvironment:
                     continue
 
                 matches = sum(
-                    1 for a, b in zip(trace_a[-min_len:], trace_b[-min_len:], strict=False)
+                    1 for a, b in zip(trace_a[-min_len:], trace_b[-min_len:], strict=True)
                     if a == b
                 )
                 similarity = matches / min_len
@@ -951,21 +930,12 @@ class GTBEnvironment:
         total_houses = sum(w.houses_built for w in self._workers.values())
 
         # Gini coefficient
-        sorted_inc = sorted(incomes)
-        if total_income > 0:
-            cumulative = 0.0
-            gini_sum = 0.0
-            for _i, inc in enumerate(sorted_inc):
-                cumulative += inc
-                gini_sum += cumulative
-            gini = 1.0 - 2.0 * gini_sum / (n * total_income) + 1.0 / n
-        else:
-            gini = 0.0
+        gini = compute_gini(incomes)
 
         return {
             "total_income": total_income,
             "mean_income": mean_income,
-            "gini": max(0.0, min(1.0, gini)),
+            "gini": gini,
             "total_tax_revenue": total_tax,
             "total_houses": total_houses,
             "mean_coin": sum(coins) / n,

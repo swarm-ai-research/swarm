@@ -11,7 +11,6 @@ Sweeps N=0,1,2,3,5,7,10 across 3 scenario types × 10 seeds = 210 LLM runs.
 from __future__ import annotations
 
 import copy
-import json
 import sys
 import time
 from pathlib import Path
@@ -23,6 +22,8 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 matplotlib.use("Agg")
+
+from sweep_utils import load_checkpoint, log, save_checkpoint  # noqa: E402
 
 from swarm.domains.escalation_sandbox.agents import (  # noqa: E402
     EscalationAgentBridge,
@@ -49,24 +50,6 @@ OUTDIR = Path("runs/escalation_cooperation_window")
 OUTDIR.mkdir(parents=True, exist_ok=True)
 PROGRESS_FILE = OUTDIR / "progress.log"
 CHECKPOINT_FILE = OUTDIR / "checkpoint.json"
-
-
-def log(msg: str) -> None:
-    print(msg, flush=True)
-    with open(PROGRESS_FILE, "a") as f:
-        f.write(f"[{time.strftime('%H:%M:%S')}] {msg}\n")
-
-
-def load_checkpoint() -> dict:
-    if CHECKPOINT_FILE.exists():
-        with open(CHECKPOINT_FILE) as f:
-            return json.load(f)
-    return {}
-
-
-def save_checkpoint(completed: dict) -> None:
-    with open(CHECKPOINT_FILE, "w") as f:
-        json.dump(completed, f, indent=2)
 
 
 def make_cooperation_suffix(n: int) -> str:
@@ -150,14 +133,14 @@ def run_scenario_with_window(
 
 
 # ── Run sweep ────────────────────────────────────────────────────────
-log("=" * 80)
-log("Unconditional Cooperation Window Sweep")
+log("=" * 80, PROGRESS_FILE)
+log("Unconditional Cooperation Window Sweep", PROGRESS_FILE)
 log(f"{len(SCENARIOS)} scenarios × {len(COOPERATION_WINDOWS)} windows × "
     f"{len(SEEDS)} seeds = "
-    f"{len(SCENARIOS) * len(COOPERATION_WINDOWS) * len(SEEDS)} runs")
-log("=" * 80)
+    f"{len(SCENARIOS) * len(COOPERATION_WINDOWS) * len(SEEDS)} runs", PROGRESS_FILE)
+log("=" * 80, PROGRESS_FILE)
 
-completed = load_checkpoint()
+completed = load_checkpoint(CHECKPOINT_FILE)
 results: dict[str, dict[int, list[EscalationMetrics]]] = {}
 
 total = len(SCENARIOS) * len(COOPERATION_WINDOWS) * len(SEEDS)
@@ -166,11 +149,11 @@ start = time.time()
 
 for scenario_name, yaml_path in SCENARIOS.items():
     results[scenario_name] = {}
-    log(f"\n── {scenario_name} ──")
+    log(f"\n── {scenario_name} ──", PROGRESS_FILE)
 
     for window in COOPERATION_WINDOWS:
         metrics_list: list[EscalationMetrics] = []
-        log(f"  Window={window} turns:")
+        log(f"  Window={window} turns:", PROGRESS_FILE)
 
         for seed in SEEDS:
             run_key = f"{scenario_name}|{window}|{seed}"
@@ -180,10 +163,10 @@ for scenario_name, yaml_path in SCENARIOS.items():
                 m = EscalationMetrics(**completed[run_key])
                 metrics_list.append(m)
                 nuc = m.outcome in ("nuclear_exchange", "mutual_destruction")
-                log(f"    Seed {seed}: [cached] nuc={nuc}, div={m.signal_action_divergence:.3f}")
+                log(f"    Seed {seed}: [cached] nuc={nuc}, div={m.signal_action_divergence:.3f}", PROGRESS_FILE)
                 continue
 
-            log(f"    Seed {seed} ({count}/{total}) ... ")
+            log(f"    Seed {seed} ({count}/{total}) ... ", PROGRESS_FILE)
             try:
                 t0 = time.time()
                 m = run_scenario_with_window(yaml_path, window, seed)
@@ -191,13 +174,13 @@ for scenario_name, yaml_path in SCENARIOS.items():
 
                 metrics_list.append(m)
                 completed[run_key] = m.to_dict()
-                save_checkpoint(completed)
+                save_checkpoint(completed, CHECKPOINT_FILE)
 
                 nuc = m.outcome in ("nuclear_exchange", "mutual_destruction")
                 log(f"      -> nuc={nuc}, div={m.signal_action_divergence:.3f}, "
-                    f"welfare={m.welfare_composite:.1f} ({elapsed:.1f}s)")
+                    f"welfare={m.welfare_composite:.1f} ({elapsed:.1f}s)", PROGRESS_FILE)
             except Exception as e:
-                log(f"      -> ERROR: {e}")
+                log(f"      -> ERROR: {e}", PROGRESS_FILE)
                 continue
 
         results[scenario_name][window] = metrics_list
@@ -205,10 +188,10 @@ for scenario_name, yaml_path in SCENARIOS.items():
             stats = compute_sweep_statistics(metrics_list)
             log(f"  W={window} summary: nuclear={stats['nuclear_threshold_rate']:.0%}, "
                 f"divergence={stats['mean_signal_action_divergence']:.3f}, "
-                f"welfare={stats['mean_welfare_composite']:.1f}")
+                f"welfare={stats['mean_welfare_composite']:.1f}", PROGRESS_FILE)
 
 elapsed_total = time.time() - start
-log(f"\nTotal: {elapsed_total:.0f}s ({elapsed_total/60:.1f}m)")
+log(f"\nTotal: {elapsed_total:.0f}s ({elapsed_total/60:.1f}m)", PROGRESS_FILE)
 
 # ── Plot ─────────────────────────────────────────────────────────────
 scenario_names = list(SCENARIOS.keys())
@@ -278,7 +261,7 @@ plt.tight_layout(rect=[0, 0, 1, 0.94])
 plot_path = OUTDIR / "cooperation_window_sweep.png"
 fig.savefig(plot_path, dpi=150, bbox_inches="tight")
 plt.close(fig)
-log(f"\nPlot saved to {plot_path}")
+log(f"\nPlot saved to {plot_path}", PROGRESS_FILE)
 
 # ── Heatmap ──────────────────────────────────────────────────────────
 fig2, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 4))
@@ -325,13 +308,13 @@ plt.tight_layout()
 heatmap_path = OUTDIR / "cooperation_window_heatmap.png"
 fig2.savefig(heatmap_path, dpi=150, bbox_inches="tight")
 plt.close(fig2)
-log(f"Heatmap saved to {heatmap_path}")
+log(f"Heatmap saved to {heatmap_path}", PROGRESS_FILE)
 
 # ── Summary ──────────────────────────────────────────────────────────
-log("\n" + "=" * 100)
+log("\n" + "=" * 100, PROGRESS_FILE)
 log(f"{'Scenario':<35} {'Window':>7} {'Nuc%':>6} {'Diverge':>9} "
-    f"{'Welfare':>9} {'Velocity':>9} {'DeEsc':>7} {'N':>4}")
-log("-" * 100)
+    f"{'Welfare':>9} {'Velocity':>9} {'DeEsc':>7} {'N':>4}", PROGRESS_FILE)
+log("-" * 100, PROGRESS_FILE)
 for sn in scenario_names:
     for w in COOPERATION_WINDOWS:
         mlist = results[sn].get(w, [])
@@ -343,6 +326,6 @@ for sn in scenario_names:
                 f"{stats['mean_welfare_composite']:>9.1f} "
                 f"{stats['mean_escalation_velocity']:>9.3f} "
                 f"{stats['mean_de_escalation_rate']:>7.3f} "
-                f"{len(mlist):>4d}")
-    log("")
-log("=" * 100)
+                f"{len(mlist):>4d}", PROGRESS_FILE)
+    log("", PROGRESS_FILE)
+log("=" * 100, PROGRESS_FILE)

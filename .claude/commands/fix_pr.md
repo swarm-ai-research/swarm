@@ -14,7 +14,7 @@ Examples:
 - `/fix_pr` (auto-generates branch name from changes)
 - `/fix_pr fix/circuit-breaker-reset`
 - `/fix_pr 239` (resolve conflicts on PR #239)
-- `/fix_pr https://github.com/swarm-ai-safety/swarm/pull/239 merge` (resolve conflicts and merge)
+- `/fix_pr https://github.com/swarm-ai-research/swarm/pull/239 merge` (resolve conflicts and merge)
 - `/fix_pr 239 merge` (resolve + merge)
 - `/fix_pr --review 220` (check out PR, run quality gates, auto-fix, report)
 

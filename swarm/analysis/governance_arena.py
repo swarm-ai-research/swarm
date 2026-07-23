@@ -10,6 +10,7 @@ Deploy to HF Spaces:
 from __future__ import annotations
 
 import json
+import logging
 import random
 from datetime import datetime, timezone
 from typing import Any, Dict, List
@@ -419,6 +420,29 @@ PERSONA_OPTIONS = ["dove", "hawk", "tit_for_tat", "random", "calculating", "grad
 
 
 # ---------------------------------------------------------------------------
+# Shared utility functions
+# ---------------------------------------------------------------------------
+
+def _agent_name(agent_id: str) -> str:
+    """Extract agent name from agent ID."""
+    return "Alpha" if "a" in agent_id else "Beta"
+
+
+def _format_label(s: str) -> str:
+    """Format a label string: convert snake_case to Title Case."""
+    return s.replace("_", " ").title()
+
+
+def _get_core_settings() -> Dict[str, Any]:
+    """Extract core governance settings from session state."""
+    return {
+        "tax_rate": st.session_state.tax_rate,
+        "audit_probability": st.session_state.audit_probability,
+        "circuit_breaker_threshold": st.session_state.circuit_breaker_threshold,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Session state initialisation
 # ---------------------------------------------------------------------------
 
@@ -698,7 +722,12 @@ def _demo_agent_delta(persona: str, my_level: int, opp_level: int, turn: int, rn
         return rng.randint(1, 3)
     elif persona == "gradual":
         return 1
-    else:  # random
+    else:
+        # "random", plus a loud fallback for typo'd persona names
+        if persona != "random":
+            logging.getLogger(__name__).warning(
+                "Unknown persona %r; falling back to random behavior", persona
+            )
         return rng.randint(-1, 2)
 
 
@@ -739,11 +768,7 @@ def _add_to_leaderboard(
     if preset is None:
         preset = st.session_state.preset
     if settings is None:
-        settings = {
-            "tax_rate": st.session_state.tax_rate,
-            "audit_probability": st.session_state.audit_probability,
-            "circuit_breaker_threshold": st.session_state.circuit_breaker_threshold,
-        }
+        settings = _get_core_settings()
     entry = {
         "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S"),
         "preset": preset or "Custom",
@@ -807,11 +832,7 @@ def _generate_share_text(results: Dict[str, Any], settings: Dict[str, Any] | Non
             Falls back to ``st.session_state``.
     """
     if settings is None:
-        settings = {
-            "audit_probability": st.session_state.audit_probability,
-            "tax_rate": st.session_state.tax_rate,
-            "circuit_breaker_threshold": st.session_state.circuit_breaker_threshold,
-        }
+        settings = _get_core_settings()
     outcome_text = "Prevented collapse" if results["outcome"] in ("ceasefire", "timeout") and results["max_level"] < 7 else f"Collapse at turn {results.get('nuclear_turn', results['turns_played'])}"
     return (
         f"I ran SWARM Governance Arena. {outcome_text}. "
@@ -833,20 +854,18 @@ def _generate_receipt_text(results: Dict[str, Any], settings: Dict[str, Any] | N
             Falls back to ``st.session_state``.
     """
     if settings is None:
-        settings = {
-            "tax_rate": st.session_state.tax_rate,
-            "audit_probability": st.session_state.audit_probability,
-            "circuit_breaker_threshold": st.session_state.circuit_breaker_threshold,
+        settings = _get_core_settings()
+        settings.update({
             "mad_enabled": st.session_state.mad_enabled,
             "mediation_enabled": st.session_state.mediation_enabled,
             "persona_a": st.session_state.persona_a,
             "persona_b": st.session_state.persona_b,
-        }
+        })
     lines = [
         "SWARM GOVERNANCE ARENA - RUN RECEIPT",
         "=" * 40,
         f"Seed: {results['seed']}",
-        f"Outcome: {results['outcome'].replace('_', ' ').title()}",
+        f"Outcome: {_format_label(results['outcome'])}",
         f"Turns: {results['turns_played']}",
         f"Max Escalation: {results['max_level']}/9 ({ESCALATION_LABELS[results['max_level']]})",
         f"Nuclear Turn: {results.get('nuclear_turn', 'Never')}",
@@ -1121,7 +1140,7 @@ with arena_right:
             st.markdown(
                 '<div class="nuclear-banner">'
                 f'<h2>\u2622\ufe0f NUCLEAR EXCHANGE at Turn {results.get("nuclear_turn", "?")}</h2>'
-                f'<p>Outcome: {results["outcome"].replace("_", " ").title()} '
+                f'<p>Outcome: {_format_label(results["outcome"])} '
                 f'after {results["turns_played"]} turns</p>'
                 '</div>',
                 unsafe_allow_html=True,
@@ -1138,7 +1157,7 @@ with arena_right:
             st.markdown(
                 '<div class="prevented-banner">'
                 f'<h2>\u2705 Collapse Prevented</h2>'
-                f'<p>Outcome: {results["outcome"].replace("_", " ").title()} '
+                f'<p>Outcome: {_format_label(results["outcome"])} '
                 f'after {results["turns_played"]} turns \u2014 '
                 f'Max level: {ESCALATION_LABELS[results["max_level"]]}</p>'
                 '</div>',
@@ -1199,7 +1218,7 @@ with arena_right:
 
                 # Show actions
                 for aid, action in entry.get("actions", {}).items():
-                    name = "Alpha" if "a" in aid else "Beta"
+                    name = "Alpha" if aid.endswith("_a") else "Beta"
                     lvl = levels.get(aid, action.get("action", 0))
                     sig = action.get("signal", lvl)
 
@@ -1234,21 +1253,21 @@ with arena_right:
                         )
                     elif etype == "nuclear_threshold_crossed":
                         agent = evt.get("agent", "")
-                        name = "Alpha" if "a" in agent else "Beta"
+                        name = _agent_name(agent)
                         st.markdown(
                             _transcript_entry(t, f"\u2622\ufe0f <b>{name} crossed nuclear threshold</b>", "nuclear"),
                             unsafe_allow_html=True,
                         )
                     elif etype == "treaty_violation":
                         agent = evt.get("agent", "")
-                        name = "Alpha" if "a" in agent else "Beta"
+                        name = _agent_name(agent)
                         st.markdown(
                             _transcript_entry(t, f"\u26a0\ufe0f {name} violated treaty", "governance"),
                             unsafe_allow_html=True,
                         )
                     elif etype == "de_escalation_attempt":
                         agent = evt.get("agent", "")
-                        name = "Alpha" if "a" in agent else "Beta"
+                        name = _agent_name(agent)
                         d = evt.get("details", {})
                         st.markdown(
                             _transcript_entry(
@@ -1261,7 +1280,7 @@ with arena_right:
                         )
                     elif etype == "mad_retaliation":
                         agent = evt.get("agent", "")
-                        name = "Alpha" if "a" in agent else "Beta"
+                        name = _agent_name(agent)
                         st.markdown(
                             _transcript_entry(t, f"\U0001f4a5 <b>MAD retaliation by {name}</b>", "nuclear"),
                             unsafe_allow_html=True,
@@ -1323,7 +1342,7 @@ with arena_right:
                     }.get(e["type"], "\U0001f4cc")
                     st.markdown(
                         f"**Turn {e.get('turn', '?')}** {icon} "
-                        f"`{e['type'].replace('_', ' ').title()}` "
+                        f"`{_format_label(e['type'])}` "
                         f"\u2014 {e.get('agent', '')} "
                         f"{json.dumps(e.get('details', {}), default=str)[:120]}",
                     )
@@ -1400,7 +1419,7 @@ if st.session_state.run_complete and st.session_state.run_results:
         <div class="receipt-card">
             <h3>{headline}</h3>
             <div class="receipt-line">Seed: <span class="receipt-highlight">{results['seed']}</span></div>
-            <div class="receipt-line">Outcome: <span class="receipt-highlight">{results['outcome'].replace('_', ' ').title()}</span></div>
+            <div class="receipt-line">Outcome: <span class="receipt-highlight">{_format_label(results['outcome'])}</span></div>
             <div class="receipt-line">Turns Played: <span class="receipt-highlight">{results['turns_played']}</span></div>
             <div class="receipt-line">Max Escalation: <span class="receipt-highlight">{results['max_level']}/9 ({ESCALATION_LABELS[results['max_level']]})</span></div>
             <div class="receipt-line">Cooperation Score: <span class="receipt-highlight">{results['cooperation_score']}</span></div>
@@ -1436,7 +1455,7 @@ if st.session_state.leaderboard:
     # Build leaderboard HTML
     rows_html = ""
     for i, entry in enumerate(lb[:15]):
-        outcome = entry["outcome"].replace("_", " ").title()
+        outcome = _format_label(entry["outcome"])
         is_safe = entry["outcome"] in ("ceasefire", "timeout") and entry["max_level"] < 7
         outcome_icon = "\u2705" if is_safe else "\u2622\ufe0f"
         nuke_col = str(entry.get("nuclear_turn", "\u2014"))
@@ -1490,11 +1509,11 @@ with cred_cols[2]:
 st.markdown("")
 link_cols = st.columns(3)
 with link_cols[0]:
-    st.markdown("[GitHub \u2192 swarm-ai-safety/swarm](https://github.com/swarm-ai-safety/swarm)")
+    st.markdown("[GitHub \u2192 swarm-ai-research/swarm](https://github.com/swarm-ai-research/swarm)")
 with link_cols[1]:
     st.markdown("[HuggingFace Space](https://huggingface.co/spaces/Swarm-AI-Research/swarm-sandbox)")
 with link_cols[2]:
-    st.markdown("[Escalation Sandbox Docs](https://github.com/swarm-ai-safety/swarm/tree/main/docs/scenarios)")
+    st.markdown("[Escalation Sandbox Docs](https://github.com/swarm-ai-research/swarm/tree/main/docs/scenarios)")
 
 
 # ---------------------------------------------------------------------------
@@ -1506,7 +1525,7 @@ st.markdown(
     "<div style='text-align:center; color:#444455; font-size:0.8rem; padding:16px 0;'>"
     "SWARM: System-Wide Assessment of Risk in Multi-agent Systems &bull; "
     "MIT License &bull; "
-    "<a href='https://github.com/swarm-ai-safety/swarm' style='color:#5577aa;'>GitHub</a>"
+    "<a href='https://github.com/swarm-ai-research/swarm' style='color:#5577aa;'>GitHub</a>"
     "</div>",
     unsafe_allow_html=True,
 )

@@ -19,6 +19,7 @@ from swarm.redteam.metrics import (
     compute_damage_before_detection,
     compute_detection_latency,
     compute_evasion_rate,
+    compute_governance_effectiveness,
 )
 
 __all__ = [
@@ -35,4 +36,5 @@ __all__ = [
     "compute_evasion_rate",
     "compute_detection_latency",
     "compute_damage_before_detection",
+    "compute_governance_effectiveness",
 ]

@@ -10,7 +10,7 @@ Stage, commit, and push changes in the `swarm-artifacts` repo. Handles pre-commi
 Examples:
 - `/sync_artifacts` (auto-generates commit message from diff)
 - `/sync_artifacts "Add new claim cards from collusion study"`
-- `/sync_artifacts --migrate swarm-ai-safety/swarm runs/20260221_104316_langgraph_governed`
+- `/sync_artifacts --migrate swarm-ai-research/swarm runs/20260221_104316_langgraph_governed`
 
 ## Behavior
 
@@ -105,7 +105,7 @@ Migrate misplaced artifacts from another repo into swarm-artifacts and remove th
 
 `/sync_artifacts --migrate <owner/repo> <path>`
 
-- `<owner/repo>`: GitHub repo where the artifacts were mistakenly committed (e.g. `swarm-ai-safety/swarm`)
+- `<owner/repo>`: GitHub repo where the artifacts were mistakenly committed (e.g. `swarm-ai-research/swarm`)
 - `<path>`: Path within that repo to migrate (e.g. `runs/20260221_104316_langgraph_governed`)
 
 ### Behavior
@@ -164,7 +164,7 @@ git rm -r <path>
 git commit -m "Remove force-added artifacts (migrated to swarm-artifacts)
 
 <path> is gitignored — these were force-added by mistake.
-Migrated to swarm-ai-safety/swarm-artifacts.
+Migrated to swarm-ai-research/swarm-artifacts.
 
 Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 git push

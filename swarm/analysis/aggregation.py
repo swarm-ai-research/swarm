@@ -55,6 +55,11 @@ class EpochSnapshot:
     quality_gap: float = 0.0
     avg_p: float = 0.5
     incoherence_index: float = 0.0
+    # Projection-geometric diagnostics (see swarm/metrics/soft_metrics.py).
+    quality_correlation: float = 0.0
+    baseline_harm: float = 0.0
+    selection_credit: float = 0.0
+    selection_saturation: float = 0.0
 
     # Payoff metrics
     total_welfare: float = 0.0
@@ -288,6 +293,30 @@ class MetricsAggregator:
 
         avg_p = float(np.mean([i.p for i in interactions])) if interactions else 0.5
 
+        # Projection-geometric diagnostics. See swarm/metrics/soft_metrics.py:
+        #   Q  = E[p|a=1] - E[p|a=0] = Cov(p,a)/Var(a)
+        #   ρ  = Q · √(αβ) / σ_p                          ∈ [-1, +1]
+        #   T  = (1 - E[p]) - β · Q   (baseline_harm − selection_credit)
+        #   |Q| ≤ σ_p / √(αβ)         (Cauchy-Schwarz upper bound)
+        quality_correlation = 0.0
+        baseline_harm = 0.0
+        selection_credit = 0.0
+        selection_saturation = 0.0
+        if interactions:
+            n = len(interactions)
+            n_acc = n_accepted
+            alpha = n_acc / n
+            beta = 1.0 - alpha
+            baseline_harm = float(1.0 - avg_p)
+            selection_credit = float(beta * quality_gap)
+            if n >= 2 and 0 < n_acc < n:
+                sigma_p = float(np.std([i.p for i in interactions]))
+                ab = alpha * beta
+                if sigma_p > 0.0 and ab > 0.0:
+                    norm = float(np.sqrt(ab) / sigma_p)
+                    quality_correlation = quality_gap * norm
+                    selection_saturation = abs(quality_gap) * norm
+
         incoherence_index = 0.0
         if interactions:
             uncertainties = [1.0 - abs(2 * i.p - 1.0) for i in interactions]
@@ -321,6 +350,10 @@ class MetricsAggregator:
             rejected_interactions=n_total - n_accepted,
             toxicity_rate=toxicity_rate,
             quality_gap=quality_gap,
+            quality_correlation=quality_correlation,
+            baseline_harm=baseline_harm,
+            selection_credit=selection_credit,
+            selection_saturation=selection_saturation,
             avg_p=avg_p,
             incoherence_index=incoherence_index,
             total_welfare=total_welfare,

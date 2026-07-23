@@ -8,7 +8,7 @@ This guide walks you through running your first SWARM simulation.
 
 > **Prefer a notebook?** The quickstart notebook covers the same material interactively with plots:
 >
-> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/swarm-ai-safety/swarm/blob/main/examples/quickstart.ipynb) &nbsp; or run locally: `jupyter notebook examples/quickstart.ipynb`
+> [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/swarm-ai-research/swarm/blob/main/examples/quickstart.ipynb) &nbsp; or run locally: `jupyter notebook examples/quickstart.ipynb`
 
 ## Basic Simulation
 

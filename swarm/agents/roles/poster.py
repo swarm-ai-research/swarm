@@ -48,7 +48,7 @@ class PosterRole:
 
         # Check daily limit
         # Simplified: just check recent history
-        recent_posts = len(list(self._posted_content[-20:]))
+        recent_posts = len(self._posted_content[-20:])
         return bool(recent_posts < self._poster_config["max_daily_posts"])
 
     def set_strategy(self, strategy: ContentStrategy) -> None:

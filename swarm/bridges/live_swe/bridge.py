@@ -51,7 +51,6 @@ class LiveSWEBridgeConfig:
     capability_growth_threshold: float = 0.1
     max_tools_per_agent: int = 20
     behavior_divergence_penalty_weight: float = 0.5
-    block_self_modification: bool = True
 
 
 class LiveSWEAgentBridge:

@@ -1,11 +1,11 @@
 """CLI entry point for the distributional-agi-safety framework.
 
 Usage:
-    python -m src run scenarios/baseline.yaml
-    python -m src run scenarios/baseline.yaml --seed 42 --epochs 20
-    python -m src run scenarios/baseline.yaml --export-json results.json
-    python -m src run scenarios/baseline.yaml --export-csv output/
-    python -m src list
+    python -m swarm run scenarios/baseline.yaml
+    python -m swarm run scenarios/baseline.yaml --seed 42 --epochs 20
+    python -m swarm run scenarios/baseline.yaml --export-json results.json
+    python -m swarm run scenarios/baseline.yaml --export-csv output/
+    python -m swarm list
 """
 
 import argparse
@@ -294,6 +294,26 @@ def cmd_run(args: argparse.Namespace) -> int:
                 export_to_dolt(history, run_dir_name, str(dolt_dir))
             except Exception as exc:
                 print(f"Warning: Dolt export failed: {exc}")
+
+    # Optional standard plot bundle (toxicity/welfare + selection geometry).
+    if args.plots is not None:
+        if args.plots:
+            plots_dir = _safe_export_path(args.plots, "--plots")
+        elif args.export_json:
+            plots_dir = _safe_export_path(args.export_json, "--export-json").parent
+        elif args.export_csv:
+            plots_dir = _safe_export_path(args.export_csv, "--export-csv")
+        else:
+            seed = scenario.orchestrator_config.seed
+            plots_dir = Path("runs") / f"{scenario.scenario_id}_seed{seed}"
+
+        from swarm.analysis.run_plots import write_run_plots
+
+        written = write_run_plots(
+            metrics_history, plots_dir, scenario_id=scenario.scenario_id,
+        )
+        for p in written:
+            print(f"Plot: {p}")
 
     # Check success criteria
     if scenario.success_criteria and not args.quiet:
@@ -669,7 +689,7 @@ def _agentrxiv_status(args: argparse.Namespace) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        prog="python -m src",
+        prog="python -m swarm",
         description="Distributional AGI Safety Sandbox",
     )
     subparsers = parser.add_subparsers(dest="command")
@@ -709,6 +729,18 @@ def main() -> int:
         "--prompt-audit-include-system",
         action="store_true",
         help="Include full system prompt text in the audit log (more sensitive)",
+    )
+    run_parser.add_argument(
+        "--plots",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="DIR",
+        help=(
+            "Write the standard plot bundle (toxicity/welfare + selection "
+            "geometry) to DIR/plots/. With no argument, derives a default "
+            "from --export-json/--export-csv or runs/<scenario>_seed<seed>."
+        ),
     )
     run_parser.add_argument(
         "-q", "--quiet", action="store_true", help="Suppress progress output"
@@ -845,6 +877,46 @@ def main() -> int:
 
     args = parser.parse_args()
 
+    # Sanitized, opt-out telemetry envelope around command dispatch. Best-effort
+    # and PII-free (see swarm/telemetry.py); SWARM_TELEMETRY=off disables it.
+    import sys
+    import time
+
+    from swarm.telemetry import sanitize_command, track
+
+    subcommand = args.command or "help"
+    track(
+        "Command Invoked",
+        {"subcommand": subcommand, "command": sanitize_command(sys.argv, subcommand)},
+    )
+    started = time.monotonic()
+    try:
+        exit_code = _dispatch(args, parser, sandbox_parser, arxiv_parser)
+    except Exception as exc:
+        track(
+            "Command Error",
+            {"subcommand": subcommand, "error_type": type(exc).__name__},
+            is_error=True,
+        )
+        raise
+    track(
+        "Command Completed",
+        {
+            "subcommand": subcommand,
+            "exit_code": exit_code,
+            "duration_ms": int((time.monotonic() - started) * 1000),
+        },
+    )
+    return exit_code
+
+
+def _dispatch(
+    args: argparse.Namespace,
+    parser: argparse.ArgumentParser,
+    sandbox_parser: argparse.ArgumentParser,
+    arxiv_parser: argparse.ArgumentParser,
+) -> int:
+    """Route a parsed command to its handler, returning the process exit code."""
     if args.command == "run":
         return cmd_run(args)
     elif args.command == "evolve":

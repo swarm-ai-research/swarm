@@ -4,7 +4,7 @@
   "url": "https://swarm-ai.org",
   "arxiv": "2604.19752",
   "arxiv_precursor": "2512.16856",
-  "last_updated": "2026-03-03",
+  "last_updated": "2026-06-02",
   "claims": [
     {
       "id": "deontological-framing-deception",
@@ -141,6 +141,46 @@
       "evidence": "21 parameter configurations",
       "source": "https://swarm-ai.org/blog/purity-paradox/",
       "tags": ["externality-internalization", "honesty", "rho"]
+    },
+    {
+      "id": "soft-detection-perfect-auroc",
+      "metric": "Soft vs binary toxicity detection AUROC across base rates",
+      "value": "Soft AUROC = 1.000 ± 0.000 across 0.05–0.50 adversarial base rates; binary AUROC = 0.91–0.96",
+      "evidence": "100 runs (5 base rates × 10 seeds × 2 replication runs), 40-agent populations, 24 epochs, Bonferroni-corrected",
+      "source": "https://swarm-ai.org/blog/soft-vs-binary-detection/",
+      "tags": ["soft-labels", "detection", "auroc", "calibration"]
+    },
+    {
+      "id": "soft-detection-latency-35x",
+      "metric": "Time-to-detection speedup, soft vs binary",
+      "value": "Soft median TTD 0.28 epochs (100% detection) vs binary 9.93 epochs (88% detection) — 35× faster at FPR ≤ 0.05",
+      "evidence": "20 paired runs across 2 replication studies, 40 agents/run, paired Wilcoxon p < 1e-30, Holm-Bonferroni significant",
+      "source": "https://swarm-ai.org/blog/soft-vs-binary-detection/",
+      "tags": ["soft-labels", "detection", "latency", "governance-response-time"]
+    },
+    {
+      "id": "proxy-calibration-drift-collapse",
+      "metric": "Net social welfare under proxy calibration drift",
+      "value": "Cumulative-toxicity-driven sigmoid degradation causes deterministic welfare collapse: +2.87 → −1.54 (Δ = −4.41), the only dynamic-toxicity mechanism producing negative net welfare",
+      "evidence": "42 seeds, dynamic-toxicity comparison across 6 feedback mechanisms, drift α=0.3, 40% adversarial, 30 epochs, Bonferroni-corrected",
+      "source": "https://swarm-ai.org/blog/dynamic-toxicity-failure-modes/",
+      "tags": ["calibration-drift", "welfare-collapse", "failure-mode", "soft-labels"]
+    },
+    {
+      "id": "small-sample-screening-inflation",
+      "metric": "Long-horizon screening effect size, 10-seed vs 50-seed estimate",
+      "value": "Tight-governance effect deflates d = 2.75 → 0.38 (n.s.) under replication; moderate-governance effect d = 0.76 (p = 0.0001, Bonferroni-significant) survives",
+      "evidence": "10-seed confirmatory arm (20260326_screening_strength_sweep) vs 50-seed focused replication (20260328_long_horizon_screening_replication), α/12 = 0.004",
+      "source": "https://swarm-ai.org/blog/screening-replication-deflation/",
+      "tags": ["replication", "statistical-power", "screening", "methodology"]
+    },
+    {
+      "id": "task-complexity-governance-cost",
+      "metric": "Capability loss from oracle to tight governance, by task type",
+      "value": "Allocation loses 10.4% (d = 6.63); coordination 29.0% (d = 6.08); routing 37.2% (d = 1.34); long-horizon 45.7% (d = 1.63) — governance cost scales with task coordination demand",
+      "evidence": "50 seeds × 4 task types × 7 governance regimes, all comparisons Bonferroni-significant",
+      "source": "https://swarm-ai.org/concepts/governance-capability-frontier/",
+      "tags": ["governance-cost", "task-complexity", "capability-frontier"]
     }
   ]
 }

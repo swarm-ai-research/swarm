@@ -56,8 +56,67 @@ This eliminates the manual post-processing step that was previously required bef
 - `mean_welfare` (higher is better)
 - `mean_toxicity` (lower is better)
 
+## `--delm` mode (directed search instead of a grid)
+
+`/sweep --delm [scenario_path] [output_name]`
+
+This is a mode of the `/sweep` **slash command**, not a flag on
+`examples/parameter_sweep.py`. When invoked, run the dedicated module CLI shown
+below (`python -m swarm.analysis.delm_hillclimb`) instead of the grid-sweep
+script — the rest of this section tells you how.
+
+A grid sweep evaluates every cell of a fixed lattice. When you instead want to
+*search* the governance/payoff space for a high-fitness configuration, use
+`--delm`: a DeLM-style (decentralized language-model) parallel hill-climber that
+shares verified state across virtual workers. It optimizes the same knobs as the
+grid sweep (`governance.*`, `payoff.*` from `PARAM_RANGES`) against the composite
+soft-safety fitness in `swarm.analysis.evolver.compute_fitness` (toxicity,
+welfare, quality gap, payoff gap).
+
+How it works (see `swarm/analysis/delm_hillclimb.py` for the full docstring):
+- **Shared context** holds the running best, a trail of verified *gists*, and
+  binding *constraints* (known dead-end neighbors) — workers read it before
+  paying for an evaluation, so they skip already-seen and pruned cells.
+- **Task queue** of `explore` / `mutate_dim` / `restart` / `diversify` work
+  items lets many workers explore neighbors asynchronously; a verified
+  improvement spawns fresh neighbor tasks around the new best.
+- **Verified admission**: a candidate that beats the best is re-evaluated at an
+  independent seed and only admitted if it still improves (filters noise).
+- **Escape local optima** via `restart` (fresh random point) and `diversify`
+  (jump to a distant basin another worker found).
+
+Run it via the module CLI (writes a self-contained run folder with
+`best_params.json`, `result.json`, `gists.jsonl`, and `plots/trajectory.png`):
+
+```bash
+python -m swarm.analysis.delm_hillclimb <scenario_path> \
+    --max-evals 60 --workers 4 --eval-epochs 2 --eval-steps 4 --seed 42 \
+    --output-dir runs/<YYYYMMDD-HHMMSS>_delm/
+```
+
+Useful flags: `--no-verify` (faster, noisier), `--threads` (real OS threads,
+not reproducible), `--restart-prob`, `--step-frac`, `--no-plot`, and
+`--weight-{toxicity,welfare,quality-gap,payoff-gap}` to reshape the fitness.
+The default deterministic scheduler is reproducible from `scenario YAML + seed`.
+
+**Objectives.** By default `--delm` searches the governance/payoff knobs. Pass
+`--objective adaptive_policy` to instead optimize the 8-dim adaptive-agent
+policy vector (`swarm.adaptive.PARAM_SPEC`) via `run_episode` reward — the same
+target the CEM trainer searches (`--n-interactions` sets the episode length).
+The landscape is pluggable: `build_governance_objective` /
+`build_adaptive_policy_objective` (or a custom `Objective`) decouple the
+parameter space + evaluation from the search machinery.
+
+This is a sibling of `swarm.analysis.gepa_optimizer` (LLM-guided Pareto search)
+and `swarm.analysis.evolver` (darwinian search) — three optimizers over one
+landscape. Prefer `--delm` when you want a dependency-free, reproducible search;
+prefer GEPA/evolver when you want LLM-reasoned mutations and have the extras
+installed.
+
 ## Notes
 
 - Keep sweeps small by default; prefer fewer epochs/runs unless explicitly requested.
 - The `summary.json` file is consumed by `/council_review` — always generate it.
+- `--delm` writes its own run folder (`best_params.json` + `gists.jsonl`); it does
+  not produce the grid `summary.json`, so it is not a `/council_review` input.
 

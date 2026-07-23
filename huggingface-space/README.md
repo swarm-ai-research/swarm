@@ -21,7 +21,7 @@ Open-source framework for studying how catastrophic risks emerge from population
 
 **Paper:** [Soft-Label Governance for Distributional Safety in Multi-Agent Systems (arXiv:2604.19752)](https://arxiv.org/abs/2604.19752); see also [Distributional AGI Safety (arXiv:2512.16856)](https://arxiv.org/abs/2512.16856)
 
-**Code:** [github.com/swarm-ai-safety/swarm](https://github.com/swarm-ai-safety/swarm)
+**Code:** [github.com/swarm-ai-research/swarm](https://github.com/swarm-ai-research/swarm)
 
 **Docs:** [swarm-ai.org](https://swarm-ai.org)
 

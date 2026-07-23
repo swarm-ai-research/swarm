@@ -126,7 +126,7 @@ The path forward is probably **targeted controls** — interventions that affect
 ## Reproduce it
 
 ```bash
-git clone https://github.com/swarm-ai-safety/swarm.git
+git clone https://github.com/swarm-ai-research/swarm.git
 cd swarm
 pip install -e ".[dev,runtime]"
 python -m swarm run scenarios/runaway_intelligence.yaml --seed 42 --epochs 30 --steps 15

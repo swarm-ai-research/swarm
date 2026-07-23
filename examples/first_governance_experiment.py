@@ -41,7 +41,7 @@ def make_interaction(
         initiator="agent_a",
         counterparty="agent_b",
         p=p,
-        v_hat=p * 2 - 1,  # approximate v_hat from p
+        v_hat=p * 2 - 1,  # linear heuristic: maps [0,1]→[-1,1] (simplified approximation, not a true sigmoid inverse)
         accepted=accepted,
     )
 

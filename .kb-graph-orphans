@@ -46,7 +46,6 @@ emergent-capabilities.md
 epics/README.md
 game.md
 getting-started/index.md
-graph.md
 guides/benchmarking.md
 guides/eval-metrics.md
 guides/framework-overview.md
@@ -63,12 +62,9 @@ papers/ollama_model_comparison.md
 plans/autoresearch-loop.md
 plans/llama-cpp-integration.md
 provenance_trace_schema.md
-research/adaptive-agents-prereg.md
 research/agent-internet-taxonomy.md
-research/ai-index-2025.md
 research/airs-bench-governance-analysis.md
 research/arc-agi-3-lessons.md
-research/calibration-prereg.md
 research/self-mod-governance-implementation-checklist.md
 role/ceo/HEARTBEAT
 role/founding-engineer/AGENTS
@@ -77,6 +73,7 @@ role/research-engineer/AGENTS
 role/technical-writer/AGENTS
 scenarios/adaptive_governance.yaml
 scenarios/adversarial_trust_building.yaml
+scenarios/aevolve_screening.yaml
 scenarios/agent_lab_research_safety.yaml
 scenarios/ai_scientist_safety.yaml
 scenarios/awm_demo.yaml

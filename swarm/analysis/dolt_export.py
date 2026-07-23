@@ -58,6 +58,90 @@ def _build_insert_ignore(table: str, records: List[Dict[str, Any]]) -> str:
     return f"INSERT IGNORE INTO `{table}` ({col_list}) VALUES\n{values};\n"
 
 
+def _run_dolt_preflight_checks(dolt_dir: str, context: str) -> bool:
+    """Check if dolt is available and the repository exists.
+
+    Parameters
+    ----------
+    dolt_dir:
+        Path to the Dolt repository on disk.
+    context:
+        Context string for log/warning messages (e.g., "Dolt export" or "Dolt summary export").
+
+    Returns
+    -------
+    True if preflight checks pass, False otherwise.
+    """
+    if not shutil.which("dolt"):
+        logger.warning("dolt binary not found on PATH — skipping %s", context)
+        print(f"Warning: dolt not found, skipping {context}")
+        return False
+
+    dolt_path = Path(dolt_dir)
+    if not (dolt_path / ".dolt").is_dir():
+        logger.warning("No Dolt repo at %s — skipping %s", dolt_dir, context)
+        print(f"Warning: no Dolt repo at {dolt_dir}, skipping {context}")
+        return False
+
+    return True
+
+
+def _execute_dolt_sql(
+    dolt_path: Path, sql: str, context_error: str
+) -> bool:
+    """Execute SQL against a Dolt repository.
+
+    Parameters
+    ----------
+    dolt_path:
+        Path to the Dolt repository.
+    sql:
+        SQL text to execute.
+    context_error:
+        Context string for error messages (e.g., "Dolt SQL import failed").
+
+    Returns
+    -------
+    True on success, False on failure.
+    """
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".sql", delete=False
+    ) as tmp:
+        tmp.write(sql)
+        tmp_path = tmp.name
+
+    try:
+        result = _dolt_exec(["sql", "--file", tmp_path], cwd=str(dolt_path))
+        if result.returncode != 0:
+            logger.error("dolt sql failed: %s", result.stderr)
+            print(f"Warning: {context_error}: {result.stderr.strip()}")
+            return False
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+    return True
+
+
+def _parse_commit_hash(commit_result: "subprocess.CompletedProcess[str]") -> Optional[str]:
+    """Extract commit hash from dolt commit output.
+
+    Parameters
+    ----------
+    commit_result:
+        Result from running dolt commit.
+
+    Returns
+    -------
+    The commit hash if found, None otherwise.
+    """
+    for line in commit_result.stdout.splitlines():
+        if line.strip().startswith("commit"):
+            parts = line.strip().split()
+            if len(parts) >= 2:
+                return parts[1]
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Table creation
 # ---------------------------------------------------------------------------
@@ -113,16 +197,10 @@ def export_to_dolt(
     The Dolt commit hash on success, or ``None`` on failure.
     """
     # --- Pre-flight checks ---------------------------------------------------
-    if not shutil.which("dolt"):
-        logger.warning("dolt binary not found on PATH — skipping Dolt export")
-        print("Warning: dolt not found, skipping Dolt export")
+    if not _run_dolt_preflight_checks(dolt_dir, "Dolt export"):
         return None
 
     dolt_path = Path(dolt_dir)
-    if not (dolt_path / ".dolt").is_dir():
-        logger.warning("No Dolt repo at %s — skipping Dolt export", dolt_dir)
-        print(f"Warning: no Dolt repo at {dolt_dir}, skipping Dolt export")
-        return None
 
     # --- Ensure agents table exists ------------------------------------------
     _ensure_agents_table(str(dolt_path))
@@ -162,21 +240,9 @@ def export_to_dolt(
 
     sql = "\n".join(sql_parts)
 
-    # Write to temp file and execute
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".sql", delete=False
-    ) as tmp:
-        tmp.write(sql)
-        tmp_path = tmp.name
-
-    try:
-        result = _dolt_exec(["sql", "--file", tmp_path], cwd=str(dolt_path))
-        if result.returncode != 0:
-            logger.error("dolt sql failed: %s", result.stderr)
-            print(f"Warning: Dolt SQL import failed: {result.stderr.strip()}")
-            return None
-    finally:
-        Path(tmp_path).unlink(missing_ok=True)
+    # --- Execute SQL ---------------------------------------------------------
+    if not _execute_dolt_sql(dolt_path, sql, "Dolt SQL import failed"):
+        return None
 
     # --- Commit --------------------------------------------------------------
     # Compute summary metrics for commit message
@@ -213,14 +279,7 @@ def export_to_dolt(
         return None
 
     # Extract commit hash from output
-    commit_hash = None
-    for line in commit_result.stdout.splitlines():
-        # dolt commit prints something like "commit <hash>"
-        if line.strip().startswith("commit"):
-            parts = line.strip().split()
-            if len(parts) >= 2:
-                commit_hash = parts[1]
-                break
+    commit_hash = _parse_commit_hash(commit_result)
 
     print(f"Dolt: committed {n_epochs} epoch rows + {len(agent_records)} agent rows")
     if commit_hash:
@@ -247,16 +306,11 @@ def export_run_summary_to_dolt(
     -------
     The Dolt commit hash on success, or ``None`` on failure.
     """
-    if not shutil.which("dolt"):
-        logger.warning("dolt binary not found — skipping Dolt summary export")
-        print("Warning: dolt not found, skipping Dolt summary export")
+    # --- Pre-flight checks ---------------------------------------------------
+    if not _run_dolt_preflight_checks(dolt_dir, "Dolt summary export"):
         return None
 
     dolt_path = Path(dolt_dir)
-    if not (dolt_path / ".dolt").is_dir():
-        logger.warning("No Dolt repo at %s — skipping Dolt summary export", dolt_dir)
-        print(f"Warning: no Dolt repo at {dolt_dir}, skipping Dolt summary export")
-        return None
 
     # Build the row, excluding the auto-increment id
     row = {k: v for k, v in summary.items() if k != "id"}
@@ -265,20 +319,9 @@ def export_run_summary_to_dolt(
     if not sql:
         return None
 
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".sql", delete=False
-    ) as tmp:
-        tmp.write(sql)
-        tmp_path = tmp.name
-
-    try:
-        result = _dolt_exec(["sql", "--file", tmp_path], cwd=str(dolt_path))
-        if result.returncode != 0:
-            logger.error("dolt sql failed: %s", result.stderr)
-            print(f"Warning: Dolt summary insert failed: {result.stderr.strip()}")
-            return None
-    finally:
-        Path(tmp_path).unlink(missing_ok=True)
+    # --- Execute SQL ---------------------------------------------------------
+    if not _execute_dolt_sql(dolt_path, sql, "Dolt summary insert failed"):
+        return None
 
     scenario_id = summary.get("scenario_id", "unknown")
     seed = summary.get("seed", "?")
@@ -299,13 +342,7 @@ def export_run_summary_to_dolt(
         print(f"Warning: Dolt summary commit failed: {stderr}")
         return None
 
-    commit_hash = None
-    for line in commit_result.stdout.splitlines():
-        if line.strip().startswith("commit"):
-            parts = line.strip().split()
-            if len(parts) >= 2:
-                commit_hash = parts[1]
-                break
+    commit_hash = _parse_commit_hash(commit_result)
 
     print(f"Dolt: committed run summary for {scenario_id}")
     if commit_hash:

@@ -46,6 +46,7 @@ class TaskHandler(Handler):
                 task_id=action.target_id,
                 agent_id=agent_id,
                 agent_reputation=agent_state.reputation,
+                current_epoch=state.current_epoch,
             )
             if success:
                 rate_limit.record_task_claim()

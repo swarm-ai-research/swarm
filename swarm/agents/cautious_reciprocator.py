@@ -188,11 +188,7 @@ class CautiousReciprocator(BaseAgent):
         """
         super().update_from_outcome(interaction, payoff)
 
-        counterparty = (
-            interaction.counterparty
-            if interaction.initiator == self.agent_id
-            else interaction.initiator
-        )
+        counterparty = self._get_counterparty(interaction)
 
         # Update ledger
         self._payoff_ledger[counterparty] = (

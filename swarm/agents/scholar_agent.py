@@ -246,6 +246,8 @@ class VerifierAgent(BaseScholarAgent):
     Has configurable accuracy for detecting invalid citations.
     """
 
+    _STOP_WORDS = {"the", "a", "an", "is", "are", "was", "were", "be", "been", "to", "of", "and", "or", "in", "on", "for"}
+
     def __init__(
         self,
         agent_id: str,
@@ -307,9 +309,8 @@ class VerifierAgent(BaseScholarAgent):
         passage_words = set(passage.lower().split())
 
         # Remove stop words
-        stop_words = {"the", "a", "an", "is", "are", "was", "were", "be", "been", "to", "of", "and", "or", "in", "on", "for"}
-        claim_words = claim_words - stop_words
-        passage_words = passage_words - stop_words
+        claim_words = claim_words - self._STOP_WORDS
+        passage_words = passage_words - self._STOP_WORDS
 
         if not claim_words:
             return 0.5

@@ -188,6 +188,14 @@ def main():
     print(f"Exported rich history: {export_path}")
     print(f"  Agent snapshots: {sum(len(v) for v in history.agent_snapshots.values())}")
     print(f"  Interaction events: {len(history.interactions)}")
+
+    from swarm.analysis.run_plots import write_run_plots
+
+    plot_paths = write_run_plots(
+        metrics_history, export_dir, scenario_id=scenario.scenario_id,
+    )
+    for p in plot_paths:
+        print(f"  Plot: {p}")
     print()
 
     # Check success criteria

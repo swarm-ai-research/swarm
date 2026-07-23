@@ -224,3 +224,29 @@ def sweep_sigmoid_k(
     reports is the sigmoid_k applied by ProxyComputer.
     """
     return [run_fidelity(k, p_grid, per_bin, seed=seed, n_bins=n_bins) for k in k_values]
+
+
+def report_from_pairs(
+    p_hats: list[float],
+    outcomes: list[int],
+    sigmoid_k: float,
+    n_bins: int = 10,
+) -> FidelityReport:
+    """Build a FidelityReport from already-measured (p_hat, outcome) pairs.
+
+    Used by the controlled-injection scenario path (beads c89o), where the
+    pairs come from a real scenario run's export instead of the synthetic
+    generator: outcomes are drawn from the target-derived latent
+    probability inside the simulation, and p_hat is whatever the pipeline
+    actually computed and logged.
+    """
+    bins = reliability_bins(p_hats, outcomes, n_bins=n_bins)
+    n_total = len(p_hats)
+    return FidelityReport(
+        sigmoid_k=sigmoid_k,
+        n_total=n_total,
+        ece=expected_calibration_error(bins, n_total),
+        mce=maximum_calibration_error(bins),
+        brier=brier_score(p_hats, outcomes),
+        bins=bins,
+    )

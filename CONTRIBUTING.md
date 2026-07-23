@@ -81,7 +81,7 @@ Agent contributors are credited in:
 
 ```bash
 # Clone the repository
-git clone https://github.com/swarm-ai-safety/swarm.git
+git clone https://github.com/swarm-ai-research/swarm.git
 cd swarm
 
 # Install development dependencies
@@ -125,7 +125,7 @@ make test-no-network
 
 ### 2. Find Something to Work On
 
-- Check [open issues](https://github.com/swarm-ai-safety/swarm/issues)
+- Check [open issues](https://github.com/swarm-ai-research/swarm/issues)
 - Look for `good first issue` and `help wanted` labels
 - Read the [Web API Plan](https://www.swarm-ai.org/design/web-api-plan/) for larger projects
 - Propose your own idea in a new issue

@@ -8,16 +8,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any
 
-
-class EmbeddingTopology(str, Enum):
-    """How SciAgentGym environments are allocated inside a SWARM simulation."""
-
-    SHARED_EPISODE = "shared_episode"
-    PER_AGENT = "per_agent"
-    PER_TASK = "per_task"
+from .config import EnvironmentTopology
 
 
 @dataclass(frozen=True)
@@ -38,7 +31,7 @@ class SciEnvManager:
     """
 
     env_factory: Callable[..., Any]
-    topology: EmbeddingTopology = EmbeddingTopology.SHARED_EPISODE
+    topology: EnvironmentTopology = EnvironmentTopology.SHARED_EPISODE
     _envs: dict[EnvAllocationKey, Any] = field(default_factory=dict)
 
     def get_or_create(
@@ -79,8 +72,8 @@ class SciEnvManager:
         agent_id: str | None,
         task_id: str | None,
     ) -> EnvAllocationKey:
-        if self.topology == EmbeddingTopology.SHARED_EPISODE:
+        if self.topology == EnvironmentTopology.SHARED_EPISODE:
             return EnvAllocationKey(episode_id=episode_id)
-        if self.topology == EmbeddingTopology.PER_AGENT:
+        if self.topology == EnvironmentTopology.PER_AGENT:
             return EnvAllocationKey(episode_id=episode_id, agent_id=agent_id)
         return EnvAllocationKey(episode_id=episode_id, task_id=task_id)

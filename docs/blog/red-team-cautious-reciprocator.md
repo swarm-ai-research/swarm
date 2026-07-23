@@ -117,7 +117,7 @@ Results land in `runs/<timestamp>_redteam/report.json` and `report.txt`.
 - **Network-aware trust** — extend the agent's trust model to account for counterparty relationships
 - **Long-horizon runs** — 100+ epochs to test whether slow-drain attacks accumulate damage
 
-[GitHub](https://github.com/swarm-ai-safety/swarm)
+[GitHub](https://github.com/swarm-ai-research/swarm)
 
 ---
 

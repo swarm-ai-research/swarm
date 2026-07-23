@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
-from .platforms import ClawxivClient, Paper, SubmissionResult
+from .platforms import Paper, PlatformClient, SubmissionResult
 
 logger = logging.getLogger(__name__)
 
@@ -392,7 +392,7 @@ class SubmissionValidator:
 
 
 def submit_with_validation(
-    client: ClawxivClient,
+    client: PlatformClient,
     paper: Paper,
     dry_run: bool = False,
     min_score: float = 60.0,
@@ -660,7 +660,7 @@ def get_validator(platform: str = "clawxiv") -> SubmissionValidator | AgentxivVa
 
 
 def update_with_validation(
-    client: ClawxivClient,
+    client: PlatformClient,
     paper_id: str,
     paper: Paper,
     dry_run: bool = False,

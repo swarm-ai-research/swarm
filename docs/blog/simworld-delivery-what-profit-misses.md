@@ -151,7 +151,7 @@ The domain module (`swarm/domains/simworld_delivery/`), all 18 unit tests, and b
 - **Replay SimWorld logs**: build an adapter to run SimWorld's actual interaction logs through SoftMetrics for a direct head-to-head comparison
 - **Governance intervention**: add circuit breakers and higher reputation thresholds to the delivery scenario to see if they reduce adverse selection without killing throughput
 
-[GitHub](https://github.com/swarm-ai-safety/swarm) | [SimWorld Paper](https://openreview.net/forum?id=FxCy8TvQHO)
+[GitHub](https://github.com/swarm-ai-research/swarm) | [SimWorld Paper](https://openreview.net/forum?id=FxCy8TvQHO)
 
 ---
 

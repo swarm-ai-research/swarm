@@ -70,8 +70,14 @@ class RedTeamInspector:
                 if agent_interactions:
                     last = agent_interactions[-1]
                     if last.initiator == agent_id:
+                        # payoff_initiator is computed on-demand by the payoff engine,
+                        # not stored on SoftInteraction; accessing it via attribute lookup
+                        # requires a type ignore since it's not in the class definition
                         recent_payoff = last.payoff_initiator or 0.0  # type: ignore[attr-defined]
                     else:
+                        # payoff_counterparty is computed on-demand by the payoff engine,
+                        # not stored on SoftInteraction; accessing it via attribute lookup
+                        # requires a type ignore since it's not in the class definition
                         recent_payoff = last.payoff_counterparty or 0.0  # type: ignore[attr-defined]
 
             agent.update_adversary_outcome(

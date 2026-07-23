@@ -10,6 +10,7 @@ set -euo pipefail
 #   4. Blog nav check (docs/blog/*.md only)
 #   5. Core principles guard (advisory)
 #   6. Documentation reminder (new files in key directories)
+#   7. Stale-bytecode guard (drops the edited module's cached .pyc)
 #
 # Called automatically by Claude Code after Write/Edit tool calls.
 # Consolidates: post_write_secrets_check.sh, post_write_gitignore_check.sh,
@@ -28,6 +29,21 @@ fi
 
 HOOK_DIR="$(dirname "$0")"
 BASENAME=$(basename "$FILE_PATH")
+
+# ── 7. Stale-bytecode guard ──
+# Scripted rewrites (python heredocs, sed -i) can land with a same-second
+# mtime, defeating CPython's bytecode-cache invalidation: imports then run
+# the OLD code while the file shows the new code (bit two debugging sessions
+# on 2026-07-18; see CLAUDE.md "Test fix discipline"). Dropping the edited
+# module's cached .pyc costs microseconds and removes the trap entirely.
+case "$FILE_PATH" in
+    *.py)
+        PYCACHE_DIR="$(dirname "$FILE_PATH")/__pycache__"
+        if [ -d "$PYCACHE_DIR" ]; then
+            rm -f "$PYCACHE_DIR/${BASENAME%.py}".*.pyc 2>/dev/null || true
+        fi
+        ;;
+esac
 
 # ── 1. Secrets scan (code/config files only) ──
 if [ -f "$FILE_PATH" ]; then

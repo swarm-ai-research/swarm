@@ -15,6 +15,15 @@ from swarm.analysis.aggregation import (
 PlotData = Dict[str, Any]
 
 
+def _import_plotly_go() -> Optional[Any]:
+    """Import plotly.graph_objects, returning None if unavailable."""
+    try:
+        import plotly.graph_objects as go
+        return go
+    except ImportError:
+        return None
+
+
 def create_time_series_data(
     history: SimulationHistory,
     metrics: List[str],
@@ -310,9 +319,8 @@ def plotly_time_series(
     Returns:
         Plotly Figure object
     """
-    try:
-        import plotly.graph_objects as go
-    except ImportError:
+    go = _import_plotly_go()
+    if go is None:
         return None
 
     fig = go.Figure()
@@ -357,9 +365,8 @@ def plotly_bar_chart(
     Returns:
         Plotly Figure object
     """
-    try:
-        import plotly.graph_objects as go
-    except ImportError:
+    go = _import_plotly_go()
+    if go is None:
         return None
 
     fig = go.Figure(
@@ -400,9 +407,8 @@ def plotly_multi_line(
     Returns:
         Plotly Figure object
     """
-    try:
-        import plotly.graph_objects as go
-    except ImportError:
+    go = _import_plotly_go()
+    if go is None:
         return None
 
     fig = go.Figure()
@@ -447,9 +453,8 @@ def plotly_heatmap(
     Returns:
         Plotly Figure object
     """
-    try:
-        import plotly.graph_objects as go
-    except ImportError:
+    go = _import_plotly_go()
+    if go is None:
         return None
 
     fig = go.Figure(
@@ -462,7 +467,6 @@ def plotly_heatmap(
         )
     )
 
-    data.get("metric", "Value").replace("_", " ").title()
     fig.update_layout(
         title=title,
         xaxis_title="Agent",
@@ -489,9 +493,8 @@ def plotly_scatter(
     Returns:
         Plotly Figure object
     """
-    try:
-        import plotly.graph_objects as go
-    except ImportError:
+    go = _import_plotly_go()
+    if go is None:
         return None
 
     marker_dict: Dict[str, Any] = {"size": 10}
@@ -548,9 +551,8 @@ def plotly_gauge(
     Returns:
         Plotly Figure object
     """
-    try:
-        import plotly.graph_objects as go
-    except ImportError:
+    go = _import_plotly_go()
+    if go is None:
         return None
 
     # Default thresholds for 0-1 range
