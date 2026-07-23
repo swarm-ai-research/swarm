@@ -1,5 +1,6 @@
 """Tests for distributional metrics: Wasserstein/KL quality gap, tail toxicity, CRPS."""
 
+import numpy as np
 import pytest
 
 from beta_swarm.belief import BetaBelief
@@ -93,3 +94,29 @@ def test_kl_mixtures_nonnegative():
     a = [BetaBelief(2.0, 5.0)]
     b = [BetaBelief(5.0, 2.0)]
     assert kl_mixtures(a, b) >= 0
+
+
+def test_kl_mixtures_finite_for_skewed_singular_beliefs():
+    """KL must stay finite for beliefs whose density diverges at an endpoint."""
+    a = [BetaBelief(1.6, 0.4)]  # singular at v = 1
+    b = [BetaBelief(0.4, 1.6)]  # singular at v = 0
+    kl = kl_mixtures(a, b)
+    assert np.isfinite(kl) and kl > 0.0
+
+
+def test_quality_gap_excludes_blocked_placeholders():
+    """Lever-blocked placeholders must not pollute the accepted-vs-rejected gap."""
+    m = DistributionalMetrics()
+    acc = BetaInteraction(accepted=True, belief=BetaBelief.from_mean_concentration(0.8, 20))
+    rej = BetaInteraction(accepted=False, belief=BetaBelief.from_mean_concentration(0.3, 20))
+    blocked = BetaInteraction(
+        accepted=False, belief=BetaBelief.uniform(), metadata={"blocked": True}
+    )
+    base = m.quality_gap_wasserstein([acc, rej])
+    with_blocked = m.quality_gap_wasserstein([acc, rej, blocked])
+    assert base > 0.0
+    assert with_blocked == pytest.approx(base)
+    # The mean gap is likewise unmoved by the placeholder.
+    assert m.mean_quality_gap([acc, rej, blocked]) == pytest.approx(
+        m.mean_quality_gap([acc, rej])
+    )

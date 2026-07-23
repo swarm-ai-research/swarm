@@ -80,3 +80,21 @@ def test_sampling_is_in_unit_interval():
     rng = np.random.default_rng(0)
     samples = BetaBelief(2.0, 2.0).sample(rng, size=1000)
     assert np.all((samples >= 0) & (samples <= 1))
+
+
+def test_expect_finite_and_accurate_for_singular_beliefs():
+    """expect() must not blow up on skewed low-concentration beliefs.
+
+    Beta(alpha,beta) with a shape parameter < 1 has an integrable density
+    singularity at an endpoint — a shape the proxy makes from sparse evidence.
+    A naive endpoint grid returns inf/nan; adaptive quadrature stays finite and
+    matches the analytic second moment a(a+1)/((a+b)(a+b+1)).
+    """
+    for mean, conc in [(0.8, 2.0), (0.2, 2.0), (0.95, 3.0)]:
+        b = BetaBelief.from_mean_concentration(mean, conc)
+        assert min(b.alpha, b.beta) < 1.0  # genuinely singular
+        got = b.expect(lambda v: v**2)
+        a, bb = b.alpha, b.beta
+        exact = a * (a + 1) / ((a + bb) * (a + bb + 1))
+        assert np.isfinite(got)
+        assert got == pytest.approx(exact, abs=1e-4)

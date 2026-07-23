@@ -80,12 +80,20 @@ def wasserstein1_mixtures(
 def kl_mixtures(
     a: Sequence[BetaBelief], b: Sequence[BetaBelief], n_grid: int = 1024, eps: float = 1e-12
 ) -> float:
-    """KL divergence ``KL(mix_a || mix_b)`` between two belief mixtures (numeric)."""
-    grid = np.linspace(0.0, 1.0, n_grid)
+    """KL divergence ``KL(mix_a || mix_b)`` between two belief mixtures (numeric).
+
+    Evaluated on an **endpoint-free** midpoint grid: a Beta density diverges at
+    0/1 when a shape parameter is below 1, so sampling the endpoints would make
+    the divergence ``nan`` for exactly the skewed, diffuse beliefs the proxy and
+    red-team studies produce. (Wasserstein-1 above needs no such care — it reads
+    the bounded CDF, not the density.)
+    """
+    edges = np.linspace(0.0, 1.0, n_grid + 1)
+    grid = 0.5 * (edges[:-1] + edges[1:])
     pa = _mixture_pdf(a, grid) + eps
     pb = _mixture_pdf(b, grid) + eps
-    integrand = pa * np.log(pa / pb)
-    return float(np.trapezoid(integrand, grid))
+    # Uniform width 1/n_grid, so the midpoint integral is the plain mean.
+    return float(np.mean(pa * np.log(pa / pb)))
 
 
 class DistributionalMetrics:
@@ -94,8 +102,12 @@ class DistributionalMetrics:
     # --- selection structure ------------------------------------------------
     @staticmethod
     def _split(interactions: Sequence[BetaInteraction]):
-        acc = [i.belief for i in interactions if i.accepted]
-        rej = [i.belief for i in interactions if not i.accepted]
+        # Skip lever-blocked placeholders: they carry a default uniform belief
+        # and no governed decision, so counting them as "rejected" would drag
+        # the accepted-vs-rejected gaps toward the uniform prior.
+        governed = [i for i in interactions if not i.metadata.get("blocked", False)]
+        acc = [i.belief for i in governed if i.accepted]
+        rej = [i.belief for i in governed if not i.accepted]
         return acc, rej
 
     def quality_gap_wasserstein(self, interactions: Sequence[BetaInteraction]) -> float:
@@ -152,9 +164,15 @@ class DistributionalMetrics:
     def mean_concentration(
         self, interactions: Sequence[BetaInteraction], accepted_only: bool = False
     ) -> float:
-        """Average epistemic certainty across interactions."""
+        """Average epistemic certainty across interactions.
+
+        Lever-blocked placeholders (uniform belief, no governed decision) are
+        excluded so they do not drag the average toward the prior.
+        """
         beliefs = [
-            i.belief for i in interactions if (i.accepted or not accepted_only)
+            i.belief
+            for i in interactions
+            if not i.metadata.get("blocked", False) and (i.accepted or not accepted_only)
         ]
         if not beliefs:
             return 0.0

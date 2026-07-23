@@ -253,6 +253,12 @@ class Simulation:
                         reputation[agent.agent_id] = reputation[agent.agent_id].update(
                             positive=v, negative=1.0 - v
                         )
+                    elif audited:
+                        # A rejected audited attempt still cost the initiator an
+                        # audit; accepted ones pay it via c_a in payoffs_both, so
+                        # this branch keeps the audit cost from being free on
+                        # rejects (and matches the welfare debit above).
+                        payoffs[interaction.initiator] -= cfg.audit_cost
 
                     if self.levers is not None:
                         effect = self.levers.on_interaction(

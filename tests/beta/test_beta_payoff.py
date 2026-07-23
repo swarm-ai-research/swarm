@@ -76,3 +76,11 @@ def test_custom_surplus_fn_used():
 def test_break_even_mean():
     eng = DistributionalPayoffEngine(PayoffConfig(s_plus=3.0, s_minus=1.0))
     assert eng.break_even_mean() == pytest.approx(0.25)
+
+
+def test_payoff_config_rejects_unknown_keys():
+    """A misspelled payoff field must fail loudly, not silently use the default."""
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        PayoffConfig(s_pluss=5.0)

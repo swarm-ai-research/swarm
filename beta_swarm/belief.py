@@ -21,7 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-from scipy import special, stats
+from scipy import integrate, special, stats
 
 # Floor for alpha/beta. Beta(alpha, beta) requires both > 0; we keep a small
 # positive floor so a belief is always a proper distribution and digamma/betaln
@@ -160,15 +160,25 @@ class BetaBelief:
     def expect(self, func, n_grid: int = 512) -> float:
         """``E_F[func(v)]`` for an arbitrary scalar ``func`` over ``[0, 1]``.
 
-        Uses fixed-grid trapezoidal quadrature against the density. For linear or
-        low-degree-polynomial payoffs prefer the analytic helpers on the payoff
-        engine; this is the general fallback for arbitrary surplus shapes.
+        Uses adaptive quadrature (:func:`scipy.integrate.quad`), which handles
+        the integrable endpoint singularities a Beta density has when
+        ``alpha < 1`` or ``beta < 1`` — shapes the proxy routinely produces from
+        sparse evidence. A fixed grid either evaluates the singular endpoints
+        (returning ``inf``/``nan``) or, if it skips them, under-samples the mass
+        piled against them; the adaptive integrator does neither. ``func`` is
+        evaluated pointwise, so it must accept a scalar (any numpy-vectorized
+        function does). For linear or low-degree-polynomial payoffs prefer the
+        analytic helpers on the payoff engine; this is the general fallback for
+        arbitrary surplus shapes. ``n_grid`` is retained for compatibility and
+        sets the integrator's subdivision limit.
         """
-        v = np.linspace(0.0, 1.0, n_grid)
-        w = self.pdf(v)
-        fv = np.asarray(func(v), dtype=float)
-        integrand = fv * w
-        return float(np.trapezoid(integrand, v))
+        value, _ = integrate.quad(
+            lambda v: float(func(v)) * float(self.pdf(v)),
+            0.0,
+            1.0,
+            limit=max(50, n_grid // 8),
+        )
+        return float(value)
 
     # ------------------------------------------------------------------
     # Bayesian update

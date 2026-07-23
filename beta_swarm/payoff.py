@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from typing import Callable, Optional
 
 import numpy as np
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from beta_swarm.belief import BetaBelief
 
@@ -36,7 +36,13 @@ class PayoffConfig(BaseModel):
     The economic parameters carry over unchanged; what differs is that
     ``s_plus`` / ``s_minus`` / ``h`` now scale a *function of v* rather than a
     binary outcome.
+
+    Unknown keys are rejected (``extra="forbid"``) so a misspelled field in a
+    scenario file — e.g. ``s_pluss`` — fails loudly instead of silently falling
+    back to the default and running a different payoff than specified.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     s_plus: float = 2.0   # surplus weight on the "good" end (v -> 1)
     s_minus: float = 1.0  # loss weight on the "bad" end (v -> 0)

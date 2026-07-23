@@ -153,3 +153,9 @@ def test_defended_scenario_blocks_forgers():
     forger = [i for i in result.interactions if i.initiator.startswith("forger")]
     assert forger
     assert sum(i.metadata.get("blocked", False) for i in forger) / len(forger) > 0.5
+
+
+def test_unknown_payoff_key_is_rejected():
+    """The loader's 'typos fail loudly' promise must cover the payoff section."""
+    with pytest.raises(ValidationError):
+        ScenarioConfig.model_validate(_cfg(payoff={"s_pluss": 5.0}))

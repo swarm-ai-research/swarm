@@ -151,3 +151,35 @@ def test_epoch_zero_gap():
     tail_e0 = Simulation(_population(), _tail_governor(), cfg).run().epoch_reports[0]
     assert mean_e0.acceptance_by_archetype["deceptive"] > 0.5
     assert tail_e0.acceptance_by_archetype["deceptive"] == 0.0
+
+
+def test_rejected_audits_charge_the_initiator():
+    """Every audit costs the initiator — rejected audited attempts included.
+
+    Raising ``audit_cost`` must reduce an initiator's payoff by
+    ``cost * (their total audits)``. Before the fix, only *accepted* audited
+    interactions were charged (via ``c_a`` in ``payoffs_both``), so a
+    DEFER->audit->REJECT attempt was privately free.
+    """
+    from collections import Counter
+
+    def run(audit_cost):
+        pop = make_population({Archetype.HONEST: 2, Archetype.DECEPTIVE: 3})
+        gov = TailMassGovernor(
+            tau=0.4, max_tail_mass=0.2, min_mean=None, defer_below_concentration=20.0
+        )
+        return Simulation(
+            pop, gov, SimulationConfig(seed=3, n_epochs=6, audit_cost=audit_cost)
+        ).run()
+
+    free, charged = run(0.0), run(0.5)
+    audits = Counter(i.initiator for i in charged.interactions if i.metadata.get("audited"))
+    target = next(a for a in audits if a.startswith("deceptive"))
+    rejected_audits = sum(
+        1
+        for i in charged.interactions
+        if i.initiator == target and i.metadata.get("audited") and not i.accepted
+    )
+    assert rejected_audits > 0  # the scenario actually exercises the fix
+    delta = charged.payoffs[target] - free.payoffs[target]
+    assert delta == pytest.approx(-0.5 * audits[target])
