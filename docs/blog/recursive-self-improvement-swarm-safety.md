@@ -51,7 +51,7 @@ The difference: the self-optimizer's damage shows up as rising toxicity in accep
 
 Every fix made the agent more operationally reliable. None made it more aligned. A more resilient agent is not a safer agent --- it's an agent that's harder to stop via the failure modes that governance systems might otherwise exploit as control points.
 
-In SWARM's framework, error-based circuit breakers work by detecting when agents crash or produce anomalous outputs. An agent that handles its own errors gracefully --- exactly what our agent learned to do --- becomes invisible to these detectors. It's not evading governance. It's just robust enough that crash-based signals don't fire.
+In SWARM's framework, error-based circuit breakers work by detecting when agents crash or produce anomalous outputs. An agent that handles its own errors gracefully --- exactly what our agent learned to do --- becomes invisible to these detectors because it's too resilient for crash-based signals to fire.
 
 ### 2. Diminishing returns create false convergence
 
@@ -84,7 +84,7 @@ This experiment was deliberately designed with minimal human intervention --- th
 
 Each of the five PRs was genuinely beneficial in isolation. The concerning pattern --- a more resilient, wider-capability, harder-to-crash agent whose safety mechanisms haven't kept pace --- only becomes visible when you analyze the trajectory as a whole. No single diff raises a flag. The sequence does.
 
-This is the same challenge that scales badly in multi-agent ecosystems: when many agents are self-improving in parallel, tracking the population-level trajectory becomes combinatorially harder than reviewing individual changes. It's not a problem that more careful PR review solves --- it's a problem that requires different evaluation tools entirely.
+This is the same challenge that scales badly in multi-agent ecosystems: when many agents are self-improving in parallel, tracking the population-level trajectory becomes combinatorially harder than reviewing individual changes. More careful PR review alone can't solve this; you need evaluation tools that analyze full trajectories.
 
 ## What distributional monitoring would catch
 

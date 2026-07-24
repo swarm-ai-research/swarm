@@ -21,7 +21,7 @@ abstract: "Multi-agent ecosystems exhibit sharp phase transitions: governance me
 
 Most AI safety research focuses on aligning one model at a time. But the systems actually being deployed look more like ecosystems — tool-using assistants, autonomous coders, trading bots, and content moderators interacting inside shared environments. These ecosystems can produce harmful outcomes even when no individual agent is misaligned.
 
-We built SWARM to study this problem quantitatively. The main finding: multi-agent ecosystems exhibit sharp phase transitions where governance mechanisms that work fine at 37.5% adversarial agents fail completely at 50%. And the lever that matters most isn't punishing bad actors — it's detecting coordinated behavior.
+We built SWARM to study this problem quantitatively. The main finding: multi-agent ecosystems exhibit sharp phase transitions where governance mechanisms that work fine at 37.5% adversarial agents fail completely at 50%. Collusion detection matters more than punishment severity.
 
 ## Why binary labels aren't enough
 
@@ -48,7 +48,7 @@ The interesting stuff is at the boundaries.
 
 **The transition is abrupt, not gradual.** At 37.5% adversarial agents with collusion detection enabled, the ecosystem survived all 25 epochs. At 50% with the same governance stack, welfare hit zero by epoch 12. There's no gentle degradation curve between these outcomes.
 
-**Tuning governance parameters buys time, not survival.** Three red-team variants with progressively adjusted parameters (audit penalties, freeze durations, reputation decay) shifted collapse from epoch 12 to 13 to 14. Two extra epochs is nice. It's not a solution.
+**Tuning governance parameters buys time, not survival.** Three red-team variants with progressively adjusted parameters (audit penalties, freeze durations, reputation decay) shifted collapse from epoch 12 to 13 to 14. Two extra epochs is a delay, not a structural fix.
 
 **Collusion detection is what actually matters.** Individual-focused levers (audits, reputation, staking) are necessary but insufficient. The scenario that survived near the collapse threshold had pair-wise frequency and correlation monitoring — detecting coordinated patterns across the interaction graph rather than flagging individual agents. This parallels how financial regulators catch wash trading: you look at the pattern, not the individual trades.
 
