@@ -4,6 +4,16 @@ This module provides tools for systematically testing governance mechanisms
 against adaptive adversaries.
 """
 
+from swarm.redteam.attacker_economics import (
+    EconomicsConfig,
+    attacker_cost,
+    critical_unit_cost,
+    deterrence_threshold,
+    false_positive_rate,
+    fp_threshold,
+    is_defensible,
+    is_deterred,
+)
 from swarm.redteam.attacks import (
     AttackLibrary,
     AttackResult,
@@ -88,4 +98,13 @@ __all__ = [
     "plan_attack",
     "evaluate_attack",
     "honest_false_positive_rate",
+    # Attacker economics (7bwz)
+    "EconomicsConfig",
+    "attacker_cost",
+    "is_deterred",
+    "deterrence_threshold",
+    "false_positive_rate",
+    "fp_threshold",
+    "is_defensible",
+    "critical_unit_cost",
 ]

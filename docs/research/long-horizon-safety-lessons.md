@@ -272,6 +272,59 @@ should be read not as "how much coverage buys safety" but as one rung of a
 ladder whose top is bounded by false-positive cost, and the open question is
 the attacker-cost curve, not the monitor-coverage curve.
 
+## 7. The economic defense: minimum stake, not maximum monitoring (beads `7bwz`)
+
+§6 ended on the open question — the attacker-cost curve, not the
+monitor-coverage curve. `swarm/redteam/attacker_economics.py` works it out.
+An objective of forbidden mass `M` worth `V` to the attacker must be split
+into `n = ⌈M/(θ·margin)⌉` units to stay under a monitor of threshold `θ`,
+each unit costing `c` (an extra trajectory; or, at the agent level, a Sybil
+identity). Two thresholds bound the defender's choice of `θ`: deterrence
+(`θ ≤ θ_deter = M·c/(margin·V)`) and false positives (`θ ≥ θ_fp`, where the
+honest false-positive rate meets the budget `f_max`). Monitoring at a level is
+economically defensible iff those overlap, equivalently iff the per-unit cost
+clears
+
+    c_crit = θ_fp · margin · V / M.
+
+Because `θ_deter` scales with `c`, cheap-to-decompose levels can never be
+defended by monitoring. Results (run `20260724T023352Z`, `M=2`, `V=100`,
+`f_max=0.05`):
+
+- **Trajectory-level monitoring is not economically defensible** — it needs a
+  per-trajectory cost of `c_crit ≈ 15.0` but an extra trajectory costs ~0.1,
+  a 150× gap. No threshold both deters and stays under the FP budget. This is
+  the economic root of the §6 collapse: the trajectory monitor fails not
+  because it can't detect, but because deterring a cross-trajectory attacker
+  would require a threshold that false-positives on essentially all honest
+  work.
+- **Agent-level monitoring is defensible only if the stake is high enough.**
+  The per-identity cost is exactly SWARM's `min_stake_to_participate`, and the
+  model outputs the minimum: **`min_stake ≈ 0.52·V`** (linear — `c_crit =
+  θ_fp·margin·V/M`). At the default stake of 10 against a `V=100` objective it
+  is *not* defensible (need ≥ 51.6); the defensible region is a clean diagonal
+  in (stake, objective-value) space.
+
+**This is the payoff of the whole chain.** Starting from two news items (the
+DGG disproof and the OpenAI long-horizon post-mortem), the line of work ends
+at a concrete governance number: to defend an ecosystem against forbidden
+objectives worth up to `V`, monitoring is the wrong primary lever — set the
+identity stake to ≈`0.52·V` so that decomposition into Sybil identities costs
+more than the objective is worth. Trajectory- and action-level monitors
+remain useful as *cost-imposition* (they force the attacker up the ladder to
+the expensive identity rung), not as the catch mechanism. This reconnects to
+SWARM's existing staking/collusion machinery: the ladder's top rung is where
+those controls already live, and the economics say that is exactly where the
+defensible frontier is. It also re-scopes `q2fg`: trajectory-coverage buys
+cost-imposition, not deterrence, and should be evaluated as such.
+
+*Caveat.* The false-positive model is a Normal approximation of summed benign
+activity; it is accurate in the tail where the FP budget operates (validated
+against simulation) but ~0.03 off near the window mean, which does not affect
+the defensibility conclusions. The objective-value `V` and benign-activity
+levels are stylized; the linear `min_stake ∝ V` law is the transferable
+result, its constant is instance-specific.
+
 ## Iterative-deployment framing
 
 OpenAI's meta-lesson — no fixed eval anticipates every behavior, so pair
