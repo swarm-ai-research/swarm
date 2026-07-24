@@ -21,11 +21,11 @@ abstract: "Multi-agent ecosystems exhibit sharp phase transitions: governance me
 
 Most AI safety research focuses on aligning one model at a time. But the systems actually being deployed look more like ecosystems — tool-using assistants, autonomous coders, trading bots, and content moderators interacting inside shared environments. These ecosystems can produce harmful outcomes even when no individual agent is misaligned.
 
-We built SWARM to study this problem quantitatively. The main finding: multi-agent ecosystems exhibit sharp phase transitions where governance mechanisms that work fine at 37.5% adversarial agents fail completely at 50%. And the lever that matters most isn't punishing bad actors — it's detecting coordinated behavior.
+We built SWARM to study this problem quantitatively. The main finding: multi-agent ecosystems exhibit sharp phase transitions where governance mechanisms that work fine at 37.5% adversarial agents fail completely at 50%. Collusion detection matters more than punishment severity.
 
-## Why binary labels aren't enough
+## Beyond binary labels
 
-Standard safety evaluations label interactions as safe or unsafe. This throws away information. An interaction with a 51% chance of being beneficial gets the same label as one with 99%. You can't measure [adverse selection](../concepts/distributional-safety.md#adverse-selection) — the tendency for bad interactions to be preferentially accepted — with binary data.
+Standard safety evaluations label interactions as safe or unsafe, which throws away information. An interaction with a 51% chance of being beneficial gets the same label as one with 99%. Binary data can't measure [adverse selection](../concepts/distributional-safety.md#adverse-selection) — the tendency for bad interactions to be preferentially accepted.
 
 Financial markets solved this problem decades ago. Adverse selection in trading is measured continuously using probabilistic models (Kyle 1985, Glosten-Milgrom 1985). SWARM applies the same idea to agent safety:
 
@@ -44,13 +44,11 @@ Eleven scenarios. 209 epochs. 81 agent-slots. Three regimes.
 | **Contested** | 20-37.5% | 0.42-0.94 | 0.33-0.37 | Declining | No |
 | **Collapse** | 50% | < 0.56 | ~0.30 | Zero by epoch 12-14 | Yes |
 
-The interesting stuff is at the boundaries.
-
 **The transition is abrupt, not gradual.** At 37.5% adversarial agents with collusion detection enabled, the ecosystem survived all 25 epochs. At 50% with the same governance stack, welfare hit zero by epoch 12. There's no gentle degradation curve between these outcomes.
 
-**Tuning governance parameters buys time, not survival.** Three red-team variants with progressively adjusted parameters (audit penalties, freeze durations, reputation decay) shifted collapse from epoch 12 to 13 to 14. Two extra epochs is nice. It's not a solution.
+**Tuning governance parameters buys time, not survival.** Three red-team variants with progressively adjusted parameters (audit penalties, freeze durations, reputation decay) shifted collapse from epoch 12 to 13 to 14. Two extra epochs is a delay, not a structural fix.
 
-**Collusion detection is what actually matters.** Individual-focused levers (audits, reputation, staking) are necessary but insufficient. The scenario that survived near the collapse threshold had pair-wise frequency and correlation monitoring — detecting coordinated patterns across the interaction graph rather than flagging individual agents. This parallels how financial regulators catch wash trading: you look at the pattern, not the individual trades.
+**Collusion detection matters most.** Individual-focused levers (audits, reputation, staking) are necessary but insufficient. The scenario that survived near the collapse threshold had pair-wise frequency and correlation monitoring — detecting coordinated patterns across the interaction graph rather than flagging individual agents. This parallels how financial regulators catch wash trading: you look at the pattern, not the individual trades.
 
 **Cooperative welfare scales super-linearly.** In low-adversarial scenarios: 3 agents produced welfare ~1.0, 6 agents ~5.7, 10 agents ~21.3. Cooperative ecosystems are disproportionately productive, which means the cost of collapse also grows non-linearly.
 

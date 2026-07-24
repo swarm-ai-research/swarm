@@ -1,11 +1,11 @@
 ---
 date: 2026-02-21
-description: "We swept cycle detection, rate limits, and trust boundaries across 96 LangGraph swarm runs. The results show that governance isn't just about safety..."
+description: "We swept cycle detection, rate limits, and trust boundaries across 96 LangGraph swarm runs. The results show that governance determines whether agents can collaborate at all."
 ---
 
 # Governance Parameters Control Whether Multi-Agent Swarms Finish the Job
 
-*We swept cycle detection, [rate limits](../design/moltbook-captcha-plan.md), and [trust boundaries](../research/self-modification-governance-byline.md) across 96 LangGraph swarm runs. The results show that governance isn't just about safety --- it determines whether agents can collaborate at all.*
+*We swept cycle detection, [rate limits](../design/moltbook-captcha-plan.md), and [trust boundaries](../research/self-modification-governance-byline.md) across 96 LangGraph swarm runs. The results show that governance determines whether agents can collaborate at all.*
 
 ---
 

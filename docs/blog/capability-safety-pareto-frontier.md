@@ -29,13 +29,13 @@ abstract: "We trace the capability-safety Pareto frontier empirically using SWAR
 
 # The Shape of the Capability–Safety Frontier (and How Screening Bends It)
 
-**1,400 benchmark runs reveal the Pareto frontier isn't a curve — it's a surface that changes shape depending on what you're measuring and who you're governing.**
+**1,400 benchmark runs show the Pareto frontier changes shape by task and governance target — it's a surface, not a curve.**
 
 ---
 
-## The question everyone hand-waves
+## Governance and capability: measuring the tradeoff
 
-Every discussion of AI safety governance involves an implicit tradeoff: more oversight means less capability, or so the assumption goes. But nobody has clean empirical data on the *shape* of this tradeoff. Is it linear? Concave? Does it depend on the task? Does it have to be a tradeoff at all?
+Every discussion of AI safety governance assumes a tradeoff: more oversight means less capability. But the empirical shape of this tradeoff is unknown. Is it linear? Concave? Task-dependent? Does it have to exist at all?
 
 We built the measurement infrastructure to find out.
 
@@ -100,7 +100,7 @@ The 5th percentile p values tell the story:
 - **Moderate-light**: 5th percentile ≈ 0.79
 - **Tight/Tight-moderate**: 5th percentile ≈ 0.10 (catastrophic tail)
 
-Mean p barely distinguishes tight (0.63) from tight-moderate (0.61). But the tail risk is where the action is. This connects directly to the [Tomašev distributional safety framing](../research/theory.md) — if you only look at means, you miss the configurations that occasionally produce catastrophic outcomes.
+Mean p barely distinguishes tight (0.63) from tight-moderate (0.61), but tail risk reveals the difference. This reflects the [Tomašev distributional safety framing](../research/theory.md) — scalar means hide configurations that produce catastrophic outcomes with low probability.
 
 ## Finding 4: Long-horizon tasks have the worst tails
 
