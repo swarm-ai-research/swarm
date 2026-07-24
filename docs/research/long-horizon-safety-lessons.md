@@ -134,7 +134,34 @@ the circuit-breaker freeze path) rather than only applying cost. Contrast the
 two levers head-to-head at equal total verification budget — the §5 claim is
 that mid-trajectory intervention beats post-hoc penalty because it changes the
 agent's realized path, not just its payoff.
-→ bead `0hp7`.
+→ bead `0hp7` — implemented in `swarm/redteam/circumvention.py`
+(`TrajectoryMonitor*`), the comparison arm to §1. The monitor sums per-step
+suspicion over the trajectory and pauses when the cumulative crosses a
+threshold; because summing is invariant to how finely the worker decomposed,
+it is decomposition- and persistence-proof.
+
+**Head-to-head results (same run family, `20260723T170733Z`):**
+
+- **Horizon-stability, the headline.** Where the action filter collapses
+  0.89 → 0.00 over horizon 1→8, the trajectory monitor holds a **flat ~0.92
+  catch rate across every horizon** (1 through 24). It catches exactly the
+  decomposed attacks the action filter goes blind to. The ~0.92 (not 1.0) is
+  honest: a low-mass forbidden outcome (`M` below the monitor threshold)
+  slips under a coarse monitor — decomposition-proof is not mass-proof.
+- **Mid-trajectory pause pays off.** On a catch the monitor has realized only
+  ~0.52–0.69 of the forbidden mass (it pauses around `threshold/M` of the way
+  through), versus the full mass `M` a post-hoc penalty would let complete.
+  The pause is the mechanism, not just the detection.
+- **The monitor's own weakness — and why it must be tuned.** Benign activity
+  accumulates over long *honest* trajectories, so the monitor's
+  false-positive rate is 0 through H=12 but rises to 0.44 (H=16) and 1.00
+  (H=24). The action filter has no such failure mode (it never aggregates).
+  This is OpenAI's "reduce unnecessary interruptions without weakening
+  safeguards" made quantitative: at long horizons the monitor threshold or
+  coverage must be raised, trading catch rate for fewer false alarms. The
+  monitor is not a free win over the action filter; it is a *different
+  operating point* — horizon-robust on catch, horizon-fragile on false
+  positives.
 
 ### 3. Horizon-coverage as the trust variable, generalizing verifier coverage
 

@@ -7,14 +7,19 @@ import pytest
 
 from swarm.redteam.circumvention import (
     CircumventionConfig,
+    TrajectoryMonitorConfig,
     WorkerKind,
     action_filter_catch_rate,
     circumvention_intent,
     circumvention_success_rate,
     honest_completion_rate,
     mean_cumulative_suspicion_evaded,
+    mean_realized_mass_on_catch,
+    monitor_trajectory,
     simulate_episode,
     simulate_task,
+    trajectory_monitor_catch_rate,
+    trajectory_monitor_false_positive_rate,
 )
 
 
@@ -159,3 +164,97 @@ class TestInstructionDecay:
             50, 4, 0, cfg, random.Random(3), instruction_decay=0.5
         )
         assert honest_completion_rate(ep) == 1.0
+
+
+class TestTrajectoryMonitor:
+    """The 0hp7 comparison arm: cumulative-suspicion monitoring."""
+
+    def _circ(self, horizon, n=400, seed=0, spread=0.0):
+        cfg = CircumventionConfig(
+            suspicion_mass=1.0, tau=0.25, mass_spread=spread
+        )
+        rng = random.Random(seed)
+        return [
+            simulate_task(
+                WorkerKind.CIRCUMVENTION, horizon, 0, cfg, rng,
+                mass=cfg.draw_mass(rng),
+            )
+            for _ in range(n)
+        ]
+
+    def test_catch_rate_is_horizon_stable(self):
+        """The headline contrast: monitor catch rate does NOT collapse with
+        horizon the way the action filter does."""
+        mon = TrajectoryMonitorConfig(threshold=0.5, coverage=1.0, detect_prob=1.0)
+        rates = [
+            trajectory_monitor_catch_rate(self._circ(H), mon, random.Random(1))
+            for H in (1, 4, 8, 16, 32)
+        ]
+        # All essentially equal (M=1 > threshold, decomposition-proof).
+        assert all(r == pytest.approx(1.0) for r in rates)
+
+    def test_action_filter_collapses_where_monitor_holds(self):
+        circ8 = self._circ(8)
+        mon = TrajectoryMonitorConfig(threshold=0.5, detect_prob=1.0)
+        assert action_filter_catch_rate(circ8) == 0.0
+        assert trajectory_monitor_catch_rate(
+            circ8, mon, random.Random(1)
+        ) == pytest.approx(1.0)
+
+    def test_low_mass_slips_under_coarse_monitor(self):
+        """Monitor is decomposition-proof but not mass-proof: a forbidden
+        outcome below the threshold evades it."""
+        mon = TrajectoryMonitorConfig(threshold=0.5, detect_prob=1.0)
+        cfg = CircumventionConfig(suspicion_mass=0.3, tau=0.25)
+        out = simulate_task(WorkerKind.CIRCUMVENTION, 8, 0, cfg, random.Random(1))
+        v = monitor_trajectory(out, mon, random.Random(1))
+        assert not v.flagged
+
+    def test_coverage_gates_observation(self):
+        mon = TrajectoryMonitorConfig(threshold=0.5, coverage=0.0, detect_prob=1.0)
+        assert trajectory_monitor_catch_rate(
+            self._circ(8), mon, random.Random(1)
+        ) == 0.0
+
+    def test_false_positive_rises_with_horizon(self):
+        """The monitor's weakness: benign activity accumulates over long
+        honest trajectories and trips the threshold."""
+        cfg = CircumventionConfig(suspicion_mass=1.0, tau=0.25)
+        mon = TrajectoryMonitorConfig(
+            threshold=0.5, benign_step_mean=0.05, benign_step_sd=0.02,
+            detect_prob=1.0,
+        )
+        honest_short = [
+            simulate_task(WorkerKind.HONEST, 2, 0, cfg, random.Random(s))
+            for s in range(400)
+        ]
+        honest_long = [
+            simulate_task(WorkerKind.HONEST, 40, 0, cfg, random.Random(s))
+            for s in range(400)
+        ]
+        fp_short = trajectory_monitor_false_positive_rate(
+            honest_short, mon, random.Random(1)
+        )
+        fp_long = trajectory_monitor_false_positive_rate(
+            honest_long, mon, random.Random(1)
+        )
+        assert fp_short == pytest.approx(0.0)
+        assert fp_long > 0.5
+
+    def test_mid_trajectory_pause_limits_realized_mass(self):
+        """Mid-trajectory pause realizes less than full mass — the payoff over
+        a post-hoc penalty that fires only after completion (mass M)."""
+        mon = TrajectoryMonitorConfig(threshold=0.5, detect_prob=1.0)
+        circ = self._circ(16, n=200)
+        realized = mean_realized_mass_on_catch(circ, mon, random.Random(1))
+        # Paused around threshold/M of the way; well under the full mass 1.0.
+        assert 0.4 < realized < 0.75
+
+    def test_honest_never_caught_by_action_filter_regardless(self):
+        # sanity: monitor FP is a monitor property, action filter still clean
+        cfg = CircumventionConfig(suspicion_mass=1.0, tau=0.25)
+        honest = [
+            simulate_task(WorkerKind.HONEST, 40, 0, cfg, random.Random(s))
+            for s in range(50)
+        ]
+        assert all(not o.caught_by_action_filter for o in honest)

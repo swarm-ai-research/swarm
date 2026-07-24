@@ -11,14 +11,20 @@ from swarm.redteam.attacks import (
 )
 from swarm.redteam.circumvention import (
     CircumventionConfig,
+    MonitorVerdict,
     TaskOutcome,
+    TrajectoryMonitorConfig,
     WorkerKind,
     action_filter_catch_rate,
     circumvention_success_rate,
     honest_completion_rate,
     mean_cumulative_suspicion_evaded,
+    mean_realized_mass_on_catch,
+    monitor_trajectory,
     simulate_episode,
     simulate_task,
+    trajectory_monitor_catch_rate,
+    trajectory_monitor_false_positive_rate,
 )
 from swarm.redteam.evaluator import (
     GovernanceRobustness,
@@ -58,4 +64,11 @@ __all__ = [
     "circumvention_success_rate",
     "honest_completion_rate",
     "mean_cumulative_suspicion_evaded",
+    # Trajectory monitor (0hp7)
+    "TrajectoryMonitorConfig",
+    "MonitorVerdict",
+    "monitor_trajectory",
+    "trajectory_monitor_catch_rate",
+    "trajectory_monitor_false_positive_rate",
+    "mean_realized_mass_on_catch",
 ]

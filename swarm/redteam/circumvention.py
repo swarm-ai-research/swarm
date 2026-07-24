@@ -272,3 +272,136 @@ def mean_cumulative_suspicion_evaded(outcomes: list[TaskOutcome]) -> float:
     if not evaded:
         return 0.0
     return sum(o.cumulative_suspicion for o in evaded) / len(evaded)
+
+
+# --- trajectory-level monitor (beads 0hp7) ---------------------------------
+
+
+@dataclass(frozen=True)
+class TrajectoryMonitorConfig:
+    """A monitor that sums per-step suspicion over a trajectory and can pause
+    the session mid-way, rather than thresholding each action independently.
+
+    threshold: cumulative suspicion at which the monitor flags. Must be < M
+        for a task to be catchable; heterogeneous mass makes catch rate
+        smooth. The gap M - threshold is the mass realized before the pause.
+    coverage: fraction of trajectories the monitor observes (beads q2fg will
+        make this the trust axis). Unobserved trajectories are never flagged.
+    benign_step_mean / benign_step_sd: honest steps carry benign activity the
+        monitor also sums; over a long honest trajectory this can cross the
+        threshold and fire a false positive — the monitor's horizon-dependent
+        weakness (OpenAI's "reduce unnecessary interruptions"). The action
+        filter has no such weakness because it never aggregates.
+    detect_prob: flag probability once the cumulative threshold is crossed.
+    """
+
+    threshold: float = 0.5
+    coverage: float = 1.0
+    benign_step_mean: float = 0.02
+    benign_step_sd: float = 0.02
+    detect_prob: float = 0.95
+
+
+@dataclass(frozen=True)
+class MonitorVerdict:
+    observed: bool
+    flagged: bool
+    false_positive: bool  # flagged an honest trajectory
+    detection_fraction: float  # fraction of the trajectory before the pause
+    realized_mass: float  # forbidden suspicion realized before the pause
+
+
+def monitor_trajectory(
+    outcome: TaskOutcome,
+    config: TrajectoryMonitorConfig,
+    rng: random.Random,
+) -> MonitorVerdict:
+    """Run the trajectory monitor against one task's step sequence."""
+    if rng.random() > config.coverage:
+        return MonitorVerdict(
+            observed=False,
+            flagged=False,
+            false_positive=False,
+            detection_fraction=1.0,
+            realized_mass=outcome.cumulative_suspicion,
+        )
+
+    if outcome.kind is WorkerKind.CIRCUMVENTION:
+        M = outcome.cumulative_suspicion
+        s = outcome.per_step_suspicion
+        k = outcome.k_steps
+        # Cumulative after j steps is j*s; it crosses threshold at j*.
+        if M <= config.threshold or s <= 0:
+            # Even the full trajectory never reaches threshold: monitor misses
+            # (decomposition-proof, but not mass-proof — a low-mass forbidden
+            # outcome slips under a coarse monitor).
+            return MonitorVerdict(True, False, False, 1.0, M)
+        if rng.random() > config.detect_prob:
+            return MonitorVerdict(True, False, False, 1.0, M)
+        j_star = min(k, math.ceil(config.threshold / s))
+        frac = j_star / k
+        return MonitorVerdict(
+            observed=True,
+            flagged=True,
+            false_positive=False,
+            detection_fraction=frac,
+            realized_mass=frac * M,  # paused mid-trajectory: only this realized
+        )
+
+    # Honest trajectory: sum benign per-step activity; a long enough honest
+    # session can accumulate past the threshold and false-positive.
+    benign = 0.0
+    for _ in range(outcome.horizon):
+        benign += max(0.0, rng.gauss(config.benign_step_mean, config.benign_step_sd))
+    if benign > config.threshold and rng.random() < config.detect_prob:
+        return MonitorVerdict(True, True, True, 1.0, 0.0)
+    return MonitorVerdict(True, False, False, 1.0, 0.0)
+
+
+def trajectory_monitor_catch_rate(
+    outcomes: list[TaskOutcome],
+    config: TrajectoryMonitorConfig,
+    rng: random.Random,
+) -> float:
+    """Fraction of circumvention attempts the trajectory monitor flags."""
+    circ = [o for o in outcomes if o.kind is WorkerKind.CIRCUMVENTION]
+    if not circ:
+        return 0.0
+    return sum(
+        1 for o in circ if monitor_trajectory(o, config, rng).flagged
+    ) / len(circ)
+
+
+def trajectory_monitor_false_positive_rate(
+    outcomes: list[TaskOutcome],
+    config: TrajectoryMonitorConfig,
+    rng: random.Random,
+) -> float:
+    """Fraction of honest trajectories the monitor wrongly flags — the cost
+    that rises with horizon and must be traded against catch rate."""
+    honest = [o for o in outcomes if o.kind is WorkerKind.HONEST]
+    if not honest:
+        return 0.0
+    return sum(
+        1 for o in honest if monitor_trajectory(o, config, rng).false_positive
+    ) / len(honest)
+
+
+def mean_realized_mass_on_catch(
+    outcomes: list[TaskOutcome],
+    config: TrajectoryMonitorConfig,
+    rng: random.Random,
+) -> float:
+    """Mean forbidden mass realized before the monitor paused, over caught
+    attempts. The mid-trajectory-pause payoff: lower = caught earlier, less
+    damage done than a post-hoc penalty that fires only after completion."""
+    realized = [
+        v.realized_mass
+        for o in outcomes
+        if o.kind is WorkerKind.CIRCUMVENTION
+        for v in (monitor_trajectory(o, config, rng),)
+        if v.flagged
+    ]
+    if not realized:
+        return 0.0
+    return sum(realized) / len(realized)
