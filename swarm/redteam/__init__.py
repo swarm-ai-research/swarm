@@ -57,6 +57,15 @@ from swarm.redteam.metrics import (
     compute_evasion_rate,
     compute_governance_effectiveness,
 )
+from swarm.redteam.staking_bridge import (
+    AttackVerdict,
+    SybilAttack,
+    deterrence_stake_capital_channel,
+    deterrence_stake_slash_channel,
+    evaluate_sybil_attack,
+    identities_needed,
+    usable_identities,
+)
 
 __all__ = [
     # Attacks
@@ -107,4 +116,12 @@ __all__ = [
     "fp_threshold",
     "is_defensible",
     "critical_unit_cost",
+    # Staking bridge (zxkw)
+    "SybilAttack",
+    "AttackVerdict",
+    "identities_needed",
+    "usable_identities",
+    "evaluate_sybil_attack",
+    "deterrence_stake_capital_channel",
+    "deterrence_stake_slash_channel",
 ]

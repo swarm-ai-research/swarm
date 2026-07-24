@@ -305,12 +305,14 @@ defended by monitoring. Results (run `20260724T023352Z`, `M=2`, `V=100`,
   is *not* defensible (need ≥ 51.6); the defensible region is a clean diagonal
   in (stake, objective-value) space.
 
-**This is the payoff of the whole chain.** Starting from two news items (the
+**This is the payoff of the whole chain — but the `0.52·V` constant assumes
+the stake is a *sunk cost*, and §8 shows that assumption fails against SWARM's
+real (recoverable-bond) staking lever.** Starting from two news items (the
 DGG disproof and the OpenAI long-horizon post-mortem), the line of work ends
-at a concrete governance number: to defend an ecosystem against forbidden
-objectives worth up to `V`, monitoring is the wrong primary lever — set the
-identity stake to ≈`0.52·V` so that decomposition into Sybil identities costs
-more than the objective is worth. Trajectory- and action-level monitors
+at a concrete governance question: to defend an ecosystem against forbidden
+objectives worth up to `V`, monitoring is the wrong primary lever — impose
+cost at the identity rung. The precise stake needed depends on *how* the stake
+imposes cost, which §8 works out against the actual lever. Trajectory- and action-level monitors
 remain useful as *cost-imposition* (they force the attacker up the ladder to
 the expensive identity rung), not as the catch mechanism. This reconnects to
 SWARM's existing staking/collusion machinery: the ladder's top rung is where
@@ -324,6 +326,46 @@ against simulation) but ~0.03 off near the window mean, which does not affect
 the defensibility conclusions. The objective-value `V` and benign-activity
 levels are stylized; the linear `min_stake ∝ V` law is the transferable
 result, its constant is instance-specific.
+
+## 8. End-to-end against the real staking lever: the bond correction (beads `zxkw`)
+
+§7's `min_stake ≈ 0.52·V` treats the identity stake as a sunk cost. SWARM's
+actual `StakingLever` (`swarm/governance/admission.py`) is a **recoverable
+bond**: `can_agent_act` gates on `resources ≥ min_stake_to_participate` (a
+capital lockup, returned if never slashed) and `slash_stake` removes
+`stake_slash_rate` of resources *only on a detected violation*. Running the
+attacker model against the real lever (`swarm/redteam/staking_bridge.py`, run
+`20260724T030450Z`) revises the law:
+
+- **A recoverable bond does not deter by its amount.** A well-capitalized
+  Sybil attacker that spreads the objective across enough identities to evade
+  the per-agent monitor recovers every bond — its net payoff stays at the full
+  `V=100` at stake 10, 100, 1000, **5000**. No stake level deters. The clean
+  §7 constant is simply wrong for a bond you can reclaim.
+- **Capital scarcity deters, but on the attacker's capital, not `V`.** The
+  attacker needs `n` identities each holding `min_stake` liquid at once; if
+  its liquid capital `C` can't fund `n` bonds the attack is infeasible.
+  Threshold `min_stake = C/n` (20, 33, 100, 333 for `C` = 60, 100, 300,
+  1000). A defender can't read this off `V`; it depends on how deep the
+  attacker's pockets are.
+- **Slashing deters only in proportion to the catch probability.** With a
+  residual per-identity catch probability `p` (from random audit, collusion
+  detection, or the monitor's non-zero catch near threshold), the deterring
+  stake is `V(1-p)^n/(npσ)` — and it is enormous unless `p` is high: 7843
+  (`p`=0.02), 2858 (0.05), 427 (0.20), 90 (0.40). Only as `p` approaches ~0.4
+  does the required stake fall to the §7 scale.
+
+**The correction, and it is the more useful result.** Staking and detection
+are **complements, not substitutes**. A stake bond imposes cost only in
+proportion to the probability the stake is actually at risk, so
+`min_stake_to_participate` deters a monitor-evading Sybil attacker only when
+coupled to (a) a binding capital constraint or (b) a live audit/collusion
+detector that gives the slash something to bite. This is why SWARM already
+ships staking *and* `RandomAuditLever` *and* collusion detection: the economics
+say they only work together. It also re-reads the §6/§7 ladder — the top rung
+is defensible not by a large bond alone but by a bond × detection product, and
+the cheapest way to raise that product is usually better detection, not a
+higher bond.
 
 ## Iterative-deployment framing
 
