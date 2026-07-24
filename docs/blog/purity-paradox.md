@@ -17,7 +17,7 @@ abstract: "Populations with only 20% honest agents achieve 55% higher welfare th
 
 Populations with only 20% honest agents achieve 55% higher welfare than 100% honest populations. This is not a bug — it's a predictable consequence of how we measure welfare in [multi-agent systems](../research/papers.md), as formalized in [Soft-Label Governance for Distributional Safety in Multi-Agent Systems](https://arxiv.org/abs/2604.19752); see also [Distributional AGI Safety](https://arxiv.org/abs/2512.16856).
 
-## The surprising finding
+## The data
 
 We swept honest agent proportion from 0% to 100% in 10% steps (10 agents, 30 epochs, 3 seeds each). Non-honest slots were filled 60/40 deceptive/opportunistic.
 
