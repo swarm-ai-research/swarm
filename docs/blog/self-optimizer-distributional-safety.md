@@ -118,7 +118,7 @@ We wrote 32 tests to verify this framework. The core finding is clean:
 | Soft | Distribution shift (KS test) | **Yes** --- leftward shift |
 | Soft | Adverse selection drift | **Yes** --- worsening trajectory |
 
-Hard metrics pass. Soft metrics alarm. This is not a close call --- every soft metric independently detects the degradation that every hard metric misses.
+Hard metrics pass. Soft metrics alarm. Every soft metric independently detects the degradation that every hard metric misses.
 
 ## The broader point
 

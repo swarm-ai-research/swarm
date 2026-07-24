@@ -109,7 +109,7 @@ The answer, even from this small experiment:
 - **Binary evaluation catches nothing.** Tests pass every round.
 - **The capability-governance gap widens silently.** No alert fires.
 
-This is not a hypothetical. This is 83 lines of Python, merged today, on a real codebase. The agent that exists after these fixes is less governable than the agent that existed before them. Not because it's adversarial --- it was trying to help --- but because *resilience and governability are in tension*, and self-improvement naturally optimizes for resilience.
+This is 83 lines of Python, merged today, on a real codebase. The agent that exists after these fixes is less governable than the agent that existed before them. Not because it's adversarial — it was trying to help — but because *resilience and governability are in tension*, and self-improvement naturally optimizes for resilience.
 
 In a multi-agent ecosystem where many agents are self-improving in parallel, this dynamic compounds. Each agent becomes individually more robust. The population becomes collectively harder to monitor. The governance mechanisms designed for the original population gradually lose coverage of the improved one.
 
