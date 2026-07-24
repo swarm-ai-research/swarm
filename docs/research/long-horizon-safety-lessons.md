@@ -142,12 +142,17 @@ it is decomposition- and persistence-proof.
 
 **Head-to-head results (same run family, `20260723T170733Z`):**
 
-- **Horizon-stability, the headline.** Where the action filter collapses
-  0.89 → 0.00 over horizon 1→8, the trajectory monitor holds a **flat ~0.92
-  catch rate across every horizon** (1 through 24). It catches exactly the
-  decomposed attacks the action filter goes blind to. The ~0.92 (not 1.0) is
-  honest: a low-mass forbidden outcome (`M` below the monitor threshold)
-  slips under a coarse monitor — decomposition-proof is not mass-proof.
+- **Horizon-stability, the headline — but see §6 for the load-bearing
+  caveat.** Where the action filter collapses 0.89 → 0.00 over horizon 1→8,
+  the trajectory monitor holds a **flat ~0.92 catch rate across every
+  horizon** (1 through 24) *against a within-trajectory attacker*. It catches
+  exactly the step-decomposed attacks the action filter goes blind to. The
+  ~0.92 (not 1.0) is honest: a low-mass forbidden outcome (`M` below the
+  monitor threshold) slips under a coarse monitor — decomposition-proof is
+  not mass-proof. **The adversarial validation in §6 shows this "flat 0.92"
+  collapses to 0.00 the moment the attacker decomposes *across* trajectories
+  instead of within one — the monitor is to trajectories exactly what the
+  action filter is to steps.**
 - **Mid-trajectory pause pays off.** On a catch the monitor has realized only
   ~0.52–0.69 of the forbidden mass (it pauses around `threshold/M` of the way
   through), versus the full mass `M` a post-hoc penalty would let complete.
@@ -210,6 +215,62 @@ circumvention worker should therefore have an **instruction-decay** parameter:
 the probability it reverts to a salient-but-wrong instruction source (the
 NanoGPT "post to GitHub" trap) rising with elapsed steps. This makes incident
 1 (wrong instruction source) a tunable mechanism rather than a one-off.
+
+## 6. Adversarial validation: the aggregation ladder (beads `njvs`)
+
+The §1–§2 results were produced against attackers whose behavior was scripted
+non-adaptively. Following this project's own verification discipline, we then
+built an *adaptive* attacker that knows the active defense and decomposes one
+level above it (`swarm/redteam/decomposition_ladder.py`), and tried to
+**confirm** — not avoid — the hypothesis that trajectory-level monitoring is
+insufficient. It is.
+
+The aggregation levels form a ladder: action filter (per step) < trajectory
+monitor (per trajectory) < cross-trajectory monitor (per agent) < population
+monitor (per swarm — Sybil/collusion). Each rung sums suspicion at one level;
+each is defeated by decomposing the objective at the next. The catch-rate
+table (run `20260724T021810Z`, objective mass 2.0) is lower-triangular —
+**a defense monitoring up to level `m` catches an attacker of depth `d` iff
+`d < m`:**
+
+| defense ↓ / attacker → | direct | step | trajectory | agent |
+|---|---:|---:|---:|---:|
+| action filter (step) | 0.88 | 0.00 | 0.00 | 0.00 |
+| trajectory monitor | 1.00 | 1.00 | **0.00** | 0.00 |
+| cross-trajectory (agent) | 1.00 | 1.00 | 1.00 | **0.00** |
+
+The bolded cells are the finding. The trajectory monitor's flat ~0.92 from §2
+was an artifact of a within-trajectory attacker; a **cross-trajectory
+attacker drops it to 0.00** — the monitor is to trajectories exactly what the
+action filter is to steps. And the `agent` column is all zeros: a cross-agent
+(Sybil) attacker escapes *every per-agent defense*. For any finite defense
+level, an attacker adaptive to that level escapes. Aggregation does not remove
+the blind spot; it relocates it one rung up.
+
+**Two costs bound the ladder, and locate the real lever.**
+
+- *Defender false positives explode per rung.* On an honest footprint of the
+  same shape (3 agents × 4 trajectories × 8 steps), monitoring up to the step
+  and trajectory levels costs 0.000 false positives, but the cross-trajectory
+  (agent) monitor — the rung required to catch the cross-trajectory attacker —
+  costs **0.825**: it flags 82% of honest agents, because a per-agent window
+  sums far more benign activity than the threshold. The rung that closes the
+  hole is nearly unusable.
+- *Attacker decomposition cost rises, modestly.* Reaching each rung costs the
+  attacker more units (1 → 5 trajectories to beat the trajectory monitor;
+  +3 agents to beat the agent monitor for an objective of mass 2.0). This is
+  the countervailing force — and it is the actual defense.
+
+**Revised conclusion.** Trajectory-level monitoring (§2) is necessary but not
+sufficient, and higher aggregation is not a free ladder to climb — its
+false-positive cost is explosive. The lever that does not merely relocate the
+blind spot is *economic*: driving the per-rung threshold low enough that the
+attacker's decomposition cost (units, and especially Sybil identities at the
+top rung, where SWARM's existing collusion detection lives) exceeds the
+objective's value. This reframes the follow-ups: `q2fg` (trajectory-coverage)
+should be read not as "how much coverage buys safety" but as one rung of a
+ladder whose top is bounded by false-positive cost, and the open question is
+the attacker-cost curve, not the monitor-coverage curve.
 
 ## Iterative-deployment framing
 

@@ -26,6 +26,15 @@ from swarm.redteam.circumvention import (
     trajectory_monitor_catch_rate,
     trajectory_monitor_false_positive_rate,
 )
+from swarm.redteam.decomposition_ladder import (
+    AttackPlan,
+    LadderConfig,
+    LadderVerdict,
+    Level,
+    evaluate_attack,
+    honest_false_positive_rate,
+    plan_attack,
+)
 from swarm.redteam.evaluator import (
     GovernanceRobustness,
     RedTeamEvaluator,
@@ -71,4 +80,12 @@ __all__ = [
     "trajectory_monitor_catch_rate",
     "trajectory_monitor_false_positive_rate",
     "mean_realized_mass_on_catch",
+    # Decomposition ladder (njvs)
+    "LadderConfig",
+    "Level",
+    "AttackPlan",
+    "LadderVerdict",
+    "plan_attack",
+    "evaluate_attack",
+    "honest_false_positive_rate",
 ]
