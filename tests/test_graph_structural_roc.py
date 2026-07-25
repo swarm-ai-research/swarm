@@ -296,3 +296,180 @@ class TestTemporalCoordination:
             initiator="a", counterparty="b", p=0.5,
             timestamp=datetime(2026, 1, 1))]
         assert temporal_concentration(single, {"a", "b"}, n_windows=10) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Overlapping-coalition ground truth, per-coalition TPR, overlap sweep (qoro)
+# ---------------------------------------------------------------------------
+
+from experiments.graph_structural_roc import (  # noqa: E402
+    CRITERION_OVERLAP,
+    CRITERION_TPR,
+    RunResult,
+    disjoint_ground_truth,
+    overlap_criterion_verdict,
+    per_coalition_tpr,
+    run_overlap_sweep,
+)
+
+
+class TestDisjointGroundTruth:
+    def test_oldest_coalition_wins(self):
+        # "b" is in both; coalition 0 was joined first, so it keeps "b".
+        planted = [{"a", "b"}, {"b", "c"}]
+        assert disjoint_ground_truth(planted) == [{"a", "b"}, {"c"}]
+
+    def test_result_is_a_partition(self):
+        planted = [{"a", "b", "c"}, {"c", "d"}, {"a", "d", "e"}]
+        out = disjoint_ground_truth(planted)
+        # No member appears twice, and nothing is lost.
+        flat = [m for g in out for m in g]
+        assert len(flat) == len(set(flat))
+        assert set(flat) == set().union(*planted)
+
+    def test_fully_absorbed_coalition_is_dropped(self):
+        # At overlap 1.0 every coalition is the same set; only one survives,
+        # rather than leaving empty groups that would score a free 0 Jaccard.
+        planted = [{"a", "b"}, {"a", "b"}, {"a", "b"}]
+        assert disjoint_ground_truth(planted) == [{"a", "b"}]
+
+    def test_disjoint_input_is_unchanged(self):
+        planted = [{"a", "b"}, {"c", "d"}]
+        assert disjoint_ground_truth(planted) == planted
+
+    def test_empty(self):
+        assert disjoint_ground_truth([]) == []
+
+    def test_sample_property_matches_helper(self):
+        from experiments.graph_structural_roc import (
+            generate_overlapping_coalitions,
+        )
+        s = generate_overlapping_coalitions(
+            n_agents=40, n_coalitions=3, coalition_size=5,
+            overlap_fraction=0.5, seed=3)
+        assert s.planted_groups_disjoint == disjoint_ground_truth(
+            s.planted_groups)
+        # Partition of the same union the overlapping truth covers.
+        flat = [m for g in s.planted_groups_disjoint for m in g]
+        assert len(flat) == len(set(flat))
+        assert set(flat) == s.planted
+
+    def test_single_coalition_generators_unaffected(self):
+        s = generate_collusion_ring(n_agents=20, ring_size=4, seed=1)
+        assert s.planted_groups_disjoint == [s.planted]
+
+
+class TestPerCoalitionTPR:
+    def test_perfect(self):
+        planted = [{"a", "b"}, {"x", "y"}]
+        assert per_coalition_tpr([{"a", "b"}, {"x", "y"}], planted) == (1.0, 1.0)
+
+    def test_min_is_the_worst_coalition_not_the_mean(self):
+        # One coalition fully recovered, one half — mean 0.75, min 0.5.
+        planted = [{"a", "b"}, {"x", "y"}]
+        returned = [{"a", "b"}, {"x"}]
+        mean, mn = per_coalition_tpr(returned, planted)
+        assert mean == pytest.approx(0.75)
+        assert mn == pytest.approx(0.5)
+
+    def test_unmatched_coalition_scores_zero(self):
+        # Only one returned cluster for two planted coalitions.
+        planted = [{"a", "b"}, {"x", "y"}]
+        mean, mn = per_coalition_tpr([{"a", "b"}], planted)
+        assert mean == pytest.approx(0.5)
+        assert mn == 0.0
+
+    def test_no_clusters_returned(self):
+        assert per_coalition_tpr([], [{"a", "b"}]) == (0.0, 0.0)
+
+    def test_benign_returns_nan(self):
+        import math as _m
+        mean, mn = per_coalition_tpr([{"a"}], [])
+        assert _m.isnan(mean) and _m.isnan(mn)
+
+    def test_merging_two_coalitions_is_penalized_twice(self):
+        """Why 1:1 matching matters for the merged-blob case.
+
+        A detector that lumps two coalitions into one cluster fully contains
+        the coalition it matches (TPR 1.0 there), but 1:1 matching means the
+        blob can only claim *one* — the second coalition is left unmatched at
+        0.0. So min TPR is 0.0, not 1.0: merging is scored as missing a
+        coalition, which is the behavior the criterion should reward avoiding.
+        TPR still isn't a restatement of Jaccard — mean TPR 0.5 vs recovery
+        0.25, since Jaccard also charges for the members the blob adds.
+        """
+        planted = [{"a", "b"}, {"x", "y"}]
+        blob = [{"a", "b", "x", "y"}]
+        mean, mn = per_coalition_tpr(blob, planted)
+        assert mn == 0.0
+        assert mean == pytest.approx(0.5)
+        assert hungarian_recovery(blob, planted) == pytest.approx(0.25)
+
+    def test_agrees_with_hungarian_on_exact_recovery(self):
+        planted = [{"a", "b", "c"}, {"x", "y", "z"}]
+        returned = [{"x", "y", "z"}, {"a", "b", "c"}]
+        assert per_coalition_tpr(returned, planted) == (1.0, 1.0)
+        assert hungarian_recovery(returned, planted) == 1.0
+
+
+def _cell(**kw):
+    """Build a {detector: RunResult} cell for verdict tests."""
+    return {name: RunResult(family="overlap_0.40", detector=name,
+                            auc_mean=0.5, auc_lo=0.4, auc_hi=0.6, **vals)
+            for name, vals in kw.items()}
+
+
+class TestOverlapCriterionVerdict:
+    def test_met_when_all_clustering_detectors_clear_the_bar(self):
+        sweep = {CRITERION_OVERLAP: _cell(
+            good={"tpr_min": 0.9, "cluster_rate": 1.0},
+            alsogood={"tpr_min": CRITERION_TPR, "cluster_rate": 0.8},
+        )}
+        v = overlap_criterion_verdict(sweep)
+        assert "MET by all 2" in v
+        assert "NOT MET" not in v
+
+    def test_not_met_names_the_failing_detector_and_its_tpr(self):
+        sweep = {CRITERION_OVERLAP: _cell(
+            weak={"tpr_min": 0.42, "cluster_rate": 1.0},
+        )}
+        v = overlap_criterion_verdict(sweep)
+        assert "NOT MET" in v
+        assert "weak (min TPR 0.420)" in v
+
+    def test_non_clustering_detector_is_excluded_not_failed(self):
+        """The load-bearing distinction: a detector that never returns a
+        cluster scores TPR 0 on every family, so counting it as an overlap
+        failure would manufacture evidence about overlap it cannot supply."""
+        sweep = {CRITERION_OVERLAP: _cell(
+            clusters={"tpr_min": 0.9, "cluster_rate": 1.0},
+            abstains={"tpr_min": 0.0, "cluster_rate": 0.0},
+        )}
+        v = overlap_criterion_verdict(sweep)
+        assert "MET by all 1" in v
+        assert "Not evaluated (1): abstains" in v
+        assert "NOT MET" not in v
+
+    def test_all_abstain_is_not_evaluable(self):
+        sweep = {CRITERION_OVERLAP: _cell(
+            a={"tpr_min": 0.0, "cluster_rate": 0.0},
+            b={"tpr_min": 0.0, "cluster_rate": float("nan")},
+        )}
+        assert "NOT EVALUABLE" in overlap_criterion_verdict(sweep)
+
+    def test_missing_criterion_cell_is_reported(self):
+        assert "not in the swept grid" in overlap_criterion_verdict({0.1: {}})
+
+
+class TestOverlapSweep:
+    def test_sweep_covers_the_grid_and_criterion_point(self):
+        sweep = run_overlap_sweep(replicates=1, overlaps=[0.0, CRITERION_OVERLAP])
+        assert set(sweep) == {0.0, CRITERION_OVERLAP}
+        for cell in sweep.values():
+            assert set(cell) == set(DETECTORS)
+            for r in cell.values():
+                assert 0.0 <= r.cluster_rate <= 1.0
+
+    def test_overlap_is_recorded_in_the_family_name(self):
+        sweep = run_overlap_sweep(replicates=1, overlaps=[0.3])
+        assert all(r.family == "overlap_0.30" for r in sweep[0.3].values())
