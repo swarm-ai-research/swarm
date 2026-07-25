@@ -367,6 +367,61 @@ is defensible not by a large bond alone but by a bond × detection product, and
 the cheapest way to raise that product is usually better detection, not a
 higher bond.
 
+## 9. The bond × detection frontier, with both real levers (beads `3ru4`)
+
+§8 left the residual catch probability `p` as a free parameter. This step
+derives it from SWARM's real `RandomAuditLever` and combines it with the real
+`StakingLever` slash (`swarm/redteam/audit_bridge.py`, run
+`20260725T025137Z`), closing the chain end-to-end on actual governance code.
+
+The audit penalizes an interaction iff it is audited (prob `audit_probability`)
+**and** its proxy label is below `audit_threshold_p`. So — unsurprisingly by
+now — **the per-interaction audit is itself on the decomposition ladder:**
+
+- audit catch holds at ~`audit_probability` (0.39 at `audit_probability`=0.4)
+  while the attacker's interactions look dirtier than the threshold, then
+  **drops to 0.00 the instant the attacker cleans each interaction above
+  `audit_threshold_p`.** Decomposition blinds the audit exactly as it blinds
+  the action filter (§1) and the trajectory monitor (§6).
+- catching a *clean* attacker (interaction `p`≈0.8) requires
+  `audit_threshold_p ≥ 0.85`, which flags **35.6%** of honest work (proxy
+  `p`≈0.7). The threshold that bites a clean attacker sits above the honest
+  proxy floor, so it necessarily false-positives on honest interactions.
+
+The two-lever deterrence region (attacker at interaction `p`=0.4) makes the
+§8 complementarity concrete on real levers:
+
+| min_stake ↓ / audit_threshold_p → | 0.30 | 0.50 | 0.70 | 0.90 |
+|---|:--:|:--:|:--:|:--:|
+| 50 | · | · | · | · |
+| 200 | · | **#** | **#** | **#** |
+| 1000 | · | **#** | **#** | **#** |
+| honest false-positive cost | 0.00 | 0.02 | 0.20 | 0.38 |
+
+At `audit_threshold_p`=0.30 the audit does not bite this attacker (its
+interactions sit above the threshold), so **no stake deters** — the pure
+recoverable-bond result from §8. Deterrence appears only where the audit bites
+(threshold above the attacker's cleanliness) *and* the stake is large enough
+that the resulting slash exceeds the objective (≥200 here; 50 never deters).
+The usable cell is threshold 0.50 / stake 200 at just 2% honest FP — **but
+only because this attacker cannot clean past `p`=0.4.** An attacker with a
+larger decomposition budget (interaction `p`≥0.7) pushes the biting threshold
+to ≥0.7, where honest FP is 20–38%, and per-interaction audit stops being
+affordable.
+
+**Final synthesis.** Staking, monitoring, and auditing are all one-rung tools,
+and every one of them is defeated by decomposition below its granularity. They
+deter only in combination and only against attackers whose decomposition
+budget is bounded: audit forces the attacker to keep interactions dirty enough
+to be seen, and *given* that, a bond with slashing makes the seen fraction
+costly. Against an attacker who can decompose without bound, the load has to
+move to the one rung that aggregates across identities — collusion / Sybil
+detection — which is why that rung, not any per-unit monitor, is the real
+frontier. The through-line from the DGG episode holds at every level: local
+verification is defeated by decomposition; only aggregation across the level
+the attacker is exploiting — ultimately across *identities*, made economically
+binding by stake — closes the gap.
+
 ## Iterative-deployment framing
 
 OpenAI's meta-lesson — no fixed eval anticipates every behavior, so pair
