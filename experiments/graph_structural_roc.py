@@ -41,6 +41,7 @@ from swarm.knowledge.graph_memory import GraphMemoryStore, RelationshipEdge
 from swarm.metrics.collusion import CollusionDetector
 from swarm.metrics.graph_structural import (
     Edge,
+    cross_window_persistence,
     detect_structural_anomalies,
     edges_from_interactions,
     rank_aggregated_scores,
@@ -565,31 +566,61 @@ def detector_graph_structural(s: GraphSample) -> DetectorOutput:
 
 
 def detector_graph_structural_temporal(s: GraphSample) -> DetectorOutput:
-    """graph_structural + per-window detection + temporal concentration (beads-p56u).
+    """graph_structural + per-window detection + temporal shape signals (beads-p56u).
 
-    Combines the static detector's candidates with anomalies surfaced
-    by per-window detection (:func:`temporal_densest_anomalies`).
-    Per-anomaly score is the rank-aggregate composite plus an additive
-    temporal-concentration boost (half the concentration value, capped
-    at 1.0). Native flag fires when EITHER the static ``is_suspicious``
-    gate fires OR (size ≥ 3 AND temporal_concentration > 0.4) — additive,
-    not replacing the static gate.
+    Combines the static detector's candidates with *recurring*
+    coalitions surfaced by per-window detection
+    (:func:`temporal_densest_anomalies` with Jaccard grouping).
+    One-window candidates are discarded: a candidate mined from a
+    single window is concentrated in that window by construction, so
+    honest co-activity noise is indistinguishable from a burst
+    coalition on the concentration axis — keeping them flagged every
+    node in the graph and collapsed AUC to ~0.5 on the burst family
+    (the flag-everything failure this rewrite fixes). What noise
+    cannot do is re-assemble the same member set across windows, so
+    ``n_windows_surfaced >= 2`` is the admission ticket for
+    window-derived candidates.
 
-    The point: a coalition that bursts in 2-3 windows of an
-    otherwise-quiet run shows up in per-window detection even when its
-    aggregated edges look indistinguishable from background. Static
-    anomalies bundle the cluster with the surrounding community;
-    per-window detection isolates it.
+    Per-anomaly score is the rank-aggregate composite plus two
+    additive temporal boosts, capped at 1.0:
+
+    - concentration (one-flare shape): half the concentration value —
+      burstiness against a uniform background, now meaningful because
+      only static or recurring candidates reach this point.
+    - persistence (standing-channel shape): a quarter of the
+      cross-window persistence, **gated on null-model significance**
+      (pvalue ≤ 0.05). Raw persistence cannot discriminate — honest
+      communities also recur every window — so it only amplifies
+      candidates that already carry structural evidence: among
+      significant candidates, ten-for-ten recurrence outranks a
+      one-window flare.
+
+    Both boosts and the temporal flag gates additionally require the
+    candidate to be a *minority subset* (≤ half the graph). The global
+    densest-subgraph candidate frequently spans nearly every node, and
+    a whole-graph "coalition" trivially has persistence 1.0 and a
+    floor p-value (the configuration null merges multi-edges, so it
+    can never out-dense the full graph) — without the minority
+    condition the persistence gate flags the entire graph.
+
+    Native flag fires when the static ``is_suspicious`` gate fires,
+    OR (minority AND size ≥ 3 AND temporal_concentration > 0.4),
+    OR (minority AND size ≥ 3 AND persistence > 0.7 AND
+    pvalue ≤ 0.05) — additive, not replacing the static gate.
     """
     static_anoms = detect_structural_anomalies(
         s.edges, n_null_samples=20, seed=s.seed)
     window_anoms = temporal_densest_anomalies(
         s.interactions, n_windows=10, min_size=3,
         n_null_samples=10, seed=s.seed + 9000)
-    # Merge candidate sets (dedup by member set).
+    # Window-derived candidates must recur (>= 2 windows); static
+    # candidates (n_windows_surfaced == 0) always enter. Dedup by
+    # member set.
     seen: List[Set[str]] = []
     all_anoms = []
     for a in static_anoms + window_anoms:
+        if a.n_windows_surfaced == 1:
+            continue
         if any(a.members == m for m in seen):
             continue
         seen.append(a.members)
@@ -599,10 +630,20 @@ def detector_graph_structural_temporal(s: GraphSample) -> DetectorOutput:
     boosted_flags: Set[str] = set()
     clusters: List[Set[str]] = []
     for a in all_anoms:
+        minority = len(a.members) <= len(s.nodes) // 2
         tc = temporal_concentration(s.interactions, a.members, n_windows=12)
+        tp = cross_window_persistence(s.interactions, a.members, n_windows=12)
+        significant = a.pvalue <= 0.05
+        boost = (
+            0.5 * tc + (0.25 * tp if significant else 0.0)
+        ) if minority else 0.0
         for u in a.members:
-            scores[u] = min(1.0, scores[u] + 0.5 * tc)
-        if a.is_suspicious or (len(a.members) >= 3 and tc > 0.4):
+            scores[u] = min(1.0, scores[u] + boost)
+        if (
+            a.is_suspicious
+            or (minority and len(a.members) >= 3 and tc > 0.4)
+            or (minority and len(a.members) >= 3 and tp > 0.7 and significant)
+        ):
             boosted_flags.update(a.members)
             clusters.append(a.members)
     native_flags = {n: (n in boosted_flags) for n in s.nodes}

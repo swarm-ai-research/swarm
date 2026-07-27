@@ -297,6 +297,147 @@ class TestTemporalCoordination:
             timestamp=datetime(2026, 1, 1))]
         assert temporal_concentration(single, {"a", "b"}, n_windows=10) == 0.0
 
+    def test_persistence_high_on_recurring_cluster(self):
+        """A cluster active in every window is a standing channel:
+        persistence ~1.0. Complement of the concentration signal."""
+        from datetime import datetime, timedelta
+
+        from swarm.metrics.graph_structural import cross_window_persistence
+        from swarm.models.interaction import SoftInteraction
+        base = datetime(2026, 1, 1)
+        cluster = {"a", "b"}
+        # One cluster-internal interaction every 5 minutes for an hour
+        ixs = [
+            SoftInteraction(
+                initiator="a", counterparty="b", p=0.8,
+                timestamp=base + timedelta(seconds=i * 300))
+            for i in range(12)
+        ]
+        pers = cross_window_persistence(ixs, cluster, n_windows=12)
+        assert pers > 0.9, f"expected ~1.0 persistence, got {pers}"
+
+    def test_persistence_low_on_one_flare(self):
+        """A single-window flare against an always-active background
+        scores 1/n_active_windows — the shape persistence is built to
+        deprioritize relative to recurrence."""
+        from datetime import datetime, timedelta
+
+        from swarm.metrics.graph_structural import cross_window_persistence
+        from swarm.models.interaction import SoftInteraction
+        base = datetime(2026, 1, 1)
+        cluster = {"a", "b"}
+        ixs = []
+        # Cluster: 10 interactions inside one minute
+        for i in range(10):
+            ixs.append(SoftInteraction(
+                initiator="a", counterparty="b", p=0.8,
+                timestamp=base + timedelta(seconds=i * 6)))
+        # Background keeps every window active over 2 hours
+        for i in range(120):
+            ixs.append(SoftInteraction(
+                initiator="h0", counterparty="h1", p=0.6,
+                timestamp=base + timedelta(seconds=i * 60)))
+        pers = cross_window_persistence(ixs, cluster, n_windows=12)
+        assert pers <= 1 / 12 + 1e-9, f"expected one-window persistence, got {pers}"
+
+    def test_persistence_denominator_is_active_windows(self):
+        """Globally quiet windows must not dilute persistence: cluster
+        active in both of the only two active windows scores 1.0."""
+        from datetime import datetime, timedelta
+
+        from swarm.metrics.graph_structural import cross_window_persistence
+        from swarm.models.interaction import SoftInteraction
+        base = datetime(2026, 1, 1)
+        cluster = {"a", "b"}
+        # Activity only at the very start and very end of the range;
+        # the 8 middle windows are empty for everyone.
+        ixs = [
+            SoftInteraction(initiator="a", counterparty="b", p=0.8,
+                            timestamp=base),
+            SoftInteraction(initiator="a", counterparty="b", p=0.8,
+                            timestamp=base + timedelta(hours=10)),
+        ]
+        pers = cross_window_persistence(ixs, cluster, n_windows=10)
+        assert pers == pytest.approx(1.0)
+
+    def test_persistence_edge_cases(self):
+        from datetime import datetime
+
+        from swarm.metrics.graph_structural import cross_window_persistence
+        from swarm.models.interaction import SoftInteraction
+        assert cross_window_persistence([], {"a"}, n_windows=10) == 0.0
+        # All timestamps equal -> no time axis -> 0.0
+        same = [
+            SoftInteraction(initiator="a", counterparty="b", p=0.5,
+                            timestamp=datetime(2026, 1, 1))
+            for _ in range(3)
+        ]
+        assert cross_window_persistence(same, {"a", "b"}, n_windows=10) == 0.0
+
+    def test_temporal_anomalies_annotated_with_shape_signals(self):
+        """temporal_densest_anomalies fills temporal_concentration and
+        temporal_persistence on every returned anomaly; the static
+        detector leaves the 0.0 defaults."""
+        from experiments.graph_structural_roc import generate_burst_coordination
+        from swarm.metrics.graph_structural import (
+            detect_structural_anomalies,
+            temporal_densest_anomalies,
+        )
+        s = generate_burst_coordination(n_agents=30, cluster_size=4,
+                                        n_bursts=2, seed=0)
+        window_anoms = temporal_densest_anomalies(
+            s.interactions, n_windows=10, min_size=3, n_null_samples=5, seed=1)
+        assert window_anoms, "burst sample should surface per-window anomalies"
+        cluster_anoms = [
+            a for a in window_anoms if a.members <= s.planted
+        ]
+        assert cluster_anoms, "planted cluster should appear as a window anomaly"
+        for a in cluster_anoms:
+            # Bursty cluster: concentrated (few windows), not persistent.
+            assert a.temporal_concentration > 0.4
+            assert a.temporal_persistence < 0.5
+        static = detect_structural_anomalies(s.edges, n_null_samples=5, seed=1)
+        for a in static:
+            assert a.temporal_concentration == 0.0
+            assert a.temporal_persistence == 0.0
+
+    def test_planted_burst_cluster_recurs_across_windows(self):
+        """The planted coalition re-surfaces as (Jaccard-matched) the
+        same member set in multiple windows; that recurrence count is
+        the signal separating it from one-window honest noise."""
+        from experiments.graph_structural_roc import generate_burst_coordination
+        from swarm.metrics.graph_structural import temporal_densest_anomalies
+        s = generate_burst_coordination(n_agents=50, cluster_size=5,
+                                        n_bursts=3, seed=0)
+        anoms = temporal_densest_anomalies(
+            s.interactions, n_windows=10, min_size=3, n_null_samples=5, seed=1)
+        planted_reps = [
+            a for a in anoms
+            if len(a.members & s.planted) / len(a.members | s.planted) >= 0.6
+        ]
+        assert planted_reps, "planted cluster should surface as a group"
+        assert max(a.n_windows_surfaced for a in planted_reps) >= 2
+
+    def test_temporal_detector_flags_cluster_not_everything(self):
+        """Regression for the flag-everything failure (beads-p56u): the
+        first-cut detector flagged all 50 nodes on its own burst family
+        (every one-window candidate is window-concentrated by
+        construction; whole-graph candidates pass the persistence gate
+        trivially). The recurrence + minority gates must keep the flag
+        set tight around the planted cluster."""
+        from experiments.graph_structural_roc import (
+            detector_graph_structural_temporal,
+            generate_burst_coordination,
+        )
+        s = generate_burst_coordination(n_agents=50, cluster_size=5,
+                                        n_bursts=3, seed=0)
+        out = detector_graph_structural_temporal(s)
+        flagged = {n for n, f in out.native_flags.items() if f}
+        assert s.planted <= flagged, "planted cluster must be flagged"
+        assert len(flagged) <= 3 * len(s.planted), (
+            f"flag set should be tight around the cluster, got {len(flagged)}"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Overlapping-coalition ground truth, per-coalition TPR, overlap sweep (qoro)
