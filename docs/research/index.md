@@ -98,6 +98,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Ecosystem governance lessons from Tao's AI-contributions ledger: verification bottleneck, denominator problem, corroboration vs. collusion
 
+-   :material-autorenew: **[Reflective Self-Improvement Lessons](reflective-self-improvement-lessons.md)**
+
+    ---
+
+    The compiler bootstrap analogy and its limits: why a fixed-point tripwire certifies convergence rather than correctness, and the variance term the framework omits
+
 -   :material-file-alert: **[ARA Compiler Pilot Report](ara-pilot-report.md)**
 
     ---
