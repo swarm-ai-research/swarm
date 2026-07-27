@@ -200,10 +200,19 @@ Every session maintains a pid-keyed heartbeat in `.claude/session-heartbeats/`
 (written by the governance shim on session start and refreshed on every tool
 call). When a session that is **not** in an isolated worktree starts — or
 commits — while another live session shares the checkout, it gets a loud
-warning naming the other pids (exhibits of why: bead `oldj`). Set
-`SWARM_BLOCK_CONCURRENT_COMMITS=1` to turn the commit-time warning into a hard
-block. Worktree sessions (`IS_SESSION_WORKTREE=true`) are exempt — that is the
-sanctioned way to run concurrently.
+warning naming the other pids (exhibits of why: bead `oldj`). **Since
+2026-07-27 the commit-time check is a hard block by default**; set
+`SWARM_BLOCK_CONCURRENT_COMMITS=0` to downgrade it to the old warning. Worktree
+sessions (`IS_SESSION_WORKTREE=true`) are exempt — that is the sanctioned way to
+run concurrently.
+
+The default was flipped after the advisory version failed in the way it
+predicted: it fired, named the correct pid, and the commit proceeded into the
+race anyway — one session's staged files were absorbed into another session's
+commit under the wrong bead id. A blocked commit loses nothing (staged changes
+survive; move to a worktree or retry), while the race it prevents costs
+provenance and can cost work. The same switch also governs the claim-collision
+gate.
 
 ### Session Work-Start Protocol (`/claim`)
 
