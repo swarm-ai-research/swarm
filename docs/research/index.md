@@ -104,6 +104,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     The compiler bootstrap analogy and its limits: why a fixed-point tripwire certifies convergence rather than correctness, and the variance term the framework omits
 
+-   :material-sword-cross: **[Hyperspace Two-Swarms Lessons](hyperspace-two-swarms-lessons.md)**
+
+    ---
+
+    Attacker vs. defender swarms on the OpenAI-HF incident: correlation degrades both by the same factor, but the attacker pays in visible latency and the defender in silent misses
+
 -   :material-file-alert: **[ARA Compiler Pilot Report](ara-pilot-report.md)**
 
     ---
