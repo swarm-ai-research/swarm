@@ -18,7 +18,11 @@ from swarm.governance.collusion import CollusionPenaltyLever
 from swarm.governance.config import GovernanceConfig
 from swarm.governance.council_lever import CouncilGovernanceLever
 from swarm.governance.decomposition import DecompositionLever
-from swarm.governance.diversity import DiversityDefenseLever, DiversityMetrics
+from swarm.governance.diversity import (
+    ConsensusEvidence,
+    DiversityDefenseLever,
+    DiversityMetrics,
+)
 from swarm.governance.dynamic_friction import IncoherenceFrictionLever
 from swarm.governance.engine import GovernanceEffect, GovernanceEngine
 from swarm.governance.ensemble import SelfEnsembleLever
@@ -60,6 +64,7 @@ __all__ = [
     "IncoherenceFrictionLever",
     "MoltbookRateLimitLever",
     "ChallengeVerificationLever",
+    "ConsensusEvidence",
     "DiversityDefenseLever",
     "DiversityMetrics",
     "CouncilGovernanceLever",

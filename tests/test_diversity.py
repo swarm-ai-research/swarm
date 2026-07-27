@@ -228,6 +228,243 @@ class TestDisagreementRate:
         assert d == pytest.approx(0.0)
 
 
+class TestDesignEffect:
+    """Tests for compute_design_effect (Rule 5)."""
+
+    def test_zero_correlation_is_unity(self):
+        assert DiversityDefenseLever.compute_design_effect(10, 0.0) == pytest.approx(
+            1.0
+        )
+
+    def test_formula(self):
+        # DEFF = 1 + (N-1)*rho = 1 + 9*0.4 = 4.6
+        assert DiversityDefenseLever.compute_design_effect(10, 0.4) == pytest.approx(
+            4.6
+        )
+
+    def test_perfect_correlation_equals_n(self):
+        assert DiversityDefenseLever.compute_design_effect(8, 1.0) == pytest.approx(8.0)
+
+    def test_negative_correlation_clamped_to_one(self):
+        """The gate only ever discounts; it never credits extra certainty."""
+        assert DiversityDefenseLever.compute_design_effect(10, -0.5) == pytest.approx(
+            1.0
+        )
+
+    def test_single_agent(self):
+        assert DiversityDefenseLever.compute_design_effect(1, 0.9) == pytest.approx(1.0)
+
+    def test_increases_with_correlation(self):
+        lo = DiversityDefenseLever.compute_design_effect(10, 0.2)
+        hi = DiversityDefenseLever.compute_design_effect(10, 0.8)
+        assert hi > lo
+
+
+class TestEffectiveN:
+    """Tests for compute_effective_n (Rule 5)."""
+
+    def test_independent_agents_full_credit(self):
+        assert DiversityDefenseLever.compute_effective_n(10, 0.0) == pytest.approx(10.0)
+
+    def test_perfect_correlation_collapses_to_one(self):
+        """N clones are one agent wearing N hats."""
+        assert DiversityDefenseLever.compute_effective_n(20, 1.0) == pytest.approx(1.0)
+
+    def test_formula(self):
+        # N_eff = 10 / (1 + 9*0.4) = 10 / 4.6
+        assert DiversityDefenseLever.compute_effective_n(10, 0.4) == pytest.approx(
+            10 / 4.6
+        )
+
+    def test_decreases_with_correlation(self):
+        lo = DiversityDefenseLever.compute_effective_n(10, 0.8)
+        hi = DiversityDefenseLever.compute_effective_n(10, 0.2)
+        assert lo < hi
+
+    def test_zero_agents(self):
+        assert DiversityDefenseLever.compute_effective_n(0, 0.5) == pytest.approx(0.0)
+
+    def test_never_exceeds_n(self):
+        """INV-5: N_eff <= N for any correlation, including negative."""
+        for n in (1, 2, 5, 10, 50):
+            for rho in (-1.0, -0.5, -0.1, 0.0, 0.1, 0.5, 0.99, 1.0):
+                assert DiversityDefenseLever.compute_effective_n(n, rho) <= n + 1e-9
+
+    def test_positive_for_positive_n(self):
+        for rho in (0.0, 0.5, 1.0):
+            assert DiversityDefenseLever.compute_effective_n(10, rho) > 0.0
+
+
+class TestWilsonLowerBound:
+    """Tests for wilson_lower_bound."""
+
+    def test_bound_below_point_estimate(self):
+        lb = DiversityDefenseLever.wilson_lower_bound(8, 10, 1.96)
+        assert 0.0 < lb < 0.8
+
+    def test_more_data_tightens_bound(self):
+        small = DiversityDefenseLever.wilson_lower_bound(8, 10, 1.96)
+        large = DiversityDefenseLever.wilson_lower_bound(80, 100, 1.96)
+        assert large > small
+
+    def test_unanimous_small_sample_is_not_certainty(self):
+        lb = DiversityDefenseLever.wilson_lower_bound(3, 3, 1.96)
+        assert lb < 1.0
+
+    def test_zero_n_returns_zero(self):
+        assert DiversityDefenseLever.wilson_lower_bound(0, 0, 1.96) == pytest.approx(
+            0.0
+        )
+
+    def test_stays_in_unit_interval(self):
+        for successes, n in ((0, 5), (5, 5), (2.5, 5), (1, 1)):
+            lb = DiversityDefenseLever.wilson_lower_bound(successes, n, 1.96)
+            assert 0.0 <= lb <= 1.0
+
+    def test_accepts_fractional_n(self):
+        lb = DiversityDefenseLever.wilson_lower_bound(2.3, 2.3, 1.96)
+        assert 0.0 < lb < 1.0
+
+
+class TestConsensusEvidence:
+    """Tests for compute_consensus_evidence (Rule 5)."""
+
+    def test_independent_unanimity_no_inflation(self):
+        ev = DiversityDefenseLever.compute_consensus_evidence([1] * 10, 0.0)
+        assert ev.effective_n == pytest.approx(10.0)
+        assert ev.consensus_inflation == pytest.approx(0.0)
+        assert ev.adjusted_confidence == pytest.approx(ev.naive_confidence)
+
+    def test_correlated_unanimity_is_inflated(self):
+        """The headline claim: agreement among clones overstates the evidence."""
+        ev = DiversityDefenseLever.compute_consensus_evidence([1] * 10, 0.9)
+        assert ev.agreement_fraction == pytest.approx(1.0)
+        assert ev.adjusted_confidence < ev.naive_confidence
+        assert ev.consensus_inflation > 0.1
+
+    def test_inflation_monotone_in_correlation(self):
+        votes = [1] * 12
+        inflations = [
+            DiversityDefenseLever.compute_consensus_evidence(votes, r).consensus_inflation
+            for r in (0.0, 0.25, 0.5, 0.75, 1.0)
+        ]
+        assert inflations == sorted(inflations)
+
+    def test_perfect_correlation_collapses_evidence(self):
+        ev = DiversityDefenseLever.compute_consensus_evidence([1] * 50, 1.0)
+        assert ev.effective_n == pytest.approx(1.0)
+        # 50 unanimous clones carry the evidence of a single agent.
+        single = DiversityDefenseLever.compute_consensus_evidence([1], 0.0)
+        assert ev.adjusted_confidence == pytest.approx(single.adjusted_confidence)
+
+    def test_agreement_fraction_is_majority_side(self):
+        ev = DiversityDefenseLever.compute_consensus_evidence([1, 1, 1, 0], 0.0)
+        assert ev.agreement_fraction == pytest.approx(0.75)
+
+    def test_minority_vote_counted_as_majority_bloc(self):
+        ev = DiversityDefenseLever.compute_consensus_evidence([0, 0, 0, 1], 0.0)
+        assert ev.agreement_fraction == pytest.approx(0.75)
+
+    def test_quorum_satisfied_when_diverse(self):
+        ev = DiversityDefenseLever.compute_consensus_evidence(
+            [1] * 10, 0.0, min_effective_n=2.0
+        )
+        assert ev.quorum_satisfied is True
+
+    def test_quorum_fails_when_collapsed(self):
+        ev = DiversityDefenseLever.compute_consensus_evidence(
+            [1] * 10, 0.95, min_effective_n=2.0
+        )
+        assert ev.quorum_satisfied is False
+
+    def test_empty_votes(self):
+        ev = DiversityDefenseLever.compute_consensus_evidence([], 0.5)
+        assert ev.n_votes == 0
+        assert ev.effective_n == pytest.approx(0.0)
+        assert ev.consensus_inflation == pytest.approx(0.0)
+        assert ev.quorum_satisfied is False
+
+    def test_inflation_never_negative(self):
+        for rho in (-1.0, -0.3, 0.0, 0.5, 1.0):
+            for votes in ([1] * 5, [1, 0, 1, 0], [0] * 7, [1]):
+                ev = DiversityDefenseLever.compute_consensus_evidence(votes, rho)
+                assert ev.consensus_inflation >= 0.0
+
+    def test_confidences_in_unit_interval(self):
+        for rho in (0.0, 0.4, 1.0):
+            ev = DiversityDefenseLever.compute_consensus_evidence([1] * 9, rho)
+            assert 0.0 <= ev.adjusted_confidence <= 1.0
+            assert 0.0 <= ev.naive_confidence <= 1.0
+
+    def test_more_diverse_agents_beat_more_correlated_agents(self):
+        """Three independent votes outweigh twenty correlated ones."""
+        few_diverse = DiversityDefenseLever.compute_consensus_evidence([1] * 3, 0.0)
+        many_clones = DiversityDefenseLever.compute_consensus_evidence([1] * 20, 0.95)
+        assert few_diverse.effective_n > many_clones.effective_n
+        assert few_diverse.adjusted_confidence > many_clones.adjusted_confidence
+
+
+class TestAssessConsensus:
+    """Tests for the lever-bound assess_consensus wrapper."""
+
+    def test_uses_measured_correlation(self):
+        config = GovernanceConfig(diversity_enabled=True)
+        lever = DiversityDefenseLever(config)
+        state = _make_homogeneous_state()
+
+        # Drive identical error histories so measured rho_bar is high.
+        pattern = [1, 0, 1, 1, 0, 0, 1, 0]
+        for agent_id in list(state.agents):
+            lever._error_history[agent_id] = list(pattern)
+        lever._compute_full_metrics(state)
+
+        assert lever.get_metrics().mean_correlation > 0.9
+        ev = lever.assess_consensus([1] * 5)
+        assert ev.mean_correlation > 0.9
+        assert ev.effective_n < 2.0
+        assert ev.consensus_inflation > 0.0
+
+    def test_defaults_to_zero_correlation_before_snapshot(self):
+        config = GovernanceConfig(diversity_enabled=True)
+        lever = DiversityDefenseLever(config)
+        ev = lever.assess_consensus([1] * 4)
+        assert ev.mean_correlation == pytest.approx(0.0)
+        assert ev.effective_n == pytest.approx(4.0)
+
+    def test_respects_config_quorum(self):
+        config = GovernanceConfig(diversity_enabled=True, diversity_min_effective_n=8.0)
+        lever = DiversityDefenseLever(config)
+        ev = lever.assess_consensus([1] * 5)
+        assert ev.effective_n == pytest.approx(5.0)
+        assert ev.quorum_satisfied is False
+
+    def test_epoch_metrics_carry_effective_n(self):
+        config = GovernanceConfig(diversity_enabled=True)
+        lever = DiversityDefenseLever(config)
+        state = _make_diverse_state()
+        effect = lever.on_epoch_start(state, epoch=0)
+        assert "effective_n" in effect.details
+        assert "design_effect" in effect.details
+        assert lever.get_effective_n() == pytest.approx(effect.details["effective_n"])
+
+
+class TestConsensusConfig:
+    """Validation for the Rule 5 config knobs."""
+
+    def test_defaults(self):
+        config = GovernanceConfig()
+        assert config.diversity_consensus_z == 1.96
+        assert config.diversity_min_effective_n == 2.0
+
+    def test_invalid_z(self):
+        with pytest.raises(ValidationError, match="diversity_consensus_z"):
+            GovernanceConfig(diversity_consensus_z=0.0)
+
+    def test_invalid_min_effective_n(self):
+        with pytest.raises(ValidationError, match="diversity_min_effective_n"):
+            GovernanceConfig(diversity_min_effective_n=-1.0)
+
+
 # ---------------------------------------------------------------------------
 # Lever lifecycle hooks
 # ---------------------------------------------------------------------------

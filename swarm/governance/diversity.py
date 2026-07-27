@@ -9,6 +9,18 @@ The lever tracks pairwise error correlations across agent types and enforces:
   Rule 2 - Entropy floor: H(x) >= H_min
   Rule 3 - Adversarial fraction: sum of adversarial type weights >= alpha_min
   Rule 4 - Disagreement-triggered audit: D(t) >= tau triggers audit
+  Rule 5 - Effective-N quorum: N_eff(x) >= N_eff_min for consensus to count
+
+Rules 1-4 price correlation on the *risk* side: they penalise a population mix
+whose errors move together.  Rule 5 is the *decision*-side dual.  The risk
+surrogate inflates variance by the factor ``1 + (N-1) * rho_bar``; the same
+factor is the survey-statistics design effect, and dividing N by it gives the
+effective sample size.  A swarm that counts N correlated votes as N independent
+votes is reading agreement that its members did not independently produce:
+under high rho_bar, unanimity carries the evidence of roughly one agent.
+
+The gap between the confidence a naive vote count implies and the confidence
+that survives the effective-N correction is reported as ``consensus_inflation``.
 """
 
 import math
@@ -60,6 +72,50 @@ class DiversityMetrics:
     # Last disagreement rate observed
     disagreement_rate: float = 0.0
     disagreement_audit_triggered: bool = False
+
+    # Design effect and effective sample size at the current mix (Rule 5)
+    design_effect: float = 1.0
+    effective_n: float = 0.0
+    effective_n_quorum_satisfied: bool = True
+
+
+@dataclass
+class ConsensusEvidence:
+    """How much independent evidence a block of agreeing votes actually carries.
+
+    Produced by :meth:`DiversityDefenseLever.compute_consensus_evidence`.  The
+    headline field is :attr:`consensus_inflation` -- the confidence a naive
+    vote count claims minus the confidence that survives correcting N down to
+    the effective sample size.  It is zero for uncorrelated agents and grows
+    toward the naive bound as the population collapses onto one basin.
+    """
+
+    # Number of votes cast
+    n_votes: int = 0
+
+    # Fraction of votes agreeing with the majority, in [0.5, 1]
+    agreement_fraction: float = 0.0
+
+    # Mean pairwise error correlation used for the correction
+    mean_correlation: float = 0.0
+
+    # Design effect DEFF = 1 + (N - 1) * rho_bar, floored at 1.0
+    design_effect: float = 1.0
+
+    # Effective sample size N_eff = N / DEFF
+    effective_n: float = 0.0
+
+    # Wilson lower bound on the agreement fraction at N votes
+    naive_confidence: float = 0.0
+
+    # Wilson lower bound on the agreement fraction at N_eff votes
+    adjusted_confidence: float = 0.0
+
+    # naive_confidence - adjusted_confidence; the overstatement being corrected
+    consensus_inflation: float = 0.0
+
+    # Whether N_eff cleared the quorum floor (Rule 5)
+    quorum_satisfied: bool = False
 
 
 class DiversityDefenseLever(GovernanceLever):
@@ -265,6 +321,169 @@ class DiversityDefenseLever(GovernanceLever):
         return mean_error * (1 - mean_error) * (1 + (n_agents - 1) * mean_correlation)
 
     @staticmethod
+    def compute_design_effect(
+        n_agents: int,
+        mean_correlation: float,
+    ) -> float:
+        """Compute the design effect DEFF = 1 + (N - 1) * rho_bar.
+
+        This is the same factor that inflates the risk surrogate, read as the
+        survey-statistics design effect: the ratio between the variance of a
+        correlated sample of size N and that of an independent sample of the
+        same size.
+
+        The result is floored at 1.0.  Negative correlation genuinely carries
+        *more* information than independence, but this lever is a safety gate
+        and only ever discounts evidence -- it never credits a swarm with more
+        certainty than it has bodies.  So anticonservative design effects are
+        clamped away, which also makes ``N_eff <= N`` hold unconditionally.
+
+        Args:
+            n_agents: Number of agents voting (N).
+            mean_correlation: Mean pairwise error correlation (rho_bar).
+
+        Returns:
+            Design effect, always >= 1.0.
+        """
+        if n_agents < 2:
+            return 1.0
+        return max(1.0, 1.0 + (n_agents - 1) * mean_correlation)
+
+    @classmethod
+    def compute_effective_n(
+        cls,
+        n_agents: int,
+        mean_correlation: float,
+    ) -> float:
+        """Compute the effective sample size N_eff = N / DEFF.
+
+        At rho_bar = 0 this returns N (votes are independent).  At rho_bar = 1
+        it returns 1.0 regardless of N: perfectly correlated agents are one
+        agent wearing N hats.
+
+        Args:
+            n_agents: Number of agents voting (N).
+            mean_correlation: Mean pairwise error correlation (rho_bar).
+
+        Returns:
+            Effective sample size in [0, N].
+        """
+        if n_agents < 1:
+            return 0.0
+        return n_agents / cls.compute_design_effect(n_agents, mean_correlation)
+
+    @staticmethod
+    def wilson_lower_bound(
+        successes: float,
+        n: float,
+        z: float,
+    ) -> float:
+        """Wilson score lower bound on a proportion.
+
+        Accepts fractional ``n`` so the same estimator can be evaluated at an
+        effective sample size.
+
+        Args:
+            successes: Observed successes (may be fractional).
+            n: Sample size (may be fractional).
+            z: Standard-normal quantile for the desired coverage.
+
+        Returns:
+            Lower bound on the underlying proportion, clamped to [0, 1].
+        """
+        if n <= 0:
+            return 0.0
+        p_hat = min(1.0, max(0.0, successes / n))
+        z2 = z * z
+        denom = 1.0 + z2 / n
+        center = (p_hat + z2 / (2.0 * n)) / denom
+        margin = (
+            z / denom * math.sqrt(p_hat * (1.0 - p_hat) / n + z2 / (4.0 * n * n))
+        )
+        return min(1.0, max(0.0, center - margin))
+
+    @classmethod
+    def compute_consensus_evidence(
+        cls,
+        decisions: List[int],
+        mean_correlation: float,
+        z: float = 1.96,
+        min_effective_n: float = 2.0,
+    ) -> ConsensusEvidence:
+        """Discount a block of votes by the correlation among the voters.
+
+        Counts the majority bloc, then evaluates the same Wilson lower bound
+        twice -- once at the raw vote count N, once at the effective sample
+        size N_eff -- and reports the difference.  Unanimity among strongly
+        correlated agents produces a high naive bound and a low adjusted one:
+        the vote count was measuring shared prior, not independent agreement.
+
+        Args:
+            decisions: Binary decisions (0 or 1) from N agents.
+            mean_correlation: Mean pairwise error correlation (rho_bar).
+            z: Standard-normal quantile for the Wilson bound.
+            min_effective_n: Quorum floor on N_eff (Rule 5).
+
+        Returns:
+            A :class:`ConsensusEvidence` snapshot.
+        """
+        n = len(decisions)
+        if n == 0:
+            return ConsensusEvidence(mean_correlation=mean_correlation)
+
+        count_1 = sum(decisions)
+        majority = max(count_1, n - count_1)
+        agreement = majority / n
+
+        deff = cls.compute_design_effect(n, mean_correlation)
+        n_eff = cls.compute_effective_n(n, mean_correlation)
+
+        naive = cls.wilson_lower_bound(majority, n, z)
+        # Hold the observed agreement rate fixed; shrink only the sample size.
+        adjusted = cls.wilson_lower_bound(agreement * n_eff, n_eff, z)
+
+        return ConsensusEvidence(
+            n_votes=n,
+            agreement_fraction=agreement,
+            mean_correlation=mean_correlation,
+            design_effect=deff,
+            effective_n=n_eff,
+            naive_confidence=naive,
+            adjusted_confidence=adjusted,
+            consensus_inflation=max(0.0, naive - adjusted),
+            quorum_satisfied=n_eff >= min_effective_n,
+        )
+
+    def assess_consensus(
+        self,
+        decisions: List[int],
+    ) -> ConsensusEvidence:
+        """Discount votes using the lever's own measured correlation.
+
+        Convenience wrapper over :meth:`compute_consensus_evidence` that reads
+        ``rho_bar`` from the latest metrics snapshot and ``z`` / the quorum
+        floor from config, so callers do not have to thread the correlation
+        estimate through by hand.
+
+        Args:
+            decisions: Binary decisions (0 or 1) from N agents.
+
+        Returns:
+            A :class:`ConsensusEvidence` snapshot at the current mix.
+        """
+        rho_bar = (
+            self._latest_metrics.mean_correlation
+            if self._latest_metrics is not None
+            else 0.0
+        )
+        return self.compute_consensus_evidence(
+            decisions,
+            rho_bar,
+            z=self.config.diversity_consensus_z,
+            min_effective_n=self.config.diversity_min_effective_n,
+        )
+
+    @staticmethod
     def compute_disagreement_rate(
         decisions: List[int],
     ) -> float:
@@ -327,6 +546,10 @@ class DiversityDefenseLever(GovernanceLever):
         n_agents = len(state.agents)
         risk = self.compute_risk_surrogate(mean_error, rho_bar, n_agents)
 
+        # Rule 5: the decision-side reading of the same correlation factor.
+        deff = self.compute_design_effect(n_agents, rho_bar)
+        n_eff = self.compute_effective_n(n_agents, rho_bar)
+
         metrics = DiversityMetrics(
             population_mix=mix,
             mean_error_rate=mean_error,
@@ -339,6 +562,11 @@ class DiversityDefenseLever(GovernanceLever):
             entropy_floor_satisfied=(entropy >= self.config.diversity_entropy_min),
             adversarial_fraction_satisfied=(
                 adv_fraction >= self.config.diversity_adversarial_fraction_min
+            ),
+            design_effect=deff,
+            effective_n=n_eff,
+            effective_n_quorum_satisfied=(
+                n_eff >= self.config.diversity_min_effective_n
             ),
         )
 
@@ -392,6 +620,11 @@ class DiversityDefenseLever(GovernanceLever):
         if not metrics.adversarial_fraction_satisfied:
             violations.append("adversarial_fraction_low")
 
+        # Rule 5: Effective-N quorum (warning only, no cost -- the bite is that
+        # consensus stops counting as evidence, not that it costs anything).
+        if not metrics.effective_n_quorum_satisfied:
+            violations.append("effective_n_below_quorum")
+
         return LeverEffect(
             cost_a=cost_a,
             cost_b=cost_b,
@@ -402,12 +635,17 @@ class DiversityDefenseLever(GovernanceLever):
                 "entropy": metrics.entropy,
                 "mean_correlation": metrics.mean_correlation,
                 "risk_surrogate": metrics.risk_surrogate,
+                "design_effect": metrics.design_effect,
+                "effective_n": metrics.effective_n,
                 "adversarial_fraction": metrics.adversarial_fraction,
                 "violations": violations,
                 "correlation_cap_satisfied": metrics.correlation_cap_satisfied,
                 "entropy_floor_satisfied": metrics.entropy_floor_satisfied,
                 "adversarial_fraction_satisfied": (
                     metrics.adversarial_fraction_satisfied
+                ),
+                "effective_n_quorum_satisfied": (
+                    metrics.effective_n_quorum_satisfied
                 ),
             },
         )
@@ -482,6 +720,11 @@ class DiversityDefenseLever(GovernanceLever):
             self._latest_metrics.disagreement_rate = disagreement
             self._latest_metrics.disagreement_audit_triggered = audit_triggered
 
+        # Rule 5: read the same decision vector as evidence rather than as a
+        # headcount. Low disagreement is only reassuring when the agreeing
+        # agents could have disagreed.
+        consensus = self.assess_consensus(recent_decisions)
+
         return LeverEffect(
             cost_a=cost_a,
             lever_name=self.name,
@@ -491,6 +734,9 @@ class DiversityDefenseLever(GovernanceLever):
                 "p": interaction.p,
                 "disagreement_rate": disagreement,
                 "audit_triggered": audit_triggered,
+                "effective_n": consensus.effective_n,
+                "consensus_inflation": consensus.consensus_inflation,
+                "consensus_quorum_satisfied": consensus.quorum_satisfied,
             },
         )
 
@@ -501,6 +747,13 @@ class DiversityDefenseLever(GovernanceLever):
     def get_metrics(self) -> Optional[DiversityMetrics]:
         """Return the most recent diversity metrics snapshot."""
         return self._latest_metrics
+
+    def get_effective_n(self) -> float:
+        """Return the effective sample size at the latest measured mix.
+
+        Returns 0.0 before the first epoch snapshot has been computed.
+        """
+        return self._latest_metrics.effective_n if self._latest_metrics else 0.0
 
     def get_error_history(self) -> Dict[str, List[int]]:
         """Return per-agent error histories (deep copy)."""

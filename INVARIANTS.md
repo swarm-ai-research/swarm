@@ -21,3 +21,7 @@ the enforcement map.
 - INV-4: The per-interaction payoff hot path stays within its latency
   budget (deliberately inlined formulas — see payoffs_both).
   test: tests/test_performance.py::TestPerformance::test_payoffs_both_within_budget
+- INV-5: The diversity gate only ever discounts evidence — effective
+  sample size never exceeds the raw vote count, at any correlation.
+  A safety gate that can inflate confidence is not a gate.
+  test: tests/test_diversity.py::TestEffectiveN::test_never_exceeds_n
