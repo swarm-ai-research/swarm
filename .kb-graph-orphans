@@ -23,7 +23,6 @@ cmd/address_review
 cmd/audit_docs
 cmd/audit_fix
 cmd/build_game
-cmd/claim
 cmd/check_ignore
 cmd/cherry_pick_pr
 cmd/compare_studies
@@ -49,7 +48,6 @@ game.md
 getting-started/index.md
 guides/benchmarking.md
 guides/eval-metrics.md
-guides/framework-overview.md
 guides/risk-assessment.md
 incoherence_github_issues.md
 network-topology.md
@@ -66,7 +64,6 @@ provenance_trace_schema.md
 research/agent-internet-taxonomy.md
 research/airs-bench-governance-analysis.md
 research/arc-agi-3-lessons.md
-research/self-mod-governance-implementation-checklist.md
 role/ceo/HEARTBEAT
 role/founding-engineer/AGENTS
 role/research-critic/AGENTS
