@@ -31,11 +31,20 @@ cd "$ROOT"
 # and always ignored is not a control (exhibit on bead oldj).
 HEARTBEAT_DIR="$ROOT/.claude/session-heartbeats"
 if [ "${IS_SESSION_WORKTREE:-false}" != "true" ] && [ -d "$HEARTBEAT_DIR" ]; then
+  # Heartbeats are keyed by the Claude session pid, which is an *ancestor* of
+  # this hook (claude → shell → git → hook), not our direct parent — comparing
+  # against $PPID made every solo session block on its own heartbeat (vcvh).
+  # Walk the ancestry so any heartbeat pid on our own chain is excluded.
+  _anc=" "; _p=$$
+  while [ "${_p:-0}" -gt 1 ] 2>/dev/null; do
+    _anc="${_anc}${_p} "
+    _p=$(ps -o ppid= -p "$_p" 2>/dev/null | tr -d '[:space:]')
+  done
   _now=$(date +%s); _others=""
   for _hb in "$HEARTBEAT_DIR"/*.json; do
     [ -e "$_hb" ] || continue
     _pid="$(basename "$_hb" .json)"
-    [ "$_pid" = "${PPID:-$$}" ] && continue
+    case "$_anc" in *" $_pid "*) continue ;; esac
     _mt=$(stat -f %m "$_hb" 2>/dev/null || stat -c %Y "$_hb" 2>/dev/null || echo 0)
     if [ $(( _now - _mt )) -le 900 ] && ps -p "$_pid" > /dev/null 2>&1; then
       grep -q '"worktree": "true"' "$_hb" 2>/dev/null && continue

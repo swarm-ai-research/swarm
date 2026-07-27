@@ -128,6 +128,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Feasibility assessment for bridging simulated governance to real tool-using agents: 80% infrastructure exists, three gaps, reality-gap research question
 
+-   :material-graph: **[Conjecture-Flood Superstructure](conjecture-flood-superstructure.md)**
+
+    ---
+
+    AI-assisted interdisciplinary mapping as a claim economy: retrieval-failure vs. genuinely-new bridges, mechanical-checker verification economics, adverse-selection framing (beads a2il → u8x6, oa5h)
+
 -   :material-chart-scatter-plot: **[A-Evolve Flat Landscape](aevolve-flat-landscape.md)**
 
     ---

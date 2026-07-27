@@ -129,3 +129,8 @@ population-heterogeneity lever for the marketplace/economy scenario family.
 - Side-effect reads beat voluntary protocols (2026-07-19): the wiki's
   default-⚪ is the same move — unverified is the structural default, not an
   honor-system label.
+- Cross-domain generalization of this ledger's economics — AI-assisted
+  interdisciplinary bridge-conjecture floods, heterogeneous verification
+  costs, mechanical checkers as the scalable gate:
+  [conjecture-flood-superstructure.md](conjecture-flood-superstructure.md)
+  (beads u8x6, oa5h, extending a2il).
