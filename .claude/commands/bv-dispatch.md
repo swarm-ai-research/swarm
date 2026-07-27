@@ -57,6 +57,9 @@ Any text after the mode word is extra operator context — honor it.
 ## In flight
 !`bd list --status in_progress 2>/dev/null || echo "(none/unavailable)"`
 
+## Effective staleness (comment/run-aware — beads-y0cx)
+!`python scripts/dispatch_staleness.py 2>/dev/null || echo "(scripts/dispatch_staleness.py unavailable — fall back to updated_at, but treat naive staleness as an upper bound: comments and runs/ artifacts don't bump it)"`
+
 ## Recently closed
 !`bd list --status closed --limit 10 2>/dev/null || echo "(none/unavailable)"`
 
@@ -86,6 +89,12 @@ Analyze the open task graph with graph theory, and show your numbers:
 5. Hygiene alerts — cycles, orphans, stale in-progress beads, and MISSING EDGES
    (dependencies that plainly exist in the descriptions but were never recorded).
    List them; assign the cheapest agent to fix graph hygiene before feature work.
+   Staleness MUST use the effective-staleness snapshot above (beads-y0cx), not
+   raw updated_at: bd comments and runs/ artifacts don't bump updated_at, so
+   naive staleness cries zombie on actively-worked beads (k2yr was flagged
+   stale-46d in r4 with a same-day run + comments). A bead is a zombie only if
+   its EFFECTIVE staleness (max of updated_at, last comment, newest referencing
+   run artifact) exceeds the threshold.
 6. Approach-family registry (research beads only; erdos-1038 lessons 2–4) —
    when several open beads attack the same research question, cluster them by
    underlying approach, not surface wording. Flag convergence: if most routes

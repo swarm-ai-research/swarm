@@ -116,6 +116,12 @@ chance that some verifier retains a true finding rather than dropping it. Both
 are disjunctive over `N`; both degrade identically in ρ. Correlation is not a
 defensive disadvantage in its *magnitude*.
 
+> **Superseded — see [Findings](#findings-2026-07-27-bead-pcdq).** The claim
+> that defender retention is disjunctive is wrong. A verifier that *drops*
+> findings makes retention **conjunctive**, which responds to correlation with
+> the opposite sign. The equal-degradation claim below holds only for the
+> defender's detection stage. The observability argument is unaffected.
+
 The asymmetry is in what the degradation buys:
 
 - **The attacker pays in latency.** A failed round is observable — no shell, no
@@ -167,6 +173,116 @@ Falsifier: if defender retention degrades *slower* than attacker hit rate under
 any realistic verification topology (e.g. sequential verification with distinct
 lenses breaks the exchangeability assumption), the common-shock model is the
 wrong abstraction and the asymmetry claim fails.
+
+## Findings (2026-07-27, bead `pcdq`)
+
+Run: `python -m experiments.correlation_asymmetry --output runs/ --seed 42`
+(artifacts: `runs/20260727_030841_correlation_asymmetry_seed42/`). All analytic
+forms Monte-Carlo validated at 200k trials/cell; empirical pairwise correlation
+matches ρ to three decimals at ρ ∈ {0, 0.3, 0.7, 1.0}.
+
+### 1. The equal-degradation claim is refuted
+
+The asymmetry section models defender true-finding retention as disjunctive.
+That is wrong for the mechanism it describes. Hyperspace's verifier *drops*
+findings the evidence does not carry — so if any verifier can drop, retention
+is **conjunctive**, and conjunctive stages respond to correlation with the
+opposite sign to disjunctive ones.
+
+The defender pipeline therefore has two stages that want opposite things:
+
+| Stage | Structure | Wants |
+|---|---|---|
+| detection (N_d detectors, ≥1 must fire) | disjunctive | independence |
+| verification (N_v verifiers, none may drop) | conjunctive | correlation |
+
+The attacker has only the disjunctive stage. At `q = 0.3`, `N = 8`,
+`e_drop = 0.4`, `N_v = 5`, unanimous-keep:
+
+| ρ | attacker hit | defender detect | defender retain | defender catch |
+|---|---|---|---|---|
+| 0.0 | 0.9424 | 0.9424 | 0.0778 | 0.0733 |
+| 0.3 | 0.7496 | 0.7496 | 0.2344 | 0.1757 |
+| 0.65 | — | — | — | **0.2190** |
+| 0.7 | 0.4927 | 0.4927 | 0.4433 | 0.2184 |
+| 1.0 | 0.3000 | 0.3000 | 0.6000 | 0.1800 |
+
+Detection tracks the attacker exactly — that part of the original claim holds.
+Retention moves the other way, and the product is **non-monotone**: defender
+catch peaks at ρ* = 0.65, where it is **2.99× better than at full
+independence**. For this pipeline, "decorrelate everything" is actively wrong.
+
+### 2. But the interior optimum is a symptom, not a design target
+
+Sweeping the verification rule at the same parameters:
+
+| Rule | argmax ρ | catch at argmax | catch at ρ=0 | catch at ρ=1 |
+|---|---|---|---|---|
+| unanimous (any verifier may drop) | 0.65 | 0.2190 | 0.0733 | 0.1800 |
+| majority | 0.00 | **0.6432** | 0.6432 | 0.1800 |
+| any_keeps | 0.00 | **0.9327** | 0.9327 | 0.1800 |
+
+Switching from unanimous-drop to majority is a **2.9× improvement in catch
+rate**, and it restores ρ = 0 as optimal. The interior optimum in finding 1 is
+correlation partially compensating for a pathological verification rule: under
+unanimous-drop, `N` independent verifiers each get an independent shot at
+killing a true finding, so independence is punished. Correlation is not the
+fix — the rule is.
+
+**Operational reading:** a swarm running any-verifier-may-drop is in a regime
+where adding independent verifiers *destroys* true findings faster than it
+catches false ones. The first question to ask of a verification pool is not
+its ρ̄ but its aggregation rule.
+
+### 3. The falsifier fires — partially
+
+The bead named exchangeability as the model's main threat. Under the two-level
+shock (K families, `spread` controlling how much correlation is within-family),
+at matched achieved ρ̄:
+
+| families | spread | catch at ρ=0 | peak | argmax ρ | gain |
+|---|---|---|---|---|---|
+| 1 | any | 0.0733 | 0.2190 | 0.65 | 2.99× |
+| 2 | 0.5 | 0.0733 | 0.2089 | 0.50 | 2.85× |
+| 2 | 1.0 | 0.0733 | 0.1987 | 0.40 | 2.71× |
+| 4 | 0.5 | 0.0733 | 0.1933 | 1.00 | 2.64× |
+| 4 | 1.0 | 0.0733 | 0.1083 | 0.10 | 1.48× |
+
+**Qualitative claim survives:** the optimum is interior in all nine topologies
+tested — the defender never wants full independence under this rule.
+
+**Quantitative claim does not:** ρ* ranges from 0.10 to 1.00 depending purely
+on correlation *structure* at matched ρ̄. So ρ* is an artifact of the
+exchangeability assumption and must not be treated as a tuning target. A rig
+that measured ρ̄ = 0.4 and concluded "we are near optimal" would be reasoning
+from the wrong model.
+
+Concentrating correlation within families also *lowers* peak catch (0.219 →
+0.108). Independent families each get an independent shot at dropping a true
+finding, so family structure hurts a conjunctive stage for the same reason
+independence does.
+
+### 4. What survives untouched
+
+The observability argument. It was never a claim about magnitude: the
+attacker's cost is denominated in visible, cheap rounds, the defender's in
+dropped findings that emit no signal and present as precision. Findings 1–3
+change the size and sign of the degradation, not who can see it.
+
+### Correction of record
+
+Two errors were made and are recorded rather than edited away. First, in
+conversation, that correlation "costs the attacker almost nothing" — it costs a
+3.14× latency multiplier at ρ = 1. Second, in this note as originally written,
+that defender retention is disjunctive. The second is the substantive one and
+is what running the bead caught.
+
+An earlier version of the structured arm also truncated family sizes with
+`n // k` (silently dropping agents when `k` did not divide `n`) and compared
+cells on *requested* rather than *achieved* ρ̄. That run reported structure
+*improving* peak catch to 0.4559 — the opposite of the corrected result. The
+corrected sweep records achieved ρ̄ per cell and flags saturation; 56/189 cells
+cannot reach their requested ρ̄ and must be compared on achieved.
 
 ## Open questions
 
