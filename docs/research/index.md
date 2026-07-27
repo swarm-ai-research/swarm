@@ -128,6 +128,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Feasibility assessment for bridging simulated governance to real tool-using agents: 80% infrastructure exists, three gaps, reality-gap research question
 
+-   :material-chart-scatter-plot: **[A-Evolve Flat Landscape](aevolve-flat-landscape.md)**
+
+    ---
+
+    Why the A-Evolve evolution track has no gradient to evolve against: p is keyed on agent type, not behavior — both adversary knobs and defender levers are flat (beads 3o9l recon → 2qgp)
+
 </div>
 
 ## Core Research Questions
