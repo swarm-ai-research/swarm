@@ -283,6 +283,7 @@ print(bridge.get_metrics())
 
 ## See also
 
+- [Prime Agent bridge](prime_agent.md) — same organization, different system: governs Prime Agent's continual harness and RLM delegation tree rather than the RL training platform
 - [RL Training Lessons for Multi-Agent Governance](../blog/rl-training-lessons-multi-agent-governance.md) — Findings from RL training experiments
 - [Training an LLM Agent with RL](../blog/qwen3-30b-trains-in-the-swarm-economy.md) — Qwen 30B RL training in the SWARM economy
 - [Metrics](../concepts/metrics.md) — The safety metrics used as RL reward signals
