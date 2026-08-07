@@ -60,7 +60,17 @@ detect_concurrent_sessions() {
     [ -e "$f" ] || continue
     pid="$(basename "$f" .json)"
     [ "$pid" = "$SESSION_PID" ] && continue
-    mtime=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo 0)
+    # GNU (Linux) spells mtime `-c %Y`; BSD/macOS spells it `-f %m`. These must
+    # be separate assignments, not `$(a || b)`: on Linux, GNU stat reads `-f` as
+    # --file-system and prints a block starting with `File: ...` to stdout
+    # before failing, and command substitution concatenates that with the
+    # fallback's output. `mtime` then held `File: ...`, and the arithmetic below
+    # evaluated the bare word `File` as a variable name -- an unbound-variable
+    # abort under `set -u`.
+    mtime=$(stat -c %Y "$f" 2>/dev/null) \
+      || mtime=$(stat -f %m "$f" 2>/dev/null) \
+      || mtime=0
+    case "$mtime" in ''|*[!0-9]*) mtime=0 ;; esac
     age=$(( now - mtime ))
     if [ "$age" -gt "$HEARTBEAT_FRESH_SECONDS" ] || ! ps -p "$pid" > /dev/null 2>&1; then
       rm -f "$f" 2>/dev/null || true   # reap dead/stale heartbeats
