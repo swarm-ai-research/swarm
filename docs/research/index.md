@@ -140,6 +140,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Why the A-Evolve evolution track has no gradient to evolve against: p is keyed on agent type, not behavior — both adversary knobs and defender levers are flat (beads 3o9l recon → 2qgp)
 
+-   :material-book-cog: **[KSI Knowledge Curation](ksi-knowledge-curation.md)**
+
+    ---
+
+    Knowledge-centric self-improvement as a claim economy: disposable agents remove the substrate governance acts on, and the transferability that makes bundles valuable makes poison portable (beads sx6c, cx83 → 77ao)
+
 </div>
 
 ## Core Research Questions
