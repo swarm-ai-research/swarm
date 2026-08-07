@@ -232,6 +232,24 @@ This complements the **heartbeat concurrency guard** above (presence-level:
 "don't two of you be in one checkout") with task-level ownership ("don't two of
 you do one task") — and unlike heartbeats, it works across isolated worktrees.
 
+### Session Work-Start Protocol (`/claim`)
+
+**Before doing real work on a bead, claim it: `/claim <bead-id>`.** This is the
+one step that physically prevents two sessions building the same thing (the
+2026-07-22 duplicate-7ge5 incident, where ~2× effort was wasted because neither
+session claimed first). The claim is atomic in the shared cross-worktree DB
+(`$MAIN_REPO_ROOT/runs/runs.db`): the first session wins, every other is
+**refused** with the holder's name. It replaces the advisory
+`bd update <id> --status=in_progress` (which `/claim` still runs for you) and
+writes a marker the pre-commit hook checks — a collision at commit time means
+someone took your task mid-flight. `/claim status` shows all holdings;
+`/claim release <bead-id>` when done. Read-only investigation needs no claim;
+claim once you intend to change files.
+
+This complements the **heartbeat concurrency guard** above (presence-level:
+"don't two of you be in one checkout") with task-level ownership ("don't two of
+you do one task") — and unlike heartbeats, it works across isolated worktrees.
+
 ### Inter-Session Coordination (`agent_messages`)
 
 Sessions coordinate via a shared SQLite table in `runs/runs.db` (accessible through the `sqlite_runs` MCP server). Schema:

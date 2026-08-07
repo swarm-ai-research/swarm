@@ -25,6 +25,7 @@ cmd/audit_fix
 cmd/build_game
 cmd/check_ignore
 cmd/cherry_pick_pr
+cmd/claim
 cmd/compare_studies
 cmd/fix_ci
 cmd/guard
