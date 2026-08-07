@@ -1,6 +1,7 @@
 """Tests for machine-speed coordination primitives (CoordinationBoard)."""
 
 import concurrent.futures
+import multiprocessing
 
 import pytest
 
@@ -151,7 +152,15 @@ def _race_claim(db_path: str, agent: str) -> bool:
 def test_claim_is_atomic_across_processes(tmp_path):
     db = str(tmp_path / "coord.db")
     CoordinationBoard(db).close()  # create schema first
-    with concurrent.futures.ProcessPoolExecutor(max_workers=8) as pool:
+    # Force "spawn": the default on Linux is "fork", and forking from an xdist
+    # worker (which runs execnet helper threads) can copy a held lock into the
+    # children and deadlock the pool forever. That hung CI for 21 minutes until
+    # the job timeout killed it -- pytest-timeout could not break it either,
+    # because the alarm fires into ProcessPoolExecutor.__exit__, which blocks in
+    # shutdown(wait=True) on the deadlocked children. macOS already defaults to
+    # spawn, which is why this only ever hung in CI.
+    ctx = multiprocessing.get_context("spawn")
+    with concurrent.futures.ProcessPoolExecutor(max_workers=8, mp_context=ctx) as pool:
         results = list(
             pool.map(_race_claim, [db] * 8, [f"session-{i}" for i in range(8)])
         )
