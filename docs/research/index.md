@@ -146,6 +146,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Knowledge-centric self-improvement as a claim economy: disposable agents remove the substrate governance acts on, and the transferability that makes bundles valuable makes poison portable (beads sx6c, cx83 → 77ao)
 
+-   :material-backup-restore: **[Shepherd Reversible Execution](shepherd-reversible-execution.md)**
+
+    ---
+
+    Reversible execution traces vs SWARM's live-write sandbox: the delta is default-accept vs default-propose, and prevention may not decompose the way detection does (beads hpf3, vwj3)
+
 </div>
 
 ## Core Research Questions
