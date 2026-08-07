@@ -235,6 +235,12 @@ class GovernanceConfig(BaseModel):
     diversity_correlation_window: int = (
         50  # Window of recent interactions for correlation
     )
+    diversity_consensus_z: float = (
+        1.96  # z for the Wilson bound on consensus evidence (Rule 5)
+    )
+    diversity_min_effective_n: float = (
+        2.0  # Effective-N quorum floor: below this, consensus is not evidence
+    )
 
     # Resample protocol (Bhatt et al., 2025 — "Ctrl-Z")
     resample_enabled: bool = False
@@ -516,6 +522,10 @@ class GovernanceConfig(BaseModel):
             raise ValueError("diversity_audit_cost must be non-negative")
         if self.diversity_correlation_window < 1:
             raise ValueError("diversity_correlation_window must be >= 1")
+        if self.diversity_consensus_z <= 0:
+            raise ValueError("diversity_consensus_z must be positive")
+        if self.diversity_min_effective_n < 0:
+            raise ValueError("diversity_min_effective_n must be non-negative")
 
         # Resample protocol validation
         if not 0.0 <= self.resample_suspicion_threshold <= 1.0:

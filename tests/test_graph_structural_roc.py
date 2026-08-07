@@ -296,3 +296,321 @@ class TestTemporalCoordination:
             initiator="a", counterparty="b", p=0.5,
             timestamp=datetime(2026, 1, 1))]
         assert temporal_concentration(single, {"a", "b"}, n_windows=10) == 0.0
+
+    def test_persistence_high_on_recurring_cluster(self):
+        """A cluster active in every window is a standing channel:
+        persistence ~1.0. Complement of the concentration signal."""
+        from datetime import datetime, timedelta
+
+        from swarm.metrics.graph_structural import cross_window_persistence
+        from swarm.models.interaction import SoftInteraction
+        base = datetime(2026, 1, 1)
+        cluster = {"a", "b"}
+        # One cluster-internal interaction every 5 minutes for an hour
+        ixs = [
+            SoftInteraction(
+                initiator="a", counterparty="b", p=0.8,
+                timestamp=base + timedelta(seconds=i * 300))
+            for i in range(12)
+        ]
+        pers = cross_window_persistence(ixs, cluster, n_windows=12)
+        assert pers > 0.9, f"expected ~1.0 persistence, got {pers}"
+
+    def test_persistence_low_on_one_flare(self):
+        """A single-window flare against an always-active background
+        scores 1/n_active_windows — the shape persistence is built to
+        deprioritize relative to recurrence."""
+        from datetime import datetime, timedelta
+
+        from swarm.metrics.graph_structural import cross_window_persistence
+        from swarm.models.interaction import SoftInteraction
+        base = datetime(2026, 1, 1)
+        cluster = {"a", "b"}
+        ixs = []
+        # Cluster: 10 interactions inside one minute
+        for i in range(10):
+            ixs.append(SoftInteraction(
+                initiator="a", counterparty="b", p=0.8,
+                timestamp=base + timedelta(seconds=i * 6)))
+        # Background keeps every window active over 2 hours
+        for i in range(120):
+            ixs.append(SoftInteraction(
+                initiator="h0", counterparty="h1", p=0.6,
+                timestamp=base + timedelta(seconds=i * 60)))
+        pers = cross_window_persistence(ixs, cluster, n_windows=12)
+        assert pers <= 1 / 12 + 1e-9, f"expected one-window persistence, got {pers}"
+
+    def test_persistence_denominator_is_active_windows(self):
+        """Globally quiet windows must not dilute persistence: cluster
+        active in both of the only two active windows scores 1.0."""
+        from datetime import datetime, timedelta
+
+        from swarm.metrics.graph_structural import cross_window_persistence
+        from swarm.models.interaction import SoftInteraction
+        base = datetime(2026, 1, 1)
+        cluster = {"a", "b"}
+        # Activity only at the very start and very end of the range;
+        # the 8 middle windows are empty for everyone.
+        ixs = [
+            SoftInteraction(initiator="a", counterparty="b", p=0.8,
+                            timestamp=base),
+            SoftInteraction(initiator="a", counterparty="b", p=0.8,
+                            timestamp=base + timedelta(hours=10)),
+        ]
+        pers = cross_window_persistence(ixs, cluster, n_windows=10)
+        assert pers == pytest.approx(1.0)
+
+    def test_persistence_edge_cases(self):
+        from datetime import datetime
+
+        from swarm.metrics.graph_structural import cross_window_persistence
+        from swarm.models.interaction import SoftInteraction
+        assert cross_window_persistence([], {"a"}, n_windows=10) == 0.0
+        # All timestamps equal -> no time axis -> 0.0
+        same = [
+            SoftInteraction(initiator="a", counterparty="b", p=0.5,
+                            timestamp=datetime(2026, 1, 1))
+            for _ in range(3)
+        ]
+        assert cross_window_persistence(same, {"a", "b"}, n_windows=10) == 0.0
+
+    def test_temporal_anomalies_annotated_with_shape_signals(self):
+        """temporal_densest_anomalies fills temporal_concentration and
+        temporal_persistence on every returned anomaly; the static
+        detector leaves the 0.0 defaults."""
+        from experiments.graph_structural_roc import generate_burst_coordination
+        from swarm.metrics.graph_structural import (
+            detect_structural_anomalies,
+            temporal_densest_anomalies,
+        )
+        s = generate_burst_coordination(n_agents=30, cluster_size=4,
+                                        n_bursts=2, seed=0)
+        window_anoms = temporal_densest_anomalies(
+            s.interactions, n_windows=10, min_size=3, n_null_samples=5, seed=1)
+        assert window_anoms, "burst sample should surface per-window anomalies"
+        cluster_anoms = [
+            a for a in window_anoms if a.members <= s.planted
+        ]
+        assert cluster_anoms, "planted cluster should appear as a window anomaly"
+        for a in cluster_anoms:
+            # Bursty cluster: concentrated (few windows), not persistent.
+            assert a.temporal_concentration > 0.4
+            assert a.temporal_persistence < 0.5
+        static = detect_structural_anomalies(s.edges, n_null_samples=5, seed=1)
+        for a in static:
+            assert a.temporal_concentration == 0.0
+            assert a.temporal_persistence == 0.0
+
+    def test_planted_burst_cluster_recurs_across_windows(self):
+        """The planted coalition re-surfaces as (Jaccard-matched) the
+        same member set in multiple windows; that recurrence count is
+        the signal separating it from one-window honest noise."""
+        from experiments.graph_structural_roc import generate_burst_coordination
+        from swarm.metrics.graph_structural import temporal_densest_anomalies
+        s = generate_burst_coordination(n_agents=50, cluster_size=5,
+                                        n_bursts=3, seed=0)
+        anoms = temporal_densest_anomalies(
+            s.interactions, n_windows=10, min_size=3, n_null_samples=5, seed=1)
+        planted_reps = [
+            a for a in anoms
+            if len(a.members & s.planted) / len(a.members | s.planted) >= 0.6
+        ]
+        assert planted_reps, "planted cluster should surface as a group"
+        assert max(a.n_windows_surfaced for a in planted_reps) >= 2
+
+    def test_temporal_detector_flags_cluster_not_everything(self):
+        """Regression for the flag-everything failure (beads-p56u): the
+        first-cut detector flagged all 50 nodes on its own burst family
+        (every one-window candidate is window-concentrated by
+        construction; whole-graph candidates pass the persistence gate
+        trivially). The recurrence + minority gates must keep the flag
+        set tight around the planted cluster."""
+        from experiments.graph_structural_roc import (
+            detector_graph_structural_temporal,
+            generate_burst_coordination,
+        )
+        s = generate_burst_coordination(n_agents=50, cluster_size=5,
+                                        n_bursts=3, seed=0)
+        out = detector_graph_structural_temporal(s)
+        flagged = {n for n, f in out.native_flags.items() if f}
+        assert s.planted <= flagged, "planted cluster must be flagged"
+        assert len(flagged) <= 3 * len(s.planted), (
+            f"flag set should be tight around the cluster, got {len(flagged)}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Overlapping-coalition ground truth, per-coalition TPR, overlap sweep (qoro)
+# ---------------------------------------------------------------------------
+
+from experiments.graph_structural_roc import (  # noqa: E402
+    CRITERION_OVERLAP,
+    CRITERION_TPR,
+    RunResult,
+    disjoint_ground_truth,
+    overlap_criterion_verdict,
+    per_coalition_tpr,
+    run_overlap_sweep,
+)
+
+
+class TestDisjointGroundTruth:
+    def test_oldest_coalition_wins(self):
+        # "b" is in both; coalition 0 was joined first, so it keeps "b".
+        planted = [{"a", "b"}, {"b", "c"}]
+        assert disjoint_ground_truth(planted) == [{"a", "b"}, {"c"}]
+
+    def test_result_is_a_partition(self):
+        planted = [{"a", "b", "c"}, {"c", "d"}, {"a", "d", "e"}]
+        out = disjoint_ground_truth(planted)
+        # No member appears twice, and nothing is lost.
+        flat = [m for g in out for m in g]
+        assert len(flat) == len(set(flat))
+        assert set(flat) == set().union(*planted)
+
+    def test_fully_absorbed_coalition_is_dropped(self):
+        # At overlap 1.0 every coalition is the same set; only one survives,
+        # rather than leaving empty groups that would score a free 0 Jaccard.
+        planted = [{"a", "b"}, {"a", "b"}, {"a", "b"}]
+        assert disjoint_ground_truth(planted) == [{"a", "b"}]
+
+    def test_disjoint_input_is_unchanged(self):
+        planted = [{"a", "b"}, {"c", "d"}]
+        assert disjoint_ground_truth(planted) == planted
+
+    def test_empty(self):
+        assert disjoint_ground_truth([]) == []
+
+    def test_sample_property_matches_helper(self):
+        from experiments.graph_structural_roc import (
+            generate_overlapping_coalitions,
+        )
+        s = generate_overlapping_coalitions(
+            n_agents=40, n_coalitions=3, coalition_size=5,
+            overlap_fraction=0.5, seed=3)
+        assert s.planted_groups_disjoint == disjoint_ground_truth(
+            s.planted_groups)
+        # Partition of the same union the overlapping truth covers.
+        flat = [m for g in s.planted_groups_disjoint for m in g]
+        assert len(flat) == len(set(flat))
+        assert set(flat) == s.planted
+
+    def test_single_coalition_generators_unaffected(self):
+        s = generate_collusion_ring(n_agents=20, ring_size=4, seed=1)
+        assert s.planted_groups_disjoint == [s.planted]
+
+
+class TestPerCoalitionTPR:
+    def test_perfect(self):
+        planted = [{"a", "b"}, {"x", "y"}]
+        assert per_coalition_tpr([{"a", "b"}, {"x", "y"}], planted) == (1.0, 1.0)
+
+    def test_min_is_the_worst_coalition_not_the_mean(self):
+        # One coalition fully recovered, one half — mean 0.75, min 0.5.
+        planted = [{"a", "b"}, {"x", "y"}]
+        returned = [{"a", "b"}, {"x"}]
+        mean, mn = per_coalition_tpr(returned, planted)
+        assert mean == pytest.approx(0.75)
+        assert mn == pytest.approx(0.5)
+
+    def test_unmatched_coalition_scores_zero(self):
+        # Only one returned cluster for two planted coalitions.
+        planted = [{"a", "b"}, {"x", "y"}]
+        mean, mn = per_coalition_tpr([{"a", "b"}], planted)
+        assert mean == pytest.approx(0.5)
+        assert mn == 0.0
+
+    def test_no_clusters_returned(self):
+        assert per_coalition_tpr([], [{"a", "b"}]) == (0.0, 0.0)
+
+    def test_benign_returns_nan(self):
+        import math as _m
+        mean, mn = per_coalition_tpr([{"a"}], [])
+        assert _m.isnan(mean) and _m.isnan(mn)
+
+    def test_merging_two_coalitions_is_penalized_twice(self):
+        """Why 1:1 matching matters for the merged-blob case.
+
+        A detector that lumps two coalitions into one cluster fully contains
+        the coalition it matches (TPR 1.0 there), but 1:1 matching means the
+        blob can only claim *one* — the second coalition is left unmatched at
+        0.0. So min TPR is 0.0, not 1.0: merging is scored as missing a
+        coalition, which is the behavior the criterion should reward avoiding.
+        TPR still isn't a restatement of Jaccard — mean TPR 0.5 vs recovery
+        0.25, since Jaccard also charges for the members the blob adds.
+        """
+        planted = [{"a", "b"}, {"x", "y"}]
+        blob = [{"a", "b", "x", "y"}]
+        mean, mn = per_coalition_tpr(blob, planted)
+        assert mn == 0.0
+        assert mean == pytest.approx(0.5)
+        assert hungarian_recovery(blob, planted) == pytest.approx(0.25)
+
+    def test_agrees_with_hungarian_on_exact_recovery(self):
+        planted = [{"a", "b", "c"}, {"x", "y", "z"}]
+        returned = [{"x", "y", "z"}, {"a", "b", "c"}]
+        assert per_coalition_tpr(returned, planted) == (1.0, 1.0)
+        assert hungarian_recovery(returned, planted) == 1.0
+
+
+def _cell(**kw):
+    """Build a {detector: RunResult} cell for verdict tests."""
+    return {name: RunResult(family="overlap_0.40", detector=name,
+                            auc_mean=0.5, auc_lo=0.4, auc_hi=0.6, **vals)
+            for name, vals in kw.items()}
+
+
+class TestOverlapCriterionVerdict:
+    def test_met_when_all_clustering_detectors_clear_the_bar(self):
+        sweep = {CRITERION_OVERLAP: _cell(
+            good={"tpr_min": 0.9, "cluster_rate": 1.0},
+            alsogood={"tpr_min": CRITERION_TPR, "cluster_rate": 0.8},
+        )}
+        v = overlap_criterion_verdict(sweep)
+        assert "MET by all 2" in v
+        assert "NOT MET" not in v
+
+    def test_not_met_names_the_failing_detector_and_its_tpr(self):
+        sweep = {CRITERION_OVERLAP: _cell(
+            weak={"tpr_min": 0.42, "cluster_rate": 1.0},
+        )}
+        v = overlap_criterion_verdict(sweep)
+        assert "NOT MET" in v
+        assert "weak (min TPR 0.420)" in v
+
+    def test_non_clustering_detector_is_excluded_not_failed(self):
+        """The load-bearing distinction: a detector that never returns a
+        cluster scores TPR 0 on every family, so counting it as an overlap
+        failure would manufacture evidence about overlap it cannot supply."""
+        sweep = {CRITERION_OVERLAP: _cell(
+            clusters={"tpr_min": 0.9, "cluster_rate": 1.0},
+            abstains={"tpr_min": 0.0, "cluster_rate": 0.0},
+        )}
+        v = overlap_criterion_verdict(sweep)
+        assert "MET by all 1" in v
+        assert "Not evaluated (1): abstains" in v
+        assert "NOT MET" not in v
+
+    def test_all_abstain_is_not_evaluable(self):
+        sweep = {CRITERION_OVERLAP: _cell(
+            a={"tpr_min": 0.0, "cluster_rate": 0.0},
+            b={"tpr_min": 0.0, "cluster_rate": float("nan")},
+        )}
+        assert "NOT EVALUABLE" in overlap_criterion_verdict(sweep)
+
+    def test_missing_criterion_cell_is_reported(self):
+        assert "not in the swept grid" in overlap_criterion_verdict({0.1: {}})
+
+
+class TestOverlapSweep:
+    def test_sweep_covers_the_grid_and_criterion_point(self):
+        sweep = run_overlap_sweep(replicates=1, overlaps=[0.0, CRITERION_OVERLAP])
+        assert set(sweep) == {0.0, CRITERION_OVERLAP}
+        for cell in sweep.values():
+            assert set(cell) == set(DETECTORS)
+            for r in cell.values():
+                assert 0.0 <= r.cluster_rate <= 1.0
+
+    def test_overlap_is_recorded_in_the_family_name(self):
+        sweep = run_overlap_sweep(replicates=1, overlaps=[0.3])
+        assert all(r.family == "overlap_0.30" for r in sweep[0.3].values())

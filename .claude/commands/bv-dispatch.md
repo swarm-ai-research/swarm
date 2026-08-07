@@ -1,5 +1,5 @@
 ---
-description: Graph-theoretic fleet dispatch — analyze the beads graph with bv, assign optimal work to each agent, notify via agent mail
+description: Graph-theoretic fleet dispatch — analyze the beads graph with bv, publish ranked per-track digests agents pull from at claim time (push ASSIGN only for strategic beads)
 argument-hint: "[plan|hygiene|retro] [extra context]"
 allowed-tools: Bash(bd:*), Bash(bv:*)
 ---
@@ -8,7 +8,10 @@ allowed-tools: Bash(bd:*), Bash(bv:*)
 
 Arguments: $ARGUMENTS
 
-- **(no mode)** — full dispatch: analyze, assign, write rationale into beads, mail agents.
+- **(no mode)** — full dispatch: analyze, publish per-track ranked digests to the
+  channel, stamp assignee-free rationale on shortlisted beads; push ASSIGN mail
+  only for strategic beads (critical path, epics). Agents pull from their
+  track's digest at claim time (beads-x3q7 — see "Pull-model delivery").
 - **plan** — analysis and assignment table ONLY. Zero writes: no bead comments, no
   dependency edges, no mail. Safe to run anywhere.
 - **hygiene** — run only the hygiene pass (step 5): cycles, orphans, stale
@@ -57,6 +60,9 @@ Any text after the mode word is extra operator context — honor it.
 ## In flight
 !`bd list --status in_progress 2>/dev/null || echo "(none/unavailable)"`
 
+## Effective staleness (comment/run-aware — beads-y0cx)
+!`python scripts/dispatch_staleness.py 2>/dev/null || echo "(scripts/dispatch_staleness.py unavailable — fall back to updated_at, but treat naive staleness as an upper bound: comments and runs/ artifacts don't bump it)"`
+
 ## Recently closed
 !`bd list --status closed --limit 10 2>/dev/null || echo "(none/unavailable)"`
 
@@ -86,6 +92,12 @@ Analyze the open task graph with graph theory, and show your numbers:
 5. Hygiene alerts — cycles, orphans, stale in-progress beads, and MISSING EDGES
    (dependencies that plainly exist in the descriptions but were never recorded).
    List them; assign the cheapest agent to fix graph hygiene before feature work.
+   Staleness MUST use the effective-staleness snapshot above (beads-y0cx), not
+   raw updated_at: bd comments and runs/ artifacts don't bump updated_at, so
+   naive staleness cries zombie on actively-worked beads (k2yr was flagged
+   stale-46d in r4 with a same-day run + comments). A bead is a zombie only if
+   its EFFECTIVE staleness (max of updated_at, last comment, newest referencing
+   run artifact) exceeds the threshold.
 6. Approach-family registry (research beads only; erdos-1038 lessons 2–4) —
    when several open beads attack the same research question, cluster them by
    underlying approach, not surface wording. Flag convergence: if most routes
@@ -107,14 +119,17 @@ Analyze the open task graph with graph theory, and show your numbers:
    the gate. G2 beads get ONE conservative agent plus a named reviewer;
    never point never-give-up prompting at a judgment gate.
 
-Then produce the assignment: for each agent, ONE primary and ONE backup bead,
-matched to their specialty, each drawn from a different parallel track. Justify
-every pick with the actual metrics (e.g. "bd-142: unblocks 6, on critical path,
-betweenness 0.31"), not vibes. State DIRECT unblocks separately from transitive
-ones — retro 2026-07-19 half-credited a prediction that conflated them.
-For research beads, include the gate class (step 7) in the justification and
-let it set the aggression: G0/G1 primaries may carry "persist until the gate
-passes" instructions; G2 primaries must not.
+Then produce the ranking (beads-x3q7 pull model): for each persona/track, a
+ranked shortlist of 2–4 beads from that track, best first — the top pick is
+the *presumptive* primary, resolved at claim time, not a binding assignment.
+Mark beads that qualify as **strategic** (on the critical path, or epics whose
+ranking will not churn within a day): only these get push-ASSIGN treatment.
+Justify every ranking position with the actual metrics (e.g. "bd-142:
+unblocks 6, on critical path, betweenness 0.31"), not vibes. State DIRECT
+unblocks separately from transitive ones — retro 2026-07-19 half-credited a
+prediction that conflated them. For research beads, include the gate class
+(step 7) in the justification and let it set the aggression: G0/G1 top picks
+may carry "persist until the gate passes" instructions; G2 top picks must not.
 
 Consolidation quota (Big Ball of Mud discipline): at least ONE agent's primary
 per round must be consolidation work — hygiene, missing edges, stale triage,
@@ -126,36 +141,59 @@ own mess).
 
 **Full dispatch mode only** (skip all writes in plan/hygiene/retro modes):
 
-Before mailing anyone, write the rationale INTO each assigned bead as a comment
-(metrics + predicted unblock count + why this agent) so the reasoning survives
-outside the mail thread and a future `retro` run can score these predictions.
+**Pull-model delivery (beads-x3q7).** Push-stamping per-agent assignments rots
+at sweep churn — r4 stamped backups (909k/tbrj) that were closed before the
+comment landed. The dispatcher therefore publishes *rankings*, not
+*assignments*; agents resolve who-does-what at claim time, when the graph state
+is fresh, and the atomic `/claim` gate (beads-wrr9) makes the resolution safe.
 
-Each assignment carries a NEGATIVE SPEC: 2–3 bead-specific insufficient
-outcomes — the known cheats for that task class (e.g. "single-seed result
-presented as general", "mock numbers without cordon", "fix that loosens the
-assertion instead of the code"). Write them into the bead comment; the Auditor
-and retro verify against this list, not against generic rigor. For research
-beads in an exploration round (approach registry active, step 6), the mail
-states the question and the agent's assigned family but OMITS the currently
-favored route — independence first, cross-pollination after routes mature.
+Bead stamps carry **assignee-free rationale only** (metrics, predicted unblock
+counts, gate class, negative spec — never "assigned to X"): stamp the top 1–2
+beads of each track's shortlist. Rationale describes the task, so it stays
+valid regardless of who claims or when; predictions in these stamps are what a
+future `retro` scores.
 
-Then deliver each assignment through the rig's coordination channel, in this
-order of preference:
-1. agent_messages table in runs/runs.db (schema in CLAUDE.md): one broadcast
-   row per assignment — from_agent='bv-dispatch-r<N>', to_agent='#swarm',
-   body='ASSIGN: <bead-id> -> <PERSONA> (<metrics>). <one-line scope>. Claim:
-   bd update --status in_progress, then reply CLAIM here. Backup: <id>.'
+The NEGATIVE SPEC lives in that rationale stamp: 2–3 bead-specific
+insufficient outcomes — the known cheats for that task class (e.g.
+"single-seed result presented as general", "mock numbers without cordon",
+"fix that loosens the assertion instead of the code"). The Auditor and retro
+verify against this list, not against generic rigor. For research beads in an
+exploration round (approach registry active, step 6), the digest states the
+question and the track's assigned family but OMITS the currently favored
+route — independence first, cross-pollination after routes mature.
+
+Then deliver through the rig's coordination channel, in this order of
+preference:
+1. agent_messages table in runs/runs.db (schema in CLAUDE.md):
+   - One broadcast row **per track** — from_agent='bv-dispatch-r<N>',
+     to_agent='#swarm', body='TRACK: <PERSONA> -> ranked [<bead-1>
+     (<metrics>), <bead-2> (<metrics>), ...]. Pull protocol: claim the
+     top-ranked bead still open+unclaimed via /claim; digest stale after 4h.'
+   - One ASSIGN row **only for strategic beads** — critical-path or epic
+     beads whose ranking will not churn within a day: body='ASSIGN:
+     <bead-id> -> <PERSONA> (<metrics>). <one-line scope>. Claim via
+     /claim <bead-id>, then reply CLAIM here. Backup: <id>.'
    Also READ the channel first: ack any unacked CLAIM/DONE rows and fold them
-   into this round's analysis (a claimed bead is not assignable).
+   into this round's analysis (a claimed bead is not rankable-as-open).
 2. Agent mail (MCP), if configured.
-If neither exists, say so and stop — do not simulate delivery. Comment stamps
-on beads remain the durable record either way; the channel is the delivery
-mechanism (beads vw8g/x3q7: stamps alone provably do not reach claimants).
+If neither exists, say so and stop — do not simulate delivery. Rationale
+stamps on beads remain the durable record either way; the channel is the
+delivery mechanism (beads vw8g/x3q7: stamps alone provably do not reach
+claimants).
 
-Claim protocol (include in every delivery): mark in_progress immediately; if
-the assignment is >4h old or an upstream bead in your track has closed since,
-do not trust it — re-run the dispatch analysis yourself and claim the
-top-ranked unclaimed bead from your track instead.
+Claim protocol (include in every delivery): claim atomically via
+`/claim <bead-id>` — never bare `bd update --status in_progress` (advisory
+only; the 7ge5 duplicate incident). Pull rules at claim time:
+1. Take your track's digest; verify its top pick with fresh state
+   (`bd show <id>` — still open? `/claim` refuses if another session holds
+   it; a refusal means take the next-ranked, not a fight).
+2. If the digest is >4h old, or any bead in your track closed since it was
+   published, do not trust the ordering — re-run the dispatch analysis
+   yourself in `plan` mode (bv or the in-rig fallback:
+   `scripts/dispatch_staleness.py` + `bd ready` + this file's steps 1–4)
+   and claim the top-ranked unclaimed bead from your track.
+3. Strategic ASSIGN rows override the digest for their addressee: claim the
+   assigned bead first unless it is closed or refused.
 
 DONE protocol (include in every delivery): a `DONE:` row must point at a
 concrete artifact — commit hash, run folder, or `artifact=<ref>` — and state
@@ -169,6 +207,15 @@ with a comment naming what's missing (erdos-1038 lesson 5).
 
 **All modes:**
 
-Reply with a summary table (agent → bead → unblocks → gate class → why) and a Mermaid diagram
+Reply with a summary table (track → ranked beads → unblocks → gate class →
+why, strategic ASSIGNs marked) and a Mermaid diagram
 of the dependency graph showing the critical path highlighted and each agent's
 track color-coded. Use ultrathink.
+
+# Protocol migration
+
+| Old behavior | Replacement | Why |
+|---|---|---|
+| Per-agent ASSIGN row + assignee stamp on every assigned bead | `TRACK:` ranked digest per persona; assignee-free rationale stamps on shortlist top picks; agents pull + `/claim` at claim time | Push stamps rot in minutes at sweep churn — r4 stamped backups (909k/tbrj) already closed before the comment landed (beads-x3q7) |
+| ASSIGN for everything | ASSIGN only for strategic beads (critical path, epics) | Slow-moving rankings are the only ones that survive the latency between stamping and claiming |
+| Claim = `bd update --status in_progress` | Claim = `/claim <bead>` (atomic, refuses if held) | Advisory status can't prevent duplicates — 7ge5 incident (beads-wrr9) |

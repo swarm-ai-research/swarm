@@ -88,16 +88,16 @@ jobs:
           if_no_artifact_found: ignore
       - name: Record testmon metadata (no coverage)
         if: github.ref == 'refs/heads/main' && matrix.mode == 'full'
-        run: python scripts/test_changes.py --full -- pytest tests/ -v -n auto --dist=loadfile --timeout=300 --durations=20 --durations-min=1.0 -p no:pytest_cov -m "not perf"
+        run: python scripts/test_changes.py --full -- pytest tests/ -v -n auto --dist=loadfile --timeout=300 --timeout-method=thread --durations=20 --durations-min=1.0 -p no:pytest_cov -m "not perf"
       - name: Ensure testmon data exists
         if: github.ref == 'refs/heads/main' && matrix.mode == 'full'
         run: test -f .testmondata
       - name: Run compatibility smoke tests
         if: matrix.mode == 'compatibility'
-        run: python scripts/test_changes.py -- pytest tests/ -v -n auto --dist=loadfile --timeout=300 --durations=20 --durations-min=1.0 -p no:pytest_cov -m "not perf"
+        run: python scripts/test_changes.py -- pytest tests/ -v -n auto --dist=loadfile --timeout=300 --timeout-method=thread --durations=20 --durations-min=1.0 -p no:pytest_cov -m "not perf"
       - name: Run full tests with coverage
         if: matrix.mode == 'full'
-        run: pytest tests/ -v -n auto --dist=loadfile --timeout=300 --durations=20 --durations-min=1.0 --cov=swarm --cov-report=term-missing --cov-fail-under=70 -p no:testmon -m "not perf"
+        run: pytest tests/ -v -n auto --dist=loadfile --timeout=300 --timeout-method=thread --durations=20 --durations-min=1.0 --cov=swarm --cov-report=term-missing --cov-fail-under=70 -p no:testmon -m "not perf"
       # Wall-clock budget tests run serially and without coverage: the coverage
       # tracer and xdist parallelism inflate timing 5-20×, causing false failures
       # unrelated to real regressions. See the `perf` marker in pyproject.toml.

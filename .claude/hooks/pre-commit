@@ -23,14 +23,28 @@ cd "$ROOT"
 # on every tool call). Committing from the shared main checkout while other
 # live sessions work the same tree is the race that has repeatedly clobbered
 # staged work (exhibits in bead oldj; 2026-07-22 index war during 7ge5).
-# Default: loud warning. Set SWARM_BLOCK_CONCURRENT_COMMITS=1 to hard-fail.
+# Default: hard block. Set SWARM_BLOCK_CONCURRENT_COMMITS=0 to downgrade to a
+# warning. Flipped from warn-by-default on 2026-07-27: the advisory fired
+# accurately, named the right pid, and the commit proceeded straight into the
+# race it described — session A's staged files were absorbed into session B's
+# commit 7907aaa1 under session B's bead id. A warning that is always correct
+# and always ignored is not a control (exhibit on bead oldj).
 HEARTBEAT_DIR="$ROOT/.claude/session-heartbeats"
 if [ "${IS_SESSION_WORKTREE:-false}" != "true" ] && [ -d "$HEARTBEAT_DIR" ]; then
+  # Heartbeats are keyed by the Claude session pid, which is an *ancestor* of
+  # this hook (claude → shell → git → hook), not our direct parent — comparing
+  # against $PPID made every solo session block on its own heartbeat (vcvh).
+  # Walk the ancestry so any heartbeat pid on our own chain is excluded.
+  _anc=" "; _p=$$
+  while [ "${_p:-0}" -gt 1 ] 2>/dev/null; do
+    _anc="${_anc}${_p} "
+    _p=$(ps -o ppid= -p "$_p" 2>/dev/null | tr -d '[:space:]')
+  done
   _now=$(date +%s); _others=""
   for _hb in "$HEARTBEAT_DIR"/*.json; do
     [ -e "$_hb" ] || continue
     _pid="$(basename "$_hb" .json)"
-    [ "$_pid" = "${PPID:-$$}" ] && continue
+    case "$_anc" in *" $_pid "*) continue ;; esac
     _mt=$(stat -f %m "$_hb" 2>/dev/null || stat -c %Y "$_hb" 2>/dev/null || echo 0)
     if [ $(( _now - _mt )) -le 900 ] && ps -p "$_pid" > /dev/null 2>&1; then
       grep -q '"worktree": "true"' "$_hb" 2>/dev/null && continue
@@ -44,10 +58,18 @@ if [ "${IS_SESSION_WORKTREE:-false}" != "true" ] && [ -d "$HEARTBEAT_DIR" ]; the
     echo "Another live session shares this working tree. Index races can revert"
     echo "or interleave staged files mid-commit (bead oldj has the receipts)."
     echo "Prefer worktrees: ./scripts/claude-tmux.sh N ; or coordinate via the"
-    echo "agent_messages table. Set SWARM_BLOCK_CONCURRENT_COMMITS=1 to make"
-    echo "this a hard block."
-    if [ "${SWARM_BLOCK_CONCURRENT_COMMITS:-0}" = "1" ]; then
-      echo "COMMIT BLOCKED (SWARM_BLOCK_CONCURRENT_COMMITS=1)."
+    echo "agent_messages table."
+    if [ "${SWARM_BLOCK_CONCURRENT_COMMITS:-1}" != "0" ]; then
+      echo "------------------------------------------"
+      echo "COMMIT BLOCKED (concurrent sessions, default since 2026-07-27)."
+      echo "Your staged changes are intact — nothing has been lost."
+      echo "Pick one:"
+      echo "  1. Move to a worktree:  ./scripts/claude-tmux.sh N"
+      echo "  2. Wait for the other session to finish, then retry"
+      echo "  3. Override for this commit only:"
+      echo "       SWARM_BLOCK_CONCURRENT_COMMITS=0 git commit ..."
+      echo "Override only when you know the other session is not mid-commit;"
+      echo "that is the window that swallows staged work."
       exit 1
     fi
   fi
@@ -469,8 +491,12 @@ if [ -f "$CLAIM_MARKER_FILE" ] && command -v python3 >/dev/null 2>&1; then
             echo "Another session claimed this task — you may have duplicated its"
             echo "work (the 2026-07-22 failure). Check: python -m swarm.agentgit claim status"
             echo "=========================================="
-            if [ "${SWARM_BLOCK_CONCURRENT_COMMITS:-0}" = "1" ]; then
-                echo "COMMIT BLOCKED (SWARM_BLOCK_CONCURRENT_COMMITS=1)."
+            if [ "${SWARM_BLOCK_CONCURRENT_COMMITS:-1}" != "0" ]; then
+                echo "COMMIT BLOCKED (claim collision, default since 2026-07-27)."
+                echo "Your staged changes are intact. Resolve ownership first:"
+                echo "  python -m swarm.agentgit claim status"
+                echo "Override for this commit only:"
+                echo "  SWARM_BLOCK_CONCURRENT_COMMITS=0 git commit ..."
                 rm -f /tmp/claim_check.$$
                 exit 1
             fi

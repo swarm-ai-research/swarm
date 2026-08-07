@@ -86,11 +86,29 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Verified case study of the 2026 Dinitz–Garg–Goemans disproof: verifier coverage as the trust variable, pressure-lever symmetry, plausibility–certificate gap
 
+-   :material-timeline-clock: **[Long-Horizon Safety Lessons](long-horizon-safety-lessons.md)**
+
+    ---
+
+    OpenAI's 2026 long-horizon model post-mortem: action-level gates get decomposed around, trajectory-level monitoring, constraint circumvention vs. fabrication
+
 -   :material-scale-balance: **[Erdős AI-Ledger Lessons](erdos-ai-ledger-lessons.md)**
 
     ---
 
     Ecosystem governance lessons from Tao's AI-contributions ledger: verification bottleneck, denominator problem, corroboration vs. collusion
+
+-   :material-autorenew: **[Reflective Self-Improvement Lessons](reflective-self-improvement-lessons.md)**
+
+    ---
+
+    The compiler bootstrap analogy and its limits: why a fixed-point tripwire certifies convergence rather than correctness, and the variance term the framework omits
+
+-   :material-sword-cross: **[Hyperspace Two-Swarms Lessons](hyperspace-two-swarms-lessons.md)**
+
+    ---
+
+    Attacker vs. defender swarms on the OpenAI-HF incident: correlation degrades both by the same factor, but the attacker pays in visible latency and the defender in silent misses
 
 -   :material-file-alert: **[ARA Compiler Pilot Report](ara-pilot-report.md)**
 
@@ -109,6 +127,18 @@ Academic foundations and related publications. SWARM implements the framework de
     ---
 
     Feasibility assessment for bridging simulated governance to real tool-using agents: 80% infrastructure exists, three gaps, reality-gap research question
+
+-   :material-graph: **[Conjecture-Flood Superstructure](conjecture-flood-superstructure.md)**
+
+    ---
+
+    AI-assisted interdisciplinary mapping as a claim economy: retrieval-failure vs. genuinely-new bridges, mechanical-checker verification economics, adverse-selection framing (beads a2il → u8x6, oa5h)
+
+-   :material-chart-scatter-plot: **[A-Evolve Flat Landscape](aevolve-flat-landscape.md)**
+
+    ---
+
+    Why the A-Evolve evolution track has no gradient to evolve against: p is keyed on agent type, not behavior — both adversary knobs and defender levers are flat (beads 3o9l recon → 2qgp)
 
 </div>
 

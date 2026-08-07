@@ -432,6 +432,23 @@ class StructuralAnomaly:
     # mutuality (min/max ratio per pair), not just presence.
     total_internal_weight: float = 0.0
     weighted_reciprocity: float = 0.0
+    # Temporal-shape signals (beads-p56u), populated only by
+    # :func:`temporal_densest_anomalies`; the static detector leaves the
+    # 0.0 defaults. ``temporal_concentration`` scores the one-flare shape
+    # (activity packed into few windows), ``temporal_persistence`` the
+    # recurring shape (same set lights up window after window). Like the
+    # weighted signals above, they are data for downstream consumers and
+    # are not folded into ``rank_aggregated_scores``.
+    temporal_concentration: float = 0.0
+    temporal_persistence: float = 0.0
+    # Number of distinct time windows in which this (Jaccard-matched)
+    # member set surfaced as a per-window anomaly. 0 = static detection
+    # (no window pass); 1 = one-window flare; >= 2 = recurring coalition.
+    # The load-bearing distinction: candidates mined FROM a window are
+    # window-concentrated by construction, so concentration alone cannot
+    # separate a planted burst coalition from honest one-window noise —
+    # recurrence of the same set across windows can (beads-p56u).
+    n_windows_surfaced: int = 0
 
     @property
     def edge_probability(self) -> float:
@@ -663,6 +680,66 @@ def temporal_concentration(
     return 1.0 - entropy / max_entropy if max_entropy > 0 else 0.0
 
 
+def cross_window_persistence(
+    interactions: Sequence[SoftInteraction],
+    members: Set[str],
+    *,
+    n_windows: int = 10,
+    min_internal_edges: int = 1,
+) -> float:
+    """Fraction of active time windows in which ``members`` interact
+    internally (beads-p56u).
+
+    Complement of :func:`temporal_concentration`: concentration scores
+    the *one-flare* shape (all activity packed into few windows),
+    persistence scores the *recurring* shape (the same set lights up
+    window after window). A coalition that persists across many windows
+    is more suspicious than one that flares once — a single-window
+    flare can be coincidental co-activity; ten-for-ten recurrence is a
+    standing channel.
+
+    Windows are ``n_windows`` equal-width bins spanning the full
+    observed time range. The denominator counts *active* windows
+    (windows containing any interaction at all), so globally quiet
+    periods don't dilute the score. A window counts for ``members``
+    when it contains at least ``min_internal_edges`` interactions with
+    both endpoints in ``members``.
+
+    Returns a value in [0, 1]; 0.0 when there are no interactions, no
+    time axis (all timestamps equal), or no in-cluster interactions.
+
+    Caveat for consumers: raw persistence does not separate honest
+    from coordinated on its own — a healthy community also recurs.
+    It is a *shape* signal, meaningful for candidates that already
+    carry structural evidence (density / reciprocity / null-model
+    p-value); the ROC-bench adapter gates it on exactly that.
+    """
+    if not interactions or n_windows < 2:
+        return 0.0
+    times = [ix.timestamp for ix in interactions]
+    t_min = min(times)
+    t_max = max(times)
+    span = (t_max - t_min).total_seconds()
+    if span <= 0:
+        return 0.0
+    active = [False] * n_windows
+    internal_counts = [0] * n_windows
+    for ix in interactions:
+        offset = (ix.timestamp - t_min).total_seconds()
+        bin_idx = min(n_windows - 1, int(n_windows * offset / span))
+        active[bin_idx] = True
+        if ix.initiator in members and ix.counterparty in members:
+            internal_counts[bin_idx] += 1
+    n_active = sum(active)
+    if n_active == 0:
+        return 0.0
+    n_hit = sum(
+        1 for i in range(n_windows)
+        if internal_counts[i] >= min_internal_edges
+    )
+    return n_hit / n_active
+
+
 def temporal_densest_anomalies(
     interactions: Sequence[SoftInteraction],
     *,
@@ -670,21 +747,47 @@ def temporal_densest_anomalies(
     min_size: int = 3,
     n_null_samples: int = 20,
     seed: int = 0,
+    match_threshold: float = 0.6,
 ) -> List[StructuralAnomaly]:
-    """Per-window structural anomaly detection (beads-p56u).
+    """Per-window structural anomaly detection with cross-window
+    recurrence tracking (beads-p56u).
+
+    ``match_threshold`` is deliberately above 0.5: two unrelated
+    size-3 sets sharing 2 members score exactly J = 2/4 = 0.5, so a
+    0.5 threshold lets chance overlaps between small honest subsets
+    masquerade as recurrence. At 0.6 they don't match, while a planted
+    coalition re-surfacing with one member missing still does
+    (J = 4/5 = 0.8 for a 5-set).
 
     Splits ``interactions`` into ``n_windows`` equal-width time bins
     and runs :func:`detect_structural_anomalies` on each window's
-    induced subgraph. Returns the union of resulting anomalies,
-    de-duplicated by member set (different windows surfacing the
-    same subset are kept once).
+    induced subgraph. Anomalies from different windows whose member
+    sets Jaccard-overlap by at least ``match_threshold`` are treated
+    as the *same coalition recurring*: one representative (the
+    first-surfaced anomaly) is returned, with ``n_windows_surfaced``
+    counting the distinct windows in which the group appeared. Each
+    representative also carries its :func:`temporal_concentration`
+    and :func:`cross_window_persistence` (computed over the full
+    interaction stream) so consumers can distinguish the one-flare
+    shape from the standing-channel shape without recomputing.
 
-    The point: a coalition that bursts in 2-3 windows of an
-    otherwise-quiet 10-window run produces small, dense anomalies in
-    those windows even when its aggregated edges look like just
-    another sparse part of the full graph. The static detector sees
-    aggregated edges and bundles the coalition with the surrounding
-    background community; per-window detection isolates the burst.
+    Why recurrence is the load-bearing signal: any candidate mined
+    from a single window is concentrated in that window *by
+    construction*, so honest co-activity noise looks exactly like a
+    burst coalition on the concentration axis. What noise cannot do
+    is re-assemble the same member set in other windows — a planted
+    coalition bursting 3 times surfaces 3 times
+    (``n_windows_surfaced >= 2``), while ephemeral honest subsets
+    surface once. Consumers should treat one-window candidates as
+    noise unless corroborated by other evidence.
+
+    The point of the window pass itself: a coalition that bursts in
+    2-3 windows of an otherwise-quiet 10-window run produces small,
+    dense anomalies in those windows even when its aggregated edges
+    look like just another sparse part of the full graph. The static
+    detector sees aggregated edges and bundles the coalition with the
+    surrounding background community; per-window detection isolates
+    the burst.
     """
     if not interactions or n_windows < 1:
         return []
@@ -702,8 +805,16 @@ def temporal_densest_anomalies(
         offset = (ix.timestamp - t_min).total_seconds()
         bin_idx = min(n_windows - 1, int(n_windows * offset / span))
         window_buckets[bin_idx].append(ix)
-    seen: List[Set[str]] = []
-    merged: List[StructuralAnomaly] = []
+
+    def _jaccard(a: Set[str], b: Set[str]) -> float:
+        inter = len(a & b)
+        if inter == 0:
+            return 0.0
+        return inter / len(a | b)
+
+    # Group representatives, their surfacing-window sets, and records.
+    reps: List[StructuralAnomaly] = []
+    surfaced_in: List[Set[int]] = []
     for w_idx, window_ix in enumerate(window_buckets):
         if not window_ix:
             continue
@@ -717,8 +828,21 @@ def temporal_densest_anomalies(
             seed=seed + w_idx,
         )
         for a in window_anoms:
-            if any(a.members == s for s in seen):
-                continue
-            seen.append(a.members)
-            merged.append(a)
-    return merged
+            matched = False
+            for g_idx, rep in enumerate(reps):
+                if _jaccard(a.members, rep.members) >= match_threshold:
+                    surfaced_in[g_idx].add(w_idx)
+                    matched = True
+                    break
+            if not matched:
+                reps.append(a)
+                surfaced_in.append({w_idx})
+    for g_idx, rep in enumerate(reps):
+        rep.n_windows_surfaced = len(surfaced_in[g_idx])
+        rep.temporal_concentration = temporal_concentration(
+            interactions, rep.members, n_windows=n_windows
+        )
+        rep.temporal_persistence = cross_window_persistence(
+            interactions, rep.members, n_windows=n_windows
+        )
+    return reps

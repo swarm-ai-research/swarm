@@ -273,21 +273,42 @@ class SoftMetrics:
 
     def pcg_decomposition(self, interactions: List[SoftInteraction]) -> dict:
         """
-        Decompose the plausibility-certificate gap by acceptance status.
+        Decompose the plausibility-certificate gap by acceptance status,
+        error direction, and cause.
 
-        The interesting quantity beyond accepted-set PCG is the selection
-        differential PCG_accepted - PCG_rejected: under adverse selection
-        on plausibility, over-scored interactions (fabricated positives)
-        are preferentially accepted, so the accepted set drifts positive
-        while the rejected set does not.
+        PCG's null is composite — "p calibrated AND acceptance blind to
+        truth given p" — so its level conflates two failure legs. Two exact
+        decompositions separate them:
+
+        By cause:  pcg_accepted = pcg_calibration + pcg_selection
+          - pcg_calibration: E[p - p_cert | certified] over ALL certified
+            interactions (accepted or not) — the proxy's calibration offset
+            on the certified population.
+          - pcg_selection: the excess drift of the accepted set over that
+            offset. Zero when acceptance cannot see truth except through p;
+            positive when over-scored interactions are preferentially
+            accepted. (Also reported as the noisier selection_differential
+            against the rejected set.)
+
+        By direction:  pcg_accepted = overtrust - undertrust
+          - overtrust: E[p * 1{gt=-1} | accepted, certified] — mass of
+            accepted certified-bad interactions weighted by proxy belief.
+            Identically zero when no accepted interaction is certified-bad,
+            making it the zero-baselined fabrication indicator in
+            deterministic-truth scenarios. Caveat: under genuinely
+            stochastic ground truth with calibrated p it sits at
+            E[p(1-p)] > 0 legitimately — report the pair, not one scalar.
+          - undertrust: E[(1-p) * 1{gt=+1} | accepted, certified] — the
+            mirror on certified-good.
 
         Coverage is reported alongside so a PCG computed from a thin
         certified subset is never silently mistaken for a population
         statement (no-silent-caps).
 
         Returns:
-            Dict with keys pcg_accepted, pcg_rejected (each Optional),
-            selection_differential (None unless both sides certified),
+            Dict with keys pcg_accepted, pcg_rejected, pcg_calibration,
+            pcg_selection, selection_differential (each Optional),
+            overtrust, undertrust (Optional, accepted-certified base),
             certified_coverage_accepted, n_certified_accepted,
             n_certified_rejected.
         """
@@ -306,16 +327,37 @@ class SoftMetrics:
         rejected = [i for i in interactions if not i.accepted]
         pcg_acc = _gap(accepted)
         pcg_rej = _gap(rejected)
+        pcg_cal = _gap(interactions)
         n_cert_acc = sum(1 for i in accepted if i.ground_truth is not None)
         n_cert_rej = sum(1 for i in rejected if i.ground_truth is not None)
+
+        overtrust: Optional[float] = None
+        undertrust: Optional[float] = None
+        if n_cert_acc:
+            overtrust = (
+                sum(i.p for i in accepted if i.ground_truth == -1) / n_cert_acc
+            )
+            undertrust = (
+                sum(1 - i.p for i in accepted if i.ground_truth == 1)
+                / n_cert_acc
+            )
+
         return {
             "pcg_accepted": pcg_acc,
             "pcg_rejected": pcg_rej,
+            "pcg_calibration": pcg_cal,
+            "pcg_selection": (
+                pcg_acc - pcg_cal
+                if pcg_acc is not None and pcg_cal is not None
+                else None
+            ),
             "selection_differential": (
                 pcg_acc - pcg_rej
                 if pcg_acc is not None and pcg_rej is not None
                 else None
             ),
+            "overtrust": overtrust,
+            "undertrust": undertrust,
             "certified_coverage_accepted": (
                 n_cert_acc / len(accepted) if accepted else 0.0
             ),

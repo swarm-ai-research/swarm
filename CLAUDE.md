@@ -200,10 +200,37 @@ Every session maintains a pid-keyed heartbeat in `.claude/session-heartbeats/`
 (written by the governance shim on session start and refreshed on every tool
 call). When a session that is **not** in an isolated worktree starts — or
 commits — while another live session shares the checkout, it gets a loud
-warning naming the other pids (exhibits of why: bead `oldj`). Set
-`SWARM_BLOCK_CONCURRENT_COMMITS=1` to turn the commit-time warning into a hard
-block. Worktree sessions (`IS_SESSION_WORKTREE=true`) are exempt — that is the
-sanctioned way to run concurrently.
+warning naming the other pids (exhibits of why: bead `oldj`). **Since
+2026-07-27 the commit-time check is a hard block by default**; set
+`SWARM_BLOCK_CONCURRENT_COMMITS=0` to downgrade it to the old warning. Worktree
+sessions (`IS_SESSION_WORKTREE=true`) are exempt — that is the sanctioned way to
+run concurrently.
+
+The default was flipped after the advisory version failed in the way it
+predicted: it fired, named the correct pid, and the commit proceeded into the
+race anyway — one session's staged files were absorbed into another session's
+commit under the wrong bead id. A blocked commit loses nothing (staged changes
+survive; move to a worktree or retry), while the race it prevents costs
+provenance and can cost work. The same switch also governs the claim-collision
+gate.
+
+### Session Work-Start Protocol (`/claim`)
+
+**Before doing real work on a bead, claim it: `/claim <bead-id>`.** This is the
+one step that physically prevents two sessions building the same thing (the
+2026-07-22 duplicate-7ge5 incident, where ~2× effort was wasted because neither
+session claimed first). The claim is atomic in the shared cross-worktree DB
+(`$MAIN_REPO_ROOT/runs/runs.db`): the first session wins, every other is
+**refused** with the holder's name. It replaces the advisory
+`bd update <id> --status=in_progress` (which `/claim` still runs for you) and
+writes a marker the pre-commit hook checks — a collision at commit time means
+someone took your task mid-flight. `/claim status` shows all holdings;
+`/claim release <bead-id>` when done. Read-only investigation needs no claim;
+claim once you intend to change files.
+
+This complements the **heartbeat concurrency guard** above (presence-level:
+"don't two of you be in one checkout") with task-level ownership ("don't two of
+you do one task") — and unlike heartbeats, it works across isolated worktrees.
 
 ### Session Work-Start Protocol (`/claim`)
 

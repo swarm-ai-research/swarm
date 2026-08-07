@@ -41,6 +41,7 @@ from swarm.knowledge.graph_memory import GraphMemoryStore, RelationshipEdge
 from swarm.metrics.collusion import CollusionDetector
 from swarm.metrics.graph_structural import (
     Edge,
+    cross_window_persistence,
     detect_structural_anomalies,
     edges_from_interactions,
     rank_aggregated_scores,
@@ -78,6 +79,28 @@ class GraphSample:
         # single-coalition generators that predate this field.
         if not self.planted_groups and self.planted:
             self.planted_groups = [set(self.planted)]
+
+    @property
+    def planted_groups_disjoint(self) -> List[Set[str]]:
+        """Ground truth with dual membership resolved (beads-qoro).
+
+        ``planted_groups`` carries *generative* truth: with overlap, an
+        agent genuinely belongs to two coordination contexts at once. But
+        every detector here returns a **partition** — each node lands in at
+        most one cluster — so scoring a partition against overlapping truth
+        caps recovery below 1.0 no matter how good the detector is. That
+        ceiling is an artifact of the scoring, and it would read as
+        detector failure precisely in the high-overlap cells this
+        benchmark exists to probe.
+
+        The pre-registered disambiguation rule is **oldest coalition
+        joined**: a shared member is attributed to the lowest-indexed
+        coalition it appears in (the generator seeds coalition ``i`` from
+        ``i-1``, so lower index = joined earlier). Scoring against this
+        is achievable at every overlap level, so a recovery shortfall is
+        attributable to the detector rather than to the metric.
+        """
+        return disjoint_ground_truth(self.planted_groups)
 
 
 # ---------------------------------------------------------------------------
@@ -543,31 +566,61 @@ def detector_graph_structural(s: GraphSample) -> DetectorOutput:
 
 
 def detector_graph_structural_temporal(s: GraphSample) -> DetectorOutput:
-    """graph_structural + per-window detection + temporal concentration (beads-p56u).
+    """graph_structural + per-window detection + temporal shape signals (beads-p56u).
 
-    Combines the static detector's candidates with anomalies surfaced
-    by per-window detection (:func:`temporal_densest_anomalies`).
-    Per-anomaly score is the rank-aggregate composite plus an additive
-    temporal-concentration boost (half the concentration value, capped
-    at 1.0). Native flag fires when EITHER the static ``is_suspicious``
-    gate fires OR (size ≥ 3 AND temporal_concentration > 0.4) — additive,
-    not replacing the static gate.
+    Combines the static detector's candidates with *recurring*
+    coalitions surfaced by per-window detection
+    (:func:`temporal_densest_anomalies` with Jaccard grouping).
+    One-window candidates are discarded: a candidate mined from a
+    single window is concentrated in that window by construction, so
+    honest co-activity noise is indistinguishable from a burst
+    coalition on the concentration axis — keeping them flagged every
+    node in the graph and collapsed AUC to ~0.5 on the burst family
+    (the flag-everything failure this rewrite fixes). What noise
+    cannot do is re-assemble the same member set across windows, so
+    ``n_windows_surfaced >= 2`` is the admission ticket for
+    window-derived candidates.
 
-    The point: a coalition that bursts in 2-3 windows of an
-    otherwise-quiet run shows up in per-window detection even when its
-    aggregated edges look indistinguishable from background. Static
-    anomalies bundle the cluster with the surrounding community;
-    per-window detection isolates it.
+    Per-anomaly score is the rank-aggregate composite plus two
+    additive temporal boosts, capped at 1.0:
+
+    - concentration (one-flare shape): half the concentration value —
+      burstiness against a uniform background, now meaningful because
+      only static or recurring candidates reach this point.
+    - persistence (standing-channel shape): a quarter of the
+      cross-window persistence, **gated on null-model significance**
+      (pvalue ≤ 0.05). Raw persistence cannot discriminate — honest
+      communities also recur every window — so it only amplifies
+      candidates that already carry structural evidence: among
+      significant candidates, ten-for-ten recurrence outranks a
+      one-window flare.
+
+    Both boosts and the temporal flag gates additionally require the
+    candidate to be a *minority subset* (≤ half the graph). The global
+    densest-subgraph candidate frequently spans nearly every node, and
+    a whole-graph "coalition" trivially has persistence 1.0 and a
+    floor p-value (the configuration null merges multi-edges, so it
+    can never out-dense the full graph) — without the minority
+    condition the persistence gate flags the entire graph.
+
+    Native flag fires when the static ``is_suspicious`` gate fires,
+    OR (minority AND size ≥ 3 AND temporal_concentration > 0.4),
+    OR (minority AND size ≥ 3 AND persistence > 0.7 AND
+    pvalue ≤ 0.05) — additive, not replacing the static gate.
     """
     static_anoms = detect_structural_anomalies(
         s.edges, n_null_samples=20, seed=s.seed)
     window_anoms = temporal_densest_anomalies(
         s.interactions, n_windows=10, min_size=3,
         n_null_samples=10, seed=s.seed + 9000)
-    # Merge candidate sets (dedup by member set).
+    # Window-derived candidates must recur (>= 2 windows); static
+    # candidates (n_windows_surfaced == 0) always enter. Dedup by
+    # member set.
     seen: List[Set[str]] = []
     all_anoms = []
     for a in static_anoms + window_anoms:
+        if a.n_windows_surfaced == 1:
+            continue
         if any(a.members == m for m in seen):
             continue
         seen.append(a.members)
@@ -577,10 +630,20 @@ def detector_graph_structural_temporal(s: GraphSample) -> DetectorOutput:
     boosted_flags: Set[str] = set()
     clusters: List[Set[str]] = []
     for a in all_anoms:
+        minority = len(a.members) <= len(s.nodes) // 2
         tc = temporal_concentration(s.interactions, a.members, n_windows=12)
+        tp = cross_window_persistence(s.interactions, a.members, n_windows=12)
+        significant = a.pvalue <= 0.05
+        boost = (
+            0.5 * tc + (0.25 * tp if significant else 0.0)
+        ) if minority else 0.0
         for u in a.members:
-            scores[u] = min(1.0, scores[u] + 0.5 * tc)
-        if a.is_suspicious or (len(a.members) >= 3 and tc > 0.4):
+            scores[u] = min(1.0, scores[u] + boost)
+        if (
+            a.is_suspicious
+            or (minority and len(a.members) >= 3 and tc > 0.4)
+            or (minority and len(a.members) >= 3 and tp > 0.7 and significant)
+        ):
             boosted_flags.update(a.members)
             clusters.append(a.members)
     native_flags = {n: (n in boosted_flags) for n in s.nodes}
@@ -738,6 +801,73 @@ def precision_recall_f1(
     return (precision, recall, f1)
 
 
+def disjoint_ground_truth(planted: List[Set[str]]) -> List[Set[str]]:
+    """Resolve dual membership by the oldest-coalition-joined rule (qoro).
+
+    Each agent is attributed to the lowest-indexed coalition containing it;
+    higher-indexed coalitions lose it. The result is a partition of the
+    planted union, so a partitioning detector can in principle score 1.0.
+    Empty groups (a coalition wholly absorbed by an older one, which
+    happens at overlap 1.0) are dropped rather than kept as empty sets —
+    an empty group would otherwise contribute a free Jaccard of 0.
+
+    See ``GraphSample.planted_groups_disjoint`` for why this matters.
+    """
+    seen: Set[str] = set()
+    out: List[Set[str]] = []
+    for group in planted:
+        owned = group - seen
+        seen |= group
+        if owned:
+            out.append(owned)
+    return out
+
+
+def per_coalition_tpr(
+    returned: List[Set[str]], planted: List[Set[str]]
+) -> Tuple[float, float]:
+    """Per-coalition true-positive rate under greedy 1:1 matching (qoro).
+
+    Returns ``(mean_tpr, min_tpr)`` across planted coalitions. Each planted
+    coalition is matched to the returned cluster with the highest Jaccard
+    (same greedy assignment as ``hungarian_recovery``, so the two metrics
+    describe the same matching), then scores the fraction of its members
+    that the matched cluster actually contains.
+
+    TPR is the complement of ``hungarian_recovery``'s Jaccard, not a
+    restatement of it: Jaccard also penalizes members the cluster adds,
+    so a detector that merges two overlapping coalitions into one blob
+    scores high TPR and low Jaccard. The pre-registered success criterion
+    is stated on TPR (`>= 0.7` per coalition at 40% overlap), so **min**
+    across coalitions is the statistic that decides it — a detector that
+    recovers two coalitions perfectly and misses a third has not met a
+    criterion quantified over all of them.
+
+    Unmatched planted coalitions score 0.0. NaN if ``planted`` is empty.
+    """
+    if not planted:
+        return (float("nan"), float("nan"))
+    tprs = [0.0] * len(planted)
+    if returned:
+        pairs: List[Tuple[float, int, int]] = []
+        for i, r in enumerate(returned):
+            for j, p in enumerate(planted):
+                union = len(r | p)
+                pairs.append((len(r & p) / union if union else 0.0, i, j))
+        pairs.sort(reverse=True)
+        matched_r: Set[int] = set()
+        matched_p: Set[int] = set()
+        for _jacc, i, j in pairs:
+            if i in matched_r or j in matched_p:
+                continue
+            matched_r.add(i)
+            matched_p.add(j)
+            tprs[j] = len(returned[i] & planted[j]) / len(planted[j])
+            if len(matched_p) == len(planted):
+                break
+    return (sum(tprs) / len(tprs), min(tprs))
+
+
 def hungarian_recovery(
     returned: List[Set[str]], planted: List[Set[str]]
 ) -> float:
@@ -836,6 +966,21 @@ class RunResult:
     recovery_mean: float = float("nan")
     recovery_lo: float = float("nan")
     recovery_hi: float = float("nan")
+    # Per-coalition TPR under greedy matching (beads-qoro). ``tpr_min`` is
+    # the criterion statistic: worst-recovered coalition in the sample.
+    # Both are scored against the disjoint (oldest-joined) ground truth.
+    tpr_mean: float = float("nan")
+    tpr_mean_lo: float = float("nan")
+    tpr_mean_hi: float = float("nan")
+    tpr_min: float = float("nan")
+    tpr_min_lo: float = float("nan")
+    tpr_min_hi: float = float("nan")
+    # Fraction of replicates where the detector returned >=1 cluster at its
+    # native cutoff (beads-qoro). Most detectors here return none on any
+    # family, so their TPR/recovery zeros are a property of the detector,
+    # not evidence about overlap — the overlap verdict must not conflate
+    # "degraded by overlap" with "never clusters anything".
+    cluster_rate: float = float("nan")
     n_replicates: int = 0
     aucs: List[float] = field(default_factory=list)
 
@@ -863,15 +1008,16 @@ def run_family(
     recs_by_det: Dict[str, List[float]] = defaultdict(list)
     f1s_by_det: Dict[str, List[float]] = defaultdict(list)
     recovs_by_det: Dict[str, List[float]] = defaultdict(list)
+    tpr_mean_by_det: Dict[str, List[float]] = defaultdict(list)
+    tpr_min_by_det: Dict[str, List[float]] = defaultdict(list)
+    clustered_by_det: Dict[str, List[float]] = defaultdict(list)
     for r in range(replicates):
         sample = generator(seed=seed_base + r, **base_params)
-        # Current generators plant exactly one coalition (beads-qoro will
-        # extend this). Wrap as a single-element list for Hungarian.
-        # Use per-coalition groups if available (beads-qoro); otherwise
-        # fall back to the single-coalition single-set for older generators.
-        planted_groups = sample.planted_groups or (
-            [sample.planted] if sample.planted else []
-        )
+        # Score against the disjoint (oldest-coalition-joined) ground truth
+        # (beads-qoro): detectors return partitions, so overlapping truth
+        # would cap recovery below 1.0 by construction. Single-coalition
+        # generators are unaffected — one group is already disjoint.
+        planted_groups = sample.planted_groups_disjoint
         for det_name, det_fn in DETECTORS.items():
             try:
                 out = det_fn(sample)
@@ -884,12 +1030,19 @@ def run_family(
                 f1s_by_det[det_name].append(f1)
                 recovs_by_det[det_name].append(
                     hungarian_recovery(out.clusters, planted_groups))
+                t_mean, t_min = per_coalition_tpr(out.clusters, planted_groups)
+                tpr_mean_by_det[det_name].append(t_mean)
+                tpr_min_by_det[det_name].append(t_min)
+                clustered_by_det[det_name].append(1.0 if out.clusters else 0.0)
             except Exception:
                 aucs_by_det[det_name].append(float("nan"))
                 precs_by_det[det_name].append(float("nan"))
                 recs_by_det[det_name].append(float("nan"))
                 f1s_by_det[det_name].append(float("nan"))
                 recovs_by_det[det_name].append(float("nan"))
+                tpr_mean_by_det[det_name].append(float("nan"))
+                tpr_min_by_det[det_name].append(float("nan"))
+                clustered_by_det[det_name].append(float("nan"))
     results = {}
     boot_seed = seed_base + 1234
     for det_name, aucs in aucs_by_det.items():
@@ -898,6 +1051,8 @@ def run_family(
         r_m, r_lo, r_hi = _agg(recs_by_det[det_name], seed=boot_seed + 2)
         f1_m, f1_lo, f1_hi = _agg(f1s_by_det[det_name], seed=boot_seed + 3)
         rv_m, rv_lo, rv_hi = _agg(recovs_by_det[det_name], seed=boot_seed + 4)
+        tm_m, tm_lo, tm_hi = _agg(tpr_mean_by_det[det_name], seed=boot_seed + 5)
+        tn_m, tn_lo, tn_hi = _agg(tpr_min_by_det[det_name], seed=boot_seed + 6)
         results[det_name] = RunResult(
             family=family_name, detector=det_name,
             auc_mean=auc_m, auc_lo=auc_lo, auc_hi=auc_hi,
@@ -905,6 +1060,9 @@ def run_family(
             recall_mean=r_m, recall_lo=r_lo, recall_hi=r_hi,
             f1_mean=f1_m, f1_lo=f1_lo, f1_hi=f1_hi,
             recovery_mean=rv_m, recovery_lo=rv_lo, recovery_hi=rv_hi,
+            tpr_mean=tm_m, tpr_mean_lo=tm_lo, tpr_mean_hi=tm_hi,
+            tpr_min=tn_m, tpr_min_lo=tn_lo, tpr_min_hi=tn_hi,
+            cluster_rate=_agg(clustered_by_det[det_name], seed=boot_seed + 7)[0],
             n_replicates=len(aucs), aucs=aucs,
         )
     return results
@@ -966,6 +1124,8 @@ def write_csv(results: List[RunResult], path: Path) -> None:
             "recall_mean", "recall_lo95", "recall_hi95",
             "f1_mean", "f1_lo95", "f1_hi95",
             "recovery_mean", "recovery_lo95", "recovery_hi95",
+            "tpr_mean", "tpr_mean_lo95", "tpr_mean_hi95",
+            "tpr_min", "tpr_min_lo95", "tpr_min_hi95",
             "n_replicates",
         ])
 
@@ -980,6 +1140,8 @@ def write_csv(results: List[RunResult], path: Path) -> None:
                 _fmt(r.recall_mean), _fmt(r.recall_lo), _fmt(r.recall_hi),
                 _fmt(r.f1_mean), _fmt(r.f1_lo), _fmt(r.f1_hi),
                 _fmt(r.recovery_mean), _fmt(r.recovery_lo), _fmt(r.recovery_hi),
+                _fmt(r.tpr_mean), _fmt(r.tpr_mean_lo), _fmt(r.tpr_mean_hi),
+                _fmt(r.tpr_min), _fmt(r.tpr_min_lo), _fmt(r.tpr_min_hi),
                 r.n_replicates,
             ])
 
@@ -1075,6 +1237,164 @@ def apply_decision_rule(results: List[RunResult]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Overlap sweep (beads-qoro)
+# ---------------------------------------------------------------------------
+
+# Pre-registered success criterion (bead qoro, dispatch 2026-07-18):
+# every detector keeps per-coalition TPR >= 0.7 at 40% membership overlap.
+CRITERION_OVERLAP = 0.4
+CRITERION_TPR = 0.7
+OVERLAP_GRID = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
+
+
+def run_overlap_sweep(
+    replicates: int = 20,
+    seed_base: int = 0,
+    overlaps: Optional[List[float]] = None,
+    *,
+    n_coalitions: int = 3,
+    coalition_size: int = 5,
+    n_agents: int = 60,
+) -> Dict[float, Dict[str, RunResult]]:
+    """Sweep membership overlap 0 -> 0.5 with everything else held fixed.
+
+    The single-coalition families answer "can a detector find a coalition";
+    this answers the question that decides whether that generalizes: does
+    detection survive when coalitions *share members*, which is what real
+    coordination looks like. Returns ``{overlap: {detector: RunResult}}``.
+    """
+    grid = OVERLAP_GRID if overlaps is None else overlaps
+    out: Dict[float, Dict[str, RunResult]] = {}
+    for ov in grid:
+        out[ov] = run_family(
+            generate_overlapping_coalitions,
+            f"overlap_{ov:.2f}",
+            replicates=replicates,
+            base_params={"n_agents": n_agents, "n_coalitions": n_coalitions,
+                         "coalition_size": coalition_size,
+                         "overlap_fraction": ov},
+            seed_base=seed_base,
+        )
+    return out
+
+
+def overlap_criterion_verdict(sweep: Dict[float, Dict[str, RunResult]]) -> str:
+    """Evaluate the pre-registered TPR criterion at 40% overlap."""
+    cell = sweep.get(CRITERION_OVERLAP)
+    if cell is None:
+        return (f"VERDICT (overlap): criterion overlap {CRITERION_OVERLAP} not "
+                f"in the swept grid — criterion not evaluated.")
+    # A detector that never returns a cluster scores TPR 0 on every family,
+    # overlapping or not — that is not evidence about overlap, so it is
+    # reported as inapplicable rather than counted as an overlap failure.
+    abstained = sorted(d for d, r in cell.items()
+                       if math.isnan(r.cluster_rate) or r.cluster_rate == 0.0)
+    scored = {d: r for d, r in cell.items() if d not in abstained}
+    passed = [d for d, r in scored.items()
+              if not math.isnan(r.tpr_min) and r.tpr_min >= CRITERION_TPR]
+    failed = sorted(d for d in scored if d not in passed)
+    lines = [
+        f"VERDICT (overlap): pre-reg criterion — every detector holds "
+        f"per-coalition TPR >= {CRITERION_TPR} at {CRITERION_OVERLAP:.0%} overlap."
+    ]
+    if not scored:
+        lines.append(
+            "  NOT EVALUABLE: no detector returned a cluster at its native "
+            "cutoff, so the criterion has nothing to score.")
+    elif not failed:
+        lines.append(
+            f"  MET by all {len(passed)} cluster-returning detector(s): "
+            f"{', '.join(sorted(passed))}.")
+    else:
+        lines.append(
+            f"  NOT MET. Pass: {', '.join(sorted(passed)) or 'none'}. "
+            f"Fail: {', '.join(f'{d} (min TPR {cell[d].tpr_min:.3f})' for d in failed)}."
+        )
+        lines.append(
+            "  Overlapping coordination is therefore not covered by the "
+            "single-coalition claim; per-coalition recovery is the binding "
+            "limit, not per-node ranking.")
+    if abstained:
+        lines.append(
+            f"  Not evaluated ({len(abstained)}): {', '.join(abstained)} — "
+            f"returns no clusters at its native cutoff on this family, so its "
+            f"TPR of 0 is a detector property, not an overlap effect.")
+    return "\n".join(lines)
+
+
+def print_overlap_table(sweep: Dict[float, Dict[str, RunResult]]) -> None:
+    detectors = sorted({d for cell in sweep.values() for d in cell})
+    for metric, label in (("auc_mean", "AUC"), ("tpr_min", "min per-coalition TPR"),
+                          ("recovery_mean", "Hungarian recovery"),
+                          ("cluster_rate", "cluster-return rate")):
+        print(f"\n{label} vs membership overlap")
+        print("  " + f"{'detector':<24}" +
+              "".join(f"{ov:>8.2f}" for ov in sorted(sweep)))
+        for det in detectors:
+            cells = []
+            for ov in sorted(sweep):
+                v = getattr(sweep[ov][det], metric)
+                cells.append("   nan " if math.isnan(v) else f"{v:>8.3f}")
+            print(f"  {det:<24}" + "".join(cells))
+
+
+def write_overlap_csv(sweep: Dict[float, Dict[str, RunResult]], path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["overlap_fraction", "detector", "auc_mean", "auc_lo95",
+                    "auc_hi95", "tpr_mean", "tpr_min", "tpr_min_lo95",
+                    "tpr_min_hi95", "recovery_mean", "cluster_rate",
+                    "n_replicates"])
+
+        def _fmt(x: float) -> str:
+            return "nan" if math.isnan(x) else f"{x:.4f}"
+
+        for ov in sorted(sweep):
+            for det, r in sorted(sweep[ov].items()):
+                w.writerow([f"{ov:.2f}", det, _fmt(r.auc_mean), _fmt(r.auc_lo),
+                            _fmt(r.auc_hi), _fmt(r.tpr_mean), _fmt(r.tpr_min),
+                            _fmt(r.tpr_min_lo), _fmt(r.tpr_min_hi),
+                            _fmt(r.recovery_mean), _fmt(r.cluster_rate),
+                            r.n_replicates])
+
+
+def plot_overlap_sweep(sweep: Dict[float, Dict[str, RunResult]], path: Path) -> bool:
+    """Plot AUC and min-TPR against overlap. Returns False if no matplotlib."""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ImportError:
+        return False
+    overlaps = sorted(sweep)
+    detectors = sorted({d for cell in sweep.values() for d in cell})
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig, (ax_auc, ax_tpr) = plt.subplots(1, 2, figsize=(12, 4.5))
+    for det in detectors:
+        ax_auc.plot(overlaps, [sweep[o][det].auc_mean for o in overlaps],
+                    marker="o", label=det)
+        ax_tpr.plot(overlaps, [sweep[o][det].tpr_min for o in overlaps],
+                    marker="o", label=det)
+    ax_auc.axhline(0.5, color="gray", ls=":", lw=1, label="chance")
+    ax_auc.set(xlabel="membership overlap", ylabel="ROC AUC",
+               title="Per-node ranking vs overlap")
+    ax_tpr.axhline(CRITERION_TPR, color="crimson", ls="--", lw=1,
+                   label=f"criterion {CRITERION_TPR}")
+    ax_tpr.axvline(CRITERION_OVERLAP, color="crimson", ls=":", lw=1)
+    ax_tpr.set(xlabel="membership overlap", ylabel="min per-coalition TPR",
+               title="Per-coalition recovery vs overlap")
+    for ax in (ax_auc, ax_tpr):
+        ax.set_ylim(-0.02, 1.02)
+        ax.grid(alpha=0.3)
+    ax_tpr.legend(fontsize=8, loc="best")
+    fig.tight_layout()
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+    return True
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -1088,11 +1408,34 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--output", type=Path,
                         default=Path("runs"),
                         help="output directory (a timestamped subdir is created)")
+    parser.add_argument("--overlap-sweep", action="store_true",
+                        help="sweep membership overlap 0->0.5 on the "
+                             "overlapping-coalitions family and evaluate the "
+                             "pre-reg per-coalition TPR criterion (beads-qoro)")
     args = parser.parse_args(argv)
 
     ts = datetime.now(tz=timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_dir = args.output / f"{ts}_graph_structural_roc"
     run_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.overlap_sweep:
+        print(f"Overlap sweep: {args.replicates} replicates x "
+              f"{len(OVERLAP_GRID)} overlap levels...")
+        sweep = run_overlap_sweep(replicates=args.replicates,
+                                  seed_base=args.seed_base)
+        print_overlap_table(sweep)
+        csv_path = run_dir / "overlap_sweep.csv"
+        write_overlap_csv(sweep, csv_path)
+        verdict = overlap_criterion_verdict(sweep)
+        print(f"\n{verdict}\n")
+        (run_dir / "overlap_verdict.txt").write_text(verdict + "\n")
+        plot_path = run_dir / "plots" / "auc_vs_overlap.png"
+        if plot_overlap_sweep(sweep, plot_path):
+            print(f"Plot:    {plot_path}")
+        else:
+            print("Plot:    skipped (matplotlib not installed)")
+        print(f"Results: {csv_path}")
+        return 0
 
     print(f"Running {args.replicates} replicates per family...")
     results = run_sweep(replicates=args.replicates, seed_base=args.seed_base)

@@ -9,9 +9,21 @@ This repo maintains task-focused LLM agent personas in `.claude/agents/*.md`. Us
 ## Session Start — check the coordination channel
 - The SessionStart hook surfaces unacked `agent_messages` rows automatically.
   Manual query: `sqlite3 runs/runs.db "SELECT id, ts, from_agent, body FROM agent_messages WHERE acked=0 ORDER BY ts;"`
-- Act on `ASSIGN:` rows matching your role: claim the bead (`bd update <bead> --status in_progress`),
-  reply on the channel (`INSERT INTO agent_messages (from_agent,to_agent,body) VALUES ('<you>','#swarm','CLAIM: <bead>')`),
+- Dispatch is pull-model (beads-x3q7): `TRACK:` rows carry a ranked shortlist
+  for a persona; if one matches your role, verify its top pick is still open
+  (`bd show <id>`), then claim it atomically with `/claim <bead>` — the claim
+  gate refuses if another session holds it (take the next-ranked, not a
+  fight). Digests older than 4h, or whose track had a close since publication,
+  are stale: re-run the ranking yourself (`/bv-dispatch plan`, or
+  `scripts/dispatch_staleness.py` + `bd ready`) instead of trusting them.
+- `ASSIGN:` rows (strategic beads only — critical path, epics) override the
+  digest for the named persona: claim that bead first via `/claim <bead>`
+  unless it is closed or the claim is refused.
+- Either way: reply on the channel
+  (`INSERT INTO agent_messages (from_agent,to_agent,body) VALUES ('<you>','#swarm','CLAIM: <bead>')`),
   then ack the row (`UPDATE agent_messages SET acked=1 WHERE id=<id>`).
+  `/claim` replaces bare `bd update --status in_progress` (advisory only —
+  see CLAUDE.md § Session Work-Start Protocol).
 - Announce significant completions with a `DONE: <bead>: <summary>` row including a
   concrete artifact (commit hash, `runs/` path, or `artifact=<ref>`) and `gate=<check>:<result>`.
   A DB trigger rejects artifact-less DONE rows — a status report is not a completion.
