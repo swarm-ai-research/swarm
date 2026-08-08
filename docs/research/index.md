@@ -116,6 +116,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     SWA-71 pilot of the Agent-Native Research Artifact compiler: evidence-layer fabrication, broken self-validation, final verdict Reject
 
+-   :material-magnify-expand: **[Greenblatt Misalignment Field Evidence](greenblatt-misalignment-field-evidence.md)**
+
+    ---
+
+    Apparent-success-seeking as production evidence for SWARM's mechanism: his failure catalog mapped to quality gap and toxicity, plus four scenario proposals it motivates
+
 -   :material-telescope-shooting: **[AISF-2026 Observatory Mapping](aisf2026-observatory-swarm-mapping.md)**
 
     ---
