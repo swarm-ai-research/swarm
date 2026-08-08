@@ -739,6 +739,10 @@ def parse_memory_tier_config(data: Dict[str, Any]) -> Optional[MemoryTierConfig]
         hot_cache_size=data.get("hot_cache_size", 20),
         compaction_probability=data.get("compaction_probability", 0.05),
         seed=data.get("seed"),
+        contagion_enabled=data.get("contagion_enabled", False),
+        contagion_exposure_alpha=data.get("contagion_exposure_alpha", 0.25),
+        contagion_transmissibility=data.get("contagion_transmissibility", 0.8),
+        reset_cadence_epochs=data.get("reset_cadence_epochs", 0),
     )
     return config
 

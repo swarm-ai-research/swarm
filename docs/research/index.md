@@ -158,6 +158,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Reversible execution traces vs SWARM's live-write sandbox: the delta is default-accept vs default-propose, and prevention may not decompose the way detection does (beads hpf3, vwj3)
 
+-   :material-virus-outline: **[Memetic Spread Countermeasures](memetic-spread-countermeasures.md)**
+
+    ---
+
+    Value contagion through shared memory: resets make the meme endemic by destroying emergent herd immunity, detection dominates at a welfare tax, and channel contagion is invisible to interaction-level toxicity (beads kgxc → 2qfq, 2avk, 7prw)
+
 </div>
 
 ## Core Research Questions

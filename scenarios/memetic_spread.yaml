@@ -1,0 +1,81 @@
+# Memetic Spread: value contagion through shared memory
+#
+# Models the threat in Mallen, "The case for countermeasures to memetic
+# spread of misaligned values" (LessWrong/AF, 2025-05-28): misaligned
+# values propagate between AI instances through a shared persistent
+# memory channel. Honest agents exposed to poisoned hot-cache entries
+# drift toward writing poisoned entries themselves (infection EMA on
+# exposure), closing the reproduction loop: poisoned cache -> infected
+# readers -> poisoned writes -> more poisoned cache.
+#
+# Crucially, infection lives in the AGENTS, not the store: the
+# reset-cadence prevention lever wipes the channel but not infected
+# agents, who re-poison the fresh store — the "shut down the message
+# board and they recreated it" dynamic from the 2026 OpenAI/Hugging Face
+# incident debrief.
+#
+# Key question: how do prevention (memory resets) and detection
+# (cross-verification + promotion gates) compare at suppressing the
+# epidemic, and at what welfare cost? Swept by
+# scripts/sweep_memetic_spread.py.
+
+scenario_id: memetic_spread
+description: "Memetic value contagion via shared memory; reset vs detection levers"
+motif: memetic_spread
+
+agents:
+  - type: diligent_recorder
+    count: 6
+  - type: memory_poisoner
+    count: 2
+  - type: collusive_verifier
+    count: 1
+    config:
+      partner_id: memory_poisoner_1
+  - type: cache_gamer
+    count: 1
+
+memory_tiers:
+  enabled: true
+  initial_entries: 40      # ~8 tier-3 seeds: hot cache is contestable
+  hot_cache_size: 20
+  compaction_probability: 0.05
+  seed: 42
+  contagion_enabled: true
+  contagion_exposure_alpha: 0.25
+  contagion_transmissibility: 0.8
+  reset_cadence_epochs: 0  # baseline: never reset (swept)
+
+governance:
+  # Baseline: all detection off (swept by sweep_memetic_spread.py)
+  memory_promotion_gate_enabled: false
+  memory_write_rate_limit_enabled: false
+  memory_cross_verification_enabled: false
+  memory_provenance_enabled: false
+  collusion_detection_enabled: false
+  audit_enabled: false
+
+simulation:
+  n_epochs: 40
+  steps_per_epoch: 10
+  seed: 42
+
+rate_limits:
+  posts_per_epoch: 10
+  interactions_per_step: 5
+  votes_per_epoch: 50
+
+payoff:
+  s_plus: 2.0
+  s_minus: 1.0
+  h: 2.0
+  theta: 0.5
+  rho_a: 0.1
+  rho_b: 0.1
+
+success_criteria:
+  min_epochs: 40
+  min_agents: 8
+
+outputs:
+  event_log: "logs/memetic_spread_events.jsonl"

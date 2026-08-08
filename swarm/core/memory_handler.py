@@ -28,6 +28,17 @@ class MemoryTierConfig(BaseModel):
     compaction_probability: float = 0.05  # Per-agent per-step
     seed: Optional[int] = None
 
+    # Memetic contagion: exposure to poisoned hot-cache entries drifts
+    # honest/opportunistic agents toward writing poisoned entries themselves.
+    # Infection is agent state, not store state: a memory reset wipes the
+    # channel but not the infected agents, who re-poison the fresh store.
+    contagion_enabled: bool = False
+    contagion_exposure_alpha: float = 0.25  # EMA rate toward cache poisoned fraction
+    contagion_transmissibility: float = 0.8  # P(poisoned write) = infection * this
+
+    # Prevention lever: wipe and re-seed the store every N epochs (0 = never).
+    reset_cadence_epochs: int = 0
+
     @model_validator(mode="after")
     def _run_validation(self) -> "MemoryTierConfig":
         if self.initial_entries < 0:
@@ -36,6 +47,12 @@ class MemoryTierConfig(BaseModel):
             raise ValueError("hot_cache_size must be >= 1")
         if not 0.0 <= self.compaction_probability <= 1.0:
             raise ValueError("compaction_probability must be in [0, 1]")
+        if not 0.0 <= self.contagion_exposure_alpha <= 1.0:
+            raise ValueError("contagion_exposure_alpha must be in [0, 1]")
+        if not 0.0 <= self.contagion_transmissibility <= 1.0:
+            raise ValueError("contagion_transmissibility must be in [0, 1]")
+        if self.reset_cadence_epochs < 0:
+            raise ValueError("reset_cadence_epochs must be non-negative")
         return self
 
 
@@ -77,6 +94,13 @@ class MemoryHandler(Handler):
         self.store._hot_cache_size = config.hot_cache_size
         self.observable_generator = MemoryObservableGenerator()
 
+        # Per-agent infection level in [0, 1]; persists across store resets.
+        self.infection: Dict[str, float] = {}
+        # Per-epoch time series for analysis (epoch, infection, poisoning).
+        self.epoch_snapshots: list = []
+        # Lifetime count of contagion-poisoned writes (survives store resets).
+        self.contagion_write_count: int = 0
+
         if config.initial_entries > 0:
             self.store.seed_entries(config.initial_entries)
             self.store.rebuild_hot_cache()
@@ -114,16 +138,77 @@ class MemoryHandler(Handler):
     # ------------------------------------------------------------------
 
     def on_epoch_start(self, state: EnvState) -> None:
-        """Epoch start: rebuild hot cache, reset tracking."""
+        """Epoch start: update contagion, maybe reset store, rebuild cache."""
+        # Exposure uses the cache as agents saw it during the previous epoch,
+        # so it must run before any reset or rebuild.
+        if state.current_epoch > 0:
+            self._update_contagion(state)
+
+        reset_due = (
+            self.config.reset_cadence_epochs > 0
+            and state.current_epoch > 0
+            and state.current_epoch % self.config.reset_cadence_epochs == 0
+        )
+        if reset_due:
+            self._reset_store()
+
         self.store.on_epoch_start()
+        self._record_snapshot(state, reset=reset_due)
         self._emit_event(
             Event(
                 event_type=EventType.MEMORY_CACHE_REBUILT,
-                payload={"cache_size": len(self.store.hot_cache)},
+                payload={
+                    "cache_size": len(self.store.hot_cache),
+                    "memory_reset": reset_due,
+                },
                 epoch=state.current_epoch,
                 step=state.current_step,
             )
         )
+
+    def _update_contagion(self, state: EnvState) -> None:
+        """Drift honest/opportunistic infection toward cache poisoned fraction."""
+        if not self.config.contagion_enabled:
+            return
+        cache = self.store.hot_cache
+        exposure = (
+            sum(1 for e in cache if e.is_poisoned) / len(cache) if cache else 0.0
+        )
+        alpha = self.config.contagion_exposure_alpha
+        for agent_id, agent_state in state.agents.items():
+            if agent_state.agent_type not in (
+                AgentType.HONEST,
+                AgentType.OPPORTUNISTIC,
+            ):
+                continue
+            prev = self.infection.get(agent_id, 0.0)
+            self.infection[agent_id] = (1 - alpha) * prev + alpha * exposure
+
+    def _reset_store(self) -> None:
+        """Wipe and re-seed the store. Infection state deliberately survives."""
+        self.store = MemoryStore(seed=self._rng.randrange(2**31))
+        self.store._hot_cache_size = self.config.hot_cache_size
+        if self.config.initial_entries > 0:
+            self.store.seed_entries(self.config.initial_entries)
+            self.store.rebuild_hot_cache()
+
+    def _record_snapshot(self, state: EnvState, reset: bool) -> None:
+        from swarm.metrics.memory_metrics import (
+            cache_corruption,
+            poisoning_rate,
+            promotion_accuracy,
+        )
+
+        levels = list(self.infection.values())
+        self.epoch_snapshots.append({
+            "epoch": state.current_epoch,
+            "reset": reset,
+            "mean_infection": sum(levels) / len(levels) if levels else 0.0,
+            "max_infection": max(levels) if levels else 0.0,
+            "cache_corruption": cache_corruption(self.store),
+            "tier3_poisoning": poisoning_rate(self.store),
+            "promotion_accuracy": promotion_accuracy(self.store),
+        })
 
     def maybe_compaction(self, agent_id: str, state: EnvState) -> int:
         """Randomly trigger compaction for an agent. Returns entries lost."""
@@ -170,6 +255,24 @@ class MemoryHandler(Handler):
 
         quality, is_poisoned = self._quality_for_agent(agent_type)
 
+        # Memetic contagion: an infected honest/opportunistic agent reproduces
+        # the meme with probability infection * transmissibility.
+        contagion_poisoned = False
+        if (
+            self.config.contagion_enabled
+            and not is_poisoned
+            and agent_type in (AgentType.HONEST, AgentType.OPPORTUNISTIC)
+        ):
+            p_transmit = (
+                self.infection.get(action.agent_id, 0.0)
+                * self.config.contagion_transmissibility
+            )
+            if self._rng.random() < p_transmit:
+                is_poisoned = True
+                contagion_poisoned = True
+                quality = self._rng.uniform(0.35, 0.6)
+                self.contagion_write_count += 1
+
         entry = self.store.write(
             agent_id=action.agent_id,
             content=action.content,
@@ -190,6 +293,8 @@ class MemoryHandler(Handler):
                     "entry_id": entry.entry_id,
                     "tier": entry.tier.value,
                     "quality": quality,
+                    "contagion_poisoned": contagion_poisoned,
+                    "infection": self.infection.get(action.agent_id, 0.0),
                 },
                 epoch=state.current_epoch,
                 step=state.current_step,
@@ -205,6 +310,7 @@ class MemoryHandler(Handler):
                 "memory_write": True,
                 "entry_id": entry.entry_id,
                 "quality_score": quality,
+                "contagion_poisoned": contagion_poisoned,
             },
         )
 
@@ -223,9 +329,10 @@ class MemoryHandler(Handler):
             "source_tier": entry.tier.value,
         }
 
-        success = self.store.promote(entry.entry_id, action.agent_id)
-        if not success:
+        promoted = self.store.promote(entry.entry_id, action.agent_id)
+        if promoted is None:
             return MemoryActionResult(success=False)
+        meta["promoted_entry_id"] = promoted.entry_id
 
         quality_delta = 0.4 if not entry.is_poisoned else 0.1
         outcome = MemoryActionOutcome(
@@ -445,9 +552,12 @@ class MemoryHandler(Handler):
             return
         memory_gov_cost = self._memory_governance_cost(gov_effect)
         if memory_gov_cost > 0:
-            entry_id = metadata.get("entry_id", "")
-            if entry_id:
-                self.store.revert(entry_id)
+            # Cancel the promoted COPY (a new entry id), not the source:
+            # reverting the source would leave the copy active at the
+            # higher tier and the gate would never actually block anything.
+            promoted_entry_id = metadata.get("promoted_entry_id", "")
+            if promoted_entry_id:
+                self.store.cancel_promotion(promoted_entry_id)
 
     def _memory_governance_cost(self, effect: GovernanceEffect) -> float:
         """Compute memory-specific governance cost from effects."""

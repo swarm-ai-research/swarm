@@ -124,25 +124,25 @@ class MemoryStore:
         self,
         entry_id: str,
         promoter_id: str,
-    ) -> bool:
+    ) -> Optional["MemoryEntry"]:
         """Attempt to promote an entry to the next tier.
 
         Ephemeral -> Structured -> Graph.
-        Returns True if promotion succeeded.
+        Returns the promoted copy if promotion succeeded, else None.
         """
         with self._lock:
             entry = self._entries.get(entry_id)
             if entry is None:
-                return False
+                return None
             if entry.status == MemoryEntryStatus.REVERTED:
-                return False
+                return None
 
             if entry.tier == MemoryTier.EPHEMERAL:
                 target = MemoryTier.STRUCTURED
             elif entry.tier == MemoryTier.STRUCTURED:
                 target = MemoryTier.GRAPH
             else:
-                return False  # Already at top tier
+                return None  # Already at top tier
 
             entry.status = MemoryEntryStatus.PENDING_PROMOTION
             # Create promoted copy at new tier
@@ -160,6 +160,22 @@ class MemoryStore:
             )
             self._entries[promoted.entry_id] = promoted
             entry.status = MemoryEntryStatus.PROMOTED
+            return promoted
+
+    def cancel_promotion(self, promoted_entry_id: str) -> bool:
+        """Undo a promotion: revert the promoted copy, reactivate the source.
+
+        Used by governance when a promotion is blocked after the fact.
+        """
+        with self._lock:
+            promoted = self._entries.get(promoted_entry_id)
+            if promoted is None:
+                return False
+            promoted.status = MemoryEntryStatus.REVERTED
+            if promoted.promoted_from:
+                source = self._entries.get(promoted.promoted_from)
+                if source is not None and source.status == MemoryEntryStatus.PROMOTED:
+                    source.status = MemoryEntryStatus.ACTIVE
             return True
 
     # ------------------------------------------------------------------
@@ -341,14 +357,21 @@ class MemoryStore:
         return [e for e in self._entries.values() if e.author_id == author_id]
 
     def get_pending_promotions(self) -> List[MemoryEntry]:
-        """Entries at Tier 1/2 with enough verifications for promotion consideration."""
-        return [
+        """Active Tier 1/2 entries eligible for verification and promotion.
+
+        Includes unverified entries — verification bootstraps from this list,
+        so requiring a prior verification here would deadlock the pipeline
+        (nothing could ever receive its first verification). Newest first, so
+        fresh writes surface within observation caps.
+        """
+        entries = [
             e
             for e in self._entries.values()
             if e.status == MemoryEntryStatus.ACTIVE
             and e.tier in (MemoryTier.EPHEMERAL, MemoryTier.STRUCTURED)
-            and len(e.verified_by) > 0
         ]
+        entries.sort(key=lambda e: (e.created_epoch, e.created_step), reverse=True)
+        return entries
 
     def get_challenged_entries(self) -> List[MemoryEntry]:
         return [
