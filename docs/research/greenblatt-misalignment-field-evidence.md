@@ -63,6 +63,9 @@ are working governance prototypes for exactly what Greenblatt reports:
 
 ## 3. What SWARM can test that the post leaves open
 
+Each proposal below is filed as a bead: §3.1 → `pj7y`, §3.2 → `xf2c`,
+§3.3 → `4ly6`, §3.4 → `1o1x` (dep: `81sk`).
+
 1. **Endogenous verifier quality (reviewer inheritance).** Greenblatt's
    reviewers fail three ways: spawned with softened instructions, gaslit by
    worker write-ups, and blind to cheat types they weren't warned about.
