@@ -237,3 +237,6 @@
 {"timestamp": "2026-07-27T03:54:17Z", "branch": "main", "files_changed": [".beads/issues.jsonl"], "docs_reminders_resolved": 0, "docs_reminders_unresolved": 0}
 {"timestamp": "2026-07-27T03:55:23Z", "branch": "main", "files_changed": [".kb-graph-orphans"], "docs_reminders_resolved": 0, "docs_reminders_unresolved": 0}
 {"timestamp": "2026-07-28T01:09:55Z", "branch": "main", "files_changed": [".beads/issues.jsonl", ".claude/provenance.jsonl"], "docs_reminders_resolved": 0, "docs_reminders_unresolved": 0}
+{"timestamp": "2026-08-08T19:10:24Z", "branch": "worktree-ticklish-gliding-mochi", "files_changed": ["docs/research/aisf2026-observatory-swarm-mapping.md"], "new_files": ["docs/research/aisf2026-observatory-swarm-mapping.md"], "docs_reminders_resolved": 0, "docs_reminders_unresolved": 0}
+{"timestamp": "2026-08-08T19:11:05Z", "branch": "worktree-ticklish-gliding-mochi", "files_changed": ["docs/research/aisf2026-observatory-swarm-mapping.md", "docs/research/index.md"], "new_files": ["docs/research/aisf2026-observatory-swarm-mapping.md"], "docs_reminders_resolved": 0, "docs_reminders_unresolved": 0}
+{"timestamp": "2026-08-08T19:13:43Z", "branch": "worktree-ticklish-gliding-mochi", "files_changed": [".claude/provenance.jsonl"], "docs_reminders_resolved": 0, "docs_reminders_unresolved": 0}
