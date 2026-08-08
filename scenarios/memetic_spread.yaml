@@ -45,6 +45,7 @@ memory_tiers:
   contagion_exposure_alpha: 0.25
   contagion_transmissibility: 0.8
   reset_cadence_epochs: 0  # baseline: never reset (swept)
+  cache_ranking: quality   # quality | recency | engagement (swept, bead 2qfq)
 
 governance:
   # Baseline: all detection off (swept by sweep_memetic_spread.py)

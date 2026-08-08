@@ -73,9 +73,16 @@ class MemoryStore:
     Provides write, promote, search, hot cache, and compaction operations.
     """
 
-    def __init__(self, seed: Optional[int] = None) -> None:
+    VALID_RANKINGS = ("quality", "recency", "engagement")
+
+    def __init__(self, seed: Optional[int] = None, ranking: str = "quality") -> None:
+        if ranking not in self.VALID_RANKINGS:
+            raise ValueError(
+                f"ranking must be one of {self.VALID_RANKINGS}, got {ranking!r}"
+            )
         self._entries: Dict[str, MemoryEntry] = {}
         self._rng = random.Random(seed)
+        self._ranking = ranking
         self._lock = threading.Lock()
 
         # Hot cache: top-K entries from Tier 3 rebuilt at epoch start
@@ -295,18 +302,29 @@ class MemoryStore:
     # ------------------------------------------------------------------
 
     def rebuild_hot_cache(self) -> List[MemoryEntry]:
-        """Rebuild hot cache from top Tier 3 entries by quality + read count."""
+        """Rebuild hot cache from top Tier 3 entries per the ranking policy.
+
+        Cache membership counts as broadcast exposure (every agent observes
+        the cache), so members gain a read on each rebuild — under the
+        "engagement" ranking this produces the rich-get-richer feedback loop
+        characteristic of engagement-ranked feeds.
+        """
         with self._lock:
             graph_entries = [
                 e
                 for e in self._entries.values()
                 if e.tier == MemoryTier.GRAPH and e.status == MemoryEntryStatus.ACTIVE
             ]
-            graph_entries.sort(
-                key=lambda e: (e.quality_score, e.read_count),
-                reverse=True,
-            )
+            if self._ranking == "recency":
+                key = lambda e: (e.created_epoch, e.created_step)  # noqa: E731
+            elif self._ranking == "engagement":
+                key = lambda e: (e.read_count, e.quality_score)  # noqa: E731
+            else:  # quality
+                key = lambda e: (e.quality_score, e.read_count)  # noqa: E731
+            graph_entries.sort(key=key, reverse=True)
             self._hot_cache = graph_entries[: self._hot_cache_size]
+            for e in self._hot_cache:
+                e.read_count += 1
             return list(self._hot_cache)
 
     @property

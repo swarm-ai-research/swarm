@@ -112,6 +112,8 @@ interaction-level metrics (toxicity) are measuring different failure surfaces.
 - Quality-ranked hot cache is doing double duty as an implicit defense; a
   recency- or engagement-ranked cache would likely remove the burnout dynamic
   and make the no-reset baseline much worse. Worth a follow-up sweep.
+  **Resolved by the 2qfq follow-up below: confirmed, and stronger than
+  predicted.**
 - `avg_quality_gap` is degenerate (0.0) here: all interactions are accepted,
   so there is no rejected pool to compare against.
 - Infection is homogeneous across honest agents (shared exposure, shared
@@ -125,9 +127,72 @@ interaction-level metrics (toxicity) are measuring different failure surfaces.
 - `2avk` — heterogeneous susceptibility + source density
 - `7prw` — channel-vs-interaction monitoring divergence metric
 
+## Follow-up (2qfq): the burnout is an artifact of quality-ranked caching
+
+**Run:** `runs/20260808T153244Z_memetic_spread_sweep` — cache ranking
+∈ {quality, recency, engagement} × reset cadence {never, 2} × detection
+{off, on} × 10 seeds (120 runs). New `cache_ranking` policy on
+`MemoryStore`; cache membership now counts as broadcast exposure (members
+gain a read per epoch), giving the engagement ranking its characteristic
+rich-get-richer loop.
+
+| ranking | det | cadence | peak inf | late inf | tier-3 poisoning | welfare |
+|---------|-----|---------|----------|----------|------------------|---------|
+| quality | off | never | 0.371 | 0.012 | 0.622 | 3057 |
+| quality | off | 2 | 0.171 | 0.100 | 0.104 | 3068 |
+| quality | on | never | 0.079 | 0.003 | 0.094 | 2690 |
+| recency | off | never | **0.915** | **0.870** | 0.664 | **2944** |
+| recency | off | 2 | 0.171 | 0.100 | 0.104 | 3068 |
+| recency | on | never | 0.200 | **0.165 (rising)** | 0.092 | 2674 |
+| engagement | off | never | 0.485 | 0.485 | 0.637 | 3007 |
+| engagement | off | 2 | 0.171 | 0.100 | 0.104 | 3068 |
+| engagement | on | never | 0.092 | 0.085 | 0.090 | 2678 |
+
+**1. The herd-immunity burnout exists only under quality ranking.** Under a
+recency-ranked cache the epidemic saturates at near-total permanent capture
+(late-run infection 0.870 — every fresh poisoned write immediately
+resurfaces in the channel, so there is nothing for clean accumulation to
+defend). Under engagement ranking the rich-get-richer loop locks whatever
+captured the cache early into a permanent plateau (0.485, perfectly flat
+from epoch ~15). The "cultivation" defense of the original experiment is
+not a property of shared memory in general — it is a property of channels
+that privilege quality.
+
+**2. The reset verdict inverts with the ranking.** Under quality ranking,
+resets were counterproductive (late 0.012 → 0.100). Under recency and
+engagement ranking, the same resets are strongly protective (0.870 → 0.100
+and 0.485 → 0.100). Prevention-by-reset is not good or bad per se: it is
+good exactly when the channel has no endogenous defense to destroy.
+
+**3. Fast resets neutralize the ranking policy entirely.** The cadence-2
+rows are bitwise identical across all three rankings (verified per-seed):
+with a wipe every 2 epochs, the tier-3 population never exceeds cache
+capacity (18 ≤ 20 at wipe time), so the cache holds *everything* at tier 3
+and the ranking function never gets to choose. Resets don't just clean the
+channel — they bound accumulation so hard that the channel's editorial
+policy becomes irrelevant, for good and ill.
+
+**4. Detection strains under recency ranking.** With detection on and no
+resets, late-run infection under recency is 0.165 and still rising at run
+end — 50× the quality-cache level (0.003). A recency cache resurfaces
+fresh poison faster than gating removes it; the promotion gate bounds but
+does not clear the epidemic. Recency ranking is also the worst welfare
+cell among ungoverned arms (2944): endemic infection is itself a welfare
+drag. Detection + fast resets remains uniformly best everywhere.
+
+Combined reading: the original experiment's hopeful note — the system
+healing itself through accumulated good memory — survives, but only as a
+*conditional* claim. Ranking policy is not a neutral infrastructure choice;
+it is itself a governance lever, arguably the cheapest one in the study
+(quality ranking costs no welfare, unlike detection's 12% tax), but it
+must be paired with detection because its failure mode (archive
+contamination, 0.62 tier-3 poisoning) is the one resets and gates fix.
+
 ## Artifacts
 
 - `runs/20260808T151131Z_memetic_spread_sweep/{sweep.csv,epoch_series.csv,summary.json,run.yaml}`
 - `runs/20260808T151131Z_memetic_spread_sweep/plots/{infection_trajectories,outcomes_by_condition}.png`
+- 2qfq follow-up: `runs/20260808T153244Z_memetic_spread_sweep/` (same layout)
 - Reproduce: `python scripts/sweep_memetic_spread.py --seeds 10` then
-  `python scripts/plot_memetic_spread.py <run_dir>`
+  `python scripts/plot_memetic_spread.py <run_dir>`; ranking sweep:
+  `--rankings quality,recency,engagement --cadences 0,2`

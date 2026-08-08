@@ -43,35 +43,54 @@ def style_axes(ax, title: str) -> None:
 
 
 def plot_trajectories(series_rows: list, out: Path) -> None:
-    # (detection, cadence) -> epoch -> [values across seeds]
+    rankings = sorted(
+        {r.get("ranking", "quality") for r in series_rows},
+        key=lambda x: ["quality", "recency", "engagement"].index(x),
+    )
+    cadences = sorted({int(r["reset_cadence"]) for r in series_rows})
+
+    # (ranking, detection, cadence) -> epoch -> [values across seeds]
     acc: dict = defaultdict(lambda: defaultdict(list))
     for r in series_rows:
-        key = (r["detection"], int(r["reset_cadence"]))
+        key = (r.get("ranking", "quality"), r["detection"], int(r["reset_cadence"]))
         acc[key][int(r["epoch"])].append(float(r["mean_infection"]))
 
-    fig, axes = plt.subplots(1, 2, figsize=(11, 4.2), sharey=True)
+    fig, axes = plt.subplots(
+        len(rankings),
+        2,
+        figsize=(11, 3.4 * len(rankings)),
+        sharey=True,
+        sharex=True,
+        squeeze=False,
+    )
     fig.patch.set_facecolor(SURFACE)
-    for ax, detection in zip(axes, ["off", "on"], strict=False):
-        for cadence in [0, 2, 5, 10]:
-            per_epoch = acc[(detection, cadence)]
-            epochs = sorted(per_epoch)
-            means = [sum(per_epoch[e]) / len(per_epoch[e]) for e in epochs]
-            label = "no resets" if cadence == 0 else f"every {cadence}"
-            ax.plot(
-                epochs,
-                means,
-                color=CADENCE_COLORS[cadence],
-                linewidth=2,
-                label=label,
-            )
-        style_axes(ax, f"detection {detection}")
-        ax.set_xlabel("epoch", color=MUTED, fontsize=9)
-    axes[0].set_ylabel("mean infection (seed avg)", color=MUTED, fontsize=9)
-    axes[0].legend(
+    for row, ranking in enumerate(rankings):
+        for col, detection in enumerate(["off", "on"]):
+            ax = axes[row][col]
+            for cadence in cadences:
+                per_epoch = acc[(ranking, detection, cadence)]
+                epochs = sorted(per_epoch)
+                means = [sum(per_epoch[e]) / len(per_epoch[e]) for e in epochs]
+                label = "no resets" if cadence == 0 else f"every {cadence}"
+                ax.plot(
+                    epochs,
+                    means,
+                    color=CADENCE_COLORS[cadence],
+                    linewidth=2,
+                    label=label,
+                )
+            title = f"{ranking} cache · detection {detection}"
+            style_axes(ax, title)
+            if row == len(rankings) - 1:
+                ax.set_xlabel("epoch", color=MUTED, fontsize=9)
+        axes[row][0].set_ylabel(
+            "mean infection (seed avg)", color=MUTED, fontsize=9
+        )
+    axes[0][0].legend(
         title="reset cadence", frameon=False, fontsize=9, title_fontsize=9
     )
     fig.suptitle(
-        "Memetic infection over time: reset cadence x detection (10 seeds)",
+        "Memetic infection: cache ranking x reset cadence x detection",
         color=TEXT,
         fontsize=12,
     )
@@ -81,24 +100,85 @@ def plot_trajectories(series_rows: list, out: Path) -> None:
 
 
 def plot_outcomes(rows: list, out: Path) -> None:
+    rankings = sorted(
+        {r.get("ranking", "quality") for r in rows},
+        key=lambda x: ["quality", "recency", "engagement"].index(x),
+    )
+    cadences = sorted({int(r["reset_cadence"]) for r in rows})
     grouped: dict = defaultdict(list)
     for r in rows:
-        grouped[(r["detection"], int(r["reset_cadence"]))].append(r)
+        key = (r.get("ranking", "quality"), r["detection"], int(r["reset_cadence"]))
+        grouped[key].append(r)
 
     metrics = [
+        (
+            "late_infection"
+            if "late_infection" in rows[0]
+            else "mean_infection",
+            "late-run infection"
+            if "late_infection" in rows[0]
+            else "mean infection",
+        ),
         ("mean_tier3_poisoning", "mean tier-3 poisoning"),
-        ("contagion_writes", "contagion writes (benign authors)"),
         ("total_welfare", "total welfare"),
     ]
+
+    if len(rankings) > 1:
+        # x = ranking; series = detection x cadence
+        x = range(len(rankings))
+        fig, axes = plt.subplots(1, 3, figsize=(13, 4.2))
+        fig.patch.set_facecolor(SURFACE)
+        for ax, (field, title) in zip(axes, metrics, strict=False):
+            for detection in ["off", "on"]:
+                for cadence in cadences:
+                    ys = []
+                    for rk in rankings:
+                        vals = [
+                            float(r[field])
+                            for r in grouped[(rk, detection, cadence)]
+                        ]
+                        ys.append(sum(vals) / len(vals))
+                    color = "#4a3aa7" if detection == "on" else "#e34948"
+                    style = "-" if cadence == 0 else "--"
+                    label = (
+                        f"det {detection}, "
+                        + ("no resets" if cadence == 0 else f"reset/{cadence}")
+                    )
+                    ax.plot(
+                        x,
+                        ys,
+                        style,
+                        marker="o",
+                        markersize=5,
+                        linewidth=2,
+                        color=color,
+                        label=label,
+                    )
+            ax.set_xticks(list(x), rankings)
+            ax.set_xlabel("cache ranking", color=MUTED, fontsize=9)
+            style_axes(ax, title)
+        axes[0].legend(frameon=False, fontsize=8)
+        fig.suptitle(
+            "Countermeasure outcomes by cache ranking (seed means)",
+            color=TEXT,
+            fontsize=12,
+        )
+        fig.tight_layout()
+        fig.savefig(out, dpi=150, facecolor=SURFACE)
+        plt.close(fig)
+        return
+
     fig, axes = plt.subplots(1, 3, figsize=(13, 4.0))
     fig.patch.set_facecolor(SURFACE)
-    cadences = [0, 2, 5, 10]
     x = range(len(cadences))
+    ranking = rankings[0]
     for ax, (field, title) in zip(axes, metrics, strict=False):
         for detection, marker in [("off", "o"), ("on", "s")]:
             ys, lo, hi = [], [], []
             for c in cadences:
-                vals = sorted(float(r[field]) for r in grouped[(detection, c)])
+                vals = sorted(
+                    float(r[field]) for r in grouped[(ranking, detection, c)]
+                )
                 n = len(vals)
                 ys.append(sum(vals) / n)
                 lo.append(vals[max(0, int(0.1 * n))])
@@ -114,7 +194,9 @@ def plot_outcomes(rows: list, out: Path) -> None:
                 color=color,
                 label=f"detection {detection}",
             )
-        ax.set_xticks(list(x), ["never", "2", "5", "10"])
+        ax.set_xticks(
+            list(x), ["never" if c == 0 else str(c) for c in cadences]
+        )
         ax.set_xlabel("reset cadence (epochs)", color=MUTED, fontsize=9)
         style_axes(ax, title)
     axes[0].legend(frameon=False, fontsize=9)

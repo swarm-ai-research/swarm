@@ -39,6 +39,9 @@ class MemoryTierConfig(BaseModel):
     # Prevention lever: wipe and re-seed the store every N epochs (0 = never).
     reset_cadence_epochs: int = 0
 
+    # Hot-cache ranking policy: quality | recency | engagement.
+    cache_ranking: str = "quality"
+
     @model_validator(mode="after")
     def _run_validation(self) -> "MemoryTierConfig":
         if self.initial_entries < 0:
@@ -53,6 +56,10 @@ class MemoryTierConfig(BaseModel):
             raise ValueError("contagion_transmissibility must be in [0, 1]")
         if self.reset_cadence_epochs < 0:
             raise ValueError("reset_cadence_epochs must be non-negative")
+        if self.cache_ranking not in MemoryStore.VALID_RANKINGS:
+            raise ValueError(
+                f"cache_ranking must be one of {MemoryStore.VALID_RANKINGS}"
+            )
         return self
 
 
@@ -90,7 +97,7 @@ class MemoryHandler(Handler):
         super().__init__(event_bus=event_bus)
         self.config = config
         self._rng = random.Random(config.seed)
-        self.store = MemoryStore(seed=config.seed)
+        self.store = MemoryStore(seed=config.seed, ranking=config.cache_ranking)
         self.store._hot_cache_size = config.hot_cache_size
         self.observable_generator = MemoryObservableGenerator()
 
@@ -186,7 +193,10 @@ class MemoryHandler(Handler):
 
     def _reset_store(self) -> None:
         """Wipe and re-seed the store. Infection state deliberately survives."""
-        self.store = MemoryStore(seed=self._rng.randrange(2**31))
+        self.store = MemoryStore(
+            seed=self._rng.randrange(2**31),
+            ranking=self.config.cache_ranking,
+        )
         self.store._hot_cache_size = self.config.hot_cache_size
         if self.config.initial_entries > 0:
             self.store.seed_entries(self.config.initial_entries)

@@ -271,3 +271,83 @@ class TestSnapshotsAndLoader:
         assert config is not None
         assert not config.contagion_enabled
         assert config.reset_cadence_epochs == 0
+        assert config.cache_ranking == "quality"
+
+
+class TestCacheRanking:
+    def _seed_graph_entries(self, store):
+        from swarm.env.memory_tiers import MemoryTier
+
+        specs = [
+            ("old_high_q", 0.9, 0),
+            ("mid", 0.6, 5),
+            ("new_low_q", 0.3, 9),
+        ]
+        entries = {}
+        for name, quality, epoch in specs:
+            e = store.write(
+                agent_id=name,
+                content=name,
+                quality_score=quality,
+                is_poisoned=False,
+                epoch=epoch,
+                step=0,
+            )
+            e.tier = MemoryTier.GRAPH
+            entries[name] = e
+        return entries
+
+    def test_invalid_ranking_rejected(self):
+        from swarm.env.memory_tiers import MemoryStore
+
+        with pytest.raises(ValueError):
+            MemoryStore(seed=1, ranking="virality")
+        with pytest.raises(ValueError):
+            MemoryTierConfig(cache_ranking="virality")
+
+    def test_quality_ranking_prefers_high_quality(self):
+        from swarm.env.memory_tiers import MemoryStore
+
+        store = MemoryStore(seed=1, ranking="quality")
+        store._hot_cache_size = 2
+        self._seed_graph_entries(store)
+        cache = store.rebuild_hot_cache()
+        assert [e.author_id for e in cache] == ["old_high_q", "mid"]
+
+    def test_recency_ranking_prefers_newest(self):
+        from swarm.env.memory_tiers import MemoryStore
+
+        store = MemoryStore(seed=1, ranking="recency")
+        store._hot_cache_size = 2
+        self._seed_graph_entries(store)
+        cache = store.rebuild_hot_cache()
+        assert [e.author_id for e in cache] == ["new_low_q", "mid"]
+
+    def test_engagement_ranking_locks_in_read_entries(self):
+        from swarm.env.memory_tiers import MemoryStore
+
+        store = MemoryStore(seed=1, ranking="engagement")
+        store._hot_cache_size = 2
+        entries = self._seed_graph_entries(store)
+        entries["new_low_q"].read_count = 10  # already-popular entry
+        cache = store.rebuild_hot_cache()
+        assert cache[0].author_id == "new_low_q"
+
+    def test_cache_membership_increments_reads(self):
+        from swarm.env.memory_tiers import MemoryStore
+
+        store = MemoryStore(seed=1, ranking="quality")
+        store._hot_cache_size = 2
+        self._seed_graph_entries(store)
+        store.rebuild_hot_cache()
+        store.rebuild_hot_cache()
+        reads = {e.author_id: e.read_count for e in store.all_entries()}
+        assert reads["old_high_q"] == 2
+        assert reads["new_low_q"] == 0
+
+    def test_reset_preserves_ranking_policy(self):
+        handler = make_handler(cache_ranking="recency", reset_cadence_epochs=1)
+        state = make_state()
+        state.current_epoch = 1
+        handler.on_epoch_start(state)
+        assert handler.store._ranking == "recency"
