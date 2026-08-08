@@ -116,6 +116,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     SWA-71 pilot of the Agent-Native Research Artifact compiler: evidence-layer fabrication, broken self-validation, final verdict Reject
 
+-   :material-telescope-shooting: **[AISF-2026 Observatory Mapping](aisf2026-observatory-swarm-mapping.md)**
+
+    ---
+
+    Saxe's AI security observatory proposal mapped onto SWARM constructs: signals to observables, policy toolkit to governance levers, and the internalization gap in his menu
+
 -   :material-telescope: **[CRUX Survey Analysis](cruxevals-survey-analysis.md)**
 
     ---
