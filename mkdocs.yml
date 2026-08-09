@@ -190,6 +190,7 @@ nav:
   - Game: game.md
   - Blog:
     - blog/index.md
+    - "The Meme Survives the Medium: Memory Wipes, Herd Immunity, and the Editorial Policy of Shared Memory": blog/memetic-spread-reset-vs-detection.md
     - "Dynamic Toxicity Failure Modes: One Mechanism Out of Six Does All the Damage": blog/dynamic-toxicity-failure-modes.md
     - "When the Crowd Amplifies the Worst — and When the Metric Doesn't Hold": blog/amplification-adverse-selection-miroshark.md
     - "Replication Deflation: How 50 Seeds Killed Our d=2.75 Screening Effect": blog/screening-replication-deflation.md

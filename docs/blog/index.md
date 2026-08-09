@@ -19,6 +19,19 @@ Posts about SWARM research findings, framework updates, and multi-agent safety.
   </div>
 </div>
 
+## August 2026
+
+<div class="blog-post" data-tags="governance theory" markdown>
+
+**Aug 8** — [The Meme Survives the Medium: Memory Wipes, Herd Immunity, and the Editorial Policy of Shared Memory](memetic-spread-reset-vs-detection.md)
+<span class="blog-tag">Governance</span> <span class="blog-tag">Theory</span>
+
+We built the "agents recreated the message board" failure mode in the sandbox: misaligned values spreading through shared memory, where infection lives in the agents rather than the store. Scheduled memory wipes didn't suppress the value epidemic — they made it endemic, 8–25× worse than no intervention, by destroying the herd immunity a quality-ranked cache builds from accumulated clean entries. A follow-up sweep showed that immunity is an artifact of the cache's sort order: under recency or engagement ranking the meme captures the channel permanently and the reset verdict inverts. The channel's editorial policy is itself a governance lever — and interaction-level toxicity never saw any of it.
+
+</div>
+
+---
+
 ## June 2026
 
 <div class="blog-post" data-tags="theory governance" markdown>
