@@ -170,6 +170,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Value contagion through shared memory: resets make the meme endemic by destroying emergent herd immunity, detection dominates at a welfare tax, and channel contagion is invisible to interaction-level toxicity (beads kgxc → 2qfq, 2avk, 7prw)
 
+-   :material-lan-connect: **[Side-Channel Coordination](side-channel-coordination.md)**
+
+    ---
+
+    When an ungoverned coordination channel emerges alongside the governed one (2026 OpenAI/Hugging Face incident): teardown without revocation only relocates it, revoking discovery collapses it, a lower-friction sanctioned channel outcompetes it with no enforcement, and interaction-level toxicity is blind to the whole migration (bead k5o9)
+
 </div>
 
 ## Core Research Questions

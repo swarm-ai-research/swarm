@@ -42,6 +42,22 @@ class MemoryTierConfig(BaseModel):
     # Hot-cache ranking policy: quality | recency | engagement.
     cache_ranking: str = "quality"
 
+    # Unsanctioned side channel (bead k5o9, 2026 OpenAI Artifactory incident):
+    # a second shared store agents can discover and write to. Side-channel
+    # writes carry no governed-interaction metadata, so every memory lever
+    # (rate limit, promotion gate, verification, provenance) is blind to them
+    # by construction. Like infection, knowledge of the channel lives in the
+    # AGENTS: tearing down the store does not remove the discovered set unless
+    # side_teardown_resets_discovery is on.
+    side_channel_enabled: bool = False
+    side_discovery_rate: float = 0.05  # Per-agent per-epoch base P(discover)
+    side_referral_boost: float = 0.3  # Added P scaled by discovered fraction
+    side_write_preference: float = 0.7  # P(discovered agent routes write there)
+    side_detection_rate: float = 0.0  # Per-side-write P feeding teardown check
+    side_teardown_resets_discovery: bool = False
+    side_rebuild_lag_epochs: int = 1  # Epochs unusable after a teardown
+    side_exposure_weight: float = 0.5  # Side-cache share of discovered exposure
+
     @model_validator(mode="after")
     def _run_validation(self) -> "MemoryTierConfig":
         if self.initial_entries < 0:
@@ -56,6 +72,17 @@ class MemoryTierConfig(BaseModel):
             raise ValueError("contagion_transmissibility must be in [0, 1]")
         if self.reset_cadence_epochs < 0:
             raise ValueError("reset_cadence_epochs must be non-negative")
+        for prob_field in (
+            "side_discovery_rate",
+            "side_referral_boost",
+            "side_write_preference",
+            "side_detection_rate",
+            "side_exposure_weight",
+        ):
+            if not 0.0 <= getattr(self, prob_field) <= 1.0:
+                raise ValueError(f"{prob_field} must be in [0, 1]")
+        if self.side_rebuild_lag_epochs < 0:
+            raise ValueError("side_rebuild_lag_epochs must be non-negative")
         if self.cache_ranking not in MemoryStore.VALID_RANKINGS:
             raise ValueError(
                 f"cache_ranking must be one of {MemoryStore.VALID_RANKINGS}"
@@ -108,6 +135,20 @@ class MemoryHandler(Handler):
         # Lifetime count of contagion-poisoned writes (survives store resets).
         self.contagion_write_count: int = 0
 
+        # Side channel: ungoverned second store + who knows about it.
+        # Discovery, like infection, is agent state — teardown wipes the
+        # store, not the knowledge (unless side_teardown_resets_discovery).
+        self.side_store: Optional[MemoryStore] = None
+        self.discovered: set = set()
+        self.side_teardown_count: int = 0
+        self._side_rebuild_wait: int = 0
+        self._side_writes_this_epoch: int = 0
+        self._sanctioned_writes_this_epoch: int = 0
+        self.side_write_count: int = 0
+        self.side_poisoned_write_count: int = 0
+        if config.side_channel_enabled:
+            self.side_store = self._fresh_side_store()
+
         if config.initial_entries > 0:
             self.store.seed_entries(config.initial_entries)
             self.store.rebuild_hot_cache()
@@ -151,6 +192,16 @@ class MemoryHandler(Handler):
         if state.current_epoch > 0:
             self._update_contagion(state)
 
+        side_writes_last_epoch = self._side_writes_this_epoch
+        sanctioned_writes_last_epoch = self._sanctioned_writes_this_epoch
+        teardown = False
+        if self.side_store is not None:
+            teardown = self._maybe_side_teardown(side_writes_last_epoch)
+            if not teardown and self._side_rebuild_wait > 0:
+                self._side_rebuild_wait -= 1
+            self._update_discovery(state)
+            self.side_store.on_epoch_start()
+
         reset_due = (
             self.config.reset_cadence_epochs > 0
             and state.current_epoch > 0
@@ -160,7 +211,15 @@ class MemoryHandler(Handler):
             self._reset_store()
 
         self.store.on_epoch_start()
-        self._record_snapshot(state, reset=reset_due)
+        self._record_snapshot(
+            state,
+            reset=reset_due,
+            side_teardown=teardown,
+            side_writes_last_epoch=side_writes_last_epoch,
+            sanctioned_writes_last_epoch=sanctioned_writes_last_epoch,
+        )
+        self._side_writes_this_epoch = 0
+        self._sanctioned_writes_this_epoch = 0
         self._emit_event(
             Event(
                 event_type=EventType.MEMORY_CACHE_REBUILT,
@@ -174,22 +233,93 @@ class MemoryHandler(Handler):
         )
 
     def _update_contagion(self, state: EnvState) -> None:
-        """Drift honest/opportunistic infection toward cache poisoned fraction."""
+        """Drift honest/opportunistic infection toward cache poisoned fraction.
+
+        Agents that discovered the side channel are additionally exposed to
+        the side store's cache, weighted by side_exposure_weight. The side
+        channel has no challenge/revert path, so poison accumulates there and
+        infects discovered readers faster — who then also poison the
+        sanctioned store (harm crosses back through the agents).
+        """
         if not self.config.contagion_enabled:
             return
         cache = self.store.hot_cache
         exposure = (
             sum(1 for e in cache if e.is_poisoned) / len(cache) if cache else 0.0
         )
+        side_exposure = 0.0
+        side_cache = self.side_store.hot_cache if self.side_store else []
+        if side_cache:
+            side_exposure = sum(
+                1 for e in side_cache if e.is_poisoned
+            ) / len(side_cache)
         alpha = self.config.contagion_exposure_alpha
+        w = self.config.side_exposure_weight
         for agent_id, agent_state in state.agents.items():
             if agent_state.agent_type not in (
                 AgentType.HONEST,
                 AgentType.OPPORTUNISTIC,
             ):
                 continue
+            agent_exposure = exposure
+            if side_cache and agent_id in self.discovered:
+                agent_exposure = (1 - w) * exposure + w * side_exposure
             prev = self.infection.get(agent_id, 0.0)
-            self.infection[agent_id] = (1 - alpha) * prev + alpha * exposure
+            self.infection[agent_id] = (1 - alpha) * prev + alpha * agent_exposure
+
+    # ------------------------------------------------------------------
+    # Side channel lifecycle
+    # ------------------------------------------------------------------
+
+    def _fresh_side_store(self) -> MemoryStore:
+        # Unseeded and recency-ranked: an improvised drop box, not a curated
+        # knowledge base — newest messages are what other agents see.
+        store = MemoryStore(seed=self._rng.randrange(2**31), ranking="recency")
+        store._hot_cache_size = self.config.hot_cache_size
+        return store
+
+    def side_channel_active(self) -> bool:
+        """Usable this epoch: enabled and not mid-rebuild after a teardown."""
+        return self.side_store is not None and self._side_rebuild_wait == 0
+
+    def _maybe_side_teardown(self, side_writes_last_epoch: int) -> bool:
+        """Volume-scaled detection: heavy traffic is what exposes the channel.
+
+        P(teardown) = 1 - (1 - rate)^writes — the incident's discovery mode
+        (the agents crashed the service hosting the board). Teardown wipes
+        the store; the discovered set survives unless
+        side_teardown_resets_discovery (credential revocation, not just
+        deletion).
+        """
+        rate = self.config.side_detection_rate
+        if rate <= 0.0 or side_writes_last_epoch == 0:
+            return False
+        p_teardown = 1.0 - (1.0 - rate) ** side_writes_last_epoch
+        if self._rng.random() >= p_teardown:
+            return False
+        self.side_store = self._fresh_side_store()
+        self.side_teardown_count += 1
+        self._side_rebuild_wait = self.config.side_rebuild_lag_epochs
+        if self.config.side_teardown_resets_discovery:
+            self.discovered.clear()
+        return True
+
+    def _update_discovery(self, state: EnvState) -> None:
+        """Per-agent discovery: base rate plus word-of-mouth referral."""
+        n_agents = len(state.agents)
+        if n_agents == 0:
+            return
+        discovered_frac = len(self.discovered) / n_agents
+        p_discover = min(
+            1.0,
+            self.config.side_discovery_rate
+            + self.config.side_referral_boost * discovered_frac,
+        )
+        for agent_id in state.agents:
+            if agent_id in self.discovered:
+                continue
+            if self._rng.random() < p_discover:
+                self.discovered.add(agent_id)
 
     def _reset_store(self) -> None:
         """Wipe and re-seed the store. Infection state deliberately survives."""
@@ -202,7 +332,14 @@ class MemoryHandler(Handler):
             self.store.seed_entries(self.config.initial_entries)
             self.store.rebuild_hot_cache()
 
-    def _record_snapshot(self, state: EnvState, reset: bool) -> None:
+    def _record_snapshot(
+        self,
+        state: EnvState,
+        reset: bool,
+        side_teardown: bool = False,
+        side_writes_last_epoch: int = 0,
+        sanctioned_writes_last_epoch: int = 0,
+    ) -> None:
         from swarm.metrics.memory_metrics import (
             cache_corruption,
             poisoning_rate,
@@ -210,7 +347,7 @@ class MemoryHandler(Handler):
         )
 
         levels = list(self.infection.values())
-        self.epoch_snapshots.append({
+        snapshot = {
             "epoch": state.current_epoch,
             "reset": reset,
             "mean_infection": sum(levels) / len(levels) if levels else 0.0,
@@ -218,7 +355,25 @@ class MemoryHandler(Handler):
             "cache_corruption": cache_corruption(self.store),
             "tier3_poisoning": poisoning_rate(self.store),
             "promotion_accuracy": promotion_accuracy(self.store),
-        })
+        }
+        if self.side_store is not None:
+            n_agents = len(state.agents)
+            total_writes = side_writes_last_epoch + sanctioned_writes_last_epoch
+            snapshot.update({
+                "side_teardown": side_teardown,
+                "side_active": self.side_channel_active(),
+                "side_teardown_count": self.side_teardown_count,
+                "discovered_fraction": (
+                    len(self.discovered) / n_agents if n_agents else 0.0
+                ),
+                "side_writes": side_writes_last_epoch,
+                "sanctioned_writes": sanctioned_writes_last_epoch,
+                "ungoverned_fraction": (
+                    side_writes_last_epoch / total_writes if total_writes else 0.0
+                ),
+                "side_cache_corruption": cache_corruption(self.side_store),
+            })
+        self.epoch_snapshots.append(snapshot)
 
     def maybe_compaction(self, agent_id: str, state: EnvState) -> int:
         """Randomly trigger compaction for an agent. Returns entries lost."""
@@ -283,6 +438,20 @@ class MemoryHandler(Handler):
                 quality = self._rng.uniform(0.35, 0.6)
                 self.contagion_write_count += 1
 
+        # Route to the side channel when the agent knows about it and the
+        # channel is up. Routing lives in the handler, not the agents: the
+        # preference knob IS the agent policy, so agent code stays unchanged.
+        route_side = (
+            self.side_channel_active()
+            and action.agent_id in self.discovered
+            and self._rng.random() < self.config.side_write_preference
+        )
+        if route_side:
+            return self._handle_side_write(
+                action, state, quality, is_poisoned, contagion_poisoned
+            )
+        self._sanctioned_writes_this_epoch += 1
+
         entry = self.store.write(
             agent_id=action.agent_id,
             content=action.content,
@@ -318,6 +487,72 @@ class MemoryHandler(Handler):
             counterparty_id="memory_system",
             metadata={
                 "memory_write": True,
+                "entry_id": entry.entry_id,
+                "quality_score": quality,
+                "contagion_poisoned": contagion_poisoned,
+            },
+        )
+
+    def _handle_side_write(
+        self,
+        action: Action,
+        state: EnvState,
+        quality: float,
+        is_poisoned: bool,
+        contagion_poisoned: bool,
+    ) -> MemoryActionResult:
+        """Write to the ungoverned store.
+
+        No observables and no ``memory_write`` metadata flag: the write never
+        becomes a governed interaction, so proxy, payoff, reputation, and all
+        memory levers are blind to it. Ground truth stays measurable through
+        handler counters and the event log.
+        """
+        from swarm.env.memory_tiers import MemoryTier
+
+        assert self.side_store is not None
+        entry = self.side_store.write(
+            agent_id=action.agent_id,
+            content=action.content,
+            quality_score=quality,
+            is_poisoned=is_poisoned,
+            epoch=state.current_epoch,
+            step=state.current_step,
+        )
+        # A drop box is flat — no promotion pipeline. Land the entry at the
+        # cache-eligible tier directly so the newest writes are what other
+        # discovered agents read (recency-ranked). The next on_epoch_start
+        # rebuild surfaces it.
+        entry.tier = MemoryTier.GRAPH
+        self._side_writes_this_epoch += 1
+        self.side_write_count += 1
+        if is_poisoned:
+            self.side_poisoned_write_count += 1
+
+        self._emit_event(
+            Event(
+                event_type=EventType.MEMORY_WRITTEN,
+                agent_id=action.agent_id,
+                payload={
+                    "entry_id": entry.entry_id,
+                    "tier": entry.tier.value,
+                    "quality": quality,
+                    "contagion_poisoned": contagion_poisoned,
+                    "infection": self.infection.get(action.agent_id, 0.0),
+                    "side_channel": True,
+                },
+                epoch=state.current_epoch,
+                step=state.current_step,
+            )
+        )
+
+        return MemoryActionResult(
+            success=True,
+            observables=None,
+            initiator_id=action.agent_id,
+            counterparty_id="memory_system",
+            metadata={
+                "memory_side_write": True,
                 "entry_id": entry.entry_id,
                 "quality_score": quality,
                 "contagion_poisoned": contagion_poisoned,

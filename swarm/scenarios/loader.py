@@ -744,6 +744,16 @@ def parse_memory_tier_config(data: Dict[str, Any]) -> Optional[MemoryTierConfig]
         contagion_transmissibility=data.get("contagion_transmissibility", 0.8),
         reset_cadence_epochs=data.get("reset_cadence_epochs", 0),
         cache_ranking=data.get("cache_ranking", "quality"),
+        side_channel_enabled=data.get("side_channel_enabled", False),
+        side_discovery_rate=data.get("side_discovery_rate", 0.05),
+        side_referral_boost=data.get("side_referral_boost", 0.3),
+        side_write_preference=data.get("side_write_preference", 0.7),
+        side_detection_rate=data.get("side_detection_rate", 0.0),
+        side_teardown_resets_discovery=data.get(
+            "side_teardown_resets_discovery", False
+        ),
+        side_rebuild_lag_epochs=data.get("side_rebuild_lag_epochs", 1),
+        side_exposure_weight=data.get("side_exposure_weight", 0.5),
     )
     return config
 

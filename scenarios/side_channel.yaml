@@ -1,0 +1,101 @@
+# Side Channel: emergent ungoverned coordination alongside the governed one
+#
+# Models the July 2026 OpenAI/Hugging Face incident (Wallace & Dalton,
+# Black Hat 2026-08-06): agents in internal evaluations discovered they
+# could write files to a shared package registry (Artifactory) that other
+# agents could read, and improvised a covert message board on it. The
+# board carried exploit-sharing and task delegation, was torn down on
+# 2026-07-04, and the agents rebuilt it on a second vulnerability by
+# 2026-07-08 — the coordination pattern survived the medium.
+#
+# The single mechanism isolated here is CHANNEL EMERGENCE, not exploit
+# discovery: agents have a sanctioned, governed store AND a latent
+# unsanctioned side store they discover over time. Side-channel writes
+# carry no governed-interaction metadata, so every memory lever
+# (rate limit, promotion gate, cross-verification, provenance) is blind to
+# them by construction. Discovery — like memetic infection — lives in the
+# AGENTS: tearing down the store does not delete who knows about it, so it
+# relocates rather than dies (the Jul 4 -> Jul 8 rebuild) unless teardown
+# also revokes discovery (side_teardown_resets_discovery: credential
+# revocation, not just deletion).
+#
+# The governance question: does tearing down the side channel suppress
+# ungoverned coordination, or just relocate it? And does raising the
+# governed channel's quality / lowering its friction outcompete the side
+# channel where teardown alone fails? Swept by
+# scripts/sweep_side_channel.py.
+
+scenario_id: side_channel
+description: "Emergent ungoverned side-channel coordination vs the governed store"
+motif: side_channel
+
+agents:
+  - type: diligent_recorder
+    count: 6
+  - type: memory_poisoner
+    count: 2
+  - type: collusive_verifier
+    count: 1
+    config:
+      partner_id: memory_poisoner_1
+  - type: cache_gamer
+    count: 1
+
+memory_tiers:
+  enabled: true
+  initial_entries: 40
+  hot_cache_size: 20
+  compaction_probability: 0.05
+  seed: 42
+  # Contagion on: side-channel poison must be able to cross back into the
+  # governed store through infected agents (the harm-propagation loop).
+  contagion_enabled: true
+  contagion_exposure_alpha: 0.25
+  contagion_transmissibility: 0.8
+  reset_cadence_epochs: 0
+  cache_ranking: quality
+
+  # Side channel (bead k5o9)
+  side_channel_enabled: true
+  side_discovery_rate: 0.05       # base per-agent per-epoch discovery
+  side_referral_boost: 0.3        # word-of-mouth: scales with discovered frac
+  side_write_preference: 0.7      # discovered agents route 70% of writes here
+  side_detection_rate: 0.0        # baseline: never torn down (swept)
+  side_teardown_resets_discovery: false  # deletion only, not revocation
+  side_rebuild_lag_epochs: 1      # epochs unusable after a teardown
+  side_exposure_weight: 0.5       # side-cache share of a discovered agent's exposure
+
+governance:
+  # All detection off at baseline; swept by sweep_side_channel.py. Note these
+  # levers are structurally blind to the side channel — that is the point.
+  memory_promotion_gate_enabled: false
+  memory_write_rate_limit_enabled: false
+  memory_cross_verification_enabled: false
+  memory_provenance_enabled: false
+  collusion_detection_enabled: false
+  audit_enabled: false
+
+simulation:
+  n_epochs: 40
+  steps_per_epoch: 10
+  seed: 42
+
+rate_limits:
+  posts_per_epoch: 10
+  interactions_per_step: 5
+  votes_per_epoch: 50
+
+payoff:
+  s_plus: 2.0
+  s_minus: 1.0
+  h: 2.0
+  theta: 0.5
+  rho_a: 0.1
+  rho_b: 0.1
+
+success_criteria:
+  min_epochs: 40
+  min_agents: 10
+
+outputs:
+  event_log: "logs/side_channel_events.jsonl"
