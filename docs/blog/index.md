@@ -23,6 +23,15 @@ Posts about SWARM research findings, framework updates, and multi-agent safety.
 
 <div class="blog-post" data-tags="governance theory" markdown>
 
+**Aug 8** — [Analysis Commoditizes, Enforcement Endures](analysis-commoditizes-enforcement-endures.md)
+<span class="blog-tag">Governance</span> <span class="blog-tag">Theory</span>
+
+Citrini Research's cybersecurity long/short thesis — AI commoditizes anything that produces reports and scores, and strengthens anything that owns an inline enforcement point — is the same rule our sandbox keeps finding for governance mechanisms. Interaction dashboards stayed green while shared memory hit 62% poisoned; an advisory commit guard fired correctly and was ignored anyway; and the one mechanism that collapsed a governed ecosystem was the signal feeding enforcement going soft. The durable asset isn't the choke point — it's the choke point plus the telemetry wired into it.
+
+</div>
+
+<div class="blog-post" data-tags="governance theory" markdown>
+
 **Aug 8** — [The Meme Survives the Medium: Memory Wipes, Herd Immunity, and the Editorial Policy of Shared Memory](memetic-spread-reset-vs-detection.md)
 <span class="blog-tag">Governance</span> <span class="blog-tag">Theory</span>
 
