@@ -34,7 +34,7 @@ export function SplashScreen() {
       onClick={skip}
     >
       <img
-        src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/splash.png`}
+        src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/splash.webp`}
         alt="SWARM"
         className={`w-64 h-64 object-contain ${
           phase === "enter"
