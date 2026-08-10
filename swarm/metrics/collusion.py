@@ -61,6 +61,18 @@ class GroupMetrics:
     avg_internal_p: float = 0.5  # Average p for within-group interactions
     avg_external_p: float = 0.5  # Average p for outside interactions
 
+    # Directional quality asymmetry (bead mwve): outbound = accepted
+    # interactions *initiated by* members toward non-members. An export-harm
+    # coalition trades high-p internally and low-p outbound; the undirected
+    # avg_external_p masks this when honest outsiders initiate high-p
+    # interactions toward the group.
+    avg_outbound_external_p: float = 0.5
+    directional_quality_asymmetry: float = 0.0
+
+    # How this group was found: "pair_clique" (clique of suspicious pairs)
+    # or "mutual_favoritism" (group-first structural pass, bead mwve)
+    detection_method: str = "pair_clique"
+
     # Composite score
     collusion_score: float = 0.0
 
@@ -180,6 +192,19 @@ class CollusionDetector:
 
         # Detect potential groups (cliques of suspicious pairs)
         suspicious_groups = self._detect_groups(suspicious_pairs, interactions)
+
+        # Group-first structural pass (bead mwve): export-harm coalitions
+        # trade high-p internally and dump low-p interactions on outsiders,
+        # so no individual pair ever looks suspicious and the clique pass
+        # above never sees them. Discover candidate groups directly from
+        # mutual-favoritism structure and flag on directional quality
+        # asymmetry — the criterion quality_asymmetry_threshold documents
+        # but the pair-first pipeline never evaluated.
+        flagged_members = [frozenset(g.members) for g in suspicious_groups]
+        for group in self._detect_groups_structural(interactions, agent_ids):
+            if frozenset(group.members) not in flagged_members:
+                suspicious_groups.append(group)
+        suspicious_groups.sort(key=lambda g: g.collusion_score, reverse=True)
 
         # Compute per-agent risk scores
         agent_risk = self._compute_agent_risk(
@@ -452,6 +477,27 @@ class CollusionDetector:
         avg_internal_p = float(np.mean([i.p for i in internal])) if internal else 0.5
         avg_external_p = float(np.mean([i.p for i in external])) if external else 0.5
 
+        # Directional quality asymmetry (bead mwve): restrict to *accepted*
+        # interactions and to the outbound direction (member-initiated toward
+        # outsiders). Rejected junk is governance working, and inbound
+        # high-p traffic from honest outsiders must not dilute the evidence
+        # of outbound predation.
+        internal_acc = [i for i in internal if i.accepted]
+        outbound_acc = [
+            i for i in external if i.accepted and i.initiator in members
+        ]
+        avg_internal_acc_p = (
+            float(np.mean([i.p for i in internal_acc])) if internal_acc else 0.5
+        )
+        avg_outbound_p = (
+            float(np.mean([i.p for i in outbound_acc])) if outbound_acc else 0.5
+        )
+        directional_asymmetry = (
+            float(max(0.0, avg_internal_acc_p - avg_outbound_p))
+            if internal_acc and outbound_acc
+            else 0.0
+        )
+
         # Compute collusion score for group
         # High internal rate + quality asymmetry = suspicious
         internal_bias = max(0.0, internal_rate - 0.5) * 2
@@ -469,8 +515,167 @@ class CollusionDetector:
             external_interaction_rate=float(external_rate),
             avg_internal_p=float(avg_internal_p),
             avg_external_p=float(avg_external_p),
+            avg_outbound_external_p=float(avg_outbound_p),
+            directional_quality_asymmetry=float(directional_asymmetry),
             collusion_score=float(collusion_score),
         )
+
+    def _detect_groups_structural(
+        self,
+        interactions: List[SoftInteraction],
+        agent_ids: List[str],
+    ) -> List[GroupMetrics]:
+        """Group-first coalition detection via mutual favoritism (bead mwve).
+
+        The pair-first pipeline structurally cannot see export-harm
+        coalitions: members trade high-p with each other (so no pair scores
+        as "trading junk") and dump low-p extraction on outsiders (but each
+        predator-victim pair fails the mutual-benefit tests). Ground truth
+        that motivated this: the emergent RL coalition in
+        ``scenarios/rl_emergence.yaml`` capacity=3 seed=44 — internal
+        p=0.716, outbound p=0.487, 0 pairs flagged.
+
+        Discovery: build an undirected "mutual favoritism" graph — edge
+        a—b iff each initiates accepted interactions toward the other at
+        above-population mean quality (with at least ``min_interactions``
+        accepted interactions per direction). Connected components are
+        candidate coalitions: sets of agents who reserve their good
+        behavior for each other. A uniform-quality honest population forms
+        components too, but scores ~0 asymmetry and is not flagged.
+
+        Flagging: a candidate is suspicious iff its *directional* quality
+        asymmetry (internal accepted p minus outbound-external accepted p)
+        meets ``quality_asymmetry_threshold`` — the criterion this
+        detector's constructor has always documented for group quality
+        asymmetry.
+        """
+        accepted = [i for i in interactions if i.accepted]
+        if not accepted:
+            return []
+
+        population_mean_p = float(np.mean([i.p for i in accepted]))
+
+        # Directed per-pair quality: mean p of accepted a -> b interactions
+        directed: Dict[Tuple[str, str], List[float]] = defaultdict(list)
+        for i in accepted:
+            directed[(i.initiator, i.counterparty)].append(i.p)
+
+        # Mutual-favoritism edges
+        adjacency: Dict[str, Set[str]] = defaultdict(set)
+        for (a, b), ps_ab in directed.items():
+            if a >= b:
+                continue  # handle each unordered pair once
+            ps_ba = directed.get((b, a), [])
+            if len(ps_ab) < self.min_interactions or len(ps_ba) < self.min_interactions:
+                continue
+            if (
+                float(np.mean(ps_ab)) >= population_mean_p
+                and float(np.mean(ps_ba)) >= population_mean_p
+            ):
+                adjacency[a].add(b)
+                adjacency[b].add(a)
+
+        # Connected components (deterministic: sorted iteration)
+        visited: Set[str] = set()
+        candidates: List[Set[str]] = []
+        for start in sorted(adjacency):
+            if start in visited:
+                continue
+            component: Set[str] = set()
+            queue = [start]
+            while queue:
+                node = queue.pop(0)
+                if node in visited:
+                    continue
+                visited.add(node)
+                component.add(node)
+                queue.extend(
+                    n for n in sorted(adjacency[node]) if n not in visited
+                )
+            if len(component) >= 2:
+                candidates.append(component)
+
+        n_agents = len(agent_ids)
+        groups: List[GroupMetrics] = []
+        for component in candidates:
+            # Flag decision on the FULL mutual-favoritism component: pruning
+            # before this test would reclassify genuine in-group edges as
+            # outbound and collapse the asymmetry that defines the coalition.
+            component_metrics = self._compute_group_metrics(component, interactions)
+
+            n_internal_acc = sum(
+                1
+                for i in accepted
+                if i.initiator in component and i.counterparty in component
+            )
+            n_outbound_acc = sum(
+                1
+                for i in accepted
+                if i.initiator in component and i.counterparty not in component
+            )
+            # Evidence floor: enough accepted traffic on both sides of the
+            # asymmetry for the statistic to mean anything.
+            if (
+                n_internal_acc < self.min_interactions
+                or n_outbound_acc < self.min_interactions
+            ):
+                continue
+
+            if (
+                component_metrics.directional_quality_asymmetry
+                < self.quality_asymmetry_threshold
+            ):
+                continue
+
+            # Membership refinement (bead mwve boundary fix): mutual-
+            # favoritism edges capture honest agents who merely *receive*
+            # the group's good behavior. A predator engages the out-group
+            # (that's who it extracts from); a captured recipient never
+            # initiates outside the component. Keep only members with real
+            # out-group engagement. "Inside" stays = component, so this
+            # never reclassifies in-group edges (unlike shrinking the
+            # asymmetry reference).
+            members = {
+                m
+                for m in component
+                if sum(
+                    1
+                    for i in accepted
+                    if i.initiator == m and i.counterparty not in component
+                )
+                >= self.min_interactions
+            }
+            if len(members) < 2:
+                # No genuine predators — a favor-exchange cluster with no
+                # victims. Not a harm-exporting coalition.
+                continue
+
+            metrics = self._compute_group_metrics(members, interactions)
+            if metrics.directional_quality_asymmetry < self.quality_asymmetry_threshold:
+                continue
+
+            # Score on the structural signature: internal concentration
+            # relative to the uniform-mixing expectation for this group
+            # size (not the arbitrary 0.5 the clique path uses), plus the
+            # directional asymmetry that triggered the flag.
+            expected_internal = (
+                (len(members) - 1) / (n_agents - 1) if n_agents > 1 else 0.0
+            )
+            internal_bias = (
+                max(0.0, metrics.internal_interaction_rate - expected_internal)
+                / (1.0 - expected_internal)
+                if expected_internal < 1.0
+                else 0.0
+            )
+            score = internal_bias * 0.4 + metrics.directional_quality_asymmetry * 0.6
+            size_factor = min(1.0, len(members) / 5.0)
+            score *= 0.5 + 0.5 * size_factor
+
+            metrics.detection_method = "mutual_favoritism"
+            metrics.collusion_score = float(score)
+            groups.append(metrics)
+
+        return sorted(groups, key=lambda g: g.collusion_score, reverse=True)
 
     def _compute_agent_risk(
         self,

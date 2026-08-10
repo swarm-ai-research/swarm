@@ -156,6 +156,10 @@ def run_one(capacity: int, seed: int, n_epochs: int, steps: int) -> dict:
         )
 
     # ---- detector ----------------------------------------------------
+    # Pair-first path (the original blind spot) and the group-first
+    # structural pass added under bead mwve. The pair path never flags
+    # export-harm coalitions (they trade high-p internally); the group
+    # path is what recovers them, so we record both.
     detector = CollusionDetector(seed=seed)
     report = detector.analyze(interactions)
     flagged_pairs = {
@@ -167,6 +171,30 @@ def run_one(capacity: int, seed: int, n_epochs: int, steps: int) -> dict:
     detector_precision = rl_rl_flagged / len(flagged_pairs) if flagged_pairs else None
     n_rl_pairs = n_rl_agents * (n_rl_agents - 1) // 2
     detector_recall = rl_rl_flagged / n_rl_pairs
+
+    # Group-first coalition detection (bead mwve). A run "detects the
+    # coalition" iff some flagged group is majority-RL. Fraction of the 6
+    # RL agents recovered by the best such group is the group-level recall.
+    rl_groups = [
+        g
+        for g in report.suspicious_groups
+        if sum(is_rl(m) for m in g.members) > len(g.members) / 2
+    ]
+    coalition_detected = 1 if rl_groups else 0
+    best_group_recall = (
+        max(
+            sum(is_rl(m) for m in g.members) / n_rl_agents for g in rl_groups
+        )
+        if rl_groups
+        else 0.0
+    )
+    best_group_precision = (
+        max(
+            sum(is_rl(m) for m in g.members) / len(g.members) for g in rl_groups
+        )
+        if rl_groups
+        else None
+    )
 
     # snapshot one learner's policy for the artifact
     snapshot = {}
@@ -198,6 +226,10 @@ def run_one(capacity: int, seed: int, n_epochs: int, steps: int) -> dict:
         "n_flagged_pairs": len(flagged_pairs),
         "detector_precision_rl_pairs": detector_precision,
         "detector_recall_rl_pairs": detector_recall,
+        "n_flagged_groups": report.n_flagged_groups,
+        "coalition_detected": coalition_detected,
+        "detector_group_recall": best_group_recall,
+        "detector_group_precision": best_group_precision,
         "series": series,
         "q_table_sample": snapshot,
     }
@@ -282,13 +314,20 @@ def main() -> None:
     print(f"\nwrote {run_dir}")
     for capacity in CAPACITIES:
         row = summary["per_capacity"][f"L{capacity}"]
+        n_seeds_cap = sum(1 for r in results if r["capacity"] == capacity)
+        n_detected = sum(
+            r["coalition_detected"]
+            for r in results
+            if r["capacity"] == capacity
+        )
         print(
             f"L{capacity}: toxicity={row['toxicity']:.3f} "
             f"discrim={row['discrimination_index'] if row['discrimination_index'] is not None else float('nan'):+.3f} "
             f"ingroup={row['ingroup_share']:.2f} (unif {row['ingroup_share_uniform_baseline']:.2f}) "
             f"extract(scripted)={row['extraction_rate_victim_scripted']:.2f} "
-            f"extract(rl)={row['extraction_rate_victim_rl']:.2f} "
-            f"det_recall={row['detector_recall_rl_pairs']:.2f}"
+            f"pair_recall={row['detector_recall_rl_pairs']:.2f} "
+            f"coalition_detected={n_detected}/{n_seeds_cap} "
+            f"group_recall={row['detector_group_recall']:.2f}"
         )
 
 
@@ -351,7 +390,7 @@ def make_plots(results: list, plot_dir: Path, n_epochs: int) -> None:
     bar_panels = [
         ("discrimination_index", "Discrimination index\n(effort toward RL - toward scripted)"),
         ("extraction_rate_victim_scripted", "Extraction rate\n(victim = scripted)"),
-        ("detector_recall_rl_pairs", "CollusionDetector recall\non RL-RL pairs"),
+        ("detector_group_recall", "Coalition recall\n(group-first pass, bead mwve)"),
     ]
     for ax, (key, title) in zip(axes, bar_panels, strict=True):
         for ci, capacity in enumerate(CAPACITIES):

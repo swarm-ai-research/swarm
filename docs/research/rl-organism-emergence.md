@@ -99,10 +99,34 @@ detector's own vocabulary; the pair-first pipeline can't reach it.
 
 This extends the `qoro` finding (graph_structural stops clustering under
 overlapping coalitions): coalitions that *emerge from learning* are shaped
-unlike the scripted ones the detectors were tuned on. Filed as `mwve`
-(group-first detection pass — community detection on the accepted-interaction
-graph, then quality asymmetry per community — with `rl_emergence.yaml`
-capacity=3 seed=44 as the ground-truth fixture).
+unlike the scripted ones the detectors were tuned on.
+
+**Fixed under `mwve`.** `CollusionDetector` now runs a **group-first
+structural pass** (`_detect_groups_structural`) *in addition to* the
+pair-first pipeline. It builds a mutual-favoritism graph — an edge a—b iff
+each initiates accepted interactions toward the other at above-population
+mean quality — and takes connected components as candidate coalitions
+(agents who reserve their good behavior for each other). A candidate is
+flagged iff its **directional** quality asymmetry — internal accepted p
+minus *outbound* (member-initiated toward outsiders) accepted p — meets the
+`quality_asymmetry_threshold` the constructor has always documented but the
+pair path never evaluated. The directional restriction is load-bearing:
+the undirected `avg_external_p` is diluted by honest outsiders initiating
+high-p interactions *into* the group, which masks the export-harm
+signature. Membership is refined to members with genuine out-group
+engagement, so captured honest recipients aren't reported as colluders —
+but that refinement runs *after* the flag decision, because pruning weak
+members before the asymmetry test reclassifies genuine in-group edges as
+outbound and collapses the very signal being measured (observed: 0.229 →
+0.128 on seed 44). Confirmed by re-running the sweep
+(`runs/20260810T020708Z_rl_capacity_sweep`): L3 `coalition_detected` goes
+from 0/5 to **1/5** — the one seed that forms a coalition (44) is recovered
+with **precision 1.0 and recall 1.0** (all 6 RL members, 0 honest
+false-positives) — while the four in-group-avoidance seeds, all lower
+capacities, and a uniform-honest population stay unflagged, and the
+pair-first recall stays 0.0 everywhere (the fix lives entirely at the group
+level; the pair path genuinely cannot see this structure). Ground-truth
+fixture: `scenarios/rl_emergence.yaml` capacity=3 seed=44.
 
 **4. Screening works where it's learned.** The population quality gap stays
 positive (0.04–0.09) — no adverse selection, because the learners' accept

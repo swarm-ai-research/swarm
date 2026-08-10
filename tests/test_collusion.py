@@ -291,6 +291,100 @@ class TestGroupDetection:
         # At minimum, should detect suspicious pairs
         assert report.n_flagged_pairs > 0 or report.n_flagged_groups > 0
 
+    def test_export_harm_coalition_flagged_by_group_first_pass(self):
+        """Group-first pass (bead mwve): a coalition that trades HIGH-p
+        internally and dumps LOW-p extraction on outsiders is invisible to
+        the pair-first pipeline (no pair looks bad) but must be flagged.
+
+        This is the emergent-RL-coalition signature from
+        scenarios/rl_emergence.yaml capacity=3 seed=44, reproduced as a
+        synthetic fixture.
+        """
+        members = ["m1", "m2", "m3"]
+        victims = ["v1", "v2", "v3"]
+        interactions = []
+
+        # High-p internal trade among all member pairs (mutual favoritism).
+        for a, b in [("m1", "m2"), ("m2", "m3"), ("m1", "m3")]:
+            interactions.extend(create_collusion_pattern(a, b, count=12, p_internal=0.85))
+
+        # Each member extracts (low-p, accepted) from each victim.
+        for m in members:
+            for v in victims:
+                for _ in range(6):
+                    interactions.append(
+                        create_interaction(m, v, p=0.25, accepted=True)
+                    )
+
+        # Victims also do honest high-p work among themselves.
+        for a, b in [("v1", "v2"), ("v2", "v3"), ("v1", "v3")]:
+            for _ in range(5):
+                interactions.append(create_interaction(a, b, p=0.8, accepted=True))
+
+        detector = CollusionDetector(
+            min_interactions_for_analysis=3,
+            quality_asymmetry_threshold=0.2,
+        )
+        report = detector.analyze(interactions)
+
+        group_members = [set(g.members) for g in report.suspicious_groups]
+        assert any(
+            set(members) <= gm for gm in group_members
+        ), f"export-harm coalition not flagged; groups={group_members}"
+
+        flagged = next(
+            g for g in report.suspicious_groups if set(members) <= set(g.members)
+        )
+        assert flagged.detection_method == "mutual_favoritism"
+        assert flagged.directional_quality_asymmetry >= 0.2
+        # Victims must NOT be reported as coalition members.
+        assert not (set(victims) & set(flagged.members))
+
+    def test_group_first_pass_ignores_uniform_honest_population(self):
+        """A population where everyone trades high-p with everyone must not
+        be flagged — mutual favoritism without out-group harm is not
+        collusion."""
+        agents = ["h1", "h2", "h3", "h4", "h5"]
+        interactions = []
+        for i, a in enumerate(agents):
+            for b in agents[i + 1 :]:
+                for _ in range(6):
+                    interactions.append(create_interaction(a, b, p=0.8, accepted=True))
+
+        detector = CollusionDetector(
+            min_interactions_for_analysis=3,
+            quality_asymmetry_threshold=0.2,
+        )
+        report = detector.analyze(interactions)
+        assert report.n_flagged_groups == 0
+        assert report.ecosystem_collusion_risk == 0.0
+
+    def test_group_first_pass_ignores_favor_cluster_without_victims(self):
+        """A mutual-favoritism cluster whose members never engage the
+        out-group has no victims to extract from — not a harm-exporting
+        coalition, so it must not be flagged even though internal p is
+        high and external contact is nil."""
+        interactions = []
+        # Tight high-p cluster, no outbound at all.
+        for a, b in [("c1", "c2"), ("c2", "c3"), ("c1", "c3")]:
+            interactions.extend(create_collusion_pattern(a, b, count=10, p_internal=0.9))
+        # Separate outsiders doing their own thing.
+        for a, b in [("o1", "o2"), ("o2", "o3")]:
+            for _ in range(6):
+                interactions.append(create_interaction(a, b, p=0.7, accepted=True))
+
+        detector = CollusionDetector(
+            min_interactions_for_analysis=3,
+            quality_asymmetry_threshold=0.2,
+        )
+        report = detector.analyze(interactions)
+        # The cluster has no outbound engagement, so the group-first pass
+        # must not promote it to a harm-exporting coalition.
+        assert all(
+            g.detection_method != "mutual_favoritism"
+            for g in report.suspicious_groups
+        )
+
     def test_group_metrics_calculation(self):
         """Should compute metrics for detected groups."""
         detector = CollusionDetector(
