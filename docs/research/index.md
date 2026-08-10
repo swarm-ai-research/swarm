@@ -176,6 +176,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     When an ungoverned coordination channel emerges alongside the governed one (2026 OpenAI/Hugging Face incident): teardown without revocation only relocates it, revoking discovery collapses it, a lower-friction sanctioned channel outcompetes it with no enforcement, and interaction-level toxicity is blind to the whole migration (bead k5o9)
 
+-   :material-robot-outline: **[RL Organism Emergence](rl-organism-emergence.md)**
+
+    ---
+
+    De novo emergence on tabular bandits with no strategy enum: targeted predation appears at 3 states, a predatory coalition at 18 — and the emergent coalition walks past CollusionDetector in all 20 runs because pair-first scoring can't see quality-inside/harm-outside structure (beads boll → mwve)
+
 </div>
 
 ## Core Research Questions

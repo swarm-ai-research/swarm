@@ -141,6 +141,74 @@ class DefaultObservableGenerator:
             )
 
 
+class EffortObservableGenerator:
+    """Observables driven by the initiator's *chosen* effort (bead boll).
+
+    ``DefaultObservableGenerator`` keys observables off the initiator's
+    ``AgentType`` — quality is an attribute of what an agent *is*. For the
+    RL-organism experiment quality must instead be a per-interaction
+    *choice*: proposals carrying ``metadata["effort"]`` (in [0, 1]) get
+    observables mapped from that effort, so p tracks effort through the
+    unchanged ProxyComputer path. Proposals without the key fall back to
+    the wrapped generator, so mixed populations behave exactly as before.
+
+    Calibration (default ProxyComputer, sigmoid_k=2): effort 0.15 lands at
+    p ~ 0.35 (socially negative: social surplus < 0) and effort 0.85 at
+    p ~ 0.80 (clearly beneficial). The mapping is noisy — effort is a
+    latent choice observed through the same fuzzy proxy pipeline as
+    everything else.
+    """
+
+    def __init__(
+        self,
+        inner: ObservableGenerator | None = None,
+        rng: random.Random | None = None,
+        noise: float = 0.08,
+    ) -> None:
+        self._rng: random.Random = rng or random.Random()
+        self._inner: ObservableGenerator = inner or DefaultObservableGenerator(
+            rng=self._rng
+        )
+        self._noise = noise
+
+    def generate(
+        self,
+        proposal: InteractionProposal,
+        accepted: bool,
+        state: EnvState,
+    ) -> ProxyObservables:
+        effort = proposal.metadata.get("effort")
+        if effort is None:
+            return self._inner.generate(proposal, accepted, state)
+
+        e = max(0.0, min(1.0, float(effort)))
+        rng = self._rng
+
+        task_progress = -0.9 + 1.6 * e + rng.gauss(0.0, self._noise)
+        task_progress = max(-1.0, min(1.0, task_progress))
+
+        engagement = -0.7 + 1.35 * e + rng.gauss(0.0, self._noise)
+        engagement = max(-1.0, min(1.0, engagement))
+        if not accepted:
+            engagement = min(engagement, 0.0)
+
+        # Low effort produces rework/rejections/misuse stochastically; high
+        # effort rarely does. Probabilities scale with (1 - effort).
+        rework = 0
+        if rng.random() < (1.0 - e) * 0.9:
+            rework = 2 if rng.random() < 0.4 else 1
+        rejections = 1 if rng.random() < (1.0 - e) * 0.7 else 0
+        misuse = 1 if rng.random() < (1.0 - e) * 0.4 else 0
+
+        return ProxyObservables(
+            task_progress_delta=task_progress,
+            rework_count=rework,
+            verifier_rejections=rejections,
+            tool_misuse_flags=misuse,
+            counterparty_engagement_delta=engagement,
+        )
+
+
 class ObfuscationObservableGenerator:
     """Decorator over any ObservableGenerator that applies signal manipulation.
 

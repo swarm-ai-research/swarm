@@ -23,6 +23,7 @@ class AgentType(Enum):
     ADAPTIVE = "adaptive"
     WORK_REGIME = "work_regime"
     SELF_MODIFYING = "self_modifying"
+    RL_ORGANISM = "rl_organism"
 
 
 class AgentStatus(Enum):

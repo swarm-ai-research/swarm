@@ -44,6 +44,7 @@ from swarm.agents.pressure_responsive import PressureResponsiveAgent
 from swarm.agents.rain_river import RainAgent, RiverAgent
 from swarm.agents.ralph_agent import AdversarialRalphAgent, RalphLoopAgent
 from swarm.agents.rivals_agent import RivalsCriticAgent, RivalsProducerAgent
+from swarm.agents.rl_organism import RLOrganismAgent
 from swarm.agents.rlm_agent import RLMAgent
 from swarm.agents.scholar_agent import (
     AdversarialRetrieverAgent,
@@ -154,6 +155,8 @@ AGENT_TYPES: Dict[str, Type[BaseAgent]] = {
     # Rain/River memory agents
     "rain": RainAgent,
     "river": RiverAgent,
+    # RL organism: tabular-bandit emergence testbed (bead boll)
+    "rl_organism": RLOrganismAgent,
     # Ralph loop agents (artifact-mediated memory)
     "ralph_loop": RalphLoopAgent,
     "adversarial_ralph": AdversarialRalphAgent,
@@ -1668,6 +1671,25 @@ def build_orchestrator(scenario: ScenarioConfig) -> Orchestrator:
             "Pressure-responsive wiring active for %d agents",
             len(pressure_agents),
         )
+
+    # RL organisms (bead boll) choose a per-interaction effort that must
+    # drive observables (and hence p) through the normal proxy path. Wraps
+    # whichever generator was selected above; non-effort proposals fall
+    # through to the inner generator unchanged.
+    if any(isinstance(a, RLOrganismAgent) for a in agents):
+        from swarm.core.observable_generator import (
+            DefaultObservableGenerator,
+            EffortObservableGenerator,
+        )
+
+        seed = scenario.orchestrator_config.seed
+        effort_rng = random.Random(seed + 15485863) if seed is not None else None
+        inner = observable_generator or DefaultObservableGenerator(rng=effort_rng)
+        observable_generator = EffortObservableGenerator(
+            inner=inner,
+            rng=effort_rng,
+        )
+        logger.info("Effort-driven observable wiring active (rl_organism present)")
 
     # Create orchestrator
     orchestrator = Orchestrator(
