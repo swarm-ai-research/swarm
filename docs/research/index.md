@@ -98,6 +98,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Ecosystem governance lessons from Tao's AI-contributions ledger: verification bottleneck, denominator problem, corroboration vs. collusion
 
+-   :material-compass-off: **[Open-Ended Research Failure Modes](open-ended-research-failure-modes.md)**
+
+    ---
+
+    Kapoor–Narayanan shadow evaluations mapped onto this rig's incident log: five judgment failures, dated exhibits, and the enforcement-ladder mitigations
+
 -   :material-autorenew: **[Reflective Self-Improvement Lessons](reflective-self-improvement-lessons.md)**
 
     ---
