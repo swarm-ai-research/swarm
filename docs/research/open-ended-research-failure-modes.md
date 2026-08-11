@@ -112,6 +112,54 @@ should be filed against those when they land, not as new roots.
   should be expected to fail and is a candidate for a pre-fix hook that
   greps the cited lines at HEAD.
 
+## Addendum (2026-08-10): the success tail, one day later
+
+**Source:** [Anthropic, "Claude and the Riemann zeta function"](https://www.anthropic.com/research/riemann-zeta)
+(2026-08-10). An unreleased research version of Claude, prompted to attempt
+the Riemann hypothesis itself, instead improved a long-standing related
+bound: the proven fraction of zeta zeros satisfying the hypothesis rose from
+41.6% to 67.2% (combining Baluyot–Goldston–Suriajaya–Turnage-Butterbaugh
+with Bombieri 2000 via quadratic forms). Two Claude Code sessions, 31M
+output tokens, ~650 ideas generated and tested, ~60 subagents over a day and
+a half. Verification: subagent cross-refereeing, counterexample search,
+independent reproofs from scratch, a 54-paper arXiv novelty sweep, two
+internal mathematicians (Alpöge, Furman), external review (Conrey,
+Goldston), and a Lean formalization. Anthropic caveats that the techniques
+are not expected to prove RH.
+
+Published five days after the Kapoor–Narayanan piece, this reads like its
+refutation. It is its complement, and it sharpens the doc's framing at four
+points:
+
+1. **The acceptance predicate was fixed ex-ante and mechanically
+   checkable.** "Improve a numeric bound, prove it, formalize it in Lean" is
+   exactly the claim class the Buzzard addendum
+   ([erdos-ai-ledger-lessons.md](erdos-ai-ledger-lessons.md)) predicts falls
+   first — selection on verifiability, not difficulty. The shadow
+   evaluations targeted work whose "done" is ambiguous and self-set; this
+   task never had that property, so mode 1 was structurally absent. Taken
+   together, the two results delimit the frontier cleanly: it runs along the
+   verifiability of the acceptance predicate, not along "research" per se.
+2. **The scaffold did the judgment.** 650 ideas winnowed by numerical
+   testing against known zeros, cross-refereeing, independent reproofs, Lean
+   at the bottom — the enforcement ladder run at scale, with generation
+   taking 36 hours and the verification architecture doing the conversion
+   from output to accepted claim. This is the "who verifies the scaffold"
+   question answered concretely: a mechanical checker plus four human
+   mathematicians.
+3. **A genuine counterpoint on mode 2.** Against the under-spend finding,
+   this run spent aggressively — 31M tokens, 650 ideas, budget poured into
+   verification depth and approach breadth. Evidence that the
+   resource-awareness deficit is orchestration-fixable, at least where the
+   search-verify loop is cheap to run per iteration; it supports the
+   mitigation column (pacing belongs to orchestration), not the elimination
+   of the mode.
+4. **The corroboration caveat applies.** Goldston is both a co-author of
+   the underlying technique and one of the two external reviewers — expert
+   review, not fully independent convergence (erdős-ledger lesson 5). The
+   independence in this verification stack comes from the Lean
+   formalization, not the panel.
+
 ## Prior related findings in this rig
 
 - The enforcement-ladder trajectory (prose → advisory → structural) as the
