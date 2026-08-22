@@ -92,7 +92,7 @@ export function Minimap() {
     ctx.strokeStyle = COLORS.border;
     ctx.lineWidth = 1;
     ctx.strokeRect(0, 0, MINIMAP_SIZE, MINIMAP_SIZE);
-  }, [agents, overlays.minimap, viewport, isMobile, mapping]);
+  }, [agents, overlays.minimap, viewport, MINIMAP_SIZE, mapping]);
 
   if (!overlays.minimap) return null;
 
