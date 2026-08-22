@@ -23,6 +23,13 @@ export function useCamera() {
     [state.viewport, setViewport],
   );
 
+  const handleZoomAt = useCallback(
+    (targetZoom: number, focusX: number, focusY: number) => {
+      setViewport(cam.zoomTo(state.viewport, targetZoom, focusX, focusY));
+    },
+    [state.viewport, setViewport],
+  );
+
   const handleZoom = useCallback(
     (delta: number, focusX: number, focusY: number) => {
       setViewport(cam.zoom(state.viewport, delta, focusX, focusY));
@@ -60,6 +67,7 @@ export function useCamera() {
     viewport: state.viewport,
     handlePan,
     handleZoom,
+    handleZoomAt,
     resetCamera,
     resize,
   };

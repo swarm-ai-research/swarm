@@ -8,7 +8,7 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace; background: #0D1117; min-height: 100vh; overflow: hidden; color: #E6EDF3; }
-        #canvas-container { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
+        #canvas-container { width: 100vw; height: 100vh; height: 100dvh; display: flex; align-items: center; justify-content: center; }
     </style>
 </head>
 <body>
@@ -82,6 +82,20 @@
                     collusionStrength: 0,
                     trail: []
                 });
+            }
+        };
+
+        p.windowResized = function() {
+            const container = document.getElementById('canvas-container');
+            w = container.offsetWidth;
+            h = container.offsetHeight;
+            p.resizeCanvas(w, h);
+            // Re-flow the agent ring; x/y glide toward the new bases via their lerps
+            for (let i = 0; i < N_AGENTS; i++) {
+                const angle = (i / N_AGENTS) * p.TWO_PI - p.HALF_PI;
+                const radius = Math.min(w, h) * 0.28;
+                agents[i].baseX = w/2 + Math.cos(angle) * radius;
+                agents[i].baseY = h/2 + Math.sin(angle) * radius;
             }
         };
 

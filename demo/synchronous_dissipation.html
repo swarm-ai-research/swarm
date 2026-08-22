@@ -8,7 +8,7 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0D1117; min-height: 100vh; overflow: hidden; color: #E6EDF3; }
-        .container { display: flex; height: 100vh; gap: 20px; padding: 20px; }
+        .container { display: flex; height: 100vh; height: 100dvh; gap: 20px; padding: 20px; }
         #canvas-container { flex: 1; display: flex; align-items: center; justify-content: center; background: #161B22; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.3); overflow: hidden; }
         #controls { width: 280px; background: #161B22; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.3); overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 24px; }
         .control-section { display: flex; flex-direction: column; gap: 12px; }
@@ -37,6 +37,12 @@
         ::-webkit-scrollbar-track { background: #0D1117; border-radius: 3px; }
         ::-webkit-scrollbar-thumb { background: #30363D; border-radius: 3px; }
         .attribution { font-size: 10px; color: #7D8590; text-align: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid #21262D; }
+        @media (max-width: 767px) {
+            body { overflow: auto; }
+            .container { flex-direction: column; height: auto; min-height: 100dvh; padding: 12px; gap: 12px; }
+            #canvas-container { flex: none; height: 55dvh; }
+            #controls { width: 100%; }
+        }
     </style>
 </head>
 <body>
@@ -215,6 +221,12 @@
                 }
                 p.background(13, 17, 23);
                 p.colorMode(p.RGB, 255);
+            };
+            p.windowResized = function() {
+                const container = document.getElementById('canvas-container');
+                const size = Math.max(100, Math.min(container.offsetWidth - 40, container.offsetHeight - 40));
+                p.resizeCanvas(size, size);
+                // Agents wrap modulo width/height, so off-canvas ones return on their own
             };
             p.draw = function() {
                 p.background(13, 17, 23, 10);

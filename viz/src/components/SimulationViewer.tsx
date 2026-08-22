@@ -52,7 +52,7 @@ function ShareButton() {
   return (
     <button
       onClick={handleShare}
-      className="absolute top-2 right-24 z-[10001] px-2.5 py-1 text-xs rounded bg-btn hover:bg-btn-hover text-muted hover:text-text transition-colors"
+      className="relative z-[10001] px-2.5 py-1.5 text-xs rounded bg-btn hover:bg-btn-hover text-muted hover:text-text transition-colors"
       title="Copy shareable URL"
     >
       {copied ? "\u2713 Copied!" : "Share"}
@@ -64,9 +64,10 @@ function ShareButton() {
 
 function SimulationViewerInner() {
   const { state: gameState } = useGame();
+  const { data } = useSimulation();
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-bg">
+    <div className="relative w-screen h-[100dvh] overflow-hidden bg-bg">
       {/* Live tick driver (invisible, just runs the hook) */}
       {gameState.isLive && <LiveTickDriver />}
 
@@ -83,13 +84,17 @@ function SimulationViewerInner() {
       <Minimap />
       <Leaderboard />
       <OverlayToggles />
-      <ShareButton />
-      <EventFeed />
+      {/* Top-right chip cluster: Share + Events toggle (flex, so badge growth pushes Share left) */}
+      <div className="absolute top-2 right-2 z-[10001] flex items-center gap-1.5">
+        <ShareButton />
+        <EventFeed />
+      </div>
       <ToastContainer />
       <LevelEndOverlay />
 
-      {/* Show LiveControlBar in live mode, TimelineControls in replay mode */}
-      {gameState.isLive ? <LiveControlBar /> : <TimelineControls />}
+      {/* Show LiveControlBar in live mode, TimelineControls in replay mode.
+          Replay bar stays hidden until data exists (no empty "Epoch 0/0" bar behind the start menu). */}
+      {gameState.isLive ? <LiveControlBar /> : data ? <TimelineControls /> : null}
 
       <SplashScreen />
     </div>

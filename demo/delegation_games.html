@@ -8,7 +8,7 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace; background: #0D1117; min-height: 100vh; overflow: hidden; color: #E6EDF3; }
-        #canvas-container { width: 100vw; height: 100vh; }
+        #canvas-container { width: 100vw; height: 100vh; height: 100dvh; }
     </style>
 </head>
 <body>
@@ -70,6 +70,22 @@
                     revealProgress: 0
                 });
             }
+        };
+
+        p.windowResized = function() {
+            const container = document.getElementById('canvas-container');
+            w = container.offsetWidth;
+            h = container.offsetHeight;
+            p.resizeCanvas(w, h);
+            // Re-flow bubble layout for the new viewport
+            const centerX = w * 0.55;
+            const centerY = h * 0.5;
+            const radius = Math.min(w, h) * 0.22;
+            bubbles.forEach((b, i) => {
+                const angle = (i / configs.length) * p.TWO_PI - p.HALF_PI;
+                b.x = b.targetX = centerX + Math.cos(angle) * radius;
+                b.y = b.targetY = centerY + Math.sin(angle) * radius;
+            });
         };
 
         p.draw = function() {

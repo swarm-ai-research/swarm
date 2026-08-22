@@ -139,8 +139,8 @@ export function DataLoader() {
   if (data || gameState.isLive) return null; // Hide once data is loaded or game is live
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center z-30 bg-bg">
-      <div className="bg-panel border border-border rounded-xl p-8 max-w-lg w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+    <div className="absolute inset-0 flex items-center justify-center z-[10010] bg-bg">
+      <div className="bg-panel border border-border rounded-xl p-5 sm:p-8 max-w-lg w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
         <h1 className="text-xl font-bold mb-1">SWARM</h1>
         <p className="text-sm text-muted mb-4">
           Governance benchmark suite with receipts
@@ -150,7 +150,7 @@ export function DataLoader() {
         {!quickPlayRunning && (
           <div className="mb-5">
             <p className="text-xs text-muted uppercase tracking-wider font-bold mb-2">Quick Play</p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {DEMO_PRESETS.slice(0, 6).map((p) => (
                 <button
                   key={p.slug}

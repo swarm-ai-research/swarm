@@ -27,10 +27,14 @@ export function IsometricCanvas() {
     digitalRainRef,
     recompileStateRef,
   } = useSimulation();
-  const { handlePan, handleZoom, resetCamera, resize } = useCamera();
+  const { handlePan, handleZoom, handleZoomAt, resetCamera, resize } = useCamera();
 
-  const isDragging = useRef(false);
-  const lastMouse = useRef({ x: 0, y: 0 });
+  // Unified pointer tracking: 1 finger/mouse pans, 2 fingers pinch-zoom, tap selects.
+  const activePointers = useRef(new Map<number, { x: number; y: number }>());
+  const lastPan = useRef({ x: 0, y: 0 });
+  const pinchState = useRef<{ startDist: number; startZoom: number } | null>(null);
+  const pressStart = useRef<{ x: number; y: number } | null>(null);
+  const lastTap = useRef<{ time: number; x: number; y: number } | null>(null);
 
   // Resize observer
   useEffect(() => {
@@ -108,48 +112,123 @@ export function IsometricCanvas() {
     [agents, viewport],
   );
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      isDragging.current = true;
-      lastMouse.current = { x: e.clientX, y: e.clientY };
+  const pointerPos = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    return rect ? { x: e.clientX - rect.left, y: e.clientY - rect.top } : null;
+  };
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      // Capture can throw if the pointer is already released (e.g. synthetic events)
+      try {
+        canvasRef.current?.setPointerCapture(e.pointerId);
+      } catch {
+        /* pointer already gone; tracking map still works */
+      }
+      const p = pointerPos(e);
+      if (!p) return;
+      activePointers.current.set(e.pointerId, p);
+      if (activePointers.current.size === 1) {
+        lastPan.current = p;
+        pressStart.current = p;
+      } else if (activePointers.current.size === 2) {
+        // Second finger down: switch from pan to pinch, anchored at current zoom
+        const [a, b] = [...activePointers.current.values()];
+        pinchState.current = {
+          startDist: Math.hypot(a.x - b.x, a.y - b.y),
+          startZoom: viewport.zoom,
+        };
+        pressStart.current = null;
+      }
+    },
+    [viewport.zoom],
+  );
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      const p = pointerPos(e);
+      if (!p) return;
+
+      if (!activePointers.current.has(e.pointerId)) {
+        // Hover preview (mouse only, nothing pressed)
+        if (e.pointerType === "mouse" && e.buttons === 0) setHovered(hitTest(p.x, p.y));
+        return;
+      }
+      activePointers.current.set(e.pointerId, p);
+
+      if (activePointers.current.size >= 2 && pinchState.current) {
+        const [a, b] = [...activePointers.current.values()];
+        const dist = Math.hypot(a.x - b.x, a.y - b.y);
+        if (pinchState.current.startDist > 0 && dist > 0) {
+          handleZoomAt(
+            (pinchState.current.startZoom * dist) / pinchState.current.startDist,
+            (a.x + b.x) / 2,
+            (a.y + b.y) / 2,
+          );
+        }
+      } else {
+        handlePan(p.x - lastPan.current.x, p.y - lastPan.current.y);
+        lastPan.current = p;
+      }
+    },
+    [handlePan, handleZoomAt, hitTest, setHovered],
+  );
+
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      const hadPointer = activePointers.current.delete(e.pointerId);
+      try {
+        canvasRef.current?.releasePointerCapture(e.pointerId);
+      } catch {
+        /* nothing captured */
+      }
+
+      if (activePointers.current.size < 2) pinchState.current = null;
+      if (activePointers.current.size === 1) {
+        // Pinch ended with one finger still down: resume panning from it
+        const [p] = [...activePointers.current.values()];
+        lastPan.current = p;
+      }
+
+      // Tap-to-select: single pointer released with minimal movement.
+      // Double-tap resets the camera (iOS Safari never fires dblclick for touches).
+      const start = pressStart.current;
+      pressStart.current = null;
+      if (hadPointer && start && activePointers.current.size === 0) {
+        const end = pointerPos(e);
+        if (end && Math.hypot(end.x - start.x, end.y - start.y) < 6) {
+          const now = performance.now();
+          const prev = lastTap.current;
+          lastTap.current = { time: now, x: end.x, y: end.y };
+          if (
+            e.pointerType !== "mouse" &&
+            prev &&
+            now - prev.time < 350 &&
+            Math.hypot(end.x - prev.x, end.y - prev.y) < 30
+          ) {
+            lastTap.current = null;
+            resetCamera();
+            return;
+          }
+          setSelected(hitTest(end.x, end.y));
+        }
+      }
+    },
+    [hitTest, resetCamera, setSelected],
+  );
+
+  const handlePointerCancel = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      activePointers.current.delete(e.pointerId);
+      try {
+        canvasRef.current?.releasePointerCapture(e.pointerId);
+      } catch {
+        /* nothing captured */
+      }
+      pinchState.current = null;
+      pressStart.current = null;
     },
     [],
-  );
-
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      const rect = canvasRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-
-      if (isDragging.current) {
-        const dx = e.clientX - lastMouse.current.x;
-        const dy = e.clientY - lastMouse.current.y;
-        handlePan(dx, dy);
-        lastMouse.current = { x: e.clientX, y: e.clientY };
-      } else {
-        const hit = hitTest(mx, my);
-        setHovered(hit);
-      }
-    },
-    [handlePan, hitTest, setHovered],
-  );
-
-  const handleMouseUp = useCallback(
-    (e: React.MouseEvent) => {
-      const wasDragging = isDragging.current;
-      isDragging.current = false;
-
-      if (!wasDragging || (Math.abs(e.clientX - lastMouse.current.x) < 3 && Math.abs(e.clientY - lastMouse.current.y) < 3)) {
-        // Click - not a drag
-        const rect = canvasRef.current?.getBoundingClientRect();
-        if (!rect) return;
-        const hit = hitTest(e.clientX - rect.left, e.clientY - rect.top);
-        setSelected(hit);
-      }
-    },
-    [hitTest, setSelected],
   );
 
   const handleWheel = useCallback(
@@ -169,16 +248,17 @@ export function IsometricCanvas() {
   return (
     <canvas
       ref={canvasRef}
-      className="absolute inset-0 cursor-grab active:cursor-grabbing"
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={() => {
-        isDragging.current = false;
-        setHovered(null);
+      className="absolute inset-0 cursor-grab touch-none select-none active:cursor-grabbing"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+      onPointerLeave={() => {
+        if (activePointers.current.size === 0) setHovered(null);
       }}
       onWheel={handleWheel}
       onDoubleClick={handleDoubleClick}
+      onContextMenu={(e) => e.preventDefault()}
     />
   );
 }

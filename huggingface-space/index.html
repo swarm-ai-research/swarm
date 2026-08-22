@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="description" content="SWARM: measure emergent multi-agent AI risks — illusion delta, quality gap, governance experiments. Open-source research framework.">
   <title>SWARM — Distributional AGI Safety</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -21,7 +23,7 @@
       padding: 3rem 0 2rem;
     }
     .hero h1 {
-      font-size: 3rem;
+      font-size: clamp(2.2rem, 9vw, 3rem);
       font-weight: 800;
       background: linear-gradient(135deg, #00d4ff, #7b61ff);
       -webkit-background-clip: text;
@@ -35,7 +37,7 @@
       margin-bottom: 0.75rem;
     }
     .hero .tagline {
-      font-size: 1.3rem;
+      font-size: clamp(1.05rem, 4.5vw, 1.3rem);
       color: #c9d1d9;
       margin-bottom: 2rem;
     }
@@ -115,6 +117,8 @@
     }
     th { color: #8b949e; font-weight: 600; font-size: 0.85rem; text-transform: uppercase; }
     td strong { color: #00d4ff; }
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .table-wrap table { min-width: 520px; }
     code {
       background: #161b22;
       padding: 0.15rem 0.4rem;
@@ -148,6 +152,13 @@
     }
     footer a { color: #58a6ff; text-decoration: none; }
     footer a:hover { text-decoration: underline; }
+    @media (max-width: 480px) {
+      .container { padding: 1.25rem 1rem; }
+      .hero { padding: 2rem 0 1.5rem; }
+      h2 { font-size: 1.25rem; }
+      .btn { flex: 1 1 100%; text-align: center; }
+      th, td { padding: 0.5rem 0.6rem; }
+    }
   </style>
 </head>
 <body>
@@ -175,8 +186,8 @@
       <strong>55% higher welfare</strong> than 100% honest populations — a measurement artifact
       of externality pricing that disappears at &rho; &ge; 0.5.
     </div>
-
     <h2>Key Findings</h2>
+    <div class="table-wrap">
     <table>
       <thead>
         <tr><th>Finding</th><th>Result</th><th>Evidence</th></tr>
@@ -190,6 +201,7 @@
         <tr><td>Ecosystem collapse threshold</td><td><strong>50% adversarial</strong></td><td>Phase transition</td></tr>
       </tbody>
     </table>
+    </div>
 
     <h2>Install</h2>
     <pre><code>pip install swarm-safety</code></pre>
@@ -210,11 +222,12 @@ for m in metrics:
     print(f"Epoch {m.epoch}: toxicity={m.toxicity_rate:.3f}")</code></pre>
 
     <h2>Architecture</h2>
-    <div class="arch">
+    <div class="arch" style="overflow-x: auto;">
       Observables → ProxyComputer → v̂ → sigmoid → p → SoftPayoffEngine → payoffs<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SoftMetrics → toxicity, quality gap, etc.
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SoftMetrics → toxicity, quality gap, etc.
     </div>
+
 
     <h2>Four Key Metrics</h2>
     <div class="grid">

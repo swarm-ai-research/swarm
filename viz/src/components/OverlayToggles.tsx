@@ -22,12 +22,12 @@ export function OverlayToggles() {
   if (!data) return null;
 
   return (
-    <div className="absolute bottom-24 left-4 flex flex-wrap gap-1 z-20 max-w-xs">
+    <div className="absolute z-20 flex flex-wrap gap-1 bottom-[8.75rem] left-2 right-[7.75rem] md:bottom-24 md:left-4 md:right-auto md:max-w-xs">
       {TOGGLE_ITEMS.map(({ key, label }) => (
         <button
           key={key}
           onClick={() => toggleOverlay(key)}
-          className={`px-2.5 py-1 text-[10px] rounded-full border transition-colors ${
+          className={`px-3 py-1.5 text-xs rounded-full border transition-colors md:px-2.5 md:py-1 md:text-[10px] ${
             overlays[key]
               ? "bg-accent/20 border-accent/50 text-accent"
               : "bg-btn border-border text-muted hover:text-text"

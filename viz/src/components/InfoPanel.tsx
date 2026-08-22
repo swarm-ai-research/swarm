@@ -42,7 +42,7 @@ export function InfoPanel() {
     : 0.5;
 
   return (
-    <div className="absolute top-4 left-4 w-72 bg-panel border border-border rounded-lg shadow-lg z-20 overflow-hidden">
+    <div className="absolute z-30 bg-panel border border-border rounded-lg shadow-lg overflow-y-auto top-2 left-2 right-2 max-h-[45vh] md:top-4 md:left-4 md:right-auto md:w-72 md:max-h-none md:overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">

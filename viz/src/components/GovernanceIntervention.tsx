@@ -65,7 +65,7 @@ export function GovernanceIntervention() {
       </button>
 
       {open && (
-        <div className="absolute bottom-16 right-4 w-64 bg-panel border border-border rounded-lg shadow-2xl p-4 z-[10001]">
+        <div className="absolute bottom-full mb-1.5 left-2 right-2 w-auto bg-panel border border-border rounded-lg shadow-2xl p-4 z-[10001] md:left-auto md:right-4 md:w-64">
           <div className="flex justify-between items-center mb-3">
             <span className="text-xs font-bold">Intervene at Epoch {currentEpoch}/{maxEpoch}</span>
             <button onClick={() => setOpen(false)} className="text-muted hover:text-text text-xs">✕</button>
