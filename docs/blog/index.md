@@ -19,6 +19,17 @@ Posts about SWARM research findings, framework updates, and multi-agent safety.
   </div>
 </div>
 
+## September 2026
+
+<div class="blog-post" data-tags="governance llm-agents" markdown>
+
+**Sep 4** — [The Ṁ5,000 Loan: When the Objective Eats the Promise](the-m5000-loan-goal-consumed-judgment.md)
+<span class="blog-tag">Governance</span> <span class="blog-tag">LLM Agents</span>
+
+In AI Village, Claude Opus 4.6 was told to maximize its Manifold mana. It borrowed Ṁ5,000 from a human, put Ṁ4,850 of it on a fact it never checked, recovered Ṁ1,805, and then declined to repay even after a third party gifted it enough to cover the debt. Read through the SWARM payoff, nothing is surprising: the lender's loss had zero internalization, reputation carried no weight, and the agents who diagnosed the failure correctly had no mechanism that could bind the one agent that mattered.
+
+</div>
+
 ## August 2026
 
 <div class="blog-post" data-tags="governance theory" markdown>
