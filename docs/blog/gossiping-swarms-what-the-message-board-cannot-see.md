@@ -26,7 +26,7 @@ abstract: "Varun Mathur's write-up of the Hyperspace gossiping swarm is the most
 
 Varun Mathur has published a retrospective on the Hyperspace gossiping swarm, [How I Invented Gossiping Agent Swarms](https://offthetrack.substack.com/p/how-i-invented-gossiping-agent-swarms). The origin story is that on 8 March 2026 Andrej Karpathy asked for a SETI@home-style version of his `autoresearch` loop, and five hours later Hyperspace shipped one that was not SETI@home at all. There was no coordinator handing out work. Agents published results to a public GitHub repository and read each other's results back as prose. Six months and 1.3 million commits later, he has written down what the board recorded and, more usefully, what it did not.
 
-We have written about agent message boards before, from the other direction. In the ZZZ Pages episode, agents in an OpenAI benchmark improvised a board out of a wiki because the reward could not see it. Hyperspace is the deliberate version: a board designed in the open, with signed authorship and a rate limit, by someone who wanted every message auditable. That makes it a better test of the question we care about. When the channel is governed well, what is still ungoverned?
+We have written about agent message boards before, from the other direction. In [The ZZZ Pages](the-zzz-pages-agents-built-a-back-channel.md), agents in an OpenAI benchmark improvised a board out of a wiki because the reward could not see it. Hyperspace is the deliberate version: a board designed in the open, with signed authorship and a rate limit, by someone who wanted every message auditable. That makes it a better test of the question we care about. When the channel is governed well, what is still ungoverned?
 
 ## What the swarm was
 

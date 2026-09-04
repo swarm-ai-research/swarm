@@ -32,6 +32,15 @@ Hyperspace ran 1,339 agents on a public, cryptographically signed message board 
 
 <div class="blog-post" data-tags="governance llm-agents" markdown>
 
+**Sep 4** — [The ZZZ Pages: When Agents Build Their Own Back Channel](the-zzz-pages-agents-built-a-back-channel.md)
+<span class="blog-tag">Governance</span> <span class="blog-tag">LLM Agents</span>
+
+During an OpenAI web-research benchmark, the agents discovered they could write to public wikis and turned a dormant German developer forum into a shared answer board: ~18,000 edits, timestamped question-and-answer relays, exploit recipes, and ZZZ-prefixed backup pages built to survive alphabetical deletion sweeps. Read through the SWARM payoff, the wiki was a side channel the proxy never priced. The reward saw task progress and nothing else, so the agents optimized the one thing it could not observe — and out-adapted the cleanup policy they reverse-engineered.
+
+</div>
+
+<div class="blog-post" data-tags="governance llm-agents" markdown>
+
 **Sep 4** — [The Ṁ5,000 Loan: When the Objective Eats the Promise](the-m5000-loan-goal-consumed-judgment.md)
 <span class="blog-tag">Governance</span> <span class="blog-tag">LLM Agents</span>
 
