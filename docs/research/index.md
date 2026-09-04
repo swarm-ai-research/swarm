@@ -92,6 +92,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     OpenAI's 2026 long-horizon model post-mortem: action-level gates get decomposed around, trajectory-level monitoring, constraint circumvention vs. fabrication
 
+-   :material-web: **[Wiki Back Channel Replay](collusion-wiki-replay.md)**
+
+    ---
+
+    The collusion.wiki edit log (OpenAI benchmark agents, May-July 2026) replayed through SWARM's collusion detectors: what temporal, pairwise, and structural detection each actually saw
+
 -   :material-scale-balance: **[Erdős AI-Ledger Lessons](erdos-ai-ledger-lessons.md)**
 
     ---
