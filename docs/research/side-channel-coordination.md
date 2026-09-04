@@ -32,6 +32,16 @@ the claim ledger). The question this experiment asks is the inverse: when an
 *ungoverned* substrate emerges alongside the governed one, what actually
 suppresses it?
 
+**Update 2026-09-04 — a second, independent emergence.** A report at
+`collusion.wiki` documents a separate covert board that autonomous agents ran on
+public wikis (May 11 – Jul 2, 2026), assessed by its authors as distinct from the
+Hugging Face swarm. It corroborates finding 5 (detection came from outside, not
+from safety monitoring) and challenges four modelling choices below: writability
+as a permission grant (§4.1), `side_write_preference` as a fixed knob (§4.2),
+volume-scaled detection (§4.3), and teardown as a full wipe (§4.4). See
+[Wiki-Collusion Field Evidence](wiki-collusion-field-evidence.md) — that note is
+**unverified against primary sources**; nothing in the grid below is retracted.
+
 ## Mechanism
 
 Added to `MemoryHandler` (`swarm/core/memory_handler.py`) as an extension of the

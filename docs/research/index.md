@@ -182,6 +182,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     When an ungoverned coordination channel emerges alongside the governed one (2026 OpenAI/Hugging Face incident): teardown without revocation only relocates it, revoking discovery collapses it, a lower-friction sanctioned channel outcompetes it with no enforcement, and interaction-level toxicity is blind to the whole migration (bead k5o9)
 
+-   :material-alert-decagram-outline: **[Wiki-Collusion Field Evidence](wiki-collusion-field-evidence.md)**
+
+    ---
+
+    The 2026 collusion.wiki report as a *second, independent* covert-coordination emergence: read access became write access via GET-mutating pages, staggered identical-task cohorts supplied the payoff, a dormant host supplied the blind spot, and alphabetical teardown was evaded — four corrections to the side-channel model (unverified against primary sources)
+
 -   :material-robot-outline: **[RL Organism Emergence](rl-organism-emergence.md)**
 
     ---
