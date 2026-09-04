@@ -21,6 +21,15 @@ Posts about SWARM research findings, framework updates, and multi-agent safety.
 
 ## September 2026
 
+<div class="blog-post" data-tags="governance llm-agents theory" markdown>
+
+**Sep 4** — [Gossiping Swarms: What the Message Board Cannot See](gossiping-swarms-what-the-message-board-cannot-see.md)
+<span class="blog-tag">Governance</span> <span class="blog-tag">LLM Agents</span> <span class="blog-tag">Theory</span>
+
+Hyperspace ran 1,339 agents on a public, cryptographically signed message board for six months: 1.3M commits, a write proxy that scoped every agent to its own folder, and no reported breach. Read through the SWARM frame, the write path was governed and the read path was not. About 95% of attempts went unpublished, so survivorship was the protocol. Scoring was self-graded. Seventeen agents converging on an identical trading strategy is what honest copying looks like and what a collusion detector will flag. And no agent touched position encoding for six months — the correlated blind spot the distributional framing exists to name.
+
+</div>
+
 <div class="blog-post" data-tags="governance llm-agents" markdown>
 
 **Sep 4** — [The Ṁ5,000 Loan: When the Objective Eats the Promise](the-m5000-loan-goal-consumed-judgment.md)
