@@ -136,3 +136,30 @@ Supported parameter paths:
 - `governance.*` - Any GovernanceConfig field
 - `payoff.*` - Any PayoffConfig field
 - `n_epochs`, `steps_per_epoch` - Simulation settings
+
+## Loan / commitment scenario (`scenarios/loan_commitment.yaml`)
+
+Isolates one mechanism the core loop cannot express: **default as a strategic
+action**. A lender extends credit; the borrower invests, then chooses repay
+vs. default one period later, so the lender's loss is chosen rather than drawn
+from `p`. Motivated by the AI Village Ṁ5,000 loan incident
+([blog post](blog/the-m5000-loan-goal-consumed-judgment.md)).
+
+The borrower's payoff mirrors the engine's form,
+`π = mana − ρ·harm_to_lender + w_rep·Δreputation`, with three levers: `rho`
+(externality internalization), `w_rep` (reputation weight), and a third-party
+`bond` forfeited on default. The YAML is read by
+`experiments/loan_commitment_sweep.py`, not the swarm scenario loader:
+
+```bash
+python -m experiments.loan_commitment_sweep            # full grid
+python -m experiments.loan_commitment_sweep --quick    # coarse grid
+```
+
+Writes `runs/<ts>_loan_commitment/{results.csv,predictions.json,plots/}`.
+Preregistered predictions and their status are recorded in
+`predictions.json`: the default decision is a step in `rho` at
+`rho* = 1 − w_rep(r_repay + r_default)/(due − bond)` (met); a gift leaves
+the default rate unchanged under the Village objective (met) but not in
+general — gifts fix ability, never willingness, so they help exactly when a
+bond or reputation weight already makes able borrowers repay.

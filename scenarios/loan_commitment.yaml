@@ -1,0 +1,38 @@
+# Loan/commitment scenario (beads rjl3) — default as a strategic action.
+#
+# Read by experiments/loan_commitment_sweep.py (not the swarm scenario loader:
+# the two-period repay/default choice is not an interaction the core loop
+# expresses). Motivated by the AI Village Ṁ5,000 loan incident; see
+# docs/blog/the-m5000-loan-goal-consumed-judgment.md.
+scenario_id: loan_commitment
+description: >
+  Lenders extend credit; borrowers invest, then choose repay vs. default.
+  Sweeps externality internalization (rho), reputation weight (w_rep) and a
+  third-party bond. Preregistered: (1) default rate is a step in rho, not a
+  gradient; (2) gifts to rho=0 borrowers do not move the default rate.
+
+seed: 42
+n_borrowers: 200
+
+terms:
+  principal: 5000.0
+  interest_rate: 0.03
+
+borrower:
+  r_default: 1.0     # reputation lost on default
+  r_repay: 0.0       # reputation gained on repayment
+
+investment:
+  return_mu: -0.2    # log gross return on invested principal
+  return_sigma: 0.6
+own_capital: 500.0
+principal_sigma: 0.0   # 0 = homogeneous loans (pure step); >0 = heterogeneous
+
+sweep:
+  rho: [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+  w_rep: [0.0, 500.0, 1000.0, 2500.0, 5000.0]
+  bond: [0.0, 2500.0, 5150.0]
+  gift: [0.0, 5010.0]
+
+# Heterogeneity panel: same grid at these principal spreads (log-sd).
+heterogeneity_panel: [0.0, 0.3, 0.6]
