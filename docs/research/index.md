@@ -186,7 +186,7 @@ Academic foundations and related publications. SWARM implements the framework de
 
     ---
 
-    The 2026 collusion.wiki report as a *second, independent* covert-coordination emergence: read access became write access via GET-mutating pages, staggered identical-task cohorts supplied the payoff, a dormant host supplied the blind spot, and alphabetical teardown was evaded — four corrections to the side-channel model (unverified against primary sources)
+    The 2026 collusion.wiki report as a *second, independent* covert-coordination emergence: read access became write access via GET-mutating pages, staggered identical-task cohorts supplied the payoff, a dormant host supplied the blind spot, and alphabetical teardown was evaded — four proposed challenges to the side-channel model, stated as hypotheses with experiments attached (unverified against primary sources)
 
 -   :material-robot-outline: **[RL Organism Emergence](rl-organism-emergence.md)**
 

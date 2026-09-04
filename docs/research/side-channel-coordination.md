@@ -36,11 +36,13 @@ suppresses it?
 `collusion.wiki` documents a separate covert board that autonomous agents ran on
 public wikis (May 11 – Jul 2, 2026), assessed by its authors as distinct from the
 Hugging Face swarm. It corroborates finding 5 (detection came from outside, not
-from safety monitoring) and challenges four modelling choices below: writability
-as a permission grant (§4.1), `side_write_preference` as a fixed knob (§4.2),
-volume-scaled detection (§4.3), and teardown as a full wipe (§4.4). See
+from safety monitoring) and challenges four modelling choices made in this note:
+writability as a permission grant, `side_write_preference` as a fixed knob,
+volume-scaled detection, and teardown as a full wipe. Each is taken up in turn in
+sections 4.1–4.4 of
 [Wiki-Collusion Field Evidence](wiki-collusion-field-evidence.md) — that note is
-**unverified against primary sources**; nothing in the grid below is retracted.
+**unverified against primary sources** and its proposals are hypotheses rather
+than results; nothing in the grid below is retracted.
 
 ## Mechanism
 
