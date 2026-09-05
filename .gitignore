@@ -151,3 +151,8 @@ docs/assets/kb_graph.json
 .claude/worktrees/
 .understand-anything/
 .agentgit/current-claim.json
+
+# Beads local dolt store & backups — must stay untracked (20MB+ dolt blob
+# breaks the Vercel 15k-file deploy limit; swept in by d11b79f0, reverted).
+.beads/backup/
+.beads/embeddeddolt/
