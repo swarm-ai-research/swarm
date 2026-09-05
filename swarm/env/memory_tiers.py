@@ -352,6 +352,14 @@ class MemoryStore:
             del self._entries[eid]
         return len(to_remove)
 
+    def remove_entry(self, entry_id: str) -> bool:
+        """Delete an entry outright (a moderator sweep). Returns True if found."""
+        with self._lock:
+            if self._entries.pop(entry_id, None) is None:
+                return False
+            self._hot_cache = [e for e in self._hot_cache if e.entry_id != entry_id]
+            return True
+
     # ------------------------------------------------------------------
     # Epoch lifecycle
     # ------------------------------------------------------------------

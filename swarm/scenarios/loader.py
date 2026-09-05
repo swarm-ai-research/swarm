@@ -757,6 +757,16 @@ def parse_memory_tier_config(data: Dict[str, Any]) -> Optional[MemoryTierConfig]
         ),
         side_rebuild_lag_epochs=data.get("side_rebuild_lag_epochs", 1),
         side_exposure_weight=data.get("side_exposure_weight", 0.5),
+        side_host_attention=data.get("side_host_attention"),
+        side_defender_error=data.get("side_defender_error", 0.0),
+        side_teardown_policy=data.get("side_teardown_policy", "complete"),
+        side_teardown_fraction=data.get("side_teardown_fraction", 0.5),
+        side_evasion_rate=data.get("side_evasion_rate", 0.0),
+        side_routing=data.get("side_routing", "fixed"),
+        side_task_overlap=data.get("side_task_overlap", 1.0),
+        side_deadline_pressure=data.get("side_deadline_pressure", 1.0),
+        side_value_alpha=data.get("side_value_alpha", 0.3),
+        side_value_prior=data.get("side_value_prior", 0.5),
     )
     return config
 

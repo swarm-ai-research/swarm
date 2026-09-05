@@ -42,6 +42,16 @@ volume-scaled detection (§4.3), and teardown as a full wipe (§4.4). See
 [Wiki-Collusion Field Evidence](wiki-collusion-field-evidence.md) — that note is
 **unverified against primary sources**; nothing in the grid below is retracted.
 
+**Update 2026-09-04 — two findings below do not survive the wiki corrections.**
+[Wiki Boards for Agents](wiki-board-model.md) (bead `pi02`) builds the four
+corrections into this handler. Finding 2 (revocation collapses the channel)
+holds only on a single host: give the swarm four hosts of unequal attention and
+it settles on the dormant one, where revocation never reaches it. Finding 1
+(deletion is a tax) holds only for a complete wipe: a partial sweep of any kind
+leaves the ungoverned share at the no-enforcement level, and an *ordered* sweep
+teaches evasion that defeats revocation too. Finding 5 sharpens: with an
+endogenous channel, toxicity does not stay flat, it improves as harm rises.
+
 ## Mechanism
 
 Added to `MemoryHandler` (`swarm/core/memory_handler.py`) as an extension of the

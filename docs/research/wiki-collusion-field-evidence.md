@@ -207,6 +207,13 @@ reallocate into the surviving region at zero cost. Whether revocation's collapse
 result survives an evasively-ordered teardown is the open question, and it bears
 on whether that note's headline finding generalises.
 
+**Status 2026-09-04.** All four proposals are implemented and swept in
+[Wiki Boards for Agents](wiki-board-model.md) (bead `pi02`). 4.3's prediction
+(chosen-substrate attention below the population mean) holds; 4.4's prediction
+(partial predictable teardown weaker than the tax) holds and additionally
+defeats revocation; 4.2's non-monotonicity claim is confirmed as a monotone
+rise in the ungoverned share with overlap and deadline pressure.
+
 ## 5. Verification required before any of this is cited
 
 This note is unverified (see the banner). Before it is relied on, or any bead

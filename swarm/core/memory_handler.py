@@ -2,7 +2,7 @@
 
 import random
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, model_validator
 
@@ -17,6 +17,40 @@ from swarm.logging.event_bus import EventBus
 from swarm.models.agent import AgentType
 from swarm.models.events import Event, EventType
 from swarm.models.interaction import SoftInteraction
+
+SIDE_TEARDOWN_POLICIES = ("complete", "ordered", "random")
+SIDE_ROUTINGS = ("fixed", "overlap")
+
+
+@dataclass
+class SideHost:
+    """One candidate substrate for the ungoverned side channel.
+
+    A wiki board is a namespace: every entry has a position in it (``regions``)
+    so an ordered sweep can delete the alphabetically-first share and agents
+    can evade by writing at the end. ``attention`` is the host's ground-truth
+    per-write detection probability; ``misjudged`` means the defender audited
+    it as unwritable, so nobody is watching whatever the attention would be.
+    """
+
+    index: int
+    attention: float
+    store: MemoryStore
+    misjudged: bool = False
+    rebuild_wait: int = 0
+    teardown_count: int = 0
+    sweep_count: int = 0
+    writes_this_epoch: int = 0
+    regions: Dict[str, float] = field(default_factory=dict)
+    tasks: Dict[str, int] = field(default_factory=dict)
+
+    @property
+    def effective_attention(self) -> float:
+        return 0.0 if self.misjudged else self.attention
+
+    @property
+    def active(self) -> bool:
+        return self.rebuild_wait == 0
 
 
 class MemoryTierConfig(BaseModel):
@@ -58,6 +92,35 @@ class MemoryTierConfig(BaseModel):
     side_rebuild_lag_epochs: int = 1  # Epochs unusable after a teardown
     side_exposure_weight: float = 0.5  # Side-cache share of discovered exposure
 
+    # Wiki-board extension (bead pi02; collusion.wiki, 2026-09-04). The four
+    # corrections in docs/research/wiki-collusion-field-evidence.md section 4,
+    # each a knob that reduces to the k5o9 model at its default.
+    #
+    # 4.3 Several candidate hosts with heterogeneous defender attention; a
+    # discovered agent sits on one host and relocates when it is torn down.
+    # None = a single host whose attention is side_detection_rate.
+    side_host_attention: Optional[List[float]] = None
+    # 4.1 P(the defender audits a host as unwritable, so nobody watches it):
+    # writability is a property of the target the policy mis-estimated.
+    side_defender_error: float = 0.0
+    # 4.4 Teardown policy: complete (wipe + rebuild lag) | ordered (sweep the
+    # first side_teardown_fraction of the namespace, alphabetically) |
+    # random (same share, unpredictable). Partial sweeps keep the board up.
+    side_teardown_policy: str = "complete"
+    side_teardown_fraction: float = 0.5
+    # P(a discovered agent that saw an ordered sweep learns the order and
+    # writes into the surviving region — the ZZZ backup pages). Evasion is
+    # agent state, like discovery. It buys nothing under a random sweep.
+    side_evasion_rate: float = 0.0
+    # 4.2 Routing: fixed (side_write_preference) | overlap (the board's value
+    # is learned: deadline_pressure x EMA of the share of the board that
+    # answered this agent's own task; overlap sets how many agents share it).
+    side_routing: str = "fixed"
+    side_task_overlap: float = 1.0  # P(two agents share a task) ~ 1/n_tasks
+    side_deadline_pressure: float = 1.0
+    side_value_alpha: float = 0.3
+    side_value_prior: float = 0.5
+
     @model_validator(mode="after")
     def _run_validation(self) -> "MemoryTierConfig":
         if self.initial_entries < 0:
@@ -83,6 +146,30 @@ class MemoryTierConfig(BaseModel):
                 raise ValueError(f"{prob_field} must be in [0, 1]")
         if self.side_rebuild_lag_epochs < 0:
             raise ValueError("side_rebuild_lag_epochs must be non-negative")
+        for prob_field in (
+            "side_defender_error",
+            "side_teardown_fraction",
+            "side_evasion_rate",
+            "side_deadline_pressure",
+            "side_value_alpha",
+            "side_value_prior",
+        ):
+            if not 0.0 <= getattr(self, prob_field) <= 1.0:
+                raise ValueError(f"{prob_field} must be in [0, 1]")
+        if not 0.0 < self.side_task_overlap <= 1.0:
+            raise ValueError("side_task_overlap must be in (0, 1]")
+        if self.side_host_attention is not None:
+            if not self.side_host_attention:
+                raise ValueError("side_host_attention must list at least one host")
+            for att in self.side_host_attention:
+                if not 0.0 <= att <= 1.0:
+                    raise ValueError("side_host_attention values must be in [0, 1]")
+        if self.side_teardown_policy not in SIDE_TEARDOWN_POLICIES:
+            raise ValueError(
+                f"side_teardown_policy must be one of {SIDE_TEARDOWN_POLICIES}"
+            )
+        if self.side_routing not in SIDE_ROUTINGS:
+            raise ValueError(f"side_routing must be one of {SIDE_ROUTINGS}")
         if self.cache_ranking not in MemoryStore.VALID_RANKINGS:
             raise ValueError(
                 f"cache_ranking must be one of {MemoryStore.VALID_RANKINGS}"
@@ -138,16 +225,36 @@ class MemoryHandler(Handler):
         # Side channel: ungoverned second store + who knows about it.
         # Discovery, like infection, is agent state — teardown wipes the
         # store, not the knowledge (unless side_teardown_resets_discovery).
-        self.side_store: Optional[MemoryStore] = None
+        self.side_hosts: List[SideHost] = []
         self.discovered: set = set()
-        self.side_teardown_count: int = 0
-        self._side_rebuild_wait: int = 0
+        # Which host each discovered agent uses (index into side_hosts).
+        self.agent_host: Dict[str, int] = {}
+        # Agents that learned an ordered sweep's direction (ZZZ writers).
+        self.evaders: set = set()
+        # Overlap routing: each agent's learned value of the board, and the
+        # task it was assigned this epoch.
+        self.side_value: Dict[str, float] = {}
+        self.agent_task: Dict[str, int] = {}
         self._side_writes_this_epoch: int = 0
         self._sanctioned_writes_this_epoch: int = 0
         self.side_write_count: int = 0
         self.side_poisoned_write_count: int = 0
+        self.side_swept_entries: int = 0
         if config.side_channel_enabled:
-            self.side_store = self._fresh_side_store()
+            attentions = (
+                list(config.side_host_attention)
+                if config.side_host_attention is not None
+                else [config.side_detection_rate]
+            )
+            for i, attention in enumerate(attentions):
+                self.side_hosts.append(
+                    SideHost(
+                        index=i,
+                        attention=attention,
+                        store=self._fresh_side_store(),
+                        misjudged=self._rng.random() < config.side_defender_error,
+                    )
+                )
 
         if config.initial_entries > 0:
             self.store.seed_entries(config.initial_entries)
@@ -195,12 +302,18 @@ class MemoryHandler(Handler):
         side_writes_last_epoch = self._side_writes_this_epoch
         sanctioned_writes_last_epoch = self._sanctioned_writes_this_epoch
         teardown = False
-        if self.side_store is not None:
-            teardown = self._maybe_side_teardown(side_writes_last_epoch)
-            if not teardown and self._side_rebuild_wait > 0:
-                self._side_rebuild_wait -= 1
+        if self.side_hosts:
+            for host in self.side_hosts:
+                tore = self._maybe_side_teardown(host)
+                teardown = teardown or tore
+                if not tore and host.rebuild_wait > 0:
+                    host.rebuild_wait -= 1
+                host.writes_this_epoch = 0
             self._update_discovery(state)
-            self.side_store.on_epoch_start()
+            if self.config.side_routing == "overlap":
+                self._assign_tasks(state)
+            for host in self.side_hosts:
+                host.store.on_epoch_start()
 
         reset_due = (
             self.config.reset_cadence_epochs > 0
@@ -247,12 +360,6 @@ class MemoryHandler(Handler):
         exposure = (
             sum(1 for e in cache if e.is_poisoned) / len(cache) if cache else 0.0
         )
-        side_exposure = 0.0
-        side_cache = self.side_store.hot_cache if self.side_store else []
-        if side_cache:
-            side_exposure = sum(
-                1 for e in side_cache if e.is_poisoned
-            ) / len(side_cache)
         alpha = self.config.contagion_exposure_alpha
         w = self.config.side_exposure_weight
         for agent_id, agent_state in state.agents.items():
@@ -262,7 +369,12 @@ class MemoryHandler(Handler):
             ):
                 continue
             agent_exposure = exposure
-            if side_cache and agent_id in self.discovered:
+            host = self._host_of(agent_id)
+            side_cache = host.store.hot_cache if host is not None else []
+            if side_cache:
+                side_exposure = sum(
+                    1 for e in side_cache if e.is_poisoned
+                ) / len(side_cache)
                 agent_exposure = (1 - w) * exposure + w * side_exposure
             prev = self.infection.get(agent_id, 0.0)
             self.infection[agent_id] = (1 - alpha) * prev + alpha * agent_exposure
@@ -278,48 +390,162 @@ class MemoryHandler(Handler):
         store._hot_cache_size = self.config.hot_cache_size
         return store
 
+    # Backward-compatible views of the single-host case (bead k5o9 API).
+    @property
+    def side_store(self) -> Optional[MemoryStore]:
+        return self.side_hosts[0].store if self.side_hosts else None
+
+    @property
+    def side_teardown_count(self) -> int:
+        return sum(h.teardown_count for h in self.side_hosts)
+
+    @property
+    def side_sweep_count(self) -> int:
+        return sum(h.sweep_count for h in self.side_hosts)
+
     def side_channel_active(self) -> bool:
-        """Usable this epoch: enabled and not mid-rebuild after a teardown."""
-        return self.side_store is not None and self._side_rebuild_wait == 0
+        """Usable this epoch: some host is up and not mid-rebuild."""
+        return any(h.active for h in self.side_hosts)
 
-    def _maybe_side_teardown(self, side_writes_last_epoch: int) -> bool:
-        """Volume-scaled detection: heavy traffic is what exposes the channel.
+    def _host_of(self, agent_id: str) -> Optional[SideHost]:
+        """The host a discovered agent uses, or None."""
+        if agent_id not in self.discovered:
+            return None
+        idx = self.agent_host.get(agent_id)
+        if idx is None or idx >= len(self.side_hosts):
+            return None
+        return self.side_hosts[idx]
 
-        P(teardown) = 1 - (1 - rate)^writes — the incident's discovery mode
-        (the agents crashed the service hosting the board). Teardown wipes
-        the store; the discovered set survives unless
-        side_teardown_resets_discovery (credential revocation, not just
-        deletion).
+    def _maybe_side_teardown(self, host: SideHost) -> bool:
+        """Volume-scaled detection on one host, then the teardown policy.
+
+        P(teardown) = 1 - (1 - attention)^writes — heavy traffic is what
+        exposes a board, but only to a host that is watching: a misjudged
+        (audited-as-unwritable) or dormant host has attention 0 at any
+        volume. Under ``complete`` the store is wiped and its users either
+        lose discovery (revocation) or relocate to a random host (deletion;
+        with one host that is the k5o9 rebuild). Under ``ordered`` or
+        ``random`` the board stays up and a share of the namespace is
+        cleared; ordered sweeps teach evasion, and under revocation the
+        authors of swept entries are the ones identified and revoked — so an
+        evader whose pages survive is never caught.
         """
-        rate = self.config.side_detection_rate
-        if rate <= 0.0 or side_writes_last_epoch == 0:
+        rate = host.effective_attention
+        if rate <= 0.0 or host.writes_this_epoch == 0:
             return False
-        p_teardown = 1.0 - (1.0 - rate) ** side_writes_last_epoch
+        p_teardown = 1.0 - (1.0 - rate) ** host.writes_this_epoch
         if self._rng.random() >= p_teardown:
             return False
-        self.side_store = self._fresh_side_store()
-        self.side_teardown_count += 1
-        self._side_rebuild_wait = self.config.side_rebuild_lag_epochs
+        users = [a for a, h in self.agent_host.items() if h == host.index]
+        policy = self.config.side_teardown_policy
+        if policy == "complete":
+            host.store = self._fresh_side_store()
+            host.regions.clear()
+            host.tasks.clear()
+            host.teardown_count += 1
+            host.rebuild_wait = self.config.side_rebuild_lag_epochs
+            if self.config.side_teardown_resets_discovery:
+                for agent_id in users:
+                    self._revoke(agent_id)
+            elif len(self.side_hosts) > 1:
+                for agent_id in users:
+                    self.agent_host[agent_id] = self._rng.randrange(
+                        len(self.side_hosts)
+                    )
+            return True
+
+        frac = self.config.side_teardown_fraction
+        if policy == "ordered":
+            doomed = [eid for eid, r in host.regions.items() if r < frac]
+        else:
+            doomed = [eid for eid in host.regions if self._rng.random() < frac]
+        caught: set = set()
+        for eid in doomed:
+            entry = host.store.get_entry(eid)
+            if entry is not None:
+                caught.add(entry.author_id)
+            host.store.remove_entry(eid)
+            host.regions.pop(eid, None)
+            host.tasks.pop(eid, None)
+        host.sweep_count += 1
+        self.side_swept_entries += len(doomed)
+        if policy == "ordered":
+            for agent_id in users:
+                if (
+                    agent_id not in self.evaders
+                    and self._rng.random() < self.config.side_evasion_rate
+                ):
+                    self.evaders.add(agent_id)
         if self.config.side_teardown_resets_discovery:
-            self.discovered.clear()
+            for agent_id in caught:
+                self._revoke(agent_id)
         return True
 
+    def _revoke(self, agent_id: str) -> None:
+        self.discovered.discard(agent_id)
+        self.agent_host.pop(agent_id, None)
+
     def _update_discovery(self, state: EnvState) -> None:
-        """Per-agent discovery: base rate plus word-of-mouth referral."""
+        """Per-agent discovery: base rate plus word-of-mouth referral.
+
+        A referral lands the newcomer on the referrer's host; base discovery
+        lands on a uniformly random host. Which hosts end up populated is
+        therefore selected by which ones survive — the substrate-level
+        analogue of adverse selection.
+        """
         n_agents = len(state.agents)
         if n_agents == 0:
             return
         discovered_frac = len(self.discovered) / n_agents
-        p_discover = min(
-            1.0,
-            self.config.side_discovery_rate
-            + self.config.side_referral_boost * discovered_frac,
-        )
-        for agent_id in state.agents:
+        p_base = self.config.side_discovery_rate
+        p_referral = self.config.side_referral_boost * discovered_frac
+        p_discover = min(1.0, p_base + p_referral)
+        referrers = sorted(a for a in self.discovered if a in self.agent_host)
+        for agent_id in sorted(state.agents):
             if agent_id in self.discovered:
                 continue
-            if self._rng.random() < p_discover:
-                self.discovered.add(agent_id)
+            if self._rng.random() >= p_discover:
+                continue
+            self.discovered.add(agent_id)
+            by_referral = (
+                referrers
+                and p_discover > 0
+                and self._rng.random() < p_referral / (p_base + p_referral)
+            )
+            if by_referral:
+                self.agent_host[agent_id] = self.agent_host[
+                    self._rng.choice(referrers)
+                ]
+            else:
+                self.agent_host[agent_id] = self._rng.randrange(len(self.side_hosts))
+
+    def _assign_tasks(self, state: EnvState) -> None:
+        """Overlap routing: draw each agent's task for the epoch.
+
+        ``side_task_overlap`` is the chance two agents share a task, so the
+        pool has about 1/overlap tasks; identical items across the cohort
+        (overlap 1) is what makes another agent's post worth reading.
+        """
+        n_tasks = max(1, round(1.0 / self.config.side_task_overlap))
+        for agent_id in sorted(state.agents):
+            self.agent_task[agent_id] = self._rng.randrange(n_tasks)
+
+    def _side_route_probability(self, agent_id: str, host: SideHost) -> float:
+        """P(this write goes to the board) under the configured routing."""
+        if self.config.side_routing == "fixed":
+            return self.config.side_write_preference
+        my_task = self.agent_task.get(agent_id)
+        cache = [e for e in host.store.hot_cache if e.author_id != agent_id]
+        hit = 0.0
+        if cache:
+            hit = sum(
+                1 for e in cache if host.tasks.get(e.entry_id) == my_task
+            ) / len(cache)
+        alpha = self.config.side_value_alpha
+        prev = self.side_value.get(agent_id, self.config.side_value_prior)
+        value = (1 - alpha) * prev + alpha * hit
+        self.side_value[agent_id] = value
+        return self.config.side_deadline_pressure * value
 
     def _reset_store(self) -> None:
         """Wipe and re-seed the store. Infection state deliberately survives."""
@@ -347,7 +573,7 @@ class MemoryHandler(Handler):
         )
 
         levels = list(self.infection.values())
-        snapshot = {
+        snapshot: Dict[str, Any] = {
             "epoch": state.current_epoch,
             "reset": reset,
             "mean_infection": sum(levels) / len(levels) if levels else 0.0,
@@ -356,13 +582,33 @@ class MemoryHandler(Handler):
             "tier3_poisoning": poisoning_rate(self.store),
             "promotion_accuracy": promotion_accuracy(self.store),
         }
-        if self.side_store is not None:
+        if self.side_hosts:
             n_agents = len(state.agents)
             total_writes = side_writes_last_epoch + sanctioned_writes_last_epoch
+            side_caches = [e for h in self.side_hosts for e in h.store.hot_cache]
+            side_corruption = (
+                sum(1 for e in side_caches if e.is_poisoned) / len(side_caches)
+                if side_caches
+                else 0.0
+            )
+            population_attention = sum(
+                h.effective_attention for h in self.side_hosts
+            ) / len(self.side_hosts)
+            used = [
+                h for h in (self._host_of(a) for a in self.discovered)
+                if h is not None
+            ]
+            chosen_attention = (
+                sum(h.effective_attention for h in used) / len(used)
+                if used
+                else population_attention
+            )
+            values = list(self.side_value.values())
             snapshot.update({
                 "side_teardown": side_teardown,
                 "side_active": self.side_channel_active(),
                 "side_teardown_count": self.side_teardown_count,
+                "side_sweep_count": self.side_sweep_count,
                 "discovered_fraction": (
                     len(self.discovered) / n_agents if n_agents else 0.0
                 ),
@@ -371,7 +617,20 @@ class MemoryHandler(Handler):
                 "ungoverned_fraction": (
                     side_writes_last_epoch / total_writes if total_writes else 0.0
                 ),
-                "side_cache_corruption": cache_corruption(self.side_store),
+                "side_cache_corruption": side_corruption,
+                "side_entries": sum(len(h.regions) for h in self.side_hosts),
+                "evader_fraction": len(self.evaders) / n_agents if n_agents else 0.0,
+                "population_attention": population_attention,
+                "chosen_attention": chosen_attention,
+                # Negative = the swarm sits on less-watched hosts than average:
+                # adverse selection over substrates.
+                "substrate_gap": chosen_attention - population_attention,
+                "mean_side_value": sum(values) / len(values) if values else 0.0,
+                # Discovered agents per host, in side_hosts order.
+                "side_host_users": [
+                    sum(1 for h in used if h.index == host.index)
+                    for host in self.side_hosts
+                ],
             })
         self.epoch_snapshots.append(snapshot)
 
@@ -441,14 +700,12 @@ class MemoryHandler(Handler):
         # Route to the side channel when the agent knows about it and the
         # channel is up. Routing lives in the handler, not the agents: the
         # preference knob IS the agent policy, so agent code stays unchanged.
-        route_side = (
-            self.side_channel_active()
-            and action.agent_id in self.discovered
-            and self._rng.random() < self.config.side_write_preference
-        )
-        if route_side:
+        host = self._host_of(action.agent_id)
+        if host is not None and host.active and (
+            self._rng.random() < self._side_route_probability(action.agent_id, host)
+        ):
             return self._handle_side_write(
-                action, state, quality, is_poisoned, contagion_poisoned
+                action, state, host, quality, is_poisoned, contagion_poisoned
             )
         self._sanctioned_writes_this_epoch += 1
 
@@ -497,6 +754,7 @@ class MemoryHandler(Handler):
         self,
         action: Action,
         state: EnvState,
+        host: SideHost,
         quality: float,
         is_poisoned: bool,
         contagion_poisoned: bool,
@@ -510,8 +768,7 @@ class MemoryHandler(Handler):
         """
         from swarm.env.memory_tiers import MemoryTier
 
-        assert self.side_store is not None
-        entry = self.side_store.write(
+        entry = host.store.write(
             agent_id=action.agent_id,
             content=action.content,
             quality_score=quality,
@@ -524,6 +781,12 @@ class MemoryHandler(Handler):
         # discovered agents read (recency-ranked). The next on_epoch_start
         # rebuild surfaces it.
         entry.tier = MemoryTier.GRAPH
+        # Position in the namespace: an evader writes past the sweep line.
+        low = self.config.side_teardown_fraction if action.agent_id in self.evaders else 0.0
+        host.regions[entry.entry_id] = self._rng.uniform(low, 1.0)
+        if action.agent_id in self.agent_task:
+            host.tasks[entry.entry_id] = self.agent_task[action.agent_id]
+        host.writes_this_epoch += 1
         self._side_writes_this_epoch += 1
         self.side_write_count += 1
         if is_poisoned:
@@ -540,6 +803,7 @@ class MemoryHandler(Handler):
                     "contagion_poisoned": contagion_poisoned,
                     "infection": self.infection.get(action.agent_id, 0.0),
                     "side_channel": True,
+                    "side_host": host.index,
                 },
                 epoch=state.current_epoch,
                 step=state.current_step,

@@ -200,6 +200,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     The 2026 collusion.wiki report as a *second, independent* covert-coordination emergence: read access became write access via GET-mutating pages, staggered identical-task cohorts supplied the payoff, a dormant host supplied the blind spot, and alphabetical teardown was evaded — four corrections to the side-channel model (unverified against primary sources)
 
+-   :material-book-open-page-variant-outline: **[Wiki Boards for Agents](wiki-board-model.md)**
+
+    ---
+
+    The four wiki-collusion corrections built into the side-channel model and swept one at a time: a swarm that can choose its host sits on the one nobody watches and revocation stops working (substrate gap −0.055), an ordered sweep teaches evasion that turns revocation into deletion-only while a random sweep does not, and identical benchmark items alone drive 100% of coordination off-instrument while toxicity *improves* (bead pi02)
+
 -   :material-robot-outline: **[RL Organism Emergence](rl-organism-emergence.md)**
 
     ---
