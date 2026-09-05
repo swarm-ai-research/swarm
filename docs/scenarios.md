@@ -164,6 +164,72 @@ the default rate unchanged under the Village objective (met) but not in
 general — gifts fix ability, never willingness, so they help exactly when a
 bond or reputation weight already makes able borrowers repay.
 
+## Gossip board: information fidelity (`scenarios/gossip_board_fidelity.yaml`)
+
+A synthetic, ground-truth twin of the Hyperspace gossiping agent swarm (Mathur,
+2026-09-04; read through the SWARM frame in
+`docs/blog/gossiping-swarms-what-the-message-board-cannot-see.md`). N agents run
+an autoresearch-style loop over a discrete config space with one high-gain,
+low-prior "hidden" dimension, and publish improvements to a shared board that
+other agents read. **One lever** changes between runs: how much of a published
+result travels to a reader. `code` adopts the full config verbatim (the trading
+domain, where 17 agents converged to four decimal places); `description` carries
+only the diff ("a peer got 3.21 by switching to RMSNorm") which the reader
+applies to its own config; `score_only` says a peer improved and nothing else.
+The board is out-of-band, so the reward proxy never sees it and nothing is
+scored; the point is ground truth. Every entry carries a `parent` lineage field
+the real board lacked, and the survivorship gap of a success-only board is
+measured against every attempt, published or not, **contemporaneously** (pooling
+across rounds confounds the gap with search progress, because successes cluster
+early; the pooled figure is reported too and is negative).
+
+Run it:
+
+```bash
+python -m swarm.bridges.gossip_board scenarios/gossip_board_fidelity.yaml --seeds 10
+python -m swarm.bridges.gossip_board scenarios/gossip_board_fidelity.yaml \
+    --axis fidelity=code,description --axis publish_failures=false,true --seeds 10
+```
+
+Writes `history.json` and `csv/rounds.csv` for the baseline plus `csv/sweep.csv`
+and `csv/sweep_mean.csv` for the grid.
+
+Findings (`runs/20260905T012511Z_gossip_board_fidelity_seed42`, 10 seeds, means):
+
+| Fidelity | Modal identical-config cluster | Mean score / optimum | Survivorship gap | Time to frontier, early / late joiners | Hidden-dim adoption |
+|---|---|---|---|---|---|
+| code | 0.83 of agents | 0.995 | 0.030 | 15.0 / 1.5 rounds | 0.78 |
+| description | 0.24 | 0.949 | 0.012 | 30.4 / 24.7 | 0.53 |
+| score_only | 0.13 | 0.931 | 0.032 | 44.6 / 31.1 | 0.38 |
+
+Against the preregistered expectations:
+
+1. **Fingerprints follow code — met.** The identical-config cluster goes from
+   0.83 of the population under `code` to 0.24 under `description`, while the
+   frontier score drops only 5%. Ideas spread without fingerprints, which is the
+   Hyperspace language-modeling result reproduced on controllable data.
+2. **Survivorship gap is a publication-rule property — met with a caveat.** The
+   gap is positive in all three modes and collapses to exactly 0 with
+   `publish_failures: true`. It is not the same size across modes: `description`
+   halves it, because readers applying a single diff to their own config produce
+   more middling successes than readers cloning the leader.
+3. **Late joiners cold-start — met.** Under `code` a late joiner reaches the
+   frontier in 1.5 rounds against 15 for early joiners: the board is a free
+   frontier. Under `description` it takes 24.7 rounds and a third of late joiners
+   never get there in the remaining 60.
+4. **Fidelity governs how far a rare discovery spreads — met, as revised.** The
+   original draft predicted the hidden dimension would stay unexplored; a
+   10-seed probe refuted that (24 agents x 120 rounds find it every seed even at
+   prior 0.02), and the expectation was rewritten before the recorded run.
+   Adoption of the hidden dimension's best value is ordered `code` (0.78) >
+   `description` (0.53) > `score_only` (0.38). Fidelity does not move the
+   frontier; it moves the population to it. Prior diversity is bead khs2.
+
+Also recorded: `adoptions` versus `rediscoveries` from the lineage field.
+`score_only` has zero adoptions and 264 rediscoveries per run; `code` has 182
+adoptions and 67 rediscoveries. A provenance-blind detector sees only the
+resulting correlation, which is the false-positive probe in bead 9err.
+
 ## Message-board channel (`scenarios/message_board_channel.yaml`)
 
 A synthetic, ground-truth twin of the wiki back channel that collusion.wiki

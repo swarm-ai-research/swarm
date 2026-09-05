@@ -1,0 +1,68 @@
+# Gossip Board: information fidelity as a governance lever (bead fcj5)
+#
+# A ground-truth twin of the Hyperspace gossiping agent swarm (Mathur,
+# 2026-09-04; docs/blog/gossiping-swarms-what-the-message-board-cannot-see.md).
+# N agents run an autoresearch loop over a discrete config space and publish
+# improvements to a shared board. ONE lever changes between runs: how much of
+# a published result travels to a reader.
+#
+#   code         full config adopted verbatim (the trading domain, where
+#                executable strategies traveled and 17 agents converged to
+#                four decimal places)
+#   description  only the diff travels ("a peer got 3.21 by switching to
+#                RMSNorm"); readers apply the one change to their own config
+#   score_only   readers learn a peer improved, nothing else
+#
+# NOT run by the core swarm loop: there is no counterparty to score, so the
+# proxy never sees the board. The point is ground truth. Every board entry
+# carries a `parent` lineage field the real board lacked, so adoption vs
+# rediscovery is known exactly, and a success-only board's survivorship gap
+# is measured against every attempt, published or not.
+#
+# Run:
+#   python -m swarm.bridges.gossip_board scenarios/gossip_board_fidelity.yaml --seeds 10
+#
+# Preregistered expectations (see docs/scenarios.md):
+#   1. FINGERPRINTS FOLLOW CODE. Under `code`, the modal identical-config
+#      cluster holds a majority of agents; under `description` it is near the
+#      single-agent floor, while frontier score is within ~10% of `code`.
+#      Ideas spread without fingerprints, exactly the Hyperspace LM-domain
+#      finding.
+#   2. SURVIVORSHIP GAP IS A PUBLICATION-RULE PROPERTY, not a fidelity one:
+#      positive and of similar size across all three modes when only successes
+#      publish; collapses toward zero with publish_failures: true.
+#   3. LATE JOINERS COLD-START. Time-to-frontier for agents joining at round
+#      60 is ~1 round under `code`, several rounds under `description`, and
+#      comparable to early joiners under `score_only`.
+#   4. FIDELITY GOVERNS HOW FAR A RARE DISCOVERY SPREADS. (Revised after a
+#      10-seed probe; the original draft predicted the hidden dimension would
+#      stay unexplored, which the probe refuted: 24 agents x 120 rounds find
+#      it in most seeds even at prior 0.02.) Hidden-dim adoption is ordered
+#      code > description > score_only. Fidelity does not move the frontier;
+#      it moves the population to it. Prior diversity is bead khs2.
+
+scenario_id: gossip_board_fidelity
+kind: synthetic
+bridge: gossip_board
+seed: 42
+
+board:
+  n_agents: 24
+  n_rounds: 120
+  late_joiner_fraction: 0.25
+  late_join_round: 60
+  n_dims: 8
+  n_values: 5
+  hidden_dim_gain: 3.0
+  hidden_dim_prior: 0.02
+  eval_noise: 0.15
+  p_baseline: 0.02
+  p_peer: 0.4
+  board_window: 20
+  fidelity: code            # the lever (swept below)
+  description_error: 0.0
+  publish_failures: false
+  frontier_threshold: 0.9
+
+sweep:
+  fidelity: [code, description, score_only]
