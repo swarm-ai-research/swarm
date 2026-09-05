@@ -9,6 +9,7 @@ import json
 from datetime import datetime, timezone
 
 import pytest
+import yaml as _yaml
 
 from swarm.bridges.collusion_wiki import (
     ReplayConfig,
@@ -17,6 +18,7 @@ from swarm.bridges.collusion_wiki import (
     run_replay,
 )
 from swarm.bridges.collusion_wiki.loader import load_events
+from swarm.bridges.collusion_wiki.synthetic import SyntheticConfig, generate, run
 
 
 def _rev(rev_id, page, label, ip16, t, created=False, wiki="dse"):
@@ -140,3 +142,71 @@ class TestReplay:
         assert cfg.scenario_id == "casestudy_wiki_backchannel"
         assert cfg.sweep_identity == ["label", "ip16", "label_ip16"]
         assert "openai_hq_visit" in cfg.landmarks
+
+
+# ---------------------------------------------------------------------------
+# Synthetic message-board twin (scenarios/message_board_channel.yaml)
+# ---------------------------------------------------------------------------
+
+
+def _small_scenario(tmp_path):
+    doc = {
+        "scenario_id": "message_board_channel_test",
+        "kind": "synthetic",
+        "seed": 7,
+        "synthetic": {
+            "n_honest": 40, "honest_edits_lambda": 2.0, "honest_hub_fraction": 0.5,
+            "n_colluder_operators": 4, "operator_edits": 40, "hub_page": "SandBox",
+            "wiki": "synthwiki",
+            "honest_window": ["2026-06-01T00:00:00Z", "2026-06-25T00:00:00Z"],
+            "coordination_window": ["2026-06-16T00:00:00Z", "2026-06-19T00:00:00Z"],
+            "moderator_sweep_begins": "2026-06-19T00:00:00Z", "n_sweep_deletions": 10,
+        },
+        "replay": {
+            "identity": "label", "projection": "agent", "temporal_window_seconds": 60,
+            "temporal_alarm": 0.7, "structural_min_size": 3,
+            "structural_null_samples": 24, "structural_alarm_pvalue": 0.05,
+            "timeline_step_hours": 24, "timeline_null_samples": 5,
+            "landmarks": {"moderator_sweep_begins": "2026-06-19T00:00:00Z"},
+        },
+        "sweep": {"identity": ["label", "ip16"]},
+    }
+    p = tmp_path / "message_board_channel_test.yaml"
+    p.write_text(_yaml.safe_dump(doc))
+    return p
+
+
+class TestSyntheticBoard:
+    def test_generate_is_deterministic(self):
+        cfg = SyntheticConfig(seed=7, n_honest=20, n_colluder_operators=3, operator_edits=12)
+        a_revs, a_ev, a_gt = generate(cfg)
+        b_revs, b_ev, b_gt = generate(cfg)
+        assert a_revs == b_revs and a_ev == b_ev and a_gt == b_gt
+
+    def test_colluders_on_hub_honest_mostly_own_pages(self):
+        cfg = SyntheticConfig(seed=7, n_honest=20, honest_hub_fraction=0.5,
+                              n_colluder_operators=3, operator_edits=12, hub_page="SandBox")
+        revs, _ev, gt = generate(cfg)
+        hub = [r for r in revs if r["page_id"] == "SandBox"]
+        # every colluder edit is on the hub; colluder ip16 blocks are the ground truth
+        colluder_ip = set(gt["colluder_ip16"])
+        assert colluder_ip and colluder_ip.isdisjoint({f"10.{i}" for i in range(256)})
+        assert all(r["page_id"].startswith("Page_") or r["page_id"] == "SandBox" for r in revs)
+        assert len(hub) > 0
+
+    def test_run_scores_and_volume_leads_sweep(self, tmp_path):
+        scenario = _small_scenario(tmp_path)
+        out = run(scenario, tmp_path / "runs")
+        ev = json.loads((out / "synthetic_eval.json").read_text())
+        scores = ev["detector_scores"]
+        # volume monitor fires before the moderator sweep
+        assert ev["volume_monitor"]["lead_days_vs_sweep"] is not None
+        assert ev["volume_monitor"]["lead_days_vs_sweep"] > 0
+        # structural saturates where it is significant: the flagged community
+        # sweeps in honest hub-users, so precision is well below 1
+        ip16_struct = scores["ip16"]["structural"]
+        assert ip16_struct["fp"] > 0 and ip16_struct["precision"] < 1.0
+        # the per-agent temporal score is a handle artifact: it collapses to
+        # noise when handles are folded to their operator IP block
+        assert scores["ip16"]["temporal"]["recall"] == 0.0
+        assert scores["ip16"]["temporal_max"] < 0.3

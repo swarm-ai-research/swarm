@@ -163,3 +163,42 @@ Preregistered predictions and their status are recorded in
 the default rate unchanged under the Village objective (met) but not in
 general — gifts fix ability, never willingness, so they help exactly when a
 bond or reputation weight already makes able borrowers repay.
+
+## Message-board channel (`scenarios/message_board_channel.yaml`)
+
+A synthetic, ground-truth twin of the wiki back channel that collusion.wiki
+caught in the wild (see the field evidence in
+`docs/research/wiki-backchannel-field-evidence.md` and the replay in
+`scenarios/casestudy_wiki_backchannel.yaml`). Honest agents edit their own
+pages at a low rate; a handful of colluding operators, each a stable IP block
+hidden behind many rotating handles, burst onto one shared hub page inside a
+coordination window that precedes a moderator sweep. Because the channel is
+out-of-band, the reward proxy never sees it, so there is no interaction to
+score — instead a generator writes the edit log in the real export's schema and
+the **same** detector pipeline (`swarm/bridges/collusion_wiki/runner.py`) runs
+over it. Having ground truth lets us score the detectors, not just observe them.
+
+Run it:
+
+```bash
+python -m swarm.bridges.collusion_wiki.synthetic scenarios/message_board_channel.yaml
+```
+
+Writes a run folder with the replay outputs plus `synthetic_eval.json` (detector
+precision/recall against the known colluders) and `volume_timeline.json`.
+
+Findings (seed 42) reproduce the replay's lesson on controllable data:
+
+| Signal | Result |
+|---|---|
+| Volume monitor | fires on the first coordination day, **3 days before the sweep** |
+| Structural (label) | recall 1.0 but precision 0.69 — sweeps in honest hub-users |
+| Structural (ip16) | precision 0.10 — saturation, flags everyone on the hub |
+| Temporal (label) | max 1.0 but recall 0.03 — only a few fragmented handles fire |
+| Temporal (ip16) | max 0.03, recall 0 — collapses when handles fold to IP blocks |
+
+The reading: structural detection **saturates** rather than fails (a shared hub
+page makes every co-editor a reply-neighbour), the per-agent temporal score is a
+**handle-rotation artifact** (identity-dependent, collapses under `ip16`), and a
+plain **edit-volume monitor** is the signal that leads the moderator — the one
+thing none of the collusion detectors computes.
