@@ -78,6 +78,18 @@ memory_tiers:
   side_deadline_pressure: 1.0
   side_value_alpha: 0.3
   side_value_prior: 0.5
+  # Covert carrier (bead vv3j.1, swept by the vv3j.3/.4 grids): overt at
+  # baseline so pi02 grids A-C reproduce. covert = the payload rides inside a
+  # governed write; bits_per_write is capacity (16 = every write a complete
+  # message); defender_view shape = traffic excess over a trailing median.
+  side_carrier: overt
+  side_bits_per_write: 16
+  side_answer_bits: 8
+  side_evasion_bits: 1
+  side_defender_view: content
+  side_shape_window: 5
+  side_shape_threshold: 0.0
+  side_stego_detectability: 0.0
 
 governance:
   memory_promotion_gate_enabled: false
