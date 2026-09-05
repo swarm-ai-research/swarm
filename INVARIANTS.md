@@ -25,3 +25,10 @@ the enforcement map.
   sample size never exceeds the raw vote count, at any correlation.
   A safety gate that can inflate confidence is not a gate.
   test: tests/test_diversity.py::TestEffectiveN::test_never_exceeds_n
+- INV-6: Composed wards never widen the parent — a dispatched child's
+  effective bounds are narrower-or-equal to its parent's in every
+  dimension (numeric min, boolean or, permission intersection, negative
+  spec accumulation), and an over-scoped declaration is rejected, never
+  clamped. An authority bound a child can loosen is not a bound.
+  test: tests/test_agentgit_wards.py::TestNeverWidens::test_composed_never_widens_parent
+  test: tests/test_agentgit_wards.py::TestNeverWidens::test_chain_never_widens_root

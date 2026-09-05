@@ -71,6 +71,14 @@ from swarm.agentgit.store import (
     store_bundle,
     verify_log,
 )
+from swarm.agentgit.wards import (
+    KNOWN_DONE_GATES,
+    ComposeResult,
+    WardSet,
+    compose,
+    compose_chain,
+    never_widens,
+)
 
 __all__ = [
     "CAPABILITY_COMMANDS",
@@ -103,6 +111,12 @@ __all__ = [
     "SecurityReviewer",
     "TestCoverageReviewer",
     "TrackRecord",
+    "KNOWN_DONE_GATES",
+    "ComposeResult",
+    "WardSet",
+    "compose",
+    "compose_chain",
+    "never_widens",
     "append_to_log",
     "attach_note",
     "build_bundle",
