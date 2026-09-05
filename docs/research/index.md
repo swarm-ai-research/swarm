@@ -116,6 +116,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     The compiler bootstrap analogy and its limits: why a fixed-point tripwire certifies convergence rather than correctness, and the variance term the framework omits
 
+-   :material-cube-outline: **[Cantrip Runtime Lessons](cantrip-runtime-lessons.md)**
+
+    ---
+
+    deepfates' Elixir entity runtime read against the rig: monotone ward composition, done-as-gate, single-writer looms, disclosed phantom gates, judge output kept next to the verdict
+
 -   :material-sword-cross: **[Hyperspace Two-Swarms Lessons](hyperspace-two-swarms-lessons.md)**
 
     ---
