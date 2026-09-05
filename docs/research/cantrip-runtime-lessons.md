@@ -137,7 +137,10 @@ part of the result record, never a log line.
 Section 1 adopted: `swarm/agentgit/wards.py` (`WardSet`, monotone
 `compose`, INV-6) landed 2026-09-05 as commit 3422cbba; the `/claim` ward
 gate and `WARDS:` dispatch stamps followed under bead illq.2 (epic illq).
-Section 4's phantom-gate category is now named in bv-dispatch retro item 5.
+Wards are also signed into `DelegationLink` (illq.3, on top of the zsof
+context-binding fix), so a chain's numeric bounds narrow under signature
+the way its permission sets do. Section 4's phantom-gate category is now
+named in bv-dispatch retro item 5.
 Sections 3 and 5 remain candidate beads named inline. Docs read: `docs/spellbook.md`,
 `docs/architecture.md`, `docs/port-isolated-runtime.md`,
 `docs/distributed-familiar.md`, `docs/eval-harness.md`. Not yet read:

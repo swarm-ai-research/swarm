@@ -166,16 +166,29 @@ class WardSet:
         )
 
 
-def from_chain(chain: DelegationChain, base: Optional[WardSet] = None, **kwargs: Any) -> WardSet:
-    """Build a ward set whose permissions come from a *verified* chain.
+def from_chain(
+    chain: DelegationChain,
+    base: Optional[WardSet] = None,
+    *,
+    context: Optional[str] = None,
+    **kwargs: Any,
+) -> WardSet:
+    """Build a ward set from a *verified* chain.
 
-    Deny-by-default: an invalid, expired, or over-scoped chain contributes no
-    permissions. Other fields come from ``base`` (or defaults) overridden by
-    ``kwargs``. The result may still be unbounded; check :meth:`WardSet.errors`.
+    Deny-by-default: an invalid, expired, over-scoped, or wrong-context chain
+    contributes no permissions and no signed wards. When the final link
+    carries signed wards (illq.3) and no ``base`` is given, they are the
+    base; ``kwargs`` override fields last. The result may still be
+    unbounded; check :meth:`WardSet.errors`.
     """
 
-    ok, _ = chain.verify()
-    permissions = frozenset(chain.effective_permissions()) if ok else frozenset()
+    ok, _ = chain.verify(context=context)
+    if not ok:
+        return replace(base or WardSet(), permissions=frozenset(), **kwargs)
+    signed = chain.effective_wards()
+    if base is None and signed is not None:
+        base = WardSet.from_dict(signed)
+    permissions = frozenset(chain.effective_permissions())
     return replace(base or WardSet(), permissions=permissions, **kwargs)
 
 

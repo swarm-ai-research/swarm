@@ -245,7 +245,13 @@ def _verify_identity(bundle: Dict[str, Any], receipt: AdmissibilityReceipt) -> L
     if delegation_block is not None:
         chain = DelegationChain.from_dict(delegation_block)
         expected_subject = identity_block.get("did") if identity_block else None
-        ok, chain_errors = chain.verify(expected_subject_did=expected_subject)
+        # The bundle's task is the context the chain is presented in (zsof):
+        # a link bound to another task is refused here.
+        task_block = bundle.get("task") or {}
+        context = task_block.get("task_id") if isinstance(task_block, dict) else None
+        ok, chain_errors = chain.verify(
+            expected_subject_did=expected_subject, context=context
+        )
         errors.extend(f"delegation: {err}" for err in chain_errors)
         if ok and identity_block is not None:
             granted = set(chain.effective_permissions())

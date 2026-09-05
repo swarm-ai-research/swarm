@@ -7,7 +7,7 @@ SSH/SCP and network-reaching git operations are unconditionally blocked.
 import logging
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict, List, Set, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple
 
 from swarm.bridges.worktree.config import WorktreeConfig
 
@@ -85,6 +85,7 @@ class WorktreePolicy:
         chain: "DelegationChain",
         *,
         expected_subject_did: str,
+        context: Optional[str] = None,
     ) -> Tuple[bool, List[str]]:
         """Derive ``agent_id``'s command allowlist from a delegation chain.
 
@@ -104,7 +105,7 @@ class WorktreePolicy:
         from swarm.agentgit.capabilities import enforced_allowlist_for_chain
 
         allowlist, errors = enforced_allowlist_for_chain(
-            chain, expected_subject_did=expected_subject_did
+            chain, expected_subject_did=expected_subject_did, context=context
         )
         self._config.agent_command_allowlists[agent_id] = allowlist
         if errors:

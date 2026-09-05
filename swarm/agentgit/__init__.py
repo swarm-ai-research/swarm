@@ -26,6 +26,7 @@ from swarm.agentgit.identity import (
     AgentKeypair,
     DelegationChain,
     DelegationLink,
+    NonceRegistry,
     sign_link,
 )
 from swarm.agentgit.memory import (
@@ -99,6 +100,7 @@ __all__ = [
     "DEFAULT_REVIEWERS",
     "DelegationChain",
     "DelegationLink",
+    "NonceRegistry",
     "DependencyReviewer",
     "MemoryEntry",
     "MemoryStore",
