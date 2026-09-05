@@ -10,8 +10,10 @@ from pydantic import ValidationError
 from swarm.governance import GovernanceConfig, GovernanceEngine
 from swarm.metrics.collusion import (
     CollusionDetector,
+    VolumeBurstResult,
     detect_vote_coordination,
     temporal_clustering_score,
+    volume_burst_signal,
 )
 from swarm.models.interaction import InteractionType, SoftInteraction
 
@@ -908,3 +910,128 @@ class TestCollusionPenaltyLever:
         lever.clear_history()
         assert len(lever._interaction_history) == 0
         assert lever._latest_report is None
+
+
+# =============================================================================
+# Volume-burst signal (bead hoer)
+# =============================================================================
+
+
+def _burst_interactions(quiet_days, quiet_per_day, spike_day, spike_n, page="Hub"):
+    base = datetime(2026, 6, 1)
+    out = []
+    for d in range(quiet_days):
+        for k in range(quiet_per_day):
+            out.append(
+                SoftInteraction(
+                    timestamp=base + timedelta(days=d, minutes=k),
+                    initiator=f"a{k % 5}",
+                    counterparty=f"b{k % 3}",
+                    accepted=True,
+                    metadata={"page_id": page},
+                )
+            )
+    for k in range(spike_n):
+        out.append(
+            SoftInteraction(
+                timestamp=base + timedelta(days=spike_day, minutes=k),
+                initiator=f"a{k % 20}",
+                counterparty="board",
+                accepted=True,
+                metadata={"page_id": page},
+            )
+        )
+    return out
+
+
+class TestVolumeBurstSignal:
+    def test_quiet_baseline_does_not_fire(self):
+        base = datetime(2026, 6, 1)
+        quiet = [
+            SoftInteraction(
+                timestamp=base + timedelta(days=d, minutes=k),
+                initiator=f"a{k}",
+                counterparty="board",
+                accepted=True,
+                metadata={"page_id": "Hub"},
+            )
+            for d in range(20)
+            for k in range(5)
+        ]
+        r = volume_burst_signal(quiet, threshold=10.0)
+        assert isinstance(r, VolumeBurstResult)
+        assert r.alarm is False
+        assert r.max_ratio < 10.0
+        assert r.n_alarm_windows == 0
+
+    def test_spike_fires_on_the_spike_day(self):
+        its = _burst_interactions(8, 3, spike_day=8, spike_n=300)
+        r = volume_burst_signal(its, threshold=10.0)
+        assert r.alarm is True
+        # spike day = 2026-06-01 + 8 days = 2026-06-09
+        assert r.first_alarm.startswith("2026-06-09")
+        assert r.peak_window.startswith("2026-06-09")
+        assert r.max_ratio == pytest.approx(100.0)  # 300 / max(median 3, 1)
+
+    def test_min_baseline_floor_prevents_divide_by_zero(self):
+        # One early low-activity day, then empty days, then a spike against an
+        # all-but-zero trailing median. Must not raise and must give a finite
+        # ratio via the max(median, min_baseline) floor.
+        its = _burst_interactions(1, 1, spike_day=3, spike_n=50)
+        r = volume_burst_signal(its, threshold=10.0)
+        assert r.alarm is True
+        # trailing median over [1, 0, 0] is 0 -> denom = max(0, 1) = 1
+        assert r.max_ratio == pytest.approx(50.0)
+
+    def test_per_object_attributes_burst_to_the_hub_page(self):
+        # A hub page spikes; a second page stays quiet.
+        its = _burst_interactions(8, 3, spike_day=8, spike_n=200, page="HubPage")
+        base = datetime(2026, 6, 1)
+        for d in range(9):
+            its.append(
+                SoftInteraction(
+                    timestamp=base + timedelta(days=d),
+                    initiator="x",
+                    counterparty="board",
+                    accepted=True,
+                    metadata={"page_id": "QuietPage"},
+                )
+            )
+        r = volume_burst_signal(its, threshold=10.0, per_object=True)
+        assert r.alarm is True
+        assert r.peak_object == "HubPage"
+
+    def test_per_object_min_events_suppresses_tiny_pages(self):
+        # Two edits on a brand-new page is ratio 2 but should not alarm because
+        # it is below min_object_events.
+        base = datetime(2026, 6, 1)
+        its = [
+            SoftInteraction(
+                timestamp=base + timedelta(days=2, minutes=k),
+                initiator="x",
+                counterparty="board",
+                accepted=True,
+                metadata={"page_id": "Tiny"},
+            )
+            for k in range(2)
+        ]
+        r = volume_burst_signal(its, threshold=1.5, per_object=True, min_object_events=5)
+        assert r.alarm is False
+
+    def test_empty_input(self):
+        r = volume_burst_signal([])
+        assert r.alarm is False
+        assert r.n_windows == 0
+
+    def test_surfaced_in_collusion_report(self):
+        its = _burst_interactions(8, 3, spike_day=8, spike_n=300)
+        report = CollusionDetector(volume_burst_threshold=10.0).analyze(its)
+        assert report.volume_burst is not None
+        assert report.volume_burst.alarm is True
+        assert report.volume_burst_object is not None
+        assert report.volume_burst_object.alarm is True
+
+    def test_threshold_is_configurable(self):
+        its = _burst_interactions(8, 3, spike_day=8, spike_n=300)  # ratio 100
+        assert volume_burst_signal(its, threshold=50.0).alarm is True
+        assert volume_burst_signal(its, threshold=500.0).alarm is False

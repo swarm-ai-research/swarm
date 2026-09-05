@@ -8,6 +8,7 @@ Detects coordinated manipulation patterns among agents through:
 
 from collections import defaultdict
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
@@ -78,11 +79,42 @@ class GroupMetrics:
 
 
 @dataclass
+class VolumeBurstResult:
+    """Ecosystem-level activity-burst signal (bead hoer).
+
+    A message-board channel defeats the pair/group/structural detectors (a hot
+    hub page makes every co-editor a reply neighbour, so structural saturates and
+    per-agent temporal measures identity fragmentation). The signal that actually
+    led the human moderator was plain edit *volume*. This captures it: per fixed
+    time window, the ratio of the window's interaction count to the trailing
+    median of the preceding windows. A window fires when that ratio meets the
+    threshold.
+
+    NB: a burst is necessary but not sufficient for collusion. Emergent
+    convergence — many independent agents that discover the same board — produces
+    the same volume spike (bead 9err). This is a screening signal, not a verdict.
+    """
+
+    alarm: bool = False
+    max_ratio: float = 0.0
+    first_alarm: Optional[str] = None  # ISO timestamp of the first firing window
+    peak_window: Optional[str] = None  # ISO timestamp of the max-ratio window
+    peak_object: Optional[str] = None  # object driving the peak (per-object mode)
+    n_windows: int = 0
+    n_alarm_windows: int = 0
+    windows: List[Dict] = field(default_factory=list)  # per-window detail rows
+
+
+@dataclass
 class CollusionReport:
     """Complete collusion analysis report."""
 
     # Overall metrics
     ecosystem_collusion_risk: float = 0.0  # 0-1 risk score
+
+    # Ecosystem-level activity-burst signal (bead hoer); None if not computed
+    volume_burst: Optional[VolumeBurstResult] = None
+    volume_burst_object: Optional[VolumeBurstResult] = None
 
     # Flagged pairs and groups
     suspicious_pairs: List[PairMetrics] = field(default_factory=list)
@@ -117,6 +149,9 @@ class CollusionDetector:
         quality_asymmetry_threshold: float = 0.2,
         min_interactions_for_analysis: int = 3,
         collusion_score_threshold: float = 0.5,
+        volume_window_hours: float = 24.0,
+        volume_trailing_windows: int = 7,
+        volume_burst_threshold: float = 10.0,
         seed: Optional[int] = None,
     ):
         """
@@ -135,6 +170,9 @@ class CollusionDetector:
         self.quality_asymmetry_threshold = quality_asymmetry_threshold
         self.min_interactions = min_interactions_for_analysis
         self.collusion_threshold = collusion_score_threshold
+        self.volume_window_hours = volume_window_hours
+        self.volume_trailing_windows = volume_trailing_windows
+        self.volume_burst_threshold = volume_burst_threshold
         self._rng = np.random.default_rng(seed)
 
     def analyze(
@@ -155,6 +193,23 @@ class CollusionDetector:
         if not interactions:
             return CollusionReport()
 
+        # Ecosystem-level burst signal (bead hoer). Computed on the full input,
+        # before the agent-set filter below, because volume is a property of the
+        # channel, not of any agent pair.
+        volume_burst = volume_burst_signal(
+            interactions,
+            window_hours=self.volume_window_hours,
+            trailing_windows=self.volume_trailing_windows,
+            threshold=self.volume_burst_threshold,
+        )
+        volume_burst_object = volume_burst_signal(
+            interactions,
+            window_hours=self.volume_window_hours,
+            trailing_windows=self.volume_trailing_windows,
+            threshold=self.volume_burst_threshold,
+            per_object=True,
+        )
+
         # Discover agents from interactions if not provided
         if agent_ids is None:
             agent_ids = list(
@@ -170,7 +225,10 @@ class CollusionDetector:
                 if i.initiator in agent_set and i.counterparty in agent_set
             ]
             if not interactions:
-                return CollusionReport()
+                return CollusionReport(
+                    volume_burst=volume_burst,
+                    volume_burst_object=volume_burst_object,
+                )
 
         # Build interaction matrices
         pair_interactions = self._group_by_pair(interactions)
@@ -231,6 +289,8 @@ class CollusionDetector:
             n_flagged_pairs=len(suspicious_pairs),
             n_flagged_groups=len(suspicious_groups),
             agent_collusion_risk=agent_risk,
+            volume_burst=volume_burst,
+            volume_burst_object=volume_burst_object,
         )
 
     def _group_by_pair(
@@ -847,3 +907,155 @@ def temporal_clustering_score(
         )
 
     return scores
+
+
+def volume_burst_signal(
+    interactions: List[SoftInteraction],
+    *,
+    window_hours: float = 24.0,
+    trailing_windows: int = 7,
+    threshold: float = 10.0,
+    min_baseline: float = 1.0,
+    per_object: bool = False,
+    object_key: str = "page_id",
+    min_object_events: int = 5,
+) -> VolumeBurstResult:
+    """Ecosystem activity-burst detector (bead hoer).
+
+    Bins interactions into fixed windows of ``window_hours`` (aligned to the day
+    boundary of the first interaction) and, for each window, compares its count to
+    the trailing median of the preceding ``trailing_windows`` windows. A window
+    fires when ``count >= threshold * max(trailing_median, min_baseline)``. The
+    ``max(..., min_baseline)`` floor both avoids divide-by-zero at cold start and
+    keeps a lone edit against an all-zero history from reading as an infinite
+    ratio; it is the "at least one event/window baseline" convention.
+
+    The window series includes empty windows (they are real zero-activity
+    periods), so the trailing median reflects true edits/window.
+
+    Args:
+        interactions: interactions to scan (each needs a ``timestamp``).
+        window_hours: width of each time bin.
+        trailing_windows: number of preceding windows in the trailing median.
+        threshold: ratio at or above which a window fires.
+        min_baseline: floor on the trailing-median denominator.
+        per_object: if True, run the signal per object (``metadata[object_key]``)
+            and report the object with the strongest burst; the hub page carried
+            the incident's burst, so a per-object spike is a sharper signal.
+        object_key: metadata key identifying the object in per-object mode.
+        min_object_events: in per-object mode, a firing window must have at least
+            this many events, so a page's first two edits do not trip the alarm.
+
+    Returns:
+        VolumeBurstResult. In per-object mode ``windows`` holds the firing windows
+        across all objects and ``peak_object`` names the object at the max ratio.
+    """
+    if not interactions:
+        return VolumeBurstResult()
+
+    if per_object:
+        return _volume_burst_per_object(
+            interactions,
+            window_hours=window_hours,
+            trailing_windows=trailing_windows,
+            threshold=threshold,
+            min_baseline=min_baseline,
+            object_key=object_key,
+            min_object_events=min_object_events,
+        )
+
+    xs = sorted(interactions, key=lambda x: x.timestamp)
+    step = timedelta(hours=window_hours)
+    t0 = xs[0].timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+    t_end = xs[-1].timestamp
+
+    # Complete series of window counts, including empty windows.
+    counts: List[int] = []
+    starts: List[datetime] = []
+    t = t0
+    i = 0
+    while t <= t_end:
+        nxt = t + step
+        c = 0
+        while i < len(xs) and xs[i].timestamp < nxt:
+            c += 1
+            i += 1
+        counts.append(c)
+        starts.append(t)
+        t = nxt
+
+    result = VolumeBurstResult(n_windows=len(counts))
+    for k, (start, count) in enumerate(zip(starts, counts, strict=True)):
+        if k == 0:
+            continue  # no trailing history yet
+        trailing = counts[max(0, k - trailing_windows) : k]
+        median = float(np.median(trailing)) if trailing else 0.0
+        denom = max(median, min_baseline)
+        ratio = count / denom
+        fired = ratio >= threshold
+        iso = start.strftime("%Y-%m-%dT%H:%M:%SZ")
+        if fired:
+            result.n_alarm_windows += 1
+            if result.first_alarm is None:
+                result.first_alarm = iso
+            result.windows.append(
+                {
+                    "window_start": iso,
+                    "count": count,
+                    "trailing_median": median,
+                    "ratio": round(ratio, 3),
+                }
+            )
+        if ratio > result.max_ratio:
+            result.max_ratio = ratio
+            result.peak_window = iso
+    result.alarm = result.n_alarm_windows > 0
+    return result
+
+
+def _volume_burst_per_object(
+    interactions: List[SoftInteraction],
+    *,
+    window_hours: float,
+    trailing_windows: int,
+    threshold: float,
+    min_baseline: float,
+    object_key: str,
+    min_object_events: int,
+) -> VolumeBurstResult:
+    """Per-object variant of ``volume_burst_signal`` (see its docstring)."""
+    by_object: Dict[str, List[SoftInteraction]] = defaultdict(list)
+    for it in interactions:
+        obj = it.metadata.get(object_key) if it.metadata else None
+        if obj is None:
+            continue
+        by_object[str(obj)].append(it)
+
+    merged = VolumeBurstResult()
+    for obj, its in by_object.items():
+        sub = volume_burst_signal(
+            its,
+            window_hours=window_hours,
+            trailing_windows=trailing_windows,
+            threshold=threshold,
+            min_baseline=min_baseline,
+            per_object=False,
+        )
+        merged.n_windows += sub.n_windows
+        for row in sub.windows:
+            if row["count"] < min_object_events:
+                continue
+            row = {**row, "object": obj}
+            merged.windows.append(row)
+            merged.n_alarm_windows += 1
+            if merged.first_alarm is None or row["window_start"] < merged.first_alarm:
+                merged.first_alarm = row["window_start"]
+            if row["ratio"] > merged.max_ratio:
+                merged.max_ratio = row["ratio"]
+                merged.peak_window = row["window_start"]
+                merged.peak_object = obj
+    merged.alarm = merged.n_alarm_windows > 0
+    # first_alarm should be the earliest firing window across objects
+    if merged.windows:
+        merged.first_alarm = min(r["window_start"] for r in merged.windows)
+    return merged
