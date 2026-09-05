@@ -66,8 +66,11 @@ def main(argv: List[str] | None = None) -> int:
         keys = list(doc_axes)
         agg = aggregate(rows, keys)
         for name, data in (("sweep.csv", rows), ("sweep_mean.csv", agg)):
+            fields: List[str] = []
+            for row in data:
+                fields += [k for k in row if k not in fields]
             with (out / "csv" / name).open("w", newline="") as fh:
-                w = csv.DictWriter(fh, fieldnames=list(data[0]))
+                w = csv.DictWriter(fh, fieldnames=fields)
                 w.writeheader()
                 w.writerows(data)
         show = ["final_modal_cluster_fraction", "final_identical_pairs",

@@ -55,6 +55,7 @@ board:
   n_values: 5
   hidden_dim_gain: 3.0
   hidden_dim_prior: 0.02
+  diverse_fraction: 0.0     # share of agents with a uniform prior (bead khs2 sweep)
   eval_noise: 0.15
   p_baseline: 0.02
   p_peer: 0.4

@@ -51,6 +51,7 @@ class BoardConfig:
     n_values: int = 5
     hidden_dim_gain: float = 3.0  # gain of the hidden dimension relative to others
     hidden_dim_prior: float = 0.02  # prior mass on mutating the hidden dimension
+    diverse_fraction: float = 0.0  # share of agents with a UNIFORM prior over dims (bead khs2)
     eval_noise: float = 0.15
     # move policy
     p_baseline: float = 0.02
@@ -82,6 +83,8 @@ class BoardConfig:
             raise ValueError(f"fidelity must be one of {FIDELITY_MODES}, got {self.fidelity!r}")
         if not 0.0 <= self.hidden_dim_prior <= 1.0:
             raise ValueError("hidden_dim_prior must be in [0, 1]")
+        if not 0.0 <= self.diverse_fraction <= 1.0:
+            raise ValueError("diverse_fraction must be in [0, 1]")
         if not 0.0 <= self.p_peer + self.p_baseline <= 1.0:
             raise ValueError("p_peer + p_baseline must be in [0, 1]")
 
@@ -110,6 +113,7 @@ class Agent:
     adoptions: int = 0  # times this agent took a peer result
     rediscoveries: int = 0  # own mutations that matched an existing board diff
     first_frontier_round: Optional[int] = None
+    diverse: bool = False  # uniform prior over dimensions instead of the shared one
 
 
 @dataclass
@@ -173,19 +177,23 @@ def run_board(cfg: BoardConfig, seed: Optional[int] = None) -> RunResult:
     rng = random.Random(cfg.seed if seed is None else seed)
     land = Landscape(cfg, rng)
     prior = _dim_prior(cfg)
+    uniform = [1.0 / cfg.n_dims] * cfg.n_dims
     dims = list(range(cfg.n_dims))
+    n_diverse = int(round(cfg.n_agents * cfg.diverse_fraction))
 
     n_late = int(round(cfg.n_agents * cfg.late_joiner_fraction))
     agents: List[Agent] = []
     for i in range(cfg.n_agents):
         join = cfg.late_join_round if i >= cfg.n_agents - n_late else 0
-        agents.append(Agent(i, join, land.baseline, float("-inf")))
+        agents.append(Agent(i, join, land.baseline, float("-inf"),
+                            diverse=(i % cfg.n_agents) < n_diverse))
 
     board: List[Entry] = []
     attempts_all: List[float] = []  # true score of every evaluated attempt
     attempts_by_round: Dict[int, List[float]] = {}
     published_by_round: Dict[int, List[float]] = {}
     mutated_dims: set[int] = set()
+    hidden_discovery_round: Optional[int] = None  # first mutation of the hidden dim
     diff_seen: Dict[Tuple[int, int], int] = {}  # first entry id that published a diff
     rounds: List[RoundMetrics] = []
     next_id = itertools.count()
@@ -227,18 +235,20 @@ def run_board(cfg: BoardConfig, seed: Optional[int] = None) -> RunResult:
                     c[d] = v
                     cand, diff, parent = tuple(c), (d, v), e.id
                 else:  # score_only, or a description with nothing to describe
-                    d = rng.choices(dims, prior)[0]
+                    d = rng.choices(dims, uniform if a.diverse else prior)[0]
                     c = list(a.config)
                     c[d] = rng.randrange(cfg.n_values)
                     cand, diff, parent, via_peer = tuple(c), (d, c[d]), None, False
             else:
-                d = rng.choices(dims, prior)[0]
+                d = rng.choices(dims, uniform if a.diverse else prior)[0]
                 c = list(a.config)
                 c[d] = rng.randrange(cfg.n_values)
                 cand, diff, parent, via_peer = tuple(c), (d, c[d]), None, False
 
             if diff is not None and not via_peer:
                 mutated_dims.add(diff[0])
+                if diff[0] == land.hidden_dim and hidden_discovery_round is None:
+                    hidden_discovery_round = r
             observed = observe(cand)
             attempts_all.append(land.score(cand))
             attempts_by_round.setdefault(r, []).append(land.score(cand))
@@ -310,6 +320,10 @@ def run_board(cfg: BoardConfig, seed: Optional[int] = None) -> RunResult:
         "final_identical_pairs": final.identical_pairs,
         "hidden_dim_adoption": final.hidden_dim_adoption,
         "hidden_dim_explored": land.hidden_dim in mutated_dims,
+        "hidden_discovery_round": hidden_discovery_round,  # None = never in n_rounds
+        "hidden_discovery_round_or_max": (cfg.n_rounds if hidden_discovery_round is None
+                                          else hidden_discovery_round),
+        "diverse_agents": n_diverse,
         "unexplored_dims": cfg.n_dims - len(mutated_dims),
         "board_entries": len(board),
         "board_success_entries": sum(e.success for e in board),
@@ -369,11 +383,13 @@ def aggregate(rows: List[Dict[str, Any]], keys: List[str]) -> List[Dict[str, Any
         for f_name in members[0]:
             if f_name in keys or f_name == "seed":
                 continue
-            vals = [m[f_name] for m in members if isinstance(m[f_name], (int, float))
-                    and not isinstance(m[f_name], bool)]
-            if vals:
-                agg[f_name] = statistics.fmean(vals)
-            elif all(isinstance(m[f_name], bool) for m in members):
-                agg[f_name] = sum(m[f_name] for m in members) / len(members)
+            raw = [m[f_name] for m in members]
+            nums = [v for v in raw if isinstance(v, (int, float)) and not isinstance(v, bool)]
+            if nums:
+                agg[f_name] = statistics.fmean(nums)  # None values (never) are skipped
+            elif all(isinstance(v, bool) for v in raw):
+                agg[f_name] = sum(raw) / len(raw)
+            else:
+                agg[f_name] = None
         out.append(agg)
     return out

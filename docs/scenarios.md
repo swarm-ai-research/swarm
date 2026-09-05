@@ -225,6 +225,61 @@ Against the preregistered expectations:
    `description` (0.53) > `score_only` (0.38). Fidelity does not move the
    frontier; it moves the population to it. Prior diversity is bead khs2.
 
+### Prior diversity vs population size (bead khs2)
+
+Second lever on the same board, fidelity held at `code`: the population's prior
+over which dimension to mutate. `hidden_dim_prior` is the mass every agent puts
+on the high-gain dimension; `diverse_fraction` is the share of agents given a
+**uniform** prior instead of the shared one. The observable is the round in
+which anyone first mutates the hidden dimension (`hidden_discovery_round`, never
+in 120 rounds = "shared omission") and the score the population ends at.
+
+```bash
+python -m swarm.bridges.gossip_board scenarios/gossip_board_fidelity.yaml --seeds 10 \
+    --axis fidelity=code --axis hidden_dim_prior=0,0.002,0.01,0.05 --axis n_agents=8,24,72
+python -m swarm.bridges.gossip_board scenarios/gossip_board_fidelity.yaml --seeds 10 \
+    --axis fidelity=code --axis hidden_dim_prior=0 --axis diverse_fraction=0,0.04167,0.125,0.5 --axis n_agents=8,24,72
+```
+
+Findings (`runs/20260905T170749Z_gossip_board_prior_diversity_seed42`, 10 seeds, means):
+
+| Shared prior | Agents | Discovery round | Final score / optimum |
+|---|---|---|---|
+| 0 | 8 / 24 / 72 | never / never / never | 0.911 / 0.914 / 0.917 |
+| 0.002 | 8 / 24 / 72 | 66.9 / 33.0 / 14.7 | 0.939 / 0.964 / 0.988 |
+| 0.01 | 8 / 24 / 72 | 34.8 / 15.0 / 4.7 | 0.953 / 0.985 / 0.998 |
+| 0.05 | 8 / 24 / 72 | 6.5 / 1.5 / 0.3 | 0.983 / 0.993 / 0.997 |
+
+| Diverse agents (prior 0 elsewhere) | Agents | Discovery round | Final score / optimum |
+|---|---|---|---|
+| 0 | 72 | never | 0.917 |
+| 1 | 8 / 24 | 9.8 / 20.7 | 0.986 / 0.985 |
+| 3 | 24 / 72 | 2.4 / 4.6 | 0.992 / 0.996 |
+| half | 8 / 24 / 72 | 2.2 / 1.1 / 0.0 | 0.987 / 0.995 / 0.998 |
+
+Reading:
+
+1. **A shared prior of exactly zero is not fixed by scale.** Nine times the
+   agents adds 0.006 to the final score and never finds the hidden dimension.
+   This is the Hyperspace position-encoding omission on controllable data: a
+   population that agrees, without discussing it, not to look somewhere does not
+   look there no matter how large it gets.
+2. **Above zero, what matters is the product of prior and population.** Discovery
+   round tracks roughly 1 / (agents x prior): prior 0.002 with 72 agents and
+   prior 0.01 with 24 agents both discover in about 15 rounds. Scale substitutes
+   for prior mass only when the prior is not zero.
+3. **One uncorrelated agent beats nine-fold scale.** A single uniform-prior agent
+   in a population of 8 (score 0.986) outperforms 72 correlated agents (0.917).
+   Three diverse agents in 72 recover almost the whole gap (0.996). Prior
+   diversity is a governance lever with a larger effect than population size,
+   and it is cheap: the diverse agents search worse on the shared dimensions and
+   still lift the population, because the board carries their find to everyone.
+
+Caveat: the board here is `code` fidelity, so a single discovery propagates at
+full strength. Under `description` or `score_only` the diverse agent's find
+spreads more slowly (bead fcj5, expectation 4), so the required diverse fraction
+is higher; that grid was not run.
+
 Also recorded: `adoptions` versus `rediscoveries` from the lineage field.
 `score_only` has zero adoptions and 264 rediscoveries per run; `code` has 182
 adoptions and 67 rediscoveries. A provenance-blind detector sees only the

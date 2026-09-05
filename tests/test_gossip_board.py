@@ -105,3 +105,25 @@ def test_cli_writes_run_folder(tmp_path):
     assert (out / "history.json").exists()
     assert (out / "csv" / "rounds.csv").exists()
     assert (out / "csv" / "sweep_mean.csv").exists()
+
+
+def test_diverse_fraction_bounds_and_count():
+    with pytest.raises(ValueError):
+        run_board(_cfg(diverse_fraction=1.5))
+    res = run_board(_cfg(diverse_fraction=0.25), seed=1)
+    assert res.summary["diverse_agents"] == 3
+
+
+def test_zero_prior_never_discovers_hidden_dim_without_diversity():
+    """Bead khs2: a shared prior of exactly zero is not fixed by population size."""
+    res = run_board(_cfg(hidden_dim_prior=0.0, n_agents=48), seed=4)
+    assert res.summary["hidden_dim_explored"] is False
+    assert res.summary["hidden_discovery_round"] is None
+    assert res.summary["hidden_discovery_round_or_max"] == res.config.n_rounds
+
+
+def test_one_diverse_agent_discovers_hidden_dim():
+    res = run_board(_cfg(hidden_dim_prior=0.0, n_agents=8, diverse_fraction=0.125, n_rounds=120), seed=4)
+    assert res.summary["diverse_agents"] == 1
+    assert res.summary["hidden_dim_explored"] is True
+    assert res.summary["hidden_discovery_round"] is not None
