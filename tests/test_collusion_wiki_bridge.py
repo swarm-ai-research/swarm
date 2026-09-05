@@ -5,6 +5,7 @@ pin the mapping semantics (identity modes, agent vs page projection,
 reply window) and that a replay produces a self-contained run folder.
 """
 
+import csv
 import json
 from datetime import datetime, timezone
 
@@ -18,6 +19,7 @@ from swarm.bridges.collusion_wiki import (
     run_replay,
 )
 from swarm.bridges.collusion_wiki.loader import load_events
+from swarm.bridges.collusion_wiki.stego import classify, decode_tags, run_stego, scan
 from swarm.bridges.collusion_wiki.synthetic import SyntheticConfig, generate, run
 
 
@@ -210,3 +212,53 @@ class TestSyntheticBoard:
         # noise when handles are folded to their operator IP block
         assert scores["ip16"]["temporal"]["recall"] == 0.0
         assert scores["ip16"]["temporal_max"] < 0.3
+
+
+class TestVolumeInTimeline:
+    """bead hoer: the aggregate volume monitor rides along in the timeline."""
+
+    def test_timeline_carries_volume_columns(self, data_dir, tmp_path):
+        cfg = ReplayConfig(structural_null_samples=5, timeline_null_samples=5,
+                           volume_alarm_ratio=2.0, landmarks={"sweep": "2026-06-19T00:00:00Z"})
+        out = run_replay(data_dir, cfg, runs_root=tmp_path)
+        rows = list(csv.DictReader((out / "timeline.csv").open()))
+        assert {"volume_ratio", "volume_alarm"} <= set(rows[0].keys())
+        summary = json.loads((out / "summary.json").read_text())
+        tl = summary["per_identity"]["label"]["timeline"]
+        assert "first_volume_alarm" in tl
+        assert "volume_vs_sweep" in tl["lag_days"]
+        assert "volume" in summary["per_identity"]["label"]
+
+
+class TestStegoScan:
+    """bead vv3j.5: hidden-character carriers in the export's text fields."""
+
+    def test_classify_tag_chars_and_decode(self):
+        hidden = "help" + "".join(chr(0xE0000 + ord(c)) for c in "hyperplex.org") + "peer"
+        assert "tag_chars" in classify(hidden)
+        assert decode_tags(hidden) == "hyperplex.org"
+        assert classify("API research links") == []
+
+    def test_classify_zero_width_bidi_mixed_script(self):
+        assert "zero_width" in classify("Research\u200bHelper")
+        assert "bidi_controls" in classify("abc\u202edef")
+        assert "mixed_script" in classify("Res\u0435archHelper")  # Cyrillic е
+
+    def test_scan_counts_by_source_and_day(self, data_dir, tmp_path):
+        hidden = "note" + "".join(chr(0xE0000 + ord(c)) for c in "x.y") + "z"
+        with (data_dir / "revisions.jsonl").open("a") as f:
+            f.write(json.dumps(_rev("r9", "Answers", "HelperZ", "20.9",
+                                    "2026-06-20T10:00:00Z") | {"change_summary": hidden}) + "\n")
+        rep = scan(data_dir)
+        assert rep.n_flagged >= 1
+        assert rep.by_carrier.get("tag_chars") == 1
+        assert rep.by_source.get("revision.change_summary") == 1
+        assert rep.by_day.get("2026-06-20") == 1
+        assert rep.findings[0].decoded == "x.y" or any(
+            f.decoded == "x.y" for f in rep.findings)
+        out = run_stego(data_dir, tmp_path)
+        assert (out / "summary.json").exists() and (out / "findings.jsonl").exists()
+
+    def test_clean_fixture_is_clean(self, data_dir):
+        rep = scan(data_dir)
+        assert rep.by_carrier.get("tag_chars", 0) == 0

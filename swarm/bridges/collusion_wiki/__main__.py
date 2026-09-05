@@ -1,6 +1,7 @@
 """CLI: ``python -m swarm.bridges.collusion_wiki <scenario.yaml> --data-dir DIR``.
 
-``--fetch`` downloads the export from collusion.wiki into ``--data-dir``
+``--stego`` runs the hidden-character scan (``stego.py``) instead of the
+detectors. ``--fetch`` downloads the export from collusion.wiki into ``--data-dir``
 first (files land gzipped; the loader reads them as-is).
 """
 
@@ -15,6 +16,7 @@ from pathlib import Path
 import yaml
 
 from swarm.bridges.collusion_wiki.runner import ReplayConfig, run_replay
+from swarm.bridges.collusion_wiki.stego import run_stego
 
 log = logging.getLogger("swarm.bridges.collusion_wiki")
 
@@ -42,6 +44,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--fetch", action="store_true")
     p.add_argument("--no-timeline", action="store_true")
     p.add_argument("--identity", choices=["label", "ip16", "label_ip16"])
+    p.add_argument("--stego", action="store_true",
+                   help="scan the export's free-text fields for hidden-character "
+                        "carriers (bead vv3j.5) instead of running the detectors")
     p.add_argument("-v", "--verbose", action="store_true")
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
@@ -52,6 +57,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if args.fetch:
         fetch(args.scenario, args.data_dir)
+
+    if args.stego:
+        out = run_stego(args.data_dir, args.runs_root)
+        print(out)
+        return 0
 
     cfg = ReplayConfig.from_yaml(args.scenario)
     if args.identity:

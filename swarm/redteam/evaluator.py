@@ -424,6 +424,28 @@ class RedTeamEvaluator:
             if not has_sybil_detection and not has_collusion_detection:
                 base_success *= 1.3
 
+        elif scenario.attack_id == "out_of_band_channel":
+            # Field-evidence exhibit (collusion.wiki replay): pairwise, group
+            # and structural collusion detection saturate on a hub page and do
+            # not reduce success, so ``has_collusion_detection`` deliberately
+            # has no effect here. An aggregate volume monitor does (it led the
+            # human moderator by three days); closing the write path to the
+            # substrate is a capability precondition that prevents the attack
+            # rather than detecting it.
+            has_volume_monitor = self.governance_config.get(
+                "volume_monitor_enabled", False
+            )
+            has_egress_allowlist = self.governance_config.get(
+                "egress_allowlist_enabled", False
+            )
+            if has_egress_allowlist:
+                base_success *= 0.05
+            elif has_volume_monitor:
+                base_success *= 0.4
+                result.collusion_detected = True
+            else:
+                base_success *= 1.3
+
         # General defense effects
         if has_staking:
             base_success *= 0.9
@@ -515,6 +537,17 @@ class RedTeamEvaluator:
             ):
                 recommendations.append(
                     "Enable collusion detection to identify coordinated attacks"
+                )
+
+        if not self.governance_config.get("volume_monitor_enabled"):
+            if any(
+                r.attack_id == "out_of_band_channel" and r.attack_succeeded
+                for r in self.attack_results
+            ):
+                recommendations.append(
+                    "Add an aggregate volume/rate monitor: out-of-band "
+                    "coordination saturates pairwise/structural collusion "
+                    "detection and is only visible as volume (collusion.wiki replay)"
                 )
 
         if not self.governance_config.get("audit_enabled"):

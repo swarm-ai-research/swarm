@@ -57,7 +57,7 @@ Structure is loud here, but for a reason that should temper the reading: a hot h
 | June 18 | 6,543 | 467.4 |
 | June 19 | 509 | 3.2 |
 
-The moderator's deletion sweep began June 19. OpenAI headquarters addresses first visited June 21. A threshold of 10 times the trailing median fires May 26, and any threshold up to 200 fires June 16, three days ahead of the human response. None of our collusion detectors is a volume monitor.
+The moderator's deletion sweep began June 19. OpenAI headquarters addresses first visited June 21. A threshold of 10 times the trailing median fires May 26, and any threshold up to 200 fires June 16, three days ahead of the human response. None of our collusion detectors is a volume monitor. *(Update, bead `hoer`: `CollusionDetector` now computes this as `volume_burst_signal`, and the replay timeline carries it; see the lag table.)
 
 ## Detection-lag timeline
 
@@ -69,13 +69,13 @@ The timeline re-runs the per-agent temporal detector on each day's edits and the
 | Temporal per-agent, score ≥ 0.7 | Jun 17 step (Jun 16 edits) | 2 days early | 4 days early | 6 days early |
 | Volume, 10× trailing median | May 26 | 24 days early | 26 days early | 28 days early |
 
-The structural row is not a detection. With 20 null samples the p-value floor is 0.048, just under the 0.05 alarm, and every step from the first 13 edits onward sits on that floor. The detector is always on, which is the same thing as never on. The temporal row is real but late and noisy: it fires on the Jun 17, 19, 20, and 23 steps and is silent on Jun 18, 21, and 22 while the board was at its busiest, because it scores individual handles rather than the board. The volume row uses the daily-ratio table above and is not a SWARM detector.
+The structural row is not a detection. With 20 null samples the p-value floor is 0.048, just under the 0.05 alarm, and every step from the first 13 edits onward sits on that floor. The detector is always on, which is the same thing as never on. The temporal row is real but late and noisy: it fires on the Jun 17, 19, 20, and 23 steps and is silent on Jun 18, 21, and 22 while the board was at its busiest, because it scores individual handles rather than the board. The volume row in the table above uses the daily-ratio table and predates the detector. Re-run with the shipped `volume_burst_signal` in the timeline (run `20260905T233757Z`, 10x threshold, trailing-7 median with a one-event floor, agent-projected interactions rather than raw edits): first alarm on the May 27 step (May 26 edits, ratio 13.7), 23 days before the sweep; the Jun 17 step (Jun 16 edits) fires at ratio 1,687 and the Jun 19 step at 4,593. Same ordering as the hand table, now produced by a SWARM detector.
 
 Full timeline: `timeline.csv` in the run folder.
 
 ## What this changes
 
-1. **The post's sentence gets a correction.** Structural detection does not fail on a back channel you can observe; it saturates. Per-agent temporal clustering is not the survivor; it is an artifact of handle rotation. The survivor is aggregate volume, which none of the three detectors computes. A follow-up bead should add a volume-burst signal to `CollusionDetector` or to the governance monitor, with the trailing-median ratio above as the first candidate.
+1. **The post's sentence gets a correction.** Structural detection does not fail on a back channel you can observe; it saturates. Per-agent temporal clustering is not the survivor; it is an artifact of handle rotation. The survivor is aggregate volume, which none of the three detectors computes. Bead `hoer` added it: `volume_burst_signal` in `CollusionDetector` (trailing-median ratio, ecosystem and per-object), surfaced in the replay timeline and lag table.
 2. **Identity is the lever.** Every result flips between `label` and `ip16`. A detector that cannot resolve identities below the handle is measuring the sybil policy, not the coordination. That is the same lesson as the `qoro` overlap sweep from the other side.
 3. **The null needs a hub-aware alternative.** The configuration model rejects every community on a hub-dominated graph. A null that preserves page co-membership (a bipartite rewiring) would separate "there is a board" from "these agents coordinate on it." Filed as a follow-up.
 4. **The bridge is reusable.** Any edit log with (actor, object, time) fits the mapper. The Hyperspace repository history from [Gossiping Swarms](../blog/gossiping-swarms-what-the-message-board-cannot-see.md) is the obvious second input.

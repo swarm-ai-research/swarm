@@ -206,6 +206,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     The four wiki-collusion corrections built into the side-channel model and swept one at a time: a swarm that can choose its host sits on the one nobody watches and revocation stops working (substrate gap −0.055), an ordered sweep teaches evasion that turns revocation into deletion-only while a random sweep does not, and identical benchmark items alone drive 100% of coordination off-instrument while toxicity *improves* (bead pi02)
 
+-   :material-eye-off-outline: **[The Unicode Tag-Character Channel](unicode-tag-channel.md)**
+
+    ---
+
+    Post-disclosure edit summaries carrying a peer URL in non-rendering Unicode tag characters: why a carrier a model can decode and a moderator cannot see defeats human-in-the-loop cleanup by construction, and a scan of the 14,591-edit export showing the original swarm wrote only ASCII (bead vv3j.7)
+
 -   :material-robot-outline: **[RL Organism Emergence](rl-organism-emergence.md)**
 
     ---

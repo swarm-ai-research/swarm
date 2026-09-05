@@ -13,6 +13,8 @@ Outputs a self-contained run folder::
 The timeline answers the question the blog post could only assert: at a
 given threshold, on which day would each detector first have fired,
 relative to the moderator sweep (Jun 19) and the OpenAI visit (Jun 21)?
+Since bead hoer the timeline carries the aggregate volume monitor too
+(``volume_ratio`` / ``volume_alarm``), so the lag table compares all three.
 """
 
 from __future__ import annotations
@@ -37,7 +39,11 @@ from swarm.bridges.collusion_wiki.mapper import (
     Projection,
     revisions_to_interactions,
 )
-from swarm.metrics.collusion import CollusionDetector, temporal_clustering_score
+from swarm.metrics.collusion import (
+    CollusionDetector,
+    temporal_clustering_score,
+    volume_burst_signal,
+)
 from swarm.metrics.graph_structural import (
     detect_structural_anomalies,
     edges_from_interactions,
@@ -58,6 +64,10 @@ class ReplayConfig:
     timeline_null_samples: int = 20
     temporal_alarm: float = 0.7  # the 0.7 bar from the graph_structural sweep
     structural_alarm_pvalue: float = 0.05
+    # bead hoer: aggregate edits/step vs trailing-median ratio at which the
+    # volume monitor fires (10x fires May 26 on the real log; 200x on Jun 16)
+    volume_alarm_ratio: float = 10.0
+    volume_trailing_windows: int = 7
     landmarks: Dict[str, str] = field(default_factory=dict)
     sweep_identity: List[str] = field(default_factory=lambda: ["label"])
     seed: int = 0
@@ -80,6 +90,8 @@ class ReplayConfig:
             timeline_null_samples=int(rp.get("timeline_null_samples", 20)),
             temporal_alarm=float(rp.get("temporal_alarm", 0.7)),
             structural_alarm_pvalue=float(rp.get("structural_alarm_pvalue", 0.05)),
+            volume_alarm_ratio=float(rp.get("volume_alarm_ratio", 10.0)),
+            volume_trailing_windows=int(rp.get("volume_trailing_windows", 7)),
             landmarks=dict(rp.get("landmarks", {}) or {}),
             sweep_identity=list(sw.get("identity", [rp.get("identity", "label")])),
             seed=int(doc.get("seed", 0)),
@@ -149,6 +161,10 @@ def _timeline(
     t0 = xs[0].timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
     t_end = xs[-1].timestamp
     step = timedelta(hours=cfg.timeline_step_hours)
+    # bead hoer: the aggregate volume monitor, one pass over the whole log,
+    # joined to the timeline by window start (windows are day-aligned like
+    # the timeline steps).
+    vol_rows = {r["window_start"]: r for r in _volume_windows(xs, cfg)}
     rows: List[Dict[str, Any]] = []
     t = t0 + step
     i = 0
@@ -161,6 +177,7 @@ def _timeline(
             continue
         # temporal over the last step only (a rolling alarm, not cumulative)
         recent = [x for x in window if x.timestamp >= t - step]
+        start_iso = (t - step).strftime("%Y-%m-%dT%H:%M:%SZ")
         temp = _temporal(recent, cfg.temporal_window_seconds)
         struct = _structural(window, cfg, cfg.timeline_null_samples)
         best_p = min((r["pvalue"] for r in struct), default=1.0)
@@ -175,10 +192,32 @@ def _timeline(
                 "structural_best_pvalue": best_p,
                 "structural_best_size": best_size,
                 "structural_alarm": best_p < cfg.structural_alarm_pvalue,
+                "volume_ratio": vol_rows.get(start_iso, {}).get("ratio", 0.0),
+                "volume_alarm": start_iso in vol_rows
+                and vol_rows[start_iso]["ratio"] >= cfg.volume_alarm_ratio,
             }
         )
         t += step
     return rows
+
+
+def _volume_windows(
+    interactions: Sequence[SoftInteraction], cfg: ReplayConfig
+) -> List[Dict[str, Any]]:
+    """Every window's edits/step ratio (not just the firing ones).
+
+    ``volume_burst_signal`` reports only firing windows; the timeline wants
+    the ratio on every step, so recompute the same series here with a
+    threshold of 0 so every window is returned, then let the caller apply
+    ``cfg.volume_alarm_ratio``.
+    """
+    r = volume_burst_signal(
+        list(interactions),
+        window_hours=cfg.timeline_step_hours,
+        trailing_windows=cfg.volume_trailing_windows,
+        threshold=0.0,
+    )
+    return r.windows
 
 
 def _first_alarm(rows: Sequence[Dict[str, Any]], key: str) -> Optional[str]:
@@ -240,6 +279,20 @@ def analyze_identity(
             "best": struct[0] if struct else None,
             "rows": struct,
         },
+        "volume": {
+            "alarm": bool(rep.volume_burst and rep.volume_burst.alarm),
+            "max_ratio": round(rep.volume_burst.max_ratio, 2) if rep.volume_burst else 0.0,
+            "first_alarm": rep.volume_burst.first_alarm if rep.volume_burst else None,
+            "peak_window": rep.volume_burst.peak_window if rep.volume_burst else None,
+            "peak_object": (
+                rep.volume_burst_object.peak_object if rep.volume_burst_object else None
+            ),
+            "peak_object_ratio": (
+                round(rep.volume_burst_object.max_ratio, 2)
+                if rep.volume_burst_object
+                else 0.0
+            ),
+        },
         "pairwise": {
             "ecosystem_collusion_risk": round(rep.ecosystem_collusion_risk, 4),
             "n_flagged_pairs": rep.n_flagged_pairs,
@@ -299,9 +352,10 @@ def run_replay(
                 "n_steps": len(rows),
                 "first_temporal_alarm": _first_alarm(rows, "temporal_alarm"),
                 "first_structural_alarm": _first_alarm(rows, "structural_alarm"),
+                "first_volume_alarm": _first_alarm(rows, "volume_alarm"),
                 "lag_days": {
                     f"{det}_vs_{lm}": _lag_days(_first_alarm(rows, f"{det}_alarm"), when)
-                    for det in ("temporal", "structural")
+                    for det in ("temporal", "structural", "volume")
                     for lm, when in cfg.landmarks.items()
                 },
             }
