@@ -72,12 +72,18 @@ from swarm.agentgit.store import (
     verify_log,
 )
 from swarm.agentgit.wards import (
+    GATE_CLASS_DEFAULTS,
     KNOWN_DONE_GATES,
+    STAMP_PREFIX,
     ComposeResult,
     WardSet,
+    claim_gate,
     compose,
     compose_chain,
+    for_gate_class,
+    format_stamp,
     never_widens,
+    parse_stamp,
 )
 
 __all__ = [
@@ -111,7 +117,13 @@ __all__ = [
     "SecurityReviewer",
     "TestCoverageReviewer",
     "TrackRecord",
+    "GATE_CLASS_DEFAULTS",
     "KNOWN_DONE_GATES",
+    "STAMP_PREFIX",
+    "claim_gate",
+    "for_gate_class",
+    "format_stamp",
+    "parse_stamp",
     "ComposeResult",
     "WardSet",
     "compose",

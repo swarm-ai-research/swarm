@@ -52,6 +52,14 @@ from swarm.agentgit.store import (
     store_bundle,
     verify_log,
 )
+from swarm.agentgit.wards import (
+    GATE_CLASS_DEFAULTS,
+    claim_gate,
+    for_gate_class,
+    format_stamp,
+    load_bead_wards,
+    load_declared_wards,
+)
 
 
 def cmd_attest(args: argparse.Namespace) -> int:
@@ -288,6 +296,24 @@ def cmd_claim(args: argparse.Namespace) -> int:
                 return 1
             return 0
 
+        # Ward gate (illq.2): the track's stamped bounds vs what this session
+        # declares. Checked BEFORE the claim is taken so a refused claimant
+        # never holds the task. Unstamped beads pass through unchanged.
+        track = None if args.no_wards else load_bead_wards(args.task)
+        try:
+            declared = load_declared_wards(root, args.wards)
+        except (OSError, ValueError) as exc:
+            print(f"REFUSED: declared wards unreadable: {exc}")
+            return 3
+        gate = claim_gate(track, declared)
+        if gate.errors:
+            print(f"REFUSED: {args.task} — declared wards exceed the track's stamped bounds:")
+            for err in gate.errors:
+                print(f"  - {err}")
+            print("  Narrow your declaration (.agentgit/wards.json or --wards) or take")
+            print("  another bead. A child may only narrow (INV-6).")
+            return 3
+
         # claim (default): atomic, refuse-on-conflict — the prevention.
         result = board.claim(agent, args.task)
         if not result.ok:
@@ -295,7 +321,8 @@ def cmd_claim(args: argparse.Namespace) -> int:
             print("  Another session is doing this work. Pick different work, or")
             print("  coordinate: python -m swarm.agentgit claim status")
             return 2
-        write_claim_marker(root, args.task, agent)
+        effective = gate.wards.to_dict() if gate.wards is not None else None
+        write_claim_marker(root, args.task, agent, wards=effective)
         # Best-effort: mark the bead in_progress so bd ready reflects the claim.
         try:
             subprocess.run(
@@ -305,7 +332,92 @@ def cmd_claim(args: argparse.Namespace) -> int:
         except (FileNotFoundError, subprocess.SubprocessError):
             pass
         print(f"CLAIMED {args.task} by {agent} (marker written; bead → in_progress)")
+        if gate.wards is not None:
+            w = gate.wards
+            print(
+                f"  wards: max_turns={w.max_turns} max_depth={w.max_depth} "
+                f"max_children={w.max_children} done_gate={w.done_gate} "
+                f"negative_spec={len(w.negative_spec)}"
+            )
         return 0
+
+
+def cmd_wards(args: argparse.Namespace) -> int:
+    """Build, show, or dry-run-check the WARDS stamp on a bead (illq.2)."""
+
+    root = _repo_root()
+    if args.action == "stamp":
+        try:
+            wards = for_gate_class(
+                args.gate_class,
+                negative_spec=args.negative or (),
+                permissions=args.permission or (),
+                **{k: v for k, v in {
+                    "max_turns": args.max_turns,
+                    "max_depth": args.max_depth,
+                    "max_children": args.max_children,
+                    "timeout_s": args.timeout_s,
+                }.items() if v is not None},
+            )
+        except ValueError as exc:
+            print(f"wards: {exc}")
+            return 1
+        errors = wards.errors()
+        if errors:
+            print("wards: stamp would be unbounded:")
+            for err in errors:
+                print(f"  - {err}")
+            return 1
+        line = format_stamp(wards)
+        if args.bead:
+            try:
+                proc = subprocess.run(
+                    ["bd", "comments", "add", args.bead, line],
+                    check=False, capture_output=True, text=True, timeout=15,
+                )
+            except (FileNotFoundError, subprocess.SubprocessError) as exc:
+                print(f"wards: could not post stamp via bd: {exc}")
+                print(line)
+                return 1
+            if proc.returncode != 0:
+                print(f"wards: bd refused the comment: {proc.stderr.strip()}")
+                print(line)
+                return 1
+            print(f"STAMPED {args.bead}")
+        print(line)
+        return 0
+
+    if not args.bead:
+        print("wards: a bead id is required")
+        return 1
+    track = load_bead_wards(args.bead)
+    if args.action == "show":
+        if track is None:
+            print(f"{args.bead}: no WARDS stamp (bd unavailable, or bead never stamped)")
+            return 1
+        import json as _json
+        print(_json.dumps(track.to_dict(), indent=2, sort_keys=True))
+        for err in track.errors():
+            print(f"  ! {err}")
+        return 0
+
+    # check: dry-run the claim gate without taking the claim.
+    try:
+        declared = load_declared_wards(root, args.wards)
+    except (OSError, ValueError) as exc:
+        print(f"REFUSED: declared wards unreadable: {exc}")
+        return 3
+    gate = claim_gate(track, declared)
+    if gate.errors:
+        print(f"WOULD-REFUSE {args.bead}:")
+        for err in gate.errors:
+            print(f"  - {err}")
+        return 3
+    if gate.wards is None:
+        print(f"WOULD-CLAIM {args.bead}: no track stamp and no declaration (unbounded — pre-illq.2 behaviour)")
+    else:
+        print(f"WOULD-CLAIM {args.bead} under {format_stamp(gate.wards)}")
+    return 0
 
 
 def cmd_coord(args: argparse.Namespace) -> int:
@@ -751,7 +863,31 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Agent identity (default: $SESSION_ID or main-checkout@host)")
     claim.add_argument("--db", default=None,
                        help="Coordination DB (default: shared $MAIN_REPO_ROOT/runs/runs.db)")
+    claim.add_argument("--wards", default=None,
+                       help="Declared wards: JSON or path (default: $AGENT_WARDS, then .agentgit/wards.json)")
+    claim.add_argument("--no-wards", action="store_true",
+                       help="Skip the ward gate (do not read the bead's WARDS stamp)")
     claim.set_defaults(func=cmd_claim)
+
+    wards = subparsers.add_parser(
+        "wards",
+        help="Build/show/check the WARDS stamp a dispatch round puts on a bead",
+    )
+    wards.add_argument("action", choices=["stamp", "show", "check"])
+    wards.add_argument("bead", nargs="?", default="", help="Bead id (stamp: post to it; show/check: read it)")
+    wards.add_argument("--gate-class", default="G1", choices=sorted(GATE_CLASS_DEFAULTS),
+                       help="bv-dispatch gate class; sets default turn/depth/children bounds")
+    wards.add_argument("--negative", action="append", default=None, metavar="TEXT",
+                       help="One insufficient outcome (repeatable) — the NEGATIVE SPEC")
+    wards.add_argument("--permission", action="append", default=None, metavar="TOKEN",
+                       help="Permission token the track grants (repeatable)")
+    wards.add_argument("--max-turns", type=int, default=None)
+    wards.add_argument("--max-depth", type=int, default=None)
+    wards.add_argument("--max-children", type=int, default=None)
+    wards.add_argument("--timeout-s", type=float, default=None)
+    wards.add_argument("--wards", default=None,
+                       help="check: declared wards JSON or path (default: $AGENT_WARDS, .agentgit/wards.json)")
+    wards.set_defaults(func=cmd_wards)
 
     coord = subparsers.add_parser(
         "coord",

@@ -200,7 +200,19 @@ def _min_opt(a: Optional[float], b: Optional[float]) -> Optional[float]:
 
 
 def compose(parent: WardSet, child: WardSet) -> ComposeResult:
-    """Compose ``child``'s declared wards under ``parent``.
+    """Compose a spawned ``child``'s declared wards under ``parent``.
+
+    Spawning consumes a level: the parent must be able to spawn and the
+    child's depth is capped at ``parent.max_depth - 1``. See
+    :func:`_compose` for the shared narrowing rules.
+    """
+
+    return _compose(parent, child, spawn=True)
+
+
+def _compose(parent: WardSet, child: WardSet, *, spawn: bool) -> ComposeResult:
+    """Shared narrowing. ``spawn=False`` is a peer running *under* the parent
+    (a claimant under a track stamp): no spawn check, no depth consumed.
 
     Order matters and mirrors Cantrip: the parent must be bounded and able
     to spawn; the child's *declaration* is checked against the parent's
@@ -214,7 +226,7 @@ def compose(parent: WardSet, child: WardSet) -> ComposeResult:
     """
 
     errors: List[str] = [f"parent: {e}" for e in parent.errors()]
-    if not errors and not parent.can_spawn:
+    if spawn and not errors and not parent.can_spawn:
         errors.append(
             f"parent may not spawn children (max_depth={parent.max_depth}, "
             f"max_children={parent.max_children})"
@@ -257,9 +269,10 @@ def compose(parent: WardSet, child: WardSet) -> ComposeResult:
 
     # Runtime composition. Depth is consumed by the level being spawned.
     parent_depth = parent.max_depth if parent.max_depth is not None else 0
+    depth_cap = parent_depth - 1 if spawn else parent_depth
     composed = WardSet(
         max_turns=int(_min_opt(parent.max_turns, child.max_turns) or 0) or None,
-        max_depth=int(_min_opt(parent_depth - 1, child.max_depth) or 0),
+        max_depth=int(_min_opt(depth_cap, child.max_depth) or 0),
         max_children=(
             None
             if parent.max_children is None and child.max_children is None
@@ -354,3 +367,175 @@ def compose_chain(root: WardSet, declarations: Sequence[WardSet]) -> ComposeResu
             return ComposeResult(None, [f"level {index + 1}: {e}" for e in result.errors])
         current = result.wards
     return ComposeResult(current, [])
+
+
+# ---------------------------------------------------------------------------
+# Dispatch stamps and the claim-time gate (bead illq.2)
+# ---------------------------------------------------------------------------
+#
+# The dispatcher (`/bv-dispatch` full mode) stamps each shortlisted bead with an
+# assignee-free rationale comment. Until now the NEGATIVE SPEC and gate class in
+# that stamp were prose the Auditor and retro had to grep. A stamp now carries
+# one machine-readable line, ``WARDS: {json}``, holding the track's WardSet.
+# ``/claim`` reads the latest such line and composes it with whatever the
+# claimant declares; a declaration that would widen the track's bounds is
+# refused before the claim is taken.
+
+import json as _json  # noqa: E402  (kept local to this section)
+import os as _os  # noqa: E402
+import subprocess as _subprocess  # noqa: E402
+from pathlib import Path as _Path  # noqa: E402
+from typing import Iterable  # noqa: E402
+
+STAMP_PREFIX = "WARDS:"
+DECLARED_WARDS_FILE = ".agentgit/wards.json"
+DECLARED_WARDS_ENV = "AGENT_WARDS"
+
+#: Gate class (bv-dispatch step 7) -> default runtime wards. Search aggression
+#: scales inversely with gate cost: a mechanical gate (G0) can afford many
+#: turns and children because a wrong answer dies cheaply; a judgment gate
+#: (G2) gets one conservative agent and no children.
+GATE_CLASS_DEFAULTS: Dict[str, Dict[str, Any]] = {
+    "G0": {"max_turns": 12, "max_depth": 1, "max_children": 4},
+    "G1": {"max_turns": 8, "max_depth": 1, "max_children": 2},
+    "G2": {"max_turns": 4, "max_depth": 0, "max_children": 0},
+}
+
+
+def for_gate_class(
+    gate_class: str,
+    *,
+    negative_spec: Sequence[str] = (),
+    permissions: Iterable[str] = (),
+    **overrides: Any,
+) -> WardSet:
+    """A bounded track WardSet from a dispatch gate class plus the negative spec."""
+
+    key = gate_class.upper()
+    if key not in GATE_CLASS_DEFAULTS:
+        raise ValueError(f"unknown gate class {gate_class!r}; expected one of {sorted(GATE_CLASS_DEFAULTS)}")
+    fields: Dict[str, Any] = dict(GATE_CLASS_DEFAULTS[key])
+    fields.update(overrides)
+    return WardSet(
+        permissions=frozenset(permissions),
+        negative_spec=tuple(negative_spec),
+        **fields,
+    )
+
+
+def format_stamp(wards: WardSet) -> str:
+    """The single ``WARDS: {...}`` line that goes into a rationale comment."""
+
+    return f"{STAMP_PREFIX} {_json.dumps(wards.to_dict(), sort_keys=True, separators=(',', ':'))}"
+
+
+def parse_stamp(text: str) -> Optional[WardSet]:
+    """The last well-formed ``WARDS:`` line in ``text``, or None.
+
+    Malformed lines are skipped, not raised: comments are untrusted input.
+    """
+
+    found: Optional[WardSet] = None
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith(STAMP_PREFIX):
+            continue
+        payload = stripped[len(STAMP_PREFIX):].strip()
+        try:
+            data = _json.loads(payload)
+        except _json.JSONDecodeError:
+            continue
+        if isinstance(data, dict):
+            try:
+                found = WardSet.from_dict(data)
+            except (TypeError, ValueError):
+                continue
+    return found
+
+
+def latest_stamp(comments: Iterable[str]) -> Optional[WardSet]:
+    """Latest parsable stamp across comments given oldest-first."""
+
+    found: Optional[WardSet] = None
+    for text in comments:
+        parsed = parse_stamp(text)
+        if parsed is not None:
+            found = parsed
+    return found
+
+
+def load_bead_wards(task_id: str, *, timeout: float = 15) -> Optional[WardSet]:
+    """Track wards from the bead's comments via ``bd comments <id> --json``.
+
+    Returns None when bd is unavailable, the bead has no stamp, or output is
+    unreadable: the claim gate then falls back to "no track bound declared",
+    which is the pre-illq.2 behaviour, so a missing bd never blocks a claim.
+    """
+
+    try:
+        proc = _subprocess.run(
+            ["bd", "comments", task_id, "--json"],
+            check=False, capture_output=True, text=True, timeout=timeout,
+        )
+    except (FileNotFoundError, _subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    try:
+        rows = _json.loads(proc.stdout or "[]")
+    except _json.JSONDecodeError:
+        return None
+    if not isinstance(rows, list):
+        return None
+    rows = sorted(
+        (r for r in rows if isinstance(r, dict)),
+        key=lambda r: str(r.get("created_at", "")),
+    )
+    return latest_stamp(str(r.get("text", "")) for r in rows)
+
+
+def load_declared_wards(repo_root: _Path, override: Optional[str] = None) -> Optional[WardSet]:
+    """What the claimant declares it will run under.
+
+    Sources, first hit wins: ``override`` (a JSON string or a path), the
+    ``AGENT_WARDS`` env var (same forms), then ``.agentgit/wards.json`` under
+    ``repo_root``. None means the claimant declares nothing and inherits the
+    track's bounds unchanged.
+    """
+
+    candidates = [override, _os.environ.get(DECLARED_WARDS_ENV)]
+    for raw in candidates:
+        if not raw:
+            continue
+        text = raw
+        path = _Path(raw)
+        if path.exists():
+            text = path.read_text()
+        data = _json.loads(text)
+        return WardSet.from_dict(data)
+    path = _Path(repo_root) / DECLARED_WARDS_FILE
+    if path.exists():
+        return WardSet.from_dict(_json.loads(path.read_text()))
+    return None
+
+
+def claim_gate(track: Optional[WardSet], declared: Optional[WardSet]) -> ComposeResult:
+    """What a claimant runs under, or why the claim is refused.
+
+    Refusal is ``result.errors`` being non-empty. ``result.wards`` may be None
+    with no errors when neither side declared anything (unbounded, the
+    pre-illq.2 behaviour), so callers must not use ``accepted`` here.
+
+    - No track stamp: nothing to enforce; the declaration (possibly None)
+      stands. This keeps unstamped beads claimable exactly as before.
+    - Track stamp, no declaration: the claimant inherits the track wards.
+    - Both: ``compose(track, declared)`` — refused if it would widen.
+    """
+
+    if track is None:
+        return ComposeResult(declared, [])
+    if declared is None:
+        return ComposeResult(track, track.errors())
+    # A claimant is a peer running under the track, not a child spawned by
+    # it: no spawn check, no depth consumed, every other dimension narrows.
+    return _compose(track, declared, spawn=False)

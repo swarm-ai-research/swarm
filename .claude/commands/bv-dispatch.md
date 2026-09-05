@@ -47,7 +47,11 @@ Arguments: $ARGUMENTS
      a lint/regex proxy job), benchmark numbers from a real invocation.
      Distinct from the rug audit: a rug is a cordoned mock cited as real; a
      phantom gate is a verification step everyone believes ran and never
-     did. Also audit blocked-bead reopenings: each must name the materially
+     did. Where the bead carries a `WARDS:` stamp, check the DONE against
+     that stamp's `negative_spec` list (`python -m swarm.agentgit wards show
+     <id>`) rather than against the prose; a "flag pinned, behaviour not
+     exercised" gate (Cantrip lesson 4) counts as phantom, one notch above
+     "job never dispatched". Also audit blocked-bead reopenings: each must name the materially
      new mechanism that justified reopening (see analysis step 6).
 
 Any text after the mode word is extra operator context — honor it.
@@ -157,7 +161,24 @@ The NEGATIVE SPEC lives in that rationale stamp: 2–3 bead-specific
 insufficient outcomes — the known cheats for that task class (e.g.
 "single-seed result presented as general", "mock numbers without cordon",
 "fix that loosens the assertion instead of the code"). The Auditor and retro
-verify against this list, not against generic rigor. For research beads in an
+verify against this list, not against generic rigor.
+
+**The stamp's last line is machine-readable (illq.2, Cantrip wards —
+docs/research/cantrip-runtime-lessons.md §1).** Generate it, never hand-write
+it:
+
+    python -m swarm.agentgit wards stamp --gate-class <G0|G1|G2> \
+        --negative "<insufficient outcome 1>" --negative "<outcome 2>" \
+        [--permission read --permission test ...] <bead-id>
+
+This posts `WARDS: {json}` to the bead: the gate class sets the turn/depth/
+children budget (G0 12/1/4, G1 8/1/2, G2 4/0/0 — aggression scales inversely
+with gate cost, step 7), permissions name what the track may do, and the
+negative spec is carried as a list. `/claim` composes that stamp with the
+claimant's own declaration and refuses a claim that would widen it (exit 3);
+the effective set lands in `.agentgit/current-claim.json`. Retro reads
+`negative_spec` from the stamp (`python -m swarm.agentgit wards show <id>`),
+not from prose. For research beads in an
 exploration round (approach registry active, step 6), the digest states the
 question and the track's assigned family but OMITS the currently favored
 route — independence first, cross-pollination after routes mature.
