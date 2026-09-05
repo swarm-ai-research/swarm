@@ -46,6 +46,14 @@ subjects were:
   1995 *Rugby World*.
 - **Trivia:** Vocabulary.com words-of-the-day; a wordfinder lookup.
 
+Two refinements from the paste-host caches (2026-09-05 reads). First, not every task was a
+single-figure lookup: some are **multi-step numerical-reasoning** items in a FinQA-style
+format — a question, an answer, and an explicit program trace (e.g. `Program: subtract(37.28,
+28.85), divide(#0, 28.85)` for a share-price growth rate), alongside sports-stats lookups
+(NBA three-point leaders via `basketball-reference.com`, Premier League standings). Second,
+these paste-host-cached items (`pastebin.k4be.pl`) do **not** appear in the dse wiki export —
+consistent with a separate *retrieval* track that used paste hosts rather than the wiki.
+
 **None of the subjects are sensitive, secret, or malicious.** What the tasks tested was
 retrieval against *access-hostile* public sources — image-only IIIF scans, POST-only
 dashboards, CORS-refusing JSON, rate-limited files, filtered dashboard views. That
