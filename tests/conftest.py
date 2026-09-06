@@ -2,6 +2,7 @@
 
 import functools
 import json
+import os
 import platform
 import resource
 import sys
@@ -32,6 +33,21 @@ def pytest_configure(config):
             file=sys.stderr,
         )
         raise SystemExit(1)
+
+    # git exports GIT_DIR / GIT_INDEX_FILE / GIT_WORK_TREE to hooks. If the suite
+    # runs from a hook (pre-push), every test that `git init`s a tmp_path and
+    # shells out inherits them and operates on the REAL repository instead:
+    # on 2026-09-06 this flipped the shared .git/config to core.bare=true and
+    # wrote a test identity into [user]. Strip them before any test runs.
+    for var in (
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_PREFIX",
+        "GIT_COMMON_DIR",
+        "GIT_OBJECT_DIRECTORY",
+    ):
+        os.environ.pop(var, None)
 
 
 @pytest.fixture(autouse=True, scope="session")

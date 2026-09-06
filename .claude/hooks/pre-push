@@ -9,8 +9,15 @@ if [[ "${SKIP_SWARM_HOOKS:-0}" == "1" ]]; then
   exit 0
 fi
 
-echo "[swarm pre-push] running CI checks (lint, typecheck, tests)"
-make ci
+# git exports GIT_DIR/GIT_INDEX_FILE/GIT_WORK_TREE (and, in a worktree, GIT_DIR
+# points at .git/worktrees/<name>) to hooks. Every subprocess below inherits
+# them, so tests that `git init` a tmp_path and shell out would silently run
+# against THIS repo instead ("fatal: this operation must be run in a work
+# tree"; one coordination test reached the real remote). Clear them first.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_COMMON_DIR GIT_OBJECT_DIRECTORY
+
+echo "[swarm pre-push] running CI checks (lint, typecheck, parallel tests)"
+make lint typecheck test-parallel
 
 # --- Main-parity checks (bead 9qrv.1, Joel Test Q3) ---
 # Direct pushes to main skip the PR gate by design (parallel multi-session
