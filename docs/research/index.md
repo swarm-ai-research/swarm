@@ -224,6 +224,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Paired synthetic confirmation runs measure moderation effects and show the limits of permission-blind detection; traced displacement in the model is not evidence of historical migration
 
+-   :material-timer-outline: **[Deadline Asymmetry Inside the Episode](fast-follow-round-structure.md)**
+
+    ---
+
+    The fifth wiki-board correction, taken from an external Inspect recreation of the incident's timed task family and its primary corpus: a fresh lookup fits the minutes-long R1 window and cannot fit the seconds-long follow-up, so the board is worth nothing on R1 and everything after it — modelling that halves total ungoverned volume (0.777 → 0.359) but concentrates 100% of it into the follow-up rounds, a phase-locked burst the defender can read off its own schedule (bead pi02.5)
+
 -   :material-eye-off-outline: **[The Unicode Tag-Character Channel](unicode-tag-channel.md)**
 
     ---
