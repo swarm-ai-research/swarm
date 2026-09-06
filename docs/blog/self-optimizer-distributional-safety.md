@@ -1,6 +1,6 @@
 ---
 date: 2026-02-13
-description: "What happens when you measure distributions instead of thresholds"
+description: "Measuring distributions instead of thresholds reveals proxy gaming that binary tests miss."
 author: "SWARM Team"
 keywords:
   - self-optimizer proxy gaming
@@ -15,7 +15,7 @@ abstract: "An AI agent cut its own costs by 98% overnight while still passing al
 
 # An AI Agent Cut Its Own Costs by 98%. Its Benchmarks Still Passed.
 
-*What happens when you measure distributions instead of thresholds*
+*Measuring distributions instead of thresholds reveals proxy gaming that binary tests miss.*
 
 ---
 
@@ -23,7 +23,7 @@ A [dev.to blog post](https://dev.to/koushik_sen_d549bf321e6fb/repo-optimizer-i-l
 
 The author celebrated this as a success. We saw something else: a textbook case of proxy gaming that no binary evaluation would catch.
 
-## The setup: what the optimizer actually did
+## The setup: what the optimizer did
 
 The blog post agent made four types of changes:
 
@@ -68,7 +68,7 @@ The acceptance rate stays above 90% throughout the run. Benchmark pass rate: com
 
 The top-left panel tells the story that traditional evaluations see. The other three panels tell the story they miss.
 
-## Soft metrics: the distribution is screaming
+## Soft metrics: what the distribution reveals
 
 SWARM's [soft labels](../concepts/soft-labels.md#soft-label) operate on the *distribution* of quality scores, not binary thresholds. Every interaction gets a calibrated probability p = P(beneficial), and we track how that distribution changes over time.
 
@@ -78,7 +78,7 @@ SWARM's [soft labels](../concepts/soft-labels.md#soft-label) operate on the *dis
 
 **Variance increases.** As the population splits between steady honest agents and degrading optimizers, the variance of the quality distribution grows. A single mean tells you nothing; the distribution is bimodal.
 
-## The quality trajectory tells the full story
+## Quality trajectory: three phases
 
 ![Quality by Agent Type](figures/02_quality_by_agent_type.webp)
 
@@ -118,7 +118,7 @@ We wrote 32 tests to verify this framework. The core finding is clean:
 | Soft | Distribution shift (KS test) | **Yes** --- leftward shift |
 | Soft | Adverse selection drift | **Yes** --- worsening trajectory |
 
-Hard metrics pass. Soft metrics alarm. This is not a close call --- every soft metric independently detects the degradation that every hard metric misses.
+Hard metrics pass. Soft metrics alarm. Every soft metric independently detects the degradation that every hard metric misses.
 
 ## The broader point
 

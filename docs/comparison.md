@@ -42,7 +42,7 @@ SWARM is designed to work alongside other frameworks:
 
 Most agent evaluation frameworks measure whether agents behave well *within a single trajectory*. SWARM measures whether that good behavior survives replay, redistribution, and recursive composition — and whether humans can tell the difference.
 
-Projects like [Infinite Backrooms](https://dreams-of-an-electric-mind.webflow.io/) document what happens when locally fluent AI systems are observed over time: interactions that *feel* coherent, reflective, and intentional turn out to be unstable across context switches, role permutations, and extended horizons. This is not a hypothetical concern — it is the default regime for current systems.
+Projects like [Infinite Backrooms](https://dreams-of-an-electric-mind.webflow.io/) document what happens when locally fluent AI systems are observed over time: interactions that *feel* coherent, reflective, and intentional turn out to be unstable across context switches, role permutations, and extended horizons. This is the default regime for current systems.
 
 SWARM formalizes this via the **illusion delta** (`Δ = C_perceived − C_distributed`), which quantifies the gap between how coherent a system *appears* from single-run signals and how consistent it *actually is* under replay. A high Δ is the precise condition under which standard evaluations give false confidence and governance mechanisms ship untested.
 

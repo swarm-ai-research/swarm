@@ -53,9 +53,9 @@ SWARM reveals the same dynamic in agent ecosystems. Below 37.5% adversarial agen
 
 Parameter tuning across three redteam variants shifted collapse from epoch 12 to 14 — buying two extra epochs but not survival. Just as a market maker can adjust spreads to delay but not prevent a liquidity crisis when the fraction of informed traders is too high, governance parameter optimization has diminishing returns beyond the critical threshold.
 
-## Why continuous labels matter
+## Continuous labels and adverse selection
 
-Standard safety evaluations label interactions as binary safe/unsafe. This throws away exactly the information you need to detect adverse selection.
+Standard safety evaluations label interactions as binary safe/unsafe, discarding exactly the information you need to detect adverse selection.
 
 Consider two interactions: one with 51% probability of being beneficial and one with 99%. Binary classification labels both "safe." But they have very different risk profiles. When your system accepts a stream of borderline interactions while rejecting none, the toxicity metric E[1-p | accepted] captures the accumulating risk. Binary labels cannot.
 
@@ -63,7 +63,7 @@ This is why financial markets price assets continuously instead of labeling them
 
 ## Implications
 
-**For AI system designers:** Borrow from financial regulation, not just content moderation. Content moderation is binary (remove/keep). Financial regulation is continuous, structural, and designed for adversarial environments with information asymmetry.
+**For AI system designers:** Borrow from financial regulation. Content moderation is binary (remove/keep), while financial regulation is continuous, structural, and designed for adversarial environments with information asymmetry.
 
 **For safety researchers:** The quality gap metric is a direct analogue of the bid-ask spread. When it's persistently elevated, the ecosystem is under adverse selection pressure. When it spikes, the governance mechanism is straining. These are early warning signals that binary metrics miss.
 
