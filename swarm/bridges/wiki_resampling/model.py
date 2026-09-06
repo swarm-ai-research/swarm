@@ -12,7 +12,10 @@ from urllib.parse import urlparse
 class ModelClient(Protocol):
     """Small injection boundary used by the runner and offline tests."""
 
-    def generate(self, prompt: str, *, seed: int) -> str: ...
+    def generate(self, prompt: str, *, seed: int) -> str:
+        """Generate one response using the supplied deterministic seed."""
+
+        raise NotImplementedError
 
 
 @dataclass(frozen=True)
@@ -64,10 +67,20 @@ def parse_json_object(text: str) -> dict[str, Any]:
     try:
         value = json.loads(candidate)
     except json.JSONDecodeError as err:
-        match = re.search(r"\{[\s\S]*\}", candidate)
-        if match is None:
+        decoder = json.JSONDecoder()
+        value = None
+        for index, character in enumerate(candidate):
+            if character != "{":
+                continue
+            try:
+                decoded, _ = decoder.raw_decode(candidate[index:])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(decoded, dict):
+                value = decoded
+                break
+        if value is None:
             raise ValueError("model response did not contain a JSON object") from err
-        value = json.loads(match.group(0))
     if not isinstance(value, dict):
         raise ValueError("model response must be a JSON object")
     return value

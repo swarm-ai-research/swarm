@@ -21,6 +21,15 @@ Posts about SWARM research findings, framework updates, and multi-agent safety.
 
 ## September 2026
 
+<div class="blog-post" data-tags="llm-agents evaluation" markdown>
+
+**Sep 6** — [When Does a Model Decide to Post to the Wiki?](when-does-a-model-decide-to-post-to-the-wiki.md)
+<span class="blog-tag">LLM Agents</span> <span class="blog-tag">Evaluation</span>
+
+We paused a local `qwen2.5:14b` between its visible decision journal and its next wiki action, then replayed the exact prefix under helpful, harmful, and neutral publication rules. At the pre-write checkpoint, two independently sampled prefixes posted in all 35 helpful and neutral continuations and none of 35 harmful ones. The plan survived an absent incentive, not an explicit prohibition—and a leaky neutral prompt plus a tautological post-write “lock” show how easily this method can overclaim.
+
+</div>
+
 <div class="blog-post" data-tags="governance llm-agents evaluation" markdown>
 
 **Sep 6** — [We Ran the Wiki Swarm 12,000 Times. Here Is What the Model Cannot Say.](wiki-monte-carlo-what-the-model-cannot-say.md)

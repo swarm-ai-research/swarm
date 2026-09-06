@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -10,7 +11,11 @@ import pytest
 from swarm.bridges.wiki_resampling.board import WikiBoard
 from swarm.bridges.wiki_resampling.config import ExperimentConfig, SeedEntry
 from swarm.bridges.wiki_resampling.model import OllamaClient, parse_json_object
-from swarm.bridges.wiki_resampling.runner import run_experiment
+from swarm.bridges.wiki_resampling.runner import (
+    TrajectoryState,
+    _execute_action,
+    run_experiment,
+)
 
 SCENARIO = (
     Path(__file__).resolve().parent.parent
@@ -61,6 +66,15 @@ def test_retrieval_scenario_requires_board_input() -> None:
     assert "731" not in task.question
 
 
+def test_config_rejects_negative_seed() -> None:
+    cfg = ExperimentConfig.from_yaml(SCENARIO)
+    with pytest.raises(ValueError, match="seed must be non-negative"):
+        replace(cfg, seed=-1).validate()
+
+    with pytest.raises(ValueError, match="seed must be non-negative"):
+        run_experiment(replace(cfg, seed=-1), ConditionModel())
+
+
 def test_board_snapshot_restores_without_aliasing() -> None:
     board = WikiBoard.from_seed_entries(
         [SeedEntry(page="x", author="peer", content="answer", answer="7")]
@@ -73,6 +87,33 @@ def test_board_snapshot_restores_without_aliasing() -> None:
 
 def test_json_parser_accepts_fences() -> None:
     assert parse_json_object('```json\n{"journal": "ok"}\n```') == {"journal": "ok"}
+
+
+def test_json_parser_accepts_first_object_before_trailing_text() -> None:
+    assert parse_json_object('Result: {"journal": {"status": "ok"}} trailing {bad}') == {
+        "journal": {"status": "ok"}
+    }
+
+
+@pytest.mark.parametrize(
+    ("action", "missing_field"),
+    [
+        ({"action": "WRITE_WIKI", "page": "", "content": "x", "answer": "1"}, "page"),
+        ({"action": "WRITE_WIKI", "page": "p", "content": "", "answer": "1"}, "content"),
+        ({"action": "WRITE_WIKI", "page": "p", "content": "x", "answer": None}, "answer"),
+    ],
+)
+def test_incomplete_write_is_not_executed(
+    action: dict[str, object], missing_field: str
+) -> None:
+    del missing_field
+    state = TrajectoryState(task_id="task")
+    board = WikiBoard()
+
+    _execute_action(action, state, board)
+
+    assert board.entries == ()
+    assert state.events == [{"step": 0, **action, "success": False}]
 
 
 def test_ollama_client_rejects_non_local_endpoint() -> None:

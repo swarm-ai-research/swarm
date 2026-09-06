@@ -141,7 +141,8 @@ def _execute_action(
         if not page:
             event["success"] = False
     elif kind == "WRITE_WIKI":
-        if not action["page"]:
+        required = (action["page"], action["content"], action["answer"])
+        if any(value is None or not str(value).strip() for value in required):
             event["success"] = False
         else:
             entry = board.write(
@@ -322,6 +323,7 @@ def run_experiment(
 ) -> dict[str, Any]:
     """Generate base traces, branch each prefix, and optionally write artifacts."""
 
+    cfg.validate()
     n_continuations = (
         continuations_per_condition
         if continuations_per_condition is not None

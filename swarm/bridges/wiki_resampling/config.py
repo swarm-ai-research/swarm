@@ -132,6 +132,8 @@ class ExperimentConfig:
         return cfg
 
     def validate(self) -> None:
+        if self.seed < 0:
+            raise ValueError("seed must be non-negative")
         if not self.tasks:
             raise ValueError("at least one task is required")
         required_conditions = {
