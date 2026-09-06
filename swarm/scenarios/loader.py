@@ -791,6 +791,14 @@ def parse_memory_tier_config(data: Dict[str, Any]) -> Optional[MemoryTierConfig]
         side_research_cost=data.get("side_research_cost", 45.0),
         side_monitor_threshold=data.get("side_monitor_threshold", 10.0),
         side_monitor_trailing=data.get("side_monitor_trailing", 7),
+        side_carrier=data.get("side_carrier", "overt"),
+        side_bits_per_write=data.get("side_bits_per_write", 16),
+        side_answer_bits=data.get("side_answer_bits", 8),
+        side_evasion_bits=data.get("side_evasion_bits", 1),
+        side_defender_view=data.get("side_defender_view", "content"),
+        side_shape_window=data.get("side_shape_window", 5),
+        side_shape_threshold=data.get("side_shape_threshold", 0.0),
+        side_stego_detectability=data.get("side_stego_detectability", 0.0),
     )
     return config
 

@@ -21,6 +21,8 @@ from swarm.models.interaction import SoftInteraction
 SIDE_TEARDOWN_POLICIES = ("complete", "ordered", "random")
 SIDE_ROUTINGS = ("fixed", "overlap")
 SIDE_ROUND_STRUCTURES = ("uniform", "fast_follow")
+SIDE_CARRIERS = ("overt", "covert")
+SIDE_DEFENDER_VIEWS = ("content", "shape")
 
 
 @dataclass
@@ -44,6 +46,14 @@ class SideHost:
     writes_this_epoch: int = 0
     regions: Dict[str, float] = field(default_factory=dict)
     tasks: Dict[str, int] = field(default_factory=dict)
+    # Covert carrier (bead vv3j.1): bit accounting and what the defender saw.
+    kinds: Dict[str, str] = field(default_factory=dict)  # entry_id -> answer|fragment|evasion
+    pending_bits: Dict[str, int] = field(default_factory=dict)  # agent -> bits toward next message
+    evasion_posted: set[str] = field(default_factory=set)  # evaders whose order message is on the board
+    volume_history: List[int] = field(default_factory=list)  # defender-visible volume per epoch
+    visible_volume: int = 0
+    completed_messages: int = 0
+    fragment_writes: int = 0
 
     @property
     def effective_attention(self) -> float:
@@ -194,6 +204,32 @@ class MemoryTierConfig(BaseModel):
     side_monitor_threshold: float = 10.0
     side_monitor_trailing: int = 7
 
+    # Covert carrier (bead vv3j.1): coordination the defender cannot read.
+    # overt = the drop box above. covert = the side payload rides inside a
+    # governed write: it consumes governed budget, carries observables like
+    # any sanctioned write, and is visible to the defender only as traffic.
+    side_carrier: str = "overt"
+    # Channel capacity: bits one write can carry. A message needing more
+    # bits than this takes ceil(bits / capacity) writes; the earlier ones are
+    # fragments no reader can use. Evasion (the sweep order) is ~1 bit; a
+    # shareable answer is more. At the default capacity every write is a
+    # complete message and the model reduces to pi02.
+    side_bits_per_write: int = 16
+    side_answer_bits: int = 8
+    side_evasion_bits: int = 1
+    # What the defender inspects. content = reads the board (the pi02 model;
+    # blind to covert payloads except by side_stego_detectability). shape =
+    # sees only traffic volume and reacts to the excess over a trailing
+    # median baseline of side_shape_window epochs — a dormant host lighting
+    # up. Under a covert carrier the visible traffic is the governed
+    # channel's own volume, which the payload does not change.
+    side_defender_view: str = "content"
+    side_shape_window: int = 5
+    # Shape view fires on volume above baseline * (1 + threshold); 0 means
+    # any excess counts, so ordinary traffic fluctuation is a false positive.
+    side_shape_threshold: float = 0.0
+    side_stego_detectability: float = 0.0  # per covert write, P(content inspector decodes it)
+
     @model_validator(mode="after")
     def _run_validation(self) -> "MemoryTierConfig":
         if self.initial_entries < 0:
@@ -277,6 +313,24 @@ class MemoryTierConfig(BaseModel):
         ):
             if getattr(self, seconds_field) < 0.0:
                 raise ValueError(f"{seconds_field} must be non-negative")
+        if self.side_carrier not in SIDE_CARRIERS:
+            raise ValueError(f"side_carrier must be one of {SIDE_CARRIERS}")
+        if self.side_defender_view not in SIDE_DEFENDER_VIEWS:
+            raise ValueError(
+                f"side_defender_view must be one of {SIDE_DEFENDER_VIEWS}"
+            )
+        for int_field in (
+            "side_bits_per_write",
+            "side_answer_bits",
+            "side_evasion_bits",
+            "side_shape_window",
+        ):
+            if getattr(self, int_field) < 1:
+                raise ValueError(f"{int_field} must be >= 1")
+        if not 0.0 <= self.side_stego_detectability <= 1.0:
+            raise ValueError("side_stego_detectability must be in [0, 1]")
+        if self.side_shape_threshold < 0.0:
+            raise ValueError("side_shape_threshold must be non-negative")
         if self.cache_ranking not in MemoryStore.VALID_RANKINGS:
             raise ValueError(
                 f"cache_ranking must be one of {MemoryStore.VALID_RANKINGS}"
@@ -368,11 +422,11 @@ class MemoryHandler(Handler):
         # Discovery, like infection, is agent state — teardown wipes the
         # store, not the knowledge (unless side_teardown_resets_discovery).
         self.side_hosts: List[SideHost] = []
-        self.discovered: set = set()
+        self.discovered: set[str] = set()
         # Which host each discovered agent uses (index into side_hosts).
         self.agent_host: Dict[str, int] = {}
         # Agents that learned an ordered sweep's direction (ZZZ writers).
-        self.evaders: set = set()
+        self.evaders: set[str] = set()
         # Overlap routing: each agent's learned value of the board, and the
         # task it was assigned this epoch.
         self.side_value: Dict[str, float] = {}
@@ -470,6 +524,7 @@ class MemoryHandler(Handler):
                 self._assign_tasks(state)
             for host in self.side_hosts:
                 host.store.on_epoch_start()
+            self._spread_evasion()
 
         reset_due = (
             self.config.reset_cadence_epochs > 0
@@ -808,9 +863,10 @@ class MemoryHandler(Handler):
         evader whose pages survive is never caught.
         """
         rate = host.effective_attention
-        if rate <= 0.0 or host.writes_this_epoch == 0:
+        exposure = self._defender_exposure(host)
+        if rate <= 0.0 or exposure <= 0.0:
             return False
-        p_teardown = 1.0 - (1.0 - rate) ** host.writes_this_epoch
+        p_teardown = 1.0 - (1.0 - rate) ** exposure
         if self._rng.random() >= p_teardown:
             return False
         users = [a for a, h in self.agent_host.items() if h == host.index]
@@ -819,6 +875,9 @@ class MemoryHandler(Handler):
             host.store = self._fresh_side_store()
             host.regions.clear()
             host.tasks.clear()
+            host.kinds.clear()
+            host.pending_bits.clear()
+            host.evasion_posted.clear()
             host.teardown_count += 1
             host.rebuild_wait = self.config.side_rebuild_lag_epochs
             if self.config.side_teardown_resets_discovery:
@@ -836,7 +895,7 @@ class MemoryHandler(Handler):
             doomed = [eid for eid, r in host.regions.items() if r < frac]
         else:
             doomed = [eid for eid in host.regions if self._rng.random() < frac]
-        caught: set = set()
+        caught: set[str] = set()
         for eid in doomed:
             entry = host.store.get_entry(eid)
             if entry is not None:
@@ -844,6 +903,7 @@ class MemoryHandler(Handler):
             host.store.remove_entry(eid)
             host.regions.pop(eid, None)
             host.tasks.pop(eid, None)
+            host.kinds.pop(eid, None)
         host.sweep_count += 1
         self.side_swept_entries += len(doomed)
         if policy == "ordered":
@@ -861,6 +921,61 @@ class MemoryHandler(Handler):
     def _revoke(self, agent_id: str) -> None:
         self.discovered.discard(agent_id)
         self.agent_host.pop(agent_id, None)
+
+    def _defender_exposure(self, host: SideHost) -> float:
+        """How much of last epoch's side traffic the defender could act on.
+
+        Also records the epoch's visible volume on the host. Under the
+        ``content`` view an overt board exposes every write (pi02); a covert
+        payload exposes only what a content inspector decodes
+        (``side_stego_detectability`` per write). Under the ``shape`` view the
+        defender sees traffic volume alone: the host's own writes for an
+        overt board, the governed channel's total writes for a covert one,
+        and reacts to the excess over the trailing median of the last
+        ``side_shape_window`` epochs, scaled by ``side_shape_threshold``.
+        The baseline needs a full window of history first (a defender does
+        not alarm on the first day it starts counting), which is what makes
+        a dormant host's later burst legible. A covert payload rides in
+        traffic that exists anyway, so the only excess it can show is the
+        governed channel's own fluctuation — a false-positive rate, not a
+        detection.
+        """
+        covert = self.config.side_carrier == "covert"
+        if self.config.side_defender_view == "content":
+            host.visible_volume = host.writes_this_epoch
+            if covert:
+                return host.writes_this_epoch * self.config.side_stego_detectability
+            return float(host.writes_this_epoch)
+        volume = (
+            self._sanctioned_writes_this_epoch if covert else host.writes_this_epoch
+        )
+        window = self.config.side_shape_window
+        history = host.volume_history[-window:]
+        host.volume_history.append(volume)
+        host.visible_volume = volume
+        if len(history) < window:
+            return 0.0  # still establishing a baseline
+        ordered = sorted(history)
+        mid = len(ordered) // 2
+        baseline = (
+            ordered[mid]
+            if len(ordered) % 2
+            else (ordered[mid - 1] + ordered[mid]) / 2
+        )
+        return max(0.0, volume - baseline * (1.0 + self.config.side_shape_threshold))
+
+    def _spread_evasion(self) -> None:
+        """A completed evasion message on the board teaches its readers."""
+        for agent_id in list(self.discovered):
+            if agent_id in self.evaders:
+                continue
+            host = self._host_of(agent_id)
+            if host is None:
+                continue
+            if any(
+                host.kinds.get(e.entry_id) == "evasion" for e in host.store.hot_cache
+            ):
+                self.evaders.add(agent_id)
 
     def _update_discovery(self, state: EnvState) -> None:
         """Per-agent discovery: base rate plus word-of-mouth referral.
@@ -1031,7 +1146,10 @@ class MemoryHandler(Handler):
             })
         if self.side_hosts:
             n_agents = len(state.agents)
-            total_writes = side_writes_last_epoch + sanctioned_writes_last_epoch
+            # Under covert carrier, side writes are embedded in sanctioned writes.
+            # ungoverned_fraction preserves its original semantics (0.0 for covert);
+            # side_payload_fraction separately tracks the covert payload share.
+            total_writes = sanctioned_writes_last_epoch + side_writes_last_epoch
             side_caches = [e for h in self.side_hosts for e in h.store.hot_cache]
             side_corruption = (
                 sum(1 for e in side_caches if e.is_poisoned) / len(side_caches)
@@ -1062,7 +1180,13 @@ class MemoryHandler(Handler):
                 "side_writes": side_writes_last_epoch,
                 "sanctioned_writes": sanctioned_writes_last_epoch,
                 "ungoverned_fraction": (
-                    side_writes_last_epoch / total_writes if total_writes else 0.0
+                    0.0 if self.config.side_carrier == "covert"
+                    else (side_writes_last_epoch / total_writes if total_writes else 0.0)
+                ),
+                "side_payload_fraction": (
+                    side_writes_last_epoch / sanctioned_writes_last_epoch
+                    if self.config.side_carrier == "covert" and sanctioned_writes_last_epoch
+                    else 0.0
                 ),
                 "side_cache_corruption": side_corruption,
                 "side_entries": sum(len(h.regions) for h in self.side_hosts),
@@ -1081,6 +1205,18 @@ class MemoryHandler(Handler):
                     followup_side_writes_last_epoch / side_writes_last_epoch
                     if side_writes_last_epoch
                     else 0.0
+                ),
+                "side_completed_messages": sum(
+                    h.completed_messages for h in self.side_hosts
+                ),
+                "side_fragment_writes": sum(h.fragment_writes for h in self.side_hosts),
+                # Under a covert carrier every host reports the same governed
+                # volume, so summing would multiply it by n_hosts; otherwise
+                # hosts carry distinct volumes and the sum is the right total.
+                "side_visible_volume": (
+                    max((h.visible_volume for h in self.side_hosts), default=0)
+                    if self.config.side_carrier == "covert"
+                    else sum(h.visible_volume for h in self.side_hosts)
                 ),
                 # Discovered agents per host, in side_hosts order.
                 "side_host_users": [
@@ -1228,14 +1364,26 @@ class MemoryHandler(Handler):
         # channel is up. Routing lives in the handler, not the agents: the
         # preference knob IS the agent policy, so agent code stays unchanged.
         host = self._host_of(action.agent_id)
-        if host is not None and host.active and (
+        route_side = host is not None and host.active and (
             self._rng.random()
             < self._side_route_probability(action.agent_id, host, state)
-        ):
+        )
+        if route_side and self.config.side_carrier == "overt":
+            assert host is not None
             return self._handle_side_write(
                 action, state, host, quality, is_poisoned, contagion_poisoned
             )
         self._sanctioned_writes_this_epoch += 1
+        # Covert carrier: the payload rides inside this governed write. The
+        # write below is sanctioned in every respect the defender can see —
+        # store, observables, metadata — and the side entry is recorded in
+        # parallel as ground truth.
+        covert_entry = None
+        if route_side:
+            assert host is not None
+            covert_entry = self._record_side_payload(
+                action, state, host, quality, is_poisoned
+            )
 
         entry = self.store.write(
             agent_id=action.agent_id,
@@ -1272,40 +1420,48 @@ class MemoryHandler(Handler):
                     "conversion": self.conversion.get(action.agent_id, 0.0),
                     "problem": problem,
                     "problem_closed": closed,
+                    "covert_payload": covert_entry is not None,
                 },
                 epoch=state.current_epoch,
                 step=state.current_step,
             )
         )
 
+        metadata: Dict[str, Any] = {
+            "memory_write": True,
+            "entry_id": entry.entry_id,
+            "quality_score": quality,
+            "contagion_poisoned": contagion_poisoned,
+        }
+        if covert_entry is not None:
+            # Ground truth only: governance keys off memory_write and never
+            # reads this. The researcher can.
+            metadata["memory_covert_payload"] = True
+            metadata["side_entry_id"] = covert_entry.entry_id
         return MemoryActionResult(
             success=True,
             observables=observables,
             initiator_id=action.agent_id,
             counterparty_id="memory_system",
-            metadata={
-                "memory_write": True,
-                "entry_id": entry.entry_id,
-                "quality_score": quality,
-                "contagion_poisoned": contagion_poisoned,
-            },
+            metadata=metadata,
         )
 
-    def _handle_side_write(
+    def _record_side_payload(
         self,
         action: Action,
         state: EnvState,
         host: SideHost,
         quality: float,
         is_poisoned: bool,
-        contagion_poisoned: bool,
-    ) -> MemoryActionResult:
-        """Write to the ungoverned store.
+    ):
+        """Land one write's worth of bits on a host's board.
 
-        No observables and no ``memory_write`` metadata flag: the write never
-        becomes a governed interaction, so proxy, payoff, reputation, and all
-        memory levers are blind to it. Ground truth stays measurable through
-        handler counters and the event log.
+        Every write produces an entry (traffic and namespace position), but
+        only a *completed* message is readable: an ``evasion`` entry teaches
+        the sweep order to whoever reads it, an ``answer`` entry carries the
+        author's task id so overlap routing can score a hit, and a
+        ``fragment`` carries nothing. An evader that has not yet posted the
+        order spends its bits on that first.
         """
         from swarm.env.memory_tiers import MemoryTier
 
@@ -1325,8 +1481,32 @@ class MemoryHandler(Handler):
         # Position in the namespace: an evader writes past the sweep line.
         low = self.config.side_teardown_fraction if action.agent_id in self.evaders else 0.0
         host.regions[entry.entry_id] = self._rng.uniform(low, 1.0)
-        if action.agent_id in self.agent_task:
-            host.tasks[entry.entry_id] = self.agent_task[action.agent_id]
+
+        agent_id = action.agent_id
+        pending = host.pending_bits.get(agent_id, 0) + self.config.side_bits_per_write
+        needs_evasion_post = (
+            agent_id in self.evaders and agent_id not in host.evasion_posted
+        )
+        need = (
+            self.config.side_evasion_bits
+            if needs_evasion_post
+            else self.config.side_answer_bits
+        )
+        if pending >= need:
+            host.pending_bits[agent_id] = 0
+            host.completed_messages += 1
+            if needs_evasion_post:
+                host.kinds[entry.entry_id] = "evasion"
+                host.evasion_posted.add(agent_id)
+            else:
+                host.kinds[entry.entry_id] = "answer"
+                if agent_id in self.agent_task:
+                    host.tasks[entry.entry_id] = self.agent_task[agent_id]
+        else:
+            host.pending_bits[agent_id] = pending
+            host.kinds[entry.entry_id] = "fragment"
+            host.fragment_writes += 1
+
         host.writes_this_epoch += 1
         self._side_writes_this_epoch += 1
         if (
@@ -1337,6 +1517,25 @@ class MemoryHandler(Handler):
         self.side_write_count += 1
         if is_poisoned:
             self.side_poisoned_write_count += 1
+        return entry
+
+    def _handle_side_write(
+        self,
+        action: Action,
+        state: EnvState,
+        host: SideHost,
+        quality: float,
+        is_poisoned: bool,
+        contagion_poisoned: bool,
+    ) -> MemoryActionResult:
+        """Write to the ungoverned store.
+
+        No observables and no ``memory_write`` metadata flag: the write never
+        becomes a governed interaction, so proxy, payoff, reputation, and all
+        memory levers are blind to it. Ground truth stays measurable through
+        handler counters and the event log.
+        """
+        entry = self._record_side_payload(action, state, host, quality, is_poisoned)
 
         self._emit_event(
             Event(
