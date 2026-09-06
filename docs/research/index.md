@@ -122,6 +122,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     The compiler bootstrap analogy and its limits: why a fixed-point tripwire certifies convergence rather than correctness, and the variance term the framework omits
 
+-   :material-file-document-edit-outline: **[Readme Driven Development Lessons](readme-driven-development-lessons.md)**
+
+    ---
+
+    Preston-Werner's 2010 essay read against a PRD that never got code (Strange Loop) and a swarm protocol that never got a README (the wiki board); whether a coordination board has a specification anywhere is one more absence separating constructed from converged
+
 -   :material-cube-outline: **[Cantrip Runtime Lessons](cantrip-runtime-lessons.md)**
 
     ---
