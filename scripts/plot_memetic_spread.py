@@ -291,7 +291,7 @@ def plot_whistleblowers(rows: list, series_rows: list, out_dir: Path) -> None:
         for col, detection in enumerate(["off", "on"]):
             ax = axes[row][col]
             for fraction in fractions:
-                per_epoch = acc[(ranking, detection, fraction)]
+                per_epoch = acc[(ranking, detection, cadence, fraction)]
                 epochs = sorted(per_epoch)
                 if not epochs:
                     continue

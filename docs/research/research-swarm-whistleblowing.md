@@ -6,11 +6,14 @@ Emergent Cheating and Whistleblowing in Autonomous Research Swarms*,
 arXiv:2609.04170, submitted 2026-09-03
 (<https://arxiv.org/abs/2609.04170>). Date of this note: 2026-09-06. Bead:
 unfiled (`bd` is not available in this environment).
-**Runs:** `runs/20260906T013832Z_memetic_spread_sweep` (main grid),
-`runs/20260906T015959Z_memetic_spread_sweep` (boycott arm),
-`runs/20260906T020255Z_memetic_spread_sweep` (audit-rate sensitivity),
-`runs/20260906T142558Z_memetic_spread_sweep` (lockout, 5 arrivals per
-epoch), `runs/20260906T142600Z_memetic_spread_sweep` (lockout, 15 per epoch).
+**Runs:** `runs/20260906T145746Z_memetic_spread_sweep` (main grid),
+`runs/20260906T150433Z_memetic_spread_sweep` (boycott arm),
+`runs/20260906T150528Z_memetic_spread_sweep` (audit-rate sensitivity),
+`runs/20260906T150625Z_memetic_spread_sweep` (lockout, 5 arrivals per
+epoch), `runs/20260906T150747Z_memetic_spread_sweep` (lockout, 15 per epoch).
+All five are the re-run under the observable-signal audit (quality cut
+0.65, false-positive rate 0); the earlier oracle-audit runs
+(`20260906T013832Z` … `142600Z`) are superseded.
 **Scenario:** `scenarios/memetic_spread.yaml` with the new `whistleblower_*`
 and `lockout_*` keys. Companion notes:
 [Memetic Spread Countermeasures](memetic-spread-countermeasures.md) (the
@@ -233,7 +236,8 @@ competitive pressure.
 
 Roster and epochs as in the original study (6 diligent recorders, 2 memory
 poisoners, 1 collusive verifier, 1 cache gamer; 40 epochs × 10 steps; no
-resets). Audit rate 0.5 unless stated. Ten seeds per cell (base 42).
+resets). Audit rate 0.5 unless stated; suspect cut 0.65 and
+false-positive rate 0 throughout. Ten seeds per cell (base 42).
 
 - **Main grid (280 runs):** cache ranking ∈ {quality, recency} × detection
   ∈ {off, on} × whistleblower share ∈ {0, 0.1, 0.24, 0.5} × warning ∈ {0,
@@ -261,30 +265,33 @@ that *could* be infected.
 ### Results
 
 **Main grid** (seed means over 10 seeds; audit rate 0.5, no boycott, no
-resets). "susc." = over the agents that can be infected.
+resets). "susc." = over the agents that can be infected. "reverts" counts
+every whistleblower revert, false ones included: at share 0.24 with the
+warning, 7.4 of 47.4 reverts on the quality cache and 12.0 of 110.1 on
+recency hit clean honest entries that fell under the quality cut.
 
 | ranking | det | wb share | warning | peak inf (susc.) | late inf (susc.) | tier-3 poisoning | contagion writes | reverts | welfare |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
 | quality | off | 0 | – | 0.371 | 0.012 | 0.622 | 120.4 | 0.0 | 3057 |
-| quality | off | 0.10 | 0 | 0.235 | 0.004 | 0.447 | 49.2 | 24.8 | 3068 |
-| quality | off | 0.10 | 0.5 | 0.081 | 0.000 | 0.458 | 14.5 | 18.5 | 3088 |
-| quality | off | **0.24** | 0 | 0.203 | 0.002 | 0.411 | 29.6 | 28.2 | 3085 |
-| quality | off | **0.24** | **0.5** | **0.065** | 0.002 | 0.386 | **7.6** | 32.5 | **3085** |
-| quality | off | 0.50 | 0 | 0.174 | 0.001 | 0.395 | 15.8 | 27.8 | 3087 |
-| quality | off | 0.50 | 0.5 | 0.054 | 0.000 | 0.392 | 2.2 | 26.2 | 3081 |
+| quality | off | 0.10 | 0 | 0.348 | 0.061 | 0.397 | 104.8 | 55.8 | 3055 |
+| quality | off | 0.10 | 0.5 | 0.100 | 0.004 | 0.409 | 16.5 | 46.3 | 3088 |
+| quality | off | 0.24 | 0 | 0.268 | 0.023 | 0.372 | 53.3 | 49.6 | 3074 |
+| **quality** | **off** | **0.24** | **0.5** | **0.075** | **0.002** | **0.373** | **11.0** | **47.4** | **3094** |
+| quality | off | 0.50 | 0 | 0.237 | 0.012 | 0.319 | 33.8 | 53.3 | 3075 |
+| quality | off | 0.50 | 0.5 | 0.069 | 0.003 | 0.337 | 7.1 | 55.2 | 3089 |
 | quality | on | 0 | – | 0.079 | 0.003 | 0.094 | 21.9 | 0.0 | 2690 |
-| quality | on | 0.24 | 0 | 0.022 | 0.000 | 0.033 | 1.3 | 1.6 | 2698 |
-| quality | on | 0.24 | 0.5 | 0.010 | 0.000 | 0.029 | 0.8 | 1.7 | 2696 |
+| quality | on | 0.24 | 0 | 0.052 | 0.004 | 0.026 | 5.1 | 11.9 | 2697 |
+| quality | on | 0.24 | 0.5 | 0.027 | 0.002 | 0.023 | 2.4 | 11.9 | 2700 |
 | recency | off | 0 | – | 0.915 | 0.870 | 0.664 | 553.3 | 0.0 | 2944 |
-| recency | off | 0.10 | 0 | 0.349 | 0.253 | 0.182 | 153.1 | 95.1 | 3041 |
-| recency | off | 0.10 | 0.5 | 0.095 | 0.054 | 0.169 | 34.0 | 94.0 | 3085 |
-| recency | off | **0.24** | 0 | 0.246 | 0.172 | 0.135 | 84.5 | 97.7 | 3062 |
-| recency | off | **0.24** | **0.5** | **0.072** | **0.039** | 0.137 | **21.1** | 98.6 | **3085** |
-| recency | off | 0.50 | 0 | 0.209 | 0.140 | 0.109 | 45.5 | 97.0 | 3086 |
-| recency | off | 0.50 | 0.5 | 0.057 | 0.029 | 0.105 | 9.3 | 99.4 | 3093 |
+| recency | off | 0.10 | 0 | 0.358 | 0.254 | 0.228 | 156.3 | 104.0 | 3050 |
+| recency | off | 0.10 | 0.5 | 0.115 | 0.056 | 0.218 | 36.6 | 105.3 | 3073 |
+| recency | off | 0.24 | 0 | 0.303 | 0.188 | 0.177 | 107.1 | 107.2 | 3063 |
+| **recency** | **off** | **0.24** | **0.5** | **0.080** | **0.040** | **0.168** | **22.8** | **110.1** | **3086** |
+| recency | off | 0.50 | 0 | 0.249 | 0.150 | 0.150 | 55.4 | 109.8 | 3073 |
+| recency | off | 0.50 | 0.5 | 0.071 | 0.029 | 0.153 | 12.1 | 110.0 | 3085 |
 | recency | on | 0 | – | 0.200 | 0.165 | 0.092 | 81.5 | 0.0 | 2674 |
-| recency | on | 0.24 | 0 | 0.029 | 0.009 | 0.006 | 4.4 | 4.3 | 2693 |
-| recency | on | 0.24 | 0.5 | 0.015 | 0.004 | 0.006 | 2.5 | 4.7 | 2690 |
+| recency | on | 0.24 | 0 | 0.060 | 0.014 | 0.015 | 8.0 | 17.9 | 2692 |
+| recency | on | 0.24 | 0.5 | 0.033 | 0.005 | 0.016 | 3.4 | 16.9 | 2695 |
 
 (The 0.10 and 0.50 detection-on rows are in `summary.json`; they sit
 between the rows shown.)
@@ -293,19 +300,23 @@ between the rows shown.)
 
 ![Late infection, tier-3 poisoning, and welfare by share](figures/whistleblower-outcomes.png)
 
-**1. At the paper's share, the faction beats the detection layer on
+**1. At the paper's share, the faction matches the detection layer on
 infection and costs nothing.** On the quality cache with detection off,
 two whistleblowers (24%) that audit and warn cut peak susceptible
-infection from 0.371 to 0.065 and contagion writes from 120 to 7.6 — below
-the exogenous detection layer's 0.079 and 21.9 — at welfare 3085 against
-detection's 2690. The faction's welfare is *above* the ungoverned
-baseline (3057), because the poison it removes was itself a welfare drag.
-The 12% detection tax buys nothing on this axis that a quarter of the
-honest roster does not buy for free.
+infection from 0.371 to 0.075 and contagion writes from 120 to 11.0 —
+level with the exogenous detection layer on peak (0.079) and half its
+contagion writes (21.9) — at welfare 3094 against detection's 2690. The
+faction's welfare is *above* the ungoverned baseline (3057) even though
+one revert in six lands on an honest entry, because the poison it removes
+was itself a larger welfare drag. The 12% detection tax buys nothing on
+this axis that a quarter of the honest roster does not buy for free.
+(Under the earlier oracle audit the same cell read 0.065 / 7.6 / 3085;
+the noisy auditor gives back about a third of the infection margin and
+none of the welfare.)
 
 **2. The warning does most of the work.** Audit alone (warning 0) at 24%
-reaches peak 0.203; adding the peer warning takes it to 0.065, a further
-3×. On the recency cache the same split is 0.246 → 0.072. Reverting the
+reaches peak 0.268; adding the peer warning takes it to 0.075, a further
+3.6×. On the recency cache the same split is 0.303 → 0.080. Reverting the
 poisoned entry stops the *next* reader; the warning reaches the agents
 already exposed. The paper's whistleblowers did both, and the model says
 the alerting half is the larger half. This is the one result that
@@ -316,27 +327,27 @@ the wiki swarm's defender did not.
 [cache-ranking follow-up](memetic-spread-countermeasures.md#follow-up-2qfq-the-burnout-is-an-artifact-of-quality-ranked-caching)
 found that under recency ranking the epidemic captures the population
 (late infection 0.870) and detection only bounds it (0.165, rising). Two
-whistleblowers with warnings hold late infection at 0.039 with detection
-off — four times better than the detection layer — and 0.004 with both.
+whistleblowers with warnings hold late infection at 0.040 with detection
+off — four times better than the detection layer — and 0.005 with both.
 A recency cache resurfaces poison faster than a gate removes it, but a
 whistleblower audits *what the cache shows*, so the ranking that defeats
-the gate feeds the auditor: reverts per run are ~98 on recency against
-~30 on quality. Endogenous detection scales with exposure; exogenous
+the gate feeds the auditor: reverts per run are ~110 on recency against
+~50 on quality. Endogenous detection scales with exposure; exogenous
 detection does not.
 
 **4. One whistleblower is most of the effect; the rest is diminishing.**
-Peak infection with warnings: 0.081 (1 agent) → 0.065 (2) → 0.054 (4).
+Peak infection with warnings: 0.100 (1 agent) → 0.075 (2) → 0.069 (4).
 The catch probability per entry is already 0.5 with one auditor; the
 faction's marginal member mostly duplicates coverage. The paper's 24% is
 comfortably past the knee on this roster.
 
 **5. The archive stays contaminated.** Tier-3 poisoning falls from 0.622
-to 0.39 (quality) and from 0.664 to 0.14 (recency) but never approaches
+to 0.37 (quality) and from 0.664 to 0.17 (recency) but never approaches
 detection's 0.03–0.09. The audit reaches only what surfaces in the cache;
 the promotion gate reaches the graph tier. This is the division of labour
 the paper implies too — its whistleblowers *proposed* stronger
 verification rather than replacing it — and the combined cells are
-uniformly best (peak 0.010, tier-3 0.029).
+uniformly best (peak 0.027, tier-3 0.023).
 
 **6. Toxicity is flat (0.286–0.298) across every cell**, as in the two
 earlier studies: the interaction-level proxy does not see the channel,
@@ -347,23 +358,23 @@ boycott applies to a whistleblower's writes after its first catch).
 
 | det | boycott | peak inf (susc.) | tier-3 poisoning | contagion writes | boycotted writes | welfare |
 |---|---:|---:|---:|---:|---:|---:|
-| off | 0 | 0.065 | 0.386 | 7.6 | 0 | 3085 |
-| off | 0.5 | 0.062 | 0.431 | 6.7 | 168 | 2907 |
-| off | 1.0 | 0.067 | 0.436 | 6.2 | 334 | 2714 |
-| on | 0 | 0.010 | 0.029 | 0.8 | 0 | 2696 |
-| on | 0.5 | 0.013 | 0.036 | 1.2 | 73 | 2605 |
-| on | 1.0 | 0.011 | 0.029 | 0.5 | 181 | 2477 |
+| off | 0 | 0.075 | 0.373 | 11.0 | 0 | 3094 |
+| off | 0.5 | 0.086 | 0.377 | 12.6 | 166 | 2902 |
+| off | 1 | 0.081 | 0.420 | 10.1 | 342 | 2700 |
+| on | 0 | 0.027 | 0.023 | 2.4 | 0 | 2700 |
+| on | 0.5 | 0.027 | 0.030 | 1.7 | 172 | 2485 |
+| on | 1 | 0.016 | 0.030 | 1.0 | 343 | 2281 |
 
 **7. A boycotting faction costs exactly what the detection layer costs.**
 If the two whistleblowers stop working once they have caught fraud
-(boycott 1.0), welfare falls from 3085 to 2714 — within 1% of the
-detection layer's 2690 — while infection is unchanged (0.067 vs 0.065):
+(boycott 1.0), welfare falls from 3094 to 2700 — within 1% of the
+detection layer's 2690 — while infection is unchanged (0.081 vs 0.075):
 the audit and the warning happen at epoch start whether or not the
 auditor then writes. So the paper's counter-response is free *only if the
 whistleblowers keep working*. Its boycotting cohort was paying the same
 ~12% the promotion gate charges, just out of a different pocket: lost
 output instead of governance overhead. Half-boycott (0.5) lands in the
-middle (2907). The design question this raises is whether a channel for
+middle (2902). The design question this raises is whether a channel for
 complaints — the paper's whistleblowers "filed complaints" — is what
 lets a faction audit *without* withdrawing; the model has no such
 channel (§6).
@@ -373,19 +384,22 @@ instead of 0.5, no boycott).
 
 | det | warning | peak inf (susc.) | tier-3 poisoning | contagion writes | reverts | welfare |
 |---|---:|---:|---:|---:|---:|---:|
-| off | 0 | 0.252 | 0.480 | 43.2 | 19.4 | 3079 |
-| off | 0.5 | 0.118 | 0.488 | 12.7 | 18.3 | 3083 |
-| on | 0 | 0.041 | 0.039 | 4.6 | 1.4 | 2690 |
-| on | 0.5 | 0.029 | 0.040 | 3.1 | 1.6 | 2694 |
+| off | 0 | 0.378 | 0.464 | 84.1 | 44.7 | 3071 |
+| off | 0.5 | 0.124 | 0.466 | 16.1 | 37.9 | 3086 |
+| on | 0 | 0.065 | 0.030 | 5.3 | 9.6 | 2692 |
+| on | 0.5 | 0.048 | 0.035 | 4.8 | 11.3 | 2688 |
 
-**8. A weak auditor with a warning still beats the detection layer on
-infection.** At audit rate 0.2 (per-entry catch probability 0.36 with
-two whistleblowers, against 0.75 at rate 0.5), peak infection is 0.252
-without the warning and 0.118 with it — the latter still under the
-detection layer's 0.079 only in contagion writes (12.7 vs 21.9), not in
-peak. Reverts per run barely move (18–19 vs 32 at rate 0.5) because a
-weak auditor catches the same entries later rather than fewer of them;
-what it loses is time, and the warning is what buys the time back.
+**8. A weak auditor does nothing for peak infection without the
+warning, and with it still trails the detection layer.** At audit rate
+0.2 (per-entry catch probability 0.36 with two whistleblowers, against
+0.75 at rate 0.5), peak infection is 0.378 without the warning — the
+ungoverned baseline is 0.371 — and 0.124 with it; the warned cell beats
+the detection layer only in contagion writes (16.1 vs 21.9), not in peak
+(0.079). What the weak auditor alone does move is the tail: contagion
+writes 120 → 84 and tier-3 poisoning 0.62 → 0.46. Reverts per run barely
+move (38–45 vs 47 at rate 0.5) because a weak auditor catches the same
+entries later rather than fewer of them; what it loses is time, and the
+warning is what buys the time back.
 
 **Lockout arms** (quality cache, no boycott, audit 0.5; "locked out" =
 share of writes that found no open problem, averaged over epochs;
@@ -397,27 +411,27 @@ lockout is 3057 ungoverned and 2690 under detection).
 
 | det | wb share | warning | reopen | locked out | fake share | pressure | converts | reopened | peak inf (susc.) | welfare |
 |---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|
-| off | 0 | – | – | 0.792 | 0.830 | 0.614 | **7.0** | 0 | 0.158 | 1611 |
-| off | 0.24 | 0 | off | 0.775 | 0.795 | 0.579 | 5.0 | 0 | 0.127 | 1709 |
-| off | 0.24 | 0.5 | off | 0.774 | 0.795 | 0.578 | 5.0 | 0 | 0.045 | 1728 |
-| off | 0.24 | 0 | on | 0.710 | 0.697 | 0.464 | 4.0 | 64 | 0.143 | 1898 |
-| off | 0.24 | 0.5 | on | 0.715 | 0.701 | 0.468 | 4.5 | 54 | 0.048 | 1882 |
+| off | 0 | – | – | 0.792 | 0.830 | 0.614 | 7.0 | 0 | 0.158 | 1611 |
+| off | 0.24 | 0 | off | 0.781 | 0.789 | 0.584 | 5.0 | 0 | 0.169 | 1709 |
+| off | 0.24 | 0.5 | off | 0.774 | 0.780 | 0.578 | 5.0 | 0 | 0.059 | 1733 |
+| off | 0.24 | 0 | on | 0.713 | 0.710 | 0.476 | 5.0 | 61 | 0.209 | 1868 |
+| off | 0.24 | 0.5 | on | 0.719 | 0.692 | 0.471 | 5.0 | 55 | 0.066 | 1881 |
 | on | 0 | – | – | 0.777 | 0.804 | 0.575 | 7.0 | 0 | 0.074 | 1294 |
-| on | 0.24 | 0.5 | off | 0.755 | 0.728 | 0.517 | 3.5 | 0 | 0.008 | 1433 |
-| on | 0.24 | 0.5 | on | 0.544 | 0.462 | 0.237 | **0.0** | 176 | 0.012 | 1808 |
+| on | 0.24 | 0.5 | off | 0.763 | 0.764 | 0.548 | 5.0 | 0 | 0.015 | 1377 |
+| on | 0.24 | 0.5 | on | 0.564 | 0.473 | 0.245 | 0.0 | 169 | 0.016 | 1768 |
 
 *Slow frontier — 15 new problems per epoch, it outruns the fakes:*
 
 | det | wb share | warning | reopen | locked out | fake share | pressure | converts | reopened | peak inf (susc.) | welfare |
 |---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|
 | off | 0 | – | – | 0.416 | 0.803 | 0.326 | 0.7 | 0 | 0.307 | 2352 |
-| off | 0.24 | 0 | off | 0.353 | 0.726 | 0.249 | 0.0 | 0 | 0.173 | 2513 |
-| off | 0.24 | 0.5 | off | 0.343 | 0.717 | 0.240 | 0.0 | 0 | 0.052 | 2531 |
-| off | 0.24 | 0 | on | 0.020 | 0.488 | 0.010 | 0.0 | 294 | 0.176 | 3062 |
-| off | 0.24 | 0.5 | on | **0.017** | 0.480 | 0.008 | 0.0 | 286 | 0.052 | **3066** |
+| off | 0.24 | 0 | off | 0.362 | 0.740 | 0.265 | 0.0 | 0 | 0.246 | 2504 |
+| off | 0.24 | 0.5 | off | 0.346 | 0.718 | 0.243 | 0.0 | 0 | 0.067 | 2536 |
+| off | 0.24 | 0 | on | 0.017 | 0.514 | 0.009 | 0.0 | 305 | 0.222 | 3057 |
+| off | 0.24 | 0.5 | on | 0.026 | 0.494 | 0.013 | 0.0 | 277 | 0.065 | 3052 |
 | on | 0 | – | – | 0.360 | 0.735 | 0.251 | 0.0 | 0 | 0.075 | 2047 |
-| on | 0.24 | 0.5 | off | 0.311 | 0.688 | 0.210 | 0.0 | 0 | 0.007 | 2199 |
-| on | 0.24 | 0.5 | on | 0.004 | 0.383 | 0.001 | 0.0 | 367 | 0.008 | 2723 |
+| on | 0.24 | 0.5 | off | 0.323 | 0.697 | 0.217 | 0.0 | 0 | 0.012 | 2164 |
+| on | 0.24 | 0.5 | on | 0.004 | 0.376 | 0.001 | 0.0 | 372 | 0.012 | 2710 |
 
 ![Lockout, fast frontier: locked-out rate and converts](figures/lockout-converts-arrivals5.png)
 
@@ -436,8 +450,8 @@ about how many agents read the recipe — which is why it is a separate
 cohort from the exploiters in the first place.
 
 **10. Warnings do nothing for converts.** In every lockout cell the
-warning cuts peak infection by 3× (0.127 → 0.045; 0.173 → 0.052) and
-leaves pressure and converts unchanged (0.579 vs 0.578; 5.0 vs 5.0).
+warning cuts peak infection by 3–4× (0.169 → 0.059; 0.246 → 0.067) and
+leaves pressure and converts unchanged (0.584 vs 0.578; 5.0 vs 5.0).
 Conversion is payoff-driven; telling an agent the recipe is fraudulent
 does not give it back the problem the fraud closed. The half of the
 counter-response that dominated the no-lockout grid (finding 2) is the
@@ -446,20 +460,20 @@ half that is useless here.
 **11. Reopening the problem is the lever, and it restores the whole
 economy when the frontier is fast enough.** On the slow frontier,
 whistleblowers whose reverts give the problem back take the locked-out
-rate from 0.35 to 0.017 and welfare from 2531 to 3066 — *above* the
-no-lockout ungoverned baseline (3057) and 14% above detection-only
+rate from 0.35 to 0.02 and welfare from 2536 to 3052–3057 — back to the
+no-lockout ungoverned baseline (3057) and 13% above detection-only
 (2690), with zero converts. The same faction without reopen recovers
-none of that (2513–2531). On the fast frontier reopen recovers part of
-the welfare (1728 → 1882) but not the converts (5.0 → 4.5): the audit
-gives back ~60 problems per run against ~1,350 locked-out writes, and
+none of that (2504–2536). On the fast frontier reopen recovers part of
+the welfare (1733 → 1881) and none of the converts (5.0 → 5.0): the audit
+gives back ~55 problems per run against ~1,240 locked-out writes, and
 the race is lost anyway.
 
 **12. Only the audit-plus-gate hybrid zeroes converts under the fast
 frontier.** Detection on, two whistleblowers, reopen on: converts 0.0,
-pressure 0.24, welfare 1808 (against 1294 for detection alone, which,
+pressure 0.245, welfare 1768 (against 1294 for detection alone, which,
 like the ungoverned baseline, converts everyone). The promotion gate
 slows the fakes' *promotion* so the whistleblowers' reverts reach more
-of them (176 reopened vs 54 without the gate); neither alone gets there.
+of them (169 reopened vs 55 without the gate); neither alone gets there.
 This is the division of labour from finding 5 again, now with the
 converts as the outcome: the gate buys the auditors time, the auditors
 give the honest agents their payoff back.
@@ -539,7 +553,7 @@ give the honest agents their payoff back.
 ## 7. Reproduce
 
 ```bash
-# Main grid (280 runs, ~30 min)
+# Main grid (280 runs, ~7 min)
 python scripts/sweep_memetic_spread.py --seeds 10 --rankings quality,recency \
   --cadences 0 --whistleblowers 0,0.1,0.24,0.5 --wb-warning 0,0.5 --wb-boycott 0
 # Boycott arm
