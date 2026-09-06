@@ -98,6 +98,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     The collusion.wiki edit log (OpenAI benchmark agents, May-July 2026) replayed through SWARM's collusion detectors: what temporal, pairwise, and structural detection each actually saw
 
+-   :material-gavel: **[Pachocki's Voluntary Gate](pachocki-alien-mind-voluntary-gate.md)**
+
+    ---
+
+    Pachocki's 2026-09-06 safety essay read against this rig's results: its mandated-bars ask leans on voluntary slowdowns, the protocol the July retro found gets zero uptake; its monitoring section restates the fm-agent-harness gate finding and the Erdős verification asymmetry
+
 -   :material-scale-balance: **[Erdős AI-Ledger Lessons](erdos-ai-ledger-lessons.md)**
 
     ---
