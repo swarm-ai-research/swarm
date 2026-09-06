@@ -280,6 +280,104 @@ full strength. Under `description` or `score_only` the diverse agent's find
 spreads more slowly (bead fcj5, expectation 4), so the required diverse fraction
 is higher; that grid was not run.
 
+### Collusion detectors on honest copying (bead 9err)
+
+Zero adversaries. Every agent on the board is honest and the correlation
+between them is produced entirely by the board's own mechanism: readers copy
+the leader. The question is what a collusion detector makes of that, and how
+much a lineage field would have changed its answer.
+
+Two projections of the same board onto `SoftInteraction` records:
+
+- **fingerprint** (provenance-blind): what an outside auditor can reconstruct.
+  A published entry is an interaction from its author to the most recent
+  earlier publisher of an *identical* config. This is the "17 agents to four
+  decimal places" view.
+- **lineage** (provenance-aware): an interaction from the author to the agent
+  whose entry it was derived from, using the board's `parent` field. Edges
+  explained by a recorded adoption are then removed; what remains is the
+  *residual* graph of identical configs with no recorded parent
+  (rediscoveries and coincidences), which is all a detector should be looking
+  at.
+
+Both projections run through the same detectors the wiki replay uses:
+structural anomalies (`swarm.metrics.graph_structural`, null-model p-value),
+the per-agent temporal clustering score, and the pairwise `CollusionDetector`.
+Since there are no colluders, every flag is a false positive.
+
+```bash
+python -m swarm.bridges.gossip_board scenarios/gossip_board_fidelity.yaml --seeds 10 \
+    --detect --axis fidelity=code,description,score_only
+```
+
+Reports, per fidelity, means over seeds:
+
+| Metric | Meaning |
+|---|---|
+| `structural_flag_rate` | fraction of seeds with at least one cluster at p < 0.05 |
+| `structural_flagged_agents` | fraction of agents inside a flagged cluster |
+| `temporal_alarm_rate` | fraction of agents at or above the 0.7 alarm bar from the graph_structural sweep |
+| `pairwise_flagged` | pairs flagged by `CollusionDetector` / all pairs |
+| `residual_*` | the same three on the provenance-aware residual graph |
+
+Preregistered expectations:
+
+1. **Structural false positives follow fingerprints.** Under `code` the
+   provenance-blind detector flags a cluster in most seeds and the cluster
+   covers a majority of agents; under `description` and `score_only` there are
+   too few identical configs to build a graph and the flag rate is near zero.
+2. **Temporal is a cadence artifact.** Every agent publishes on the same
+   round clock, so the temporal score is high in all three modes and does not
+   separate them. It measured the loop, not coordination.
+3. **Lineage removes most of it.** On the residual graph, structural and
+   pairwise flags under `code` fall by at least half, because the great
+   majority of identical-config edges are recorded adoptions. What survives
+   is rediscovery, which is the honest false-positive floor a lineage-aware
+   detector still has to live with.
+
+Findings (`runs/20260906T131453Z_gossip_board_detector_fpr_seed42`, 10 seeds, means; no colluders exist, so every flag is
+a false positive):
+
+| Fidelity | Fingerprint edges | Explained by lineage | Structural flag rate / agents flagged | Temporal max / alarm rate | Pairwise flagged | Residual edges | Residual structural flag / agents |
+|---|---|---|---|---|---|---|---|
+| code | 222 | 0.81 | 1.00 / 1.00 | 0.28 / 0.00 | 0.00 | 43 | 1.00 / 0.89 |
+| description | 104 | 0.24 | 1.00 / 0.97 | 0.50 / 0.01 | 0.00 | 78 | 1.00 / 0.96 |
+| score_only | 46 | 0.00 | 0.90 / 0.80 | 0.38 / 0.00 | 0.00 | 46 | 0.90 / 0.80 |
+
+Against the preregistered expectations:
+
+1. **Structural false positives follow fingerprints — NOT MET.** The
+   structural detector flags a cluster in every seed under `code` and
+   `description`, and in 9 of 10 seeds under `score_only`, where the only
+   identical configs come from agents making the same one-dimension mutation of
+   the shared baseline. It is the saturation result from the message-board
+   twin again: any co-publication graph is a dense community against the null
+   model. The detector reports that a board exists, not who coordinated. It
+   does not separate the three modes at all.
+2. **Temporal is a cadence artifact — NOT MET, in the other direction.** The
+   temporal score never reaches the 0.7 bar in any mode (max 0.28 to 0.50).
+   Agents publishing on a regular round clock are not "bursty" relative to
+   themselves, so the score is silent rather than saturated. It separates
+   nothing, but by never firing.
+3. **Lineage removes most of it — MET for edges, NOT for flags.** The parent
+   field explains 81% of code-mode fingerprint edges (222 down to 43 residual),
+   which is the honest-copy correlation made visible. But the structural
+   detector still flags the residual graph in every seed, covering 89% of
+   agents, because 43 edges among 24 nodes is still a dense community. The
+   pairwise `CollusionDetector` flags nothing before or after, so there was
+   nothing for lineage to remove there.
+
+Reading: on an honest open board the collusion detectors in this repo fail in
+both directions. Structural saturates and cannot be rescued by provenance
+alone, because removing explained edges leaves a smaller graph that is still
+"anomalous" against a null model that does not know a board exists. Temporal
+is blind. The right null model for a shared board is one that *includes* the
+board's copy mechanism, so that only correlation beyond what public adoption
+predicts is anomalous. Lineage is the field that makes that null model
+computable; it is necessary and not sufficient. The 17 identical trading
+strategies would have been flagged, and the flag would have been wrong.
+
+
 Also recorded: `adoptions` versus `rediscoveries` from the lineage field.
 `score_only` has zero adoptions and 264 rediscoveries per run; `code` has 182
 adoptions and 67 rediscoveries. A provenance-blind detector sees only the

@@ -16,7 +16,8 @@ survivorship gap of a success-only board, dimensions the whole population
 never explores, and ground-truth lineage (copied vs rediscovered) that a
 provenance-blind detector cannot see.
 
-CLI: ``python -m swarm.bridges.gossip_board <scenario.yaml> [--axis k=v1,v2]``.
+CLI: ``python -m swarm.bridges.gossip_board <scenario.yaml> [--axis k=v1,v2] [--detect]``.
+``--detect`` runs the collusion detectors on the honest board (``detect.py``, bead 9err).
 """
 
 from swarm.bridges.gossip_board.model import (

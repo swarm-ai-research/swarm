@@ -127,3 +127,66 @@ def test_one_diverse_agent_discovers_hidden_dim():
     assert res.summary["diverse_agents"] == 1
     assert res.summary["hidden_dim_explored"] is True
     assert res.summary["hidden_discovery_round"] is not None
+
+
+# --- bead 9err: detectors on honest copying -------------------------------
+
+def test_fingerprint_projection_links_identical_configs():
+    from swarm.bridges.gossip_board.detect import (
+        fingerprint_interactions,
+        lineage_interactions,
+    )
+
+    res = run_board(_cfg(fidelity="code", p_peer=0.8, n_rounds=60), seed=5)
+    fp = fingerprint_interactions(res.board, res.config.n_agents)
+    assert fp, "code sharing must produce identical-config links"
+    assert all(x.initiator != x.counterparty for x in fp)
+    ln = lineage_interactions(res.board, res.config.n_agents)
+    assert len(ln) == sum(1 for e in res.board if e.parent is not None
+                          and {x.id: x for x in res.board}[e.parent].agent != e.agent)
+
+
+def test_residual_is_subset_of_fingerprint():
+    from swarm.bridges.gossip_board.detect import (
+        fingerprint_interactions,
+        residual_interactions,
+    )
+
+    res = run_board(_cfg(fidelity="code", n_rounds=60), seed=6)
+    fp = fingerprint_interactions(res.board, res.config.n_agents)
+    rs = residual_interactions(res.board, res.config.n_agents)
+    assert len(rs) <= len(fp)
+    assert {x.interaction_id for x in rs} <= {x.interaction_id for x in fp}
+    assert all(not x.metadata["explained"] for x in rs)
+
+
+def test_detect_on_run_shapes_and_bounds():
+    from swarm.bridges.gossip_board.detect import detect_on_run
+
+    row = detect_on_run(run_board(_cfg(fidelity="code", n_rounds=60), seed=7), seed=7, n_null=10)
+    for k in ("structural_flagged_agents", "temporal_alarm_rate", "pairwise_flagged",
+              "residual_structural_flagged_agents", "residual_pairwise_flagged"):
+        assert 0.0 <= row[k] <= 1.0, k
+    assert row["residual_n_interactions"] <= row["n_interactions"]
+    if row["n_interactions"]:
+        assert 0.0 <= row["explained_fraction"] <= 1.0
+
+
+def test_score_only_has_far_fewer_fingerprints_than_code():
+    from swarm.bridges.gossip_board.detect import fingerprint_interactions
+
+    # A shared baseline config still produces some identical configs early on
+    # (one-dimension mutations of all-zeros collide), so the floor is not zero.
+    n_code = len(fingerprint_interactions(run_board(_cfg(fidelity="code", n_rounds=60), seed=8).board, 12))
+    n_score = len(fingerprint_interactions(run_board(_cfg(fidelity="score_only", n_rounds=60), seed=8).board, 12))
+    assert n_score < n_code / 3
+
+
+def test_cli_detect_writes_csv(tmp_path):
+    from swarm.bridges.gossip_board.__main__ import main
+
+    out = tmp_path / "det"
+    rc = main([str(SCENARIO), "--out", str(out), "--seeds", "1", "--detect",
+               "--axis", "fidelity=code,score_only"])
+    assert rc == 0
+    assert (out / "csv" / "detect_mean.csv").exists()
