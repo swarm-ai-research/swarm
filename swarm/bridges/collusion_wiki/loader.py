@@ -11,10 +11,11 @@ from __future__ import annotations
 
 import gzip
 import json
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator, List, Optional
+from typing import Dict, Iterator, List, Optional
 
 _ISO = "%Y-%m-%dT%H:%M:%SZ"
 
@@ -34,6 +35,9 @@ def _resolve(data_dir: Path, stem: str) -> Path:
         if cand.exists():
             return cand
     raise FileNotFoundError(f"{stem}.jsonl[.gz] not found under {data_dir}")
+
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -85,10 +89,41 @@ def iter_revisions(data_dir: Path) -> Iterator[WikiRevision]:
             )
 
 
+PLACEHOLDER_BODY_LEN = 27  # len("Describe the new page here.")
+
+
+def placeholder_body_len_share(revs: List[WikiRevision]) -> Dict[str, float]:
+    """Per wiki, the share of revisions whose body_len is the placeholder length.
+
+    The published export reports ``body_len`` 27 for 555 of 1,013 ProbierWiki
+    revisions whose live bodies are hundreds to thousands of characters (bead
+    m6tu, field-evidence 2026-09-05). Byte-volume figures for such a wiki are
+    not derivable from the export.
+    """
+    total: Dict[str, int] = {}
+    hit: Dict[str, int] = {}
+    for r in revs:
+        total[r.wiki] = total.get(r.wiki, 0) + 1
+        if r.body_len == PLACEHOLDER_BODY_LEN:
+            hit[r.wiki] = hit.get(r.wiki, 0) + 1
+    return {w: hit.get(w, 0) / n for w, n in total.items()}
+
+
 def load_revisions(data_dir: Path) -> List[WikiRevision]:
-    """All revisions sorted by time (ties broken by rev_id for determinism)."""
+    """All revisions sorted by time (ties broken by rev_id for determinism).
+
+    Warns when a wiki's ``body_len`` is the placeholder length for more than half
+    its revisions, so no caller trusts byte volume for that wiki.
+    """
     revs = list(iter_revisions(data_dir))
     revs.sort(key=lambda r: (r.time, r.rev_id))
+    for wiki, share in placeholder_body_len_share(revs).items():
+        if share > 0.5:
+            log.warning(
+                "%s: body_len is the %d-byte placeholder for %.0f%% of revisions; "
+                "do not derive byte volume for this wiki from the export",
+                wiki, PLACEHOLDER_BODY_LEN, 100 * share,
+            )
     return revs
 
 

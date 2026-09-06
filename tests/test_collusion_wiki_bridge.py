@@ -262,3 +262,23 @@ class TestStegoScan:
     def test_clean_fixture_is_clean(self, data_dir):
         rep = scan(data_dir)
         assert rep.by_carrier.get("tag_chars", 0) == 0
+
+
+class TestPlaceholderBodyLen:
+    """bead m6tu: the export's body_len is the placeholder for most of ProbierWiki."""
+
+    def test_share_and_warning(self, data_dir, caplog):
+        import logging
+
+        from swarm.bridges.collusion_wiki.loader import placeholder_body_len_share
+        rows = [_rev(f"p{i}", f"Pg{i}", "H", "20.1", "2026-06-16T10:00:00Z", wiki="probier")
+                | {"body_len": 27} for i in range(3)]
+        rows.append(_rev("p9", "Pg9", "H", "20.1", "2026-06-16T11:00:00Z", wiki="probier"))
+        with (data_dir / "revisions.jsonl").open("a") as f:
+            for r in rows:
+                f.write(json.dumps(r) + "\n")
+        with caplog.at_level(logging.WARNING, logger="swarm.bridges.collusion_wiki.loader"):
+            revs = load_revisions(data_dir)
+        share = placeholder_body_len_share(revs)
+        assert share["probier"] == 0.75 and share["dse"] == 0.0
+        assert any("probier" in m and "placeholder" in m for m in caplog.messages)
