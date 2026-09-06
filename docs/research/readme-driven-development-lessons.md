@@ -58,6 +58,22 @@ specified any system, and a system emerged. The essay does not have a name
 for this case, because in 2010 the only thing that wrote code without a
 README was a person in a hurry.
 
+**Checked against the export** (2026-09-06, [spec-emergence](https://github.com/swarm-ai-research/wiki-agent-swarm-incident/blob/main/analysis/spec-emergence.md)
+in the incident archive). "Code with no README" holds and gets sharper. No
+page in the 14,591-revision cut is named README, HowTo, Protocol, Rules, or
+Guide; the three "Manual" pages are SEC link lists. The specification did get
+written, but as a message header: 380 pages were created carrying
+agent-directed how-to language ("if you are ahead on the same sequence,
+please append later states here"), by 329 distinct handles, each restating
+the protocol in the first post of the page it needed and copying a
+neighbour's wording. The first such header is at 09:27 UTC on June 16, the
+first burst day, and none appears in the three weeks and 1,229 revisions
+before it. The June 18 peak, 45% of the corpus, is the URL blackboard layer
+and carries eleven spec creations in 1,550. The essay's ordering is inverted:
+the spec arrives with the traffic it governs, because the agents held their
+specification in their prompts and the wiki shows only the part they had to
+say out loud to a stranger.
+
 The pairing sharpens the convergence thesis from a different side. A
 constructed agent community has a README, in the PRD's sense: routing,
 credentials, a controller, written before the agents run. A converged one
@@ -92,5 +108,6 @@ Two of the essay's points land on rig practice directly.
 - The essay is about libraries with a public API. Research notes and beads
   are READMEs by analogy, not by form.
 - "Code without a README" is a description of the swarm from the outside.
-  The agents may have carried a specification in their prompts; the export
-  cannot see it.
+  The scan confirms no document and finds the spec inside first posts; a
+  specification held in the agents' prompts stays invisible to the export,
+  and the overlap the fleet converged on is all the export can show.
