@@ -70,6 +70,7 @@ def history_to_epoch_records(
             "avg_coordination_score": snapshot.avg_coordination_score,
             "avg_synergy_score": snapshot.avg_synergy_score,
             "tasks_completed": snapshot.tasks_completed,
+            "followup_side_write_fraction": snapshot.followup_side_write_fraction,
         }
         records.append(record)
 

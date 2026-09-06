@@ -129,8 +129,10 @@ class MemoryTierConfig(BaseModel):
     # cannot fit the second, so the board is worthless on R1 and load-bearing
     # on every round after it. uniform keeps the constant; fast_follow derives
     # the pressure per round from the deadline the round actually carries.
-    # Rounds cycle with the step, so an epoch holds
-    # steps_per_epoch / side_rounds_per_episode episodes.
+    # Rounds cycle with the step (round = step % side_rounds_per_episode), so
+    # an epoch of steps_per_epoch steps contains floor(steps_per_epoch /
+    # side_rounds_per_episode) complete episodes plus a partial final episode
+    # if steps_per_epoch is not divisible by side_rounds_per_episode.
     side_round_structure: str = "uniform"
     side_rounds_per_episode: int = 5
     side_initial_deadline: float = 180.0  # task seconds on R1
@@ -581,8 +583,10 @@ class MemoryHandler(Handler):
     def _round_index(self, state: EnvState) -> int:
         """Round position inside the current fast-follow episode.
 
-        Rounds cycle with the step, so an epoch of ``steps_per_epoch`` steps
-        holds ``steps_per_epoch / side_rounds_per_episode`` whole episodes.
+        Rounds cycle with the step (round = step % side_rounds_per_episode).
+        An epoch of ``steps_per_epoch`` steps contains
+        floor(steps_per_epoch / side_rounds_per_episode) complete episodes
+        plus a partial final episode if not evenly divisible.
         Round 0 is ``R1``, the round that carries the full schema.
         """
         return state.current_step % self.config.side_rounds_per_episode

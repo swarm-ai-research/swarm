@@ -80,7 +80,7 @@ the round structure as the only new lever. 40 epochs of 10 steps.
 
 ## Result
 
-10 seeds, 10 agents, 40 epochs of 5 steps, mean over the last 10 epochs:
+10 seeds, 10 agents, 40 epochs of 10 steps, mean over the last 10 epochs:
 
 | Round structure | `ungoverned_fraction` | `followup_side_write_fraction` |
 |---|---:|---:|
