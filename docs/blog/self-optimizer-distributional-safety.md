@@ -1,6 +1,6 @@
 ---
 date: 2026-02-13
-description: "What happens when you measure distributions instead of thresholds"
+description: "Measuring distributions instead of thresholds reveals proxy gaming that binary tests miss."
 author: "SWARM Team"
 keywords:
   - self-optimizer proxy gaming
