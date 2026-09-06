@@ -1210,7 +1210,14 @@ class MemoryHandler(Handler):
                     h.completed_messages for h in self.side_hosts
                 ),
                 "side_fragment_writes": sum(h.fragment_writes for h in self.side_hosts),
-                "side_visible_volume": max((h.visible_volume for h in self.side_hosts), default=0),
+                # Under a covert carrier every host reports the same governed
+                # volume, so summing would multiply it by n_hosts; otherwise
+                # hosts carry distinct volumes and the sum is the right total.
+                "side_visible_volume": (
+                    max((h.visible_volume for h in self.side_hosts), default=0)
+                    if self.config.side_carrier == "covert"
+                    else sum(h.visible_volume for h in self.side_hosts)
+                ),
                 # Discovered agents per host, in side_hosts order.
                 "side_host_users": [
                     sum(1 for h in used if h.index == host.index)
