@@ -80,13 +80,13 @@ def summarize(directory: Path) -> list[dict]:
     cells = {cell["id"]: cell for cell in manifest["cells"]}
     rows = []
     for cell_id, cell in cells.items():
-        runs = [json.loads(path.read_text())
-                for path in sorted(directory.glob(f"{cell_id}-seed-*.json"))]
-        if not runs:
-            continue
         metrics: dict[str, list[float]] = defaultdict(list)
         counts = defaultdict(int)
-        for run in runs:
+        n = 0
+        # Stream one payload at a time: each carries a full event log.
+        for path in sorted(directory.glob(f"{cell_id}-seed-*.json")):
+            run = json.loads(path.read_text())
+            n += 1
             for key, value in run["treatment_metrics"].items():
                 metrics[key].append(float(value))
             for key, value in run["control_metrics"].items():
@@ -100,7 +100,8 @@ def summarize(directory: Path) -> list[dict]:
                     counts["displaced"] += 1
                 elif event["type"] == "moderation":
                     counts["evasion_learned"] += event.get("evasion_learned", 0)
-        n = len(runs)
+        if n == 0:
+            continue
         alarms = int(sum(metrics["screen_alarm"]))
         control_alarms = int(sum(metrics["control_screen_alarm"]))
         low, high = wilson(alarms, n)
@@ -136,6 +137,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.summary:
         rows = summarize(args.input)
+        if not rows:
+            raise SystemExit(f"{args.input}: no *-seed-*.json payloads found for any manifest cell")
         args.output.write_text(json.dumps({"input": str(args.input), "cells": rows}, indent=2) + "\n")
         with args.output.with_suffix(".csv").open("w", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
