@@ -71,3 +71,56 @@ Next retro (scheduled 2026-07-21 09:23, launchd) diffs against the baselines her
 - Done inline: dispatcher now acks inbound CLAIM/DONE rows (rows 8–9 acked
   this retro); command file requires direct-vs-transitive split in unblock
   predictions.
+
+## Conway audit
+
+Run 2026-09-06 over this retro's window (bead 0tda, `scripts/conway_audit.py
+--since 2026-07-18 --until 2026-07-20`; method in
+[classic-essays-swarm-lessons.md](classic-essays-swarm-lessons.md#1-conway-how-do-committees-invent-datamation-1968)).
+The artifact graph is import edges between `swarm/` modules touched in the
+window; the dispatch graph is beads dep edges, parent/child, and co-mention
+in one commit subject.
+
+| Metric | Value |
+|---|---|
+| Commits in window | 83, of which 39 name a bead, 6 are sweeps (>20 files) |
+| Modules touched | 272: 52 owned by a bead, 220 unattributed |
+| Import edges among touched modules | 512 |
+| UNNEGOTIATED (coupled modules, beads with no path) | **8** |
+| UNATTRIBUTED (one side changed by bead-less commits) | 145 |
+| UNREALISED (dep edge, no import between file sets) | 0 |
+
+**The 8 unnegotiated couplings, checked by hand.** Six are the same shape:
+`agents/base.py` was changed by the seven-bug commit `c71acba2` (7209 s2t2
+e2rx gry3 y5k8 sbh6 uusq) and, the same day, five modules that inherit from
+it were changed under unrelated beads (909k crewai adapter, 1uzx/2331
+composition analyzer, 0auo/kft0 marketplace + task handlers, bv6v/tbsr
+rivals handler). No edge, no shared commit, no review that looked at both.
+The other two: `analysis/delm_hillclimb` (pg-cleanup beads zcib/2mv5/tbrj)
+imports `analysis/evolver` (council verdicts 1k87/kzfe/4ava), and
+`bridges/opensandbox` (l809) imports `core/docker_sandbox` (same council
+commit). All eight are base-class or utility couplings that predate the
+window; the audit reads imports at HEAD, so it cannot say whether the
+interface itself moved. What it can say: on 2026-07-18 the rig changed a
+base class and five of its subclasses under twelve beads with zero recorded
+edges between them, and nothing in the dispatch graph would have put those
+changes in front of the same reviewer.
+
+**The 145 unattributed edges are the louder finding.** 220 of 272 touched
+modules were changed only by commits naming no bead: the six pg-cleanup
+sweep commits (`424217e3` alone touched 100+ files) and the five
+`feat:` ports on 07-19 (adaptive governance, levers, red-team library,
+calibration harness, collusion detection) that arrived with no bead at
+all. This is the 88% orphan-influx number from mud ledger item 4 seen from
+the artifact side: the sweeps filed beads for what they found but not for
+what they changed, so the dispatch graph has no owner for most of the
+day's code motion.
+
+**Unrealised is zero** because only 52 modules had bead owners at all; the
+metric needs the attribution fixed before it means anything.
+
+**Action.** No new gate. The audit joins `retro` mode as part of MUD ledger
+item 7 (cusp ledger + Conway audit), with the two fixes it points at:
+`bd dep add` for a missing edge, a bead ref in the commit subject for a
+missing owner. The first number to move is unattributed modules per
+window, not unnegotiated couplings.

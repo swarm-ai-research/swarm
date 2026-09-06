@@ -104,6 +104,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Ecosystem governance lessons from Tao's AI-contributions ledger: verification bottleneck, denominator problem, corroboration vs. collusion
 
+-   :material-book-open-variant: **[Classic Essays as Swarm Mechanisms](classic-essays-swarm-lessons.md)**
+
+    ---
+
+    Conway, Gabriel, Brooks, Parnas, Raymond, Conklin read as mechanisms, not slogans: which survive when the organisation is a dispatch graph, and the four rig changes that followed
+
 -   :material-compass-off: **[Open-Ended Research Failure Modes](open-ended-research-failure-modes.md)**
 
     ---

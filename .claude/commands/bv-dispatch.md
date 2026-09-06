@@ -53,6 +53,23 @@ Arguments: $ARGUMENTS
      exercised" gate (Cantrip lesson 4) counts as phantom, one notch above
      "job never dispatched". Also audit blocked-bead reopenings: each must name the materially
      new mechanism that justified reopening (see analysis step 6).
+  6. Uses-hierarchy audit (Parnas & Clements 1986, "fake the rational
+     process"; docs/research/classic-essays-swarm-lessons.md §4) — for each
+     epic opened or closed since last retro, does its DESIGN field name what
+     its children depend on OUTSIDE the epic (beads, modules, frozen
+     schemas)? A pointer to an external report does not count. Every
+     dispatch mistake in retro 1 traced to an undeclared dependency, and
+     the one epic that later needed a hand-added edge (36t6) had a
+     pointer-only design. Report the fraction with a uses hierarchy; file
+     the fix on the epic, not on the children.
+  7. Cusp ledger (Conklin 1992; same note §6) — list every bead that
+     entered blocked or passed its `due` since last retro, and whether a
+     CUSP comment (template below) was posted within 24h with an owner
+     answer. A slip with no cusp comment is a slip nobody re-planned.
+     Also run the Conway audit over the window
+     (`python scripts/conway_audit.py --since <last retro date>`) and
+     record its UNNEGOTIATED list; each hit is either a missing edge
+     (fix: `bd dep add`) or a missing owner (fix: bead ref in the commit).
 
 Any text after the mode word is extra operator context — honor it.
 
@@ -145,6 +162,59 @@ unblocks separately from transitive ones — retro 2026-07-19 half-credited a
 prediction that conflated them. For research beads, include the gate class
 (step 7) in the justification and let it set the aggression: G0/G1 top picks
 may carry "persist until the gate passes" instructions; G2 top picks must not.
+
+Straw-horse gate (Conklin 1992, DEC Alpha: nobody could plan their piece
+until a one-page master plan existed; docs/research/classic-essays-swarm-lessons.md
+§6). Before ranking any track that belongs to an epic, check the epic body
+for a straw-horse plan: an ordered list of deliverables, each `task — owner
+— date`, plus what the epic depends on outside itself (the uses hierarchy,
+MUD ledger item 6). If the epic has no such plan, the round's top pick for
+that track is WRITING IT (one page, one session, `bd update <epic>
+--design-file`), not a child bead. Fan-out on a plan-less epic is the erdos
+failure mode (docs/research/erdos-1038-swarm-lessons.md): search with
+nothing to converge on. The plan may be wrong; Conklin's was renamed "tin
+horse" as it firmed up. It may not be absent.
+
+Owner and date on every digest entry. Conklin's rule is task-owner-date:
+one accountable party per deliverable, who need not do the work. In the
+pull model the owner is resolved at claim time, so the digest carries the
+DATE and the claim supplies the owner: every ranked entry states a
+commitment date (`due <YYYY-MM-DD>`, from the straw horse or the gate
+class budget), and `/claim` records the claimant as owner. A bead with no
+date cannot slip, and a bead that cannot slip never produces a cusp (below).
+Set it with `bd update <id> --due <date>` when stamping.
+
+One-page inspection ("you get what you inspect, not what you expect"): the
+inspection view for an epic is a single screen, produced the same way each
+round so the numbers are comparable:
+
+    bd list --parent <epic> --json | python -c 'import json,sys; \
+      [print(f"{i[\"id\"][-6:]:8} {i[\"status\"]:12} {i.get(\"due\",\"-\")[:10]:11} {i[\"title\"][:60]}") \
+       for i in json.load(sys.stdin)]'
+
+Post that page to the channel with the round's digests. Inspection is
+supportive feedback: the question attached to every red line is "what
+would preserve the epic date?", never "why is this late?".
+
+Cusp protocol (Conklin: a crisis renamed as a turning point, and solicited
+rather than avoided, because at a cusp everyone is ready to change). When a
+bead enters `blocked`, or its `due` passes with the bead still open, the
+dispatcher posts ONE comment on the bead using this template and does not
+retry the same approach:
+
+    CUSP <date>: <one line: what slipped or blocked, and by how much>.
+    The question is not one of blame. The goal is to preserve <epic goal / date>.
+    Owner: propose within 24h a changed ORDER or SCOPE that preserves it
+    (alternate route, different first deliverable, narrower gate) — not a
+    retry of the same plan with more effort.
+    Learned: <what the slip taught about the plan; one line>
+
+The owner's answer is a new straw-horse line, not a status report. A cusp
+with no answer in 24h escalates to the operator with the epic date attached.
+Retro (MUD ledger item 7) audits every blocked/overdue bead for a cusp
+comment and an answer. Conklin manufactured cusps on purpose (a declared
+schedule crisis) to build momentum; the rig's equivalent is a due date on
+every strategic bead, so slips are visible instead of silent.
 
 Consolidation quota (Big Ball of Mud discipline): at least ONE agent's primary
 per round must be consolidation work — hygiene, missing edges, stale triage,
@@ -251,3 +321,7 @@ track color-coded. Use ultrathink.
 | Per-agent ASSIGN row + assignee stamp on every assigned bead | `TRACK:` ranked digest per persona; assignee-free rationale stamps on shortlist top picks; agents pull + `/claim` at claim time | Push stamps rot in minutes at sweep churn — r4 stamped backups (909k/tbrj) already closed before the comment landed (beads-x3q7) |
 | ASSIGN for everything | ASSIGN only for strategic beads (critical path, epics) | Slow-moving rankings are the only ones that survive the latency between stamping and claiming |
 | Claim = `bd update --status in_progress` | Claim = `/claim <bead>` (atomic, refuses if held) | Advisory status can't prevent duplicates — 7ge5 incident (beads-wrr9) |
+| Fan-out on an epic with no plan | Straw-horse gate: top pick for a plan-less epic is writing its one-page plan | Nobody can plan their piece without the master plan (Conklin 1992); plan-less fan-out is the erdos failure mode (beads vla3) |
+| Digest entries carry metrics only | Digest entries carry metrics + `due` date; `/claim` supplies the owner | Task-owner-date: a bead with no date cannot slip, so nothing re-plans (beads vla3) |
+| Blocked bead = a state; retry with more effort | Blocked/overdue bead = a cusp event with a fixed re-plan question and 24h answer | "The question is not one of blame" (Conklin); retro audits cusp answers as MUD ledger item 7 (beads q8o2) |
+| Epic DESIGN = pointer to an external report | Epic DESIGN names the uses hierarchy (what children depend on outside the epic) | Every retro-1 dispatch mistake was an undeclared dependency; 36t6 needed a hand-added edge (Parnas; beads vqch) |
