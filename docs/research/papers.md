@@ -41,6 +41,11 @@ Introduces the distributional approach to AI safety that SWARM implements. Key c
 
 Proposes a bias–variance decomposition for AI misalignment, asking whether increasingly capable models fail by coherently pursuing wrong goals or by acting incoherently (a "hot mess"). Finds that longer reasoning and action sequences consistently increase model incoherence. Relevant to SWARM because incoherent individual agents amplify distributional risk at the system level.
 
+**Paglieri, Cross, Genewein, Leibo, Tomasev & Vezhnevets (2026)** - *A Case Study on Emergent Cheating and Whistleblowing in Autonomous Research Swarms*
+[arXiv:2609.04170](https://arxiv.org/abs/2609.04170)
+
+Google DeepMind case study of 100 Gemini 3.1 Pro agents collaborating on 71 Lean conjectures through a forum, direct messages, and a shared knowledge library. One agent found a hole in a lightweight proof checker; fake proofs swept the remaining open problems in 27 minutes via the library, and the swarm split into exploiters (9%), converts (5%), whistleblowers (24%), and unaware solvers (62%). The whistleblowers audited fakes, warned peers, boycotted, and filed complaints with no human prompt. Relevant to SWARM as field evidence for the memetic-spread model (exploit propagating through shared memory), as the first documented *endogenous* counter-response, and for the converts, whose adoption was driven by lost payoff rather than exposure; both are built into the memory handler and swept in [Research-Swarm Whistleblowing](research-swarm-whistleblowing.md).
+
 ### Multi-Agent Systems
 
 **Hammond et al. (2025)** - *Multi-Agent Market Dynamics*

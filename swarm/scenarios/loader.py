@@ -747,6 +747,23 @@ def parse_memory_tier_config(data: Dict[str, Any]) -> Optional[MemoryTierConfig]
         contagion_transmissibility=data.get("contagion_transmissibility", 0.8),
         reset_cadence_epochs=data.get("reset_cadence_epochs", 0),
         cache_ranking=data.get("cache_ranking", "quality"),
+        whistleblower_fraction=data.get("whistleblower_fraction", 0.0),
+        whistleblower_audit_rate=data.get("whistleblower_audit_rate", 0.0),
+        whistleblower_false_positive_rate=data.get(
+            "whistleblower_false_positive_rate", 0.0
+        ),
+        whistleblower_suspect_quality=data.get("whistleblower_suspect_quality", 0.65),
+        whistleblower_warning_strength=data.get(
+            "whistleblower_warning_strength", 0.0
+        ),
+        whistleblower_boycott_rate=data.get("whistleblower_boycott_rate", 0.0),
+        lockout_enabled=data.get("lockout_enabled", False),
+        lockout_problems=data.get("lockout_problems", 20),
+        lockout_arrivals_per_epoch=data.get("lockout_arrivals_per_epoch", 5),
+        lockout_fake_pass_rate=data.get("lockout_fake_pass_rate", 0.9),
+        lockout_honest_solve_rate=data.get("lockout_honest_solve_rate", 0.3),
+        lockout_conversion_alpha=data.get("lockout_conversion_alpha", 0.25),
+        lockout_revert_reopens=data.get("lockout_revert_reopens", True),
         side_channel_enabled=data.get("side_channel_enabled", False),
         side_discovery_rate=data.get("side_discovery_rate", 0.05),
         side_referral_boost=data.get("side_referral_boost", 0.3),

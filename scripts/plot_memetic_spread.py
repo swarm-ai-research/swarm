@@ -210,6 +210,265 @@ def plot_outcomes(rows: list, out: Path) -> None:
     plt.close(fig)
 
 
+# Whistleblower share (arXiv:2609.04170 sweep axis), fixed order: 0, 0.1,
+# 0.24 (the paper's observed share), 0.5. Same validated palette as above.
+WB_COLORS = {
+    0.0: "#e34948",   # red — no faction
+    0.1: "#eda100",   # yellow
+    0.24: "#1baf7a",  # aqua
+    0.5: "#2a78d6",   # blue
+}
+
+
+def _wb_color(fraction: float) -> str:
+    return WB_COLORS.get(fraction, "#52514e")
+
+
+def _whistleblower_cadence(rows: list) -> int:
+    """The single reset cadence the whistleblower and lockout plots read.
+
+    Reset cadence is a major intervention of its own, so these plots never
+    average across it: they take the no-reset cells when the sweep has
+    them, else the minimum cadence present, and name it in the title.
+    """
+    cadences = {int(r.get("reset_cadence", 0)) for r in rows}
+    return 0 if 0 in cadences else min(cadences)
+
+
+def plot_whistleblowers(rows: list, series_rows: list, out_dir: Path) -> None:
+    """Infection trajectories and outcomes by whistleblower share.
+
+    Produced only when the sweep carried more than one whistleblower share.
+    Trajectories use the warning-on cells where available (the paper's
+    faction both audited and alerted peers); the outcomes panel shows warning
+    off and on side by side. Boycott is held at its minimum swept value and
+    reset cadence at the one chosen by ``_whistleblower_cadence``.
+    """
+    fractions = sorted({float(r["whistleblowers"]) for r in rows})
+    if len(fractions) < 2:
+        return
+    cadence = _whistleblower_cadence(rows)
+    rows = [r for r in rows if int(r.get("reset_cadence", 0)) == cadence]
+    series_rows = [
+        r for r in series_rows if int(r.get("reset_cadence", 0)) == cadence
+    ]
+    cadence_label = "no resets" if cadence == 0 else f"reset every {cadence}"
+    rankings = sorted(
+        {r.get("ranking", "quality") for r in rows},
+        key=lambda x: ["quality", "recency", "engagement"].index(x),
+    )
+    warnings = sorted({float(r["wb_warning"]) for r in rows})
+    boycott = min(float(r["wb_boycott"]) for r in rows)
+    traj_warning = max(warnings)
+
+    def cell_warning(fraction: float) -> float:
+        # A zero share only ran the first warning value (no-op there).
+        return warnings[0] if fraction == 0.0 else traj_warning
+
+    # ── Trajectories ─────────────────────────────────────────────
+    acc: dict = defaultdict(lambda: defaultdict(list))
+    for r in series_rows:
+        if float(r["wb_boycott"]) != boycott:
+            continue
+        fraction = float(r["whistleblowers"])
+        if float(r["wb_warning"]) != cell_warning(fraction):
+            continue
+        # Include reset_cadence in key to detect if rows with different cadences
+        # slip through (should not happen, but makes the bug obvious if it does).
+        key = (r.get("ranking", "quality"), r["detection"], int(r.get("reset_cadence", 0)), fraction)
+        acc[key][int(r["epoch"])].append(float(r["susceptible_infection"]))
+
+    fig, axes = plt.subplots(
+        len(rankings),
+        2,
+        figsize=(11, 3.4 * len(rankings)),
+        sharey=True,
+        sharex=True,
+        squeeze=False,
+    )
+    fig.patch.set_facecolor(SURFACE)
+    for row, ranking in enumerate(rankings):
+        for col, detection in enumerate(["off", "on"]):
+            ax = axes[row][col]
+            for fraction in fractions:
+                per_epoch = acc[(ranking, detection, cadence, fraction)]
+                epochs = sorted(per_epoch)
+                if not epochs:
+                    continue
+                means = [sum(per_epoch[e]) / len(per_epoch[e]) for e in epochs]
+                label = (
+                    "no whistleblowers"
+                    if fraction == 0.0
+                    else f"{fraction:.0%} whistleblowers"
+                )
+                ax.plot(
+                    epochs, means, color=_wb_color(fraction), linewidth=2,
+                    label=label,
+                )
+            style_axes(ax, f"{ranking} cache · detection {detection}")
+            if row == len(rankings) - 1:
+                ax.set_xlabel("epoch", color=MUTED, fontsize=9)
+        axes[row][0].set_ylabel(
+            "susceptible infection (seed avg)", color=MUTED, fontsize=9
+        )
+    axes[0][0].legend(frameon=False, fontsize=9)
+    fig.suptitle(
+        f"Whistleblower faction vs exogenous detection "
+        f"(warning {traj_warning:g}, boycott {boycott:g}, {cadence_label})",
+        color=TEXT,
+        fontsize=12,
+    )
+    fig.tight_layout()
+    fig.savefig(out_dir / "whistleblower_trajectories.png", dpi=150, facecolor=SURFACE)
+    plt.close(fig)
+
+    # ── Outcomes vs share ────────────────────────────────────────
+    grouped: dict = defaultdict(list)
+    for r in rows:
+        if float(r["wb_boycott"]) != boycott:
+            continue
+        key = (
+            r.get("ranking", "quality"),
+            r["detection"],
+            float(r["whistleblowers"]),
+            float(r["wb_warning"]),
+        )
+        grouped[key].append(r)
+
+    metrics = [
+        ("late_susceptible_infection", "late-run infection (susceptible)"),
+        ("mean_tier3_poisoning", "mean tier-3 poisoning"),
+        ("total_welfare", "total welfare"),
+    ]
+    fig, axes = plt.subplots(
+        len(rankings), 3, figsize=(13, 4.0 * len(rankings)), squeeze=False
+    )
+    fig.patch.set_facecolor(SURFACE)
+    x = list(range(len(fractions)))
+    for row, ranking in enumerate(rankings):
+        for ax, (field, title) in zip(axes[row], metrics, strict=False):
+            for detection, marker in [("off", "o"), ("on", "s")]:
+                for warning in warnings:
+                    ys = []
+                    for fraction in fractions:
+                        w = warnings[0] if fraction == 0.0 else warning
+                        vals = [
+                            float(r[field])
+                            for r in grouped[(ranking, detection, fraction, w)]
+                        ]
+                        ys.append(sum(vals) / len(vals) if vals else float("nan"))
+                    color = "#4a3aa7" if detection == "on" else "#e34948"
+                    style = "-" if warning == max(warnings) else "--"
+                    label = f"det {detection}, warning {warning:g}"
+                    ax.plot(
+                        x, ys, style, marker=marker, markersize=5,
+                        linewidth=2, color=color, label=label,
+                    )
+            ax.set_xticks(x, [f"{f:.0%}" for f in fractions])
+            ax.set_xlabel("whistleblower share of honest roster", color=MUTED, fontsize=9)
+            style_axes(ax, f"{ranking} · {title}")
+        axes[row][0].legend(frameon=False, fontsize=8)
+    fig.suptitle(
+        f"Whistleblower outcomes by share (seed means, {cadence_label})",
+        color=TEXT,
+        fontsize=12,
+    )
+    fig.tight_layout()
+    fig.savefig(out_dir / "whistleblower_outcomes.png", dpi=150, facecolor=SURFACE)
+    plt.close(fig)
+
+
+def plot_lockout(rows: list, series_rows: list, out_dir: Path) -> None:
+    """Converts and pool closure under lockout, by whistleblower cell.
+
+    Produced only when the sweep has lockout on. One panel per detection
+    mode: the locked-out write rate (thick) and the number of converts
+    (thin, right axis) over epochs, one colour per
+    (whistleblower share, warning, reopen) cell, at the single reset
+    cadence chosen by ``_whistleblower_cadence``.
+    """
+    lock_rows = [r for r in series_rows if int(r.get("lockout", 0)) == 1]
+    if not lock_rows:
+        return
+    cadence = _whistleblower_cadence(lock_rows)
+    lock_rows = [r for r in lock_rows if int(r.get("reset_cadence", 0)) == cadence]
+    cadence_label = "no resets" if cadence == 0 else f"reset every {cadence}"
+    cells = sorted(
+        {
+            (
+                float(r["whistleblowers"]),
+                float(r["wb_warning"]),
+                int(r["lockout_reopen"]),
+            )
+            for r in lock_rows
+        }
+    )
+    acc: dict = defaultdict(lambda: defaultdict(lambda: ([], [])))
+    for r in lock_rows:
+        cell = (
+            float(r["whistleblowers"]),
+            float(r["wb_warning"]),
+            int(r["lockout_reopen"]),
+        )
+        closed, conv = acc[(r["detection"], cell)][int(r["epoch"])]
+        closed.append(float(r["locked_out_rate"]))
+        conv.append(float(r["converts"]))
+
+    styles = ["-", "--", "-.", ":"]
+    # Faction cells take the palette minus red, which is reserved for the
+    # no-whistleblower cell.
+    faction_colors = ["#2a78d6", "#eb6834", "#1baf7a", "#4a3aa7", "#eda100"]
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.2), sharey=True)
+    fig.patch.set_facecolor(SURFACE)
+    for ax, detection in zip(axes, ["off", "on"], strict=False):
+        ax2 = ax.twinx()
+        for i, cell in enumerate(cells):
+            fraction, warning, reopen = cell
+            per_epoch = acc[(detection, cell)]
+            epochs = sorted(per_epoch)
+            if not epochs:
+                continue
+            closed = [
+                sum(per_epoch[e][0]) / len(per_epoch[e][0]) for e in epochs
+            ]
+            conv = [sum(per_epoch[e][1]) / len(per_epoch[e][1]) for e in epochs]
+            label = (
+                "no whistleblowers"
+                if fraction == 0.0
+                else f"{fraction:.0%} wb, warn {warning:g}, "
+                + ("reopen" if reopen else "no reopen")
+            )
+            color = (
+                _wb_color(0.0)
+                if fraction == 0.0
+                else faction_colors[i % len(faction_colors)]
+            )
+            style = styles[i % len(styles)]
+            (line,) = ax.plot(
+                epochs, closed, style, linewidth=2, color=color, label=label
+            )
+            ax2.plot(
+                epochs, conv, style, linewidth=1, alpha=0.6,
+                color=line.get_color(),
+            )
+        style_axes(ax, f"detection {detection}: locked-out write rate (thick)")
+        ax.set_xlabel("epoch", color=MUTED, fontsize=9)
+        ax2.set_ylabel("converts (thin)", color=MUTED, fontsize=9)
+        ax2.tick_params(colors=MUTED, labelsize=9)
+        ax2.spines[["top"]].set_visible(False)
+    axes[0].set_ylabel("share of writes with no open problem", color=MUTED, fontsize=9)
+    axes[0].legend(frameon=False, fontsize=8)
+    fig.suptitle(
+        "Lockout: locked-out rate and converts by whistleblower cell "
+        f"(seed means, {cadence_label})",
+        color=TEXT,
+        fontsize=12,
+    )
+    fig.tight_layout()
+    fig.savefig(out_dir / "lockout_converts.png", dpi=150, facecolor=SURFACE)
+    plt.close(fig)
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         print(__doc__)
@@ -223,6 +482,10 @@ def main() -> None:
 
     plot_trajectories(series_rows, plots / "infection_trajectories.png")
     plot_outcomes(rows, plots / "outcomes_by_condition.png")
+    if "whistleblowers" in rows[0]:
+        plot_whistleblowers(rows, series_rows, plots)
+    if "lockout" in rows[0]:
+        plot_lockout(rows, series_rows, plots)
     print(f"Plots written to {plots}")
 
 

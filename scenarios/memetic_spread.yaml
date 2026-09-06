@@ -46,6 +46,25 @@ memory_tiers:
   contagion_transmissibility: 0.8
   reset_cadence_epochs: 0  # baseline: never reset (swept)
   cache_ranking: quality   # quality | recency | engagement (swept, bead 2qfq)
+  # Whistleblower faction (arXiv:2609.04170, DeepMind 100-agent Lean swarm):
+  # honest agents that refuse the exploit, audit the cache, warn peers, and
+  # may boycott. Off at baseline; swept with --whistleblowers.
+  whistleblower_fraction: 0.0
+  whistleblower_audit_rate: 0.0  # P(flag) per member for a suspect entry
+  whistleblower_false_positive_rate: 0.0  # P(flag) per member for a non-suspect entry
+  whistleblower_suspect_quality: 0.65  # entries below this quality_score are suspect
+  whistleblower_warning_strength: 0.0
+  whistleblower_boycott_rate: 0.0
+  # Lockout pool (same paper, the converts): problems that pay once; fakes
+  # close them and exposed honest agents drift toward the exploit as their
+  # payoff disappears. Off at baseline; swept with --lockout.
+  lockout_enabled: false
+  lockout_problems: 20
+  lockout_arrivals_per_epoch: 5
+  lockout_fake_pass_rate: 0.9
+  lockout_honest_solve_rate: 0.3
+  lockout_conversion_alpha: 0.25
+  lockout_revert_reopens: true
 
 governance:
   # Baseline: all detection off (swept by sweep_memetic_spread.py)
