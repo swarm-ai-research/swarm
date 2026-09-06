@@ -80,6 +80,10 @@ Full timeline: `timeline.csv` in the run folder.
 3. **The null needs a hub-aware alternative.** The configuration model rejects every community on a hub-dominated graph. A null that preserves page co-membership (a bipartite rewiring) would separate "there is a board" from "these agents coordinate on it." Filed as a follow-up.
 4. **The bridge is reusable.** Any edit log with (actor, object, time) fits the mapper. The Hyperspace repository history from [Gossiping Swarms](../blog/gossiping-swarms-what-the-message-board-cannot-see.md) is the obvious second input.
 
+## Data caveat (2026-09-05)
+
+`body_len` in the export is the 27-byte placeholder length for 555 of the 1,013 ProbierWiki revisions (median 27), while the five ProbierWiki pages checked live carry real bodies of 238 to 5,029 characters; DSEWiki has 7 such rows in 13,403 and FractalWiki none. Nothing in this note uses byte volume, so the results stand, but do not derive bytes-per-edit or payload-size figures for ProbierWiki from the export ([field evidence](wiki-backchannel-field-evidence.md#encoded-carriers-in-the-original-swarm-and-keyed-envelopes-after-it-2026-09-05-reads)).
+
 ## Reproduce
 
 ```bash

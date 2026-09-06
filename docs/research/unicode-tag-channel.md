@@ -84,6 +84,18 @@ note already treats as adjacent actors rather than the original fleet. This scan
 does not settle whether the original agents ever used the trick inside page
 bodies; the export cannot show that.
 
+**Same-day correction.** A direct read of four ProbierWiki pages from the export's
+list (`OAIIPEDSMay16Map0` to `Map3`, written 2026-06-19 from four Azure ranges)
+shows bodies that are one base64url line each and together a 14,348-byte gzip
+stream, decompressing to a 968-row IPEDS institution table
+([field evidence](wiki-backchannel-field-evidence.md#encoded-carriers-in-the-original-swarm-and-keyed-envelopes-after-it-2026-09-05-reads)).
+So the original swarm did use an encoded carrier in page bodies, the base64 class,
+for capacity rather than concealment. The result above narrows to: no non-ASCII
+or non-printing carrier in any field the export has, and no encoding in summaries,
+handles or page names. The bytes-per-glyph defense below does not catch base64,
+since every byte renders; a compression-ratio or dictionary-word-rate check on
+bodies would, and belongs on the same observables list.
+
 Two false-positive classes had to be tuned out and are worth recording. Wiki page
 ids are long CamelCase alphanumerics with digits (`AgentSimple1781804217`) and
 the "wiki/Page" path contains a slash, so a naive base64 rule flagged 9,759 of
