@@ -86,14 +86,19 @@ class MemoryTierConfig(BaseModel):
     # cross-verification, provenance), which cost welfare whether or not an
     # epidemic is underway.
     whistleblower_fraction: float = 0.0  # Share of honest+opportunistic agents
-    # The audit is a noisy classifier over the hidden poison label, not an
-    # oracle: per whistleblower, per epoch, a poisoned entry is caught with
-    # P = audit_rate (true-positive rate) and a clean entry is wrongly
-    # flagged with P = false_positive_rate. Every whistleblower sees the
-    # whole cache (it is broadcast) and draws independently, so a poisoned
-    # entry survives an epoch with probability (1 - audit_rate) ** n_wb.
+    # The audit is a noisy classifier over an observable signal, not an
+    # oracle over the hidden poison label: per whistleblower, per epoch, an
+    # entry whose quality_score is below suspect_quality is flagged with
+    # P = audit_rate and any other entry with P = false_positive_rate. Every
+    # whistleblower sees the whole cache (it is broadcast) and draws
+    # independently, so a suspect entry survives an epoch with probability
+    # (1 - audit_rate) ** n_wb. The default suspect_quality of 0.65 sits at
+    # the top of the opportunistic writers' quality range and inside the
+    # bottom of the honest range (0.6-0.9), so some honest entries are
+    # suspect and some deceptive entries (up to 0.7) are not.
     whistleblower_audit_rate: float = 0.0
     whistleblower_false_positive_rate: float = 0.0
+    whistleblower_suspect_quality: float = 0.65
     # Peer warning: in an epoch with >= 1 catch, every non-whistleblower
     # honest/opportunistic agent's infection is multiplied by (1 - strength).
     whistleblower_warning_strength: float = 0.0
@@ -189,6 +194,7 @@ class MemoryTierConfig(BaseModel):
             "whistleblower_fraction",
             "whistleblower_audit_rate",
             "whistleblower_false_positive_rate",
+            "whistleblower_suspect_quality",
             "whistleblower_warning_strength",
             "whistleblower_boycott_rate",
             "lockout_fake_pass_rate",
@@ -656,20 +662,11 @@ class MemoryHandler(Handler):
         for entry in candidates:
             if entry.status != MemoryEntryStatus.ACTIVE:
                 continue
-            # Whistleblower conducts noisy audit based on observable signals, not
-            # ground-truth poison status (hidden from agents in memory_tiers.py).
-            #
-            # Observable signal: entries with lower quality_score are more suspicious.
-            # Use quality_score as a proxy: suspect entries (quality < 0.65) are audited
-            # at audit_rate; higher-quality entries at false_positive_rate. This models
-            # auditing being focused on low-confidence entries while still catching some
-            # high-quality fakes at the baseline false_positive rate.
-            #
-            # The audit decision depends only on observable evidence: the entry's
-            # quality_score and the whistleblower's audit configuration. The hidden
-            # is_poisoned label is used only for post-hoc tracking, not for the audit
-            # decision itself.
-            is_suspicious = entry.quality_score < 0.65
+            # The audit decision depends only on observable evidence: the
+            # entry's quality_score against the configured suspect threshold.
+            # The hidden is_poisoned label is read only for post-hoc
+            # accounting of false flags below, never for the decision.
+            is_suspicious = entry.quality_score < self.config.whistleblower_suspect_quality
             p_flag = rate if is_suspicious else fp_rate
             if p_flag <= 0.0:
                 continue

@@ -749,6 +749,10 @@ def parse_memory_tier_config(data: Dict[str, Any]) -> Optional[MemoryTierConfig]
         cache_ranking=data.get("cache_ranking", "quality"),
         whistleblower_fraction=data.get("whistleblower_fraction", 0.0),
         whistleblower_audit_rate=data.get("whistleblower_audit_rate", 0.0),
+        whistleblower_false_positive_rate=data.get(
+            "whistleblower_false_positive_rate", 0.0
+        ),
+        whistleblower_suspect_quality=data.get("whistleblower_suspect_quality", 0.65),
         whistleblower_warning_strength=data.get(
             "whistleblower_warning_strength", 0.0
         ),

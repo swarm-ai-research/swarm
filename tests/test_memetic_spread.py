@@ -589,9 +589,11 @@ class TestWhistleblowers:
                 "whistleblower_false_positive_rate": 0.05,
                 "whistleblower_warning_strength": 0.5,
                 "whistleblower_boycott_rate": 0.3,
+                "whistleblower_suspect_quality": 0.7,
             }
         )
         assert cfg.whistleblower_fraction == 0.24
+        assert cfg.whistleblower_suspect_quality == 0.7
         assert cfg.whistleblower_audit_rate == 0.5
         assert cfg.whistleblower_false_positive_rate == 0.05
         assert cfg.whistleblower_warning_strength == 0.5
