@@ -367,6 +367,15 @@ Against the preregistered expectations:
    pairwise `CollusionDetector` flags nothing before or after, so there was
    nothing for lineage to remove there.
 
+A parallel probe of the same bead (`docs/research/collusion-fpr-honest-convergence.md`,
+commit 9e31fccc) tested the detectors this one did not: a naive identical-output
+pair rule (54% of pairs flagged, 17% after lineage), the composite
+`CollusionDetector` (0%, agreeing with the pairwise row above), and the
+volume-burst signal (never fires at the operational threshold). The two agree
+that lineage removes the copying-driven bulk and leaves a rediscovery floor.
+This probe adds that the graph-structural detector saturates on whatever is
+left, and that the temporal score is silent.
+
 Reading: on an honest open board the collusion detectors in this repo fail in
 both directions. Structural saturates and cannot be rescued by provenance
 alone, because removing explained edges leaves a smaller graph that is still

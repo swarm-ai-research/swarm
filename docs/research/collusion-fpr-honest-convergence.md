@@ -53,3 +53,12 @@ answer for the copying-driven part (54% → 17%). The quality-asymmetry composit
 detector and a well-thresholded volume-burst are already robust to honest convergence.
 The general lesson: **do not screen on co-location alone; screen on co-location that
 is not explained by shared provenance, and confirm with a quality-asymmetry signal.**
+
+**Companion probe.** The same bead was independently run against the graph-structural
+and temporal detectors (`docs/scenarios.md`, "Collusion detectors on honest copying";
+commit 2d028bda, `runs/20260906T131453Z_gossip_board_detector_fpr_seed42`). Structural
+flags a cluster in every seed in all three fidelity modes and still flags the
+lineage-residual graph; temporal never reaches its 0.7 bar. So the "screen on
+co-location not explained by provenance" rule above holds for pair rules, but a
+community detector needs a null model that includes the board's copy mechanism, not
+just edge removal.
