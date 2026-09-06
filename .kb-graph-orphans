@@ -25,7 +25,6 @@ cmd/audit_fix
 cmd/build_game
 cmd/check_ignore
 cmd/cherry_pick_pr
-cmd/claim
 cmd/compare_studies
 cmd/fix_ci
 cmd/guard
@@ -152,4 +151,3 @@ security/wt-integration-review.md
 swarm_scholar_bench_spec.md
 tutorials/index.md
 whitepaper.md
-research/wiki-monte-carlo-results.md

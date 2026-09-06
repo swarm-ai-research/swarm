@@ -265,9 +265,13 @@ between one agent's board writes. A write the controller holds back is not
 dropped: it lands on the sanctioned store, so the agent's work is unchanged and
 only the board's volume profile moves. Four hosts at attention
 `[0, 0.01, 0.05, 0.2]`, 10 steps per epoch, 10 seeds, 40 epochs. Cool-down 3
-at 10 steps per epoch admits at most four writes (steps 0, 3, 6, 9), so the
-cool-down-3 rows reproduce the quota-4 rows exactly; the table keeps the
-quota axis.
+at 10 steps per epoch admits at most four writes (steps 0, 3, 6, 9). While both
+implement a maximum of four writes per epoch, cooldown-based gating (requiring
+3-step spacing) produces different write patterns than quota-based gating (accepting
+the first four in any order): cooldown-only sweeps yielded 589/572 side writes (seeds 42–43)
+while quota-four-only produced 804/774, showing the two are not equivalent. The
+table reports quota values; a separate cooldown-three row would be needed to fully
+resolve the cooldown axis orthogonally to quota.
 
 | quota | mode | side writes | held back | late ungoverned | peak population ratio | population alarm | watched host | any host | teardowns |
 |---|---|---|---|---|---|---|---|---|---|
@@ -280,10 +284,10 @@ quota axis.
 | 4 | deletion | 777 | 188 | 0.554 | 8.5 | 3/10 / 8.3 | 3/10 / 24.3 | 6/10 / 14.8 | 8.7 |
 | 4 | revocation | 596 | 139 | 0.482 | 9.3 | 3/10 / 8.3 | 1/10 / 21.0 | 4/10 / 13.5 | 4.0 |
 
-**1. Quota one or two silences all three monitors in every seed.** The
+**1. Quota one silences all three monitors in every seed; quota two has sporadic failures.** The
 population monitor, which grid D showed firing in six to nine seeds of ten and
-earlier as the swarm gained hosts, never fires at quota 1 or 2. Neither does the
-watched host, nor the per-host rule run on every host. Quota 4 (or a cool-down
+earlier as the swarm gained hosts, never fires at quota 1 under either teardown mode. Neither does the
+watched host, nor the per-host rule run on every host. Quota 2 suppresses the population monitor universally but allows watched-host alarms in 1/10 deletion seeds and any-host alarms in 2/10 deletion seeds; it fully silences both under revocation. Quota 4 (or a cool-down
 of 3) halves the firing rate and delays the first alarm; it does not close it.
 
 **2. The board survives.** At quota 1 the fleet still lands 284 writes on the
