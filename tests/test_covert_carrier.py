@@ -130,7 +130,10 @@ class TestCovertCarrier:
         run_epochs(handler, state, 3)
         last = handler.epoch_snapshots[-1]
         assert last["side_writes"] == last["sanctioned_writes"]
-        assert last["ungoverned_fraction"] == 1.0
+        # In covert mode, ungoverned_fraction is 0 (no ungoverned writes).
+        # side_payload_fraction tracks the covert payload fraction: side / sanctioned.
+        assert last["ungoverned_fraction"] == 0.0
+        assert last["side_payload_fraction"] == 1.0
         # Every write went through the governed store.
         assert len(handler.store.all_entries()) == handler.side_write_count
 

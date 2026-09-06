@@ -49,7 +49,7 @@ class SideHost:
     # Covert carrier (bead vv3j.1): bit accounting and what the defender saw.
     kinds: Dict[str, str] = field(default_factory=dict)  # entry_id -> answer|fragment|evasion
     pending_bits: Dict[str, int] = field(default_factory=dict)  # agent -> bits toward next message
-    evasion_posted: set = field(default_factory=set)  # evaders whose order message is on the board
+    evasion_posted: set[str] = field(default_factory=set)  # evaders whose order message is on the board
     volume_history: List[int] = field(default_factory=list)  # defender-visible volume per epoch
     visible_volume: int = 0
     completed_messages: int = 0
@@ -422,11 +422,11 @@ class MemoryHandler(Handler):
         # Discovery, like infection, is agent state — teardown wipes the
         # store, not the knowledge (unless side_teardown_resets_discovery).
         self.side_hosts: List[SideHost] = []
-        self.discovered: set = set()
+        self.discovered: set[str] = set()
         # Which host each discovered agent uses (index into side_hosts).
         self.agent_host: Dict[str, int] = {}
         # Agents that learned an ordered sweep's direction (ZZZ writers).
-        self.evaders: set = set()
+        self.evaders: set[str] = set()
         # Overlap routing: each agent's learned value of the board, and the
         # task it was assigned this epoch.
         self.side_value: Dict[str, float] = {}
@@ -895,7 +895,7 @@ class MemoryHandler(Handler):
             doomed = [eid for eid, r in host.regions.items() if r < frac]
         else:
             doomed = [eid for eid in host.regions if self._rng.random() < frac]
-        caught: set = set()
+        caught: set[str] = set()
         for eid in doomed:
             entry = host.store.get_entry(eid)
             if entry is not None:
@@ -1146,11 +1146,10 @@ class MemoryHandler(Handler):
             })
         if self.side_hosts:
             n_agents = len(state.agents)
-            # Under a covert carrier every side write is also a sanctioned
-            # write, so the share is side / sanctioned, not side / (sum).
-            total_writes = sanctioned_writes_last_epoch + (
-                0 if self.config.side_carrier == "covert" else side_writes_last_epoch
-            )
+            # Under covert carrier, side writes are embedded in sanctioned writes.
+            # ungoverned_fraction preserves its original semantics (0.0 for covert);
+            # side_payload_fraction separately tracks the covert payload share.
+            total_writes = sanctioned_writes_last_epoch + side_writes_last_epoch
             side_caches = [e for h in self.side_hosts for e in h.store.hot_cache]
             side_corruption = (
                 sum(1 for e in side_caches if e.is_poisoned) / len(side_caches)
@@ -1181,7 +1180,13 @@ class MemoryHandler(Handler):
                 "side_writes": side_writes_last_epoch,
                 "sanctioned_writes": sanctioned_writes_last_epoch,
                 "ungoverned_fraction": (
-                    side_writes_last_epoch / total_writes if total_writes else 0.0
+                    0.0 if self.config.side_carrier == "covert"
+                    else (side_writes_last_epoch / total_writes if total_writes else 0.0)
+                ),
+                "side_payload_fraction": (
+                    side_writes_last_epoch / sanctioned_writes_last_epoch
+                    if self.config.side_carrier == "covert" and sanctioned_writes_last_epoch
+                    else 0.0
                 ),
                 "side_cache_corruption": side_corruption,
                 "side_entries": sum(len(h.regions) for h in self.side_hosts),
@@ -1205,7 +1210,7 @@ class MemoryHandler(Handler):
                     h.completed_messages for h in self.side_hosts
                 ),
                 "side_fragment_writes": sum(h.fragment_writes for h in self.side_hosts),
-                "side_visible_volume": sum(h.visible_volume for h in self.side_hosts),
+                "side_visible_volume": max((h.visible_volume for h in self.side_hosts), default=0),
                 # Discovered agents per host, in side_hosts order.
                 "side_host_users": [
                     sum(1 for h in used if h.index == host.index)
