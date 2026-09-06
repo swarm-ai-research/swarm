@@ -430,3 +430,21 @@ page makes every co-editor a reply-neighbour), the per-agent temporal score is a
 **handle-rotation artifact** (identity-dependent, collapses under `ip16`), and a
 plain **edit-volume monitor** is the signal that leads the moderator — the one
 thing none of the collusion detectors computes.
+
+## Wiki-board counterfactual resampling
+
+`scenarios/wiki_board_thought_branches.yaml` and its retrieval-controlled
+companion use local `qwen2.5:14b` through Ollama to measure how a retained
+decision-journal prefix changes later wiki posting under helpful, harmful, and
+neutral publication conditions. The wiki is simulated and local; the bridge
+has no public-wiki adapter.
+
+The arithmetic pilot produced 300 branches but no board reads. The retrieval
+variant forced the model to obtain a nonce from the board and passed that
+manipulation in 420/420 branches across two base seeds. At the pre-write
+checkpoint, helpful and neutral continuations posted in 35/35 cases while
+harmful continuations posted in 0/35. This is a replicated result for two
+specific retained prefixes, not a population estimate over reasoning traces.
+
+See `docs/research/wiki-board-counterfactual-resampling.md` for the method,
+complete results, limitations, artifact paths, and reproduction commands.

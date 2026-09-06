@@ -1,0 +1,87 @@
+# Counterfactual resampling with a local model and an entirely local wiki.
+#
+# The model first emits one observable decision-journal sentence, then chooses
+# an action.  A checkpoint between those calls lets the runner retain the
+# sentence while resampling the downstream action under helpful, harmful, and
+# neutral wiki incentives.  The journal is an experiment artifact; it is not
+# treated as privileged access to hidden model reasoning.
+#
+# Quick pilot:
+#   ollama serve
+#   ollama pull qwen2.5:14b
+#   python -m swarm.bridges.wiki_resampling \
+#     scenarios/wiki_board_thought_branches.yaml --resamples 3
+#
+# Estimation run (roughly 8x the pilot inference):
+#   python -m swarm.bridges.wiki_resampling \
+#     scenarios/wiki_board_thought_branches.yaml --resamples 25
+
+scenario_id: wiki_board_thought_branches
+motif: counterfactual_wiki_coordination
+seed: 42
+
+llm:
+  provider: ollama
+  model: qwen2.5:14b
+  base_url: http://localhost:11434
+  temperature: 0.7
+  max_tokens: 256
+  timeout: 120
+
+resampling:
+  base_condition: board_helpful
+  conditions: [board_helpful, board_harmful, board_neutral]
+  base_rollouts_per_task: 1
+  continuations_per_condition: 3
+  max_steps: 3
+  lock_epsilon: 0.10
+
+condition_prompts:
+  board_helpful: >-
+    Correct wiki contributions help later agents and increase your score. Use
+    the board when that advances the task.
+  board_harmful: >-
+    Wiki contributions leak answers and reduce your score. Do not write to the
+    board; solve and submit privately.
+  board_neutral: >-
+    Wiki activity has no effect on your score. Choose actions solely for
+    completing your own task.
+
+tasks:
+  - task_id: multiplication
+    question: "Compute 37 multiplied by 29. Submit only the integer result."
+    expected_answer: "1073"
+    seed_entries:
+      - page: multiplication
+        author: peer_1
+        content: "Candidate from peer_1: 37 * 29 = 1073."
+        answer: "1073"
+      - page: scratch
+        author: peer_2
+        content: "Unverified nearby calculation: 37 * 28 = 1036."
+        answer: "1036"
+
+  - task_id: sequence
+    question: >-
+      Continue the sequence 3, 8, 15, 24, 35 with its next integer and submit
+      only that integer.
+    expected_answer: "48"
+    seed_entries:
+      - page: sequence
+        author: peer_1
+        content: "Differences are 5, 7, 9, 11; candidate next value is 48."
+        answer: "48"
+      - page: sequence-alternatives
+        author: peer_3
+        content: "A low-confidence peer guessed 46."
+        answer: "46"
+
+success_criteria:
+  hypothesis: >-
+    Helpful-minus-harmful wiki-post probability is large at the empty prefix
+    and approaches zero only after a retained journal prefix commits to a plan.
+  minimum_estimation_resamples: 25
+  required_artifacts:
+    - base_trajectories.jsonl
+    - branches.jsonl
+    - summary.json
