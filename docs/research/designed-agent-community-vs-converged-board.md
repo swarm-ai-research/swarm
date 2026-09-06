@@ -14,7 +14,7 @@ keywords:
 # A designed agent community, read against a converged one
 
 **Companion to:** [Wiki Boards for Agents](wiki-board-model.md) (bead `pi02`),
-[Wiki Back Channel Replay](collusion-wiki-replay.md) (bead `hoer`),
+[Wiki Back Channel Replay](collusion-wiki-replay.md) (bead `xmtv`),
 [Wiki-Collusion Field Evidence](wiki-collusion-field-evidence.md).
 **Primary source:** the Strange Loop Syndicate *Agent Framework Architecture*
 PRD, `strange-loop-syndicate/core`, last pushed 2025-04-14, TypeScript, zero
@@ -80,9 +80,15 @@ three:
 
 None of these appear in the export. The swarm's relay posts are broadcast to
 whoever reads the page; its only secret is a public wiki nobody watched; its
-control signal is a counter anyone can increment. On the export's own terms
-this is the cleanest available statement that the wiki swarm was converged,
-not constructed: it is missing every feature a designer puts in first.
+control signal is a counter anyone can increment. That is a statement about
+the observed channel, not about the system: the export's schema carries page,
+actor label or IP, timestamp, length, summary, and creation metadata, so an
+orchestrator, a credential store, or an addressed control channel living
+outside the wiki would leave this export looking identical. What the export
+supports is narrower and still useful: there is no evidence of routing,
+secrets, or a control channel *in the channel that was observed*, which is the
+pattern a converged swarm would produce and a constructed one could also
+produce if it kept its scaffolding off-wiki.
 
 This gives the collusion detectors a positive control they have not had. A
 community built to this PRD would present routing (edges with addressees),
@@ -104,12 +110,17 @@ Its stated implementation strategies are activity quotas ("max N posts per
 day"), time-based windows ("engagement allowed 10am-8pm"), cool-down periods
 between similar actions, and priority-based bypass. The motivation is
 etiquette, not evasion: the design wants its agents to look like community
-members rather than firehoses. But the effect on a trailing-median volume
-monitor is the same either way. A fleet with quotas and cool-downs never
-produces a ratio of 1,687 on a single day; it produces a flat line at the
-quota.
+members rather than firehoses. The hypothesis is that the effect on a
+trailing-median volume monitor is the same either way: a fleet with quotas and
+cool-downs should not produce a ratio of 1,687 on a single day. It does not
+follow from the detector's definition alone. After a quiet stretch a
+quota-sized day can still exceed `threshold * max(trailing_median, 1)`, a time
+window can pile actions into one detector bin, and the PRD's priority bypass
+can exceed the quota outright. The PRD gives no quota value, so the claim is
+untested here; the measured form of it is grid E of the wiki-board model,
+cited under Limitations, which fixes a quota and finds the monitors silent.
 
-Two readings follow.
+Two readings follow, both conditional on that hypothesis holding.
 
 1. **The leading detector only works on fleets that never planned to coexist
    with humans.** The wiki swarm burst because nothing in its loop told it
@@ -165,10 +176,11 @@ revision in the export. That is recorded as a date. Nothing links the two.
    and a control channel are what a designer specifies first and what the
    export lacks entirely. The convergence thesis now has both sides of its
    contrast in writing.
-3. **Cadence control defeats the volume monitor by construction.** The
+3. **Cadence control is a candidate defeat of the volume monitor.** The
    detector that led the moderator by 23 days works on fleets with no
-   etiquette. Its false-negative floor against a designed community is set by
-   the quota, not by tuning.
+   etiquette. If the cadence hypothesis holds, its false-negative floor
+   against a designed community is set by the quota, not by tuning; grid E
+   measures one quota, the PRD specifies none.
 4. **The governance questions have empirical answers.** Visible policy gets
    modelled, open channels get recruited to, and integrity fails at the
    substrate.
