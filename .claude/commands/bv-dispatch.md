@@ -190,7 +190,7 @@ round so the numbers are comparable:
 
     bd list --parent <epic> --status all --json | python3 -c "import json,sys; \
       [print(f\"{i['id'][-6:]:8} {i['status']:12} {(i.get('due_at') or '-')[:10]:11} {i['title'][:60]}\") \
-       for i in json.load(sys.stdin)]"
+       for i in sorted(json.load(sys.stdin), key=lambda i: i.get('due_at') or 'z')]"
 
 (`--status all` matters: the default listing hides closed children, and the
 page is only an inspection if it shows what shipped next to what slipped.)
