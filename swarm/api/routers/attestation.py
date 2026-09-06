@@ -40,7 +40,9 @@ class _AttestationState:
 
     def __init__(self) -> None:
         self.signer = ReceiptSigner()
-        verifier = ReceiptVerifier(self.signer.secret_key_hex)
+        # Verification needs no secret: the relay trusts exactly this
+        # process's signing DID (bead jxyi).
+        verifier = ReceiptVerifier(trusted_signers={self.signer.did})
         self.middleware = AttestationMiddleware(signer=self.signer)
         self.relay = ReceiptRelay(verifier=verifier)
 

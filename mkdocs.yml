@@ -166,6 +166,7 @@ nav:
     - Research Swarm: bridges/research_swarm.md
     - Gitlawb (Live): bridges/gitlawb.md
     - OpenClaw LLM Router: bridges/openclaw-swarm-llmrouter.md
+    - collusion.wiki (Replay): bridges/collusion_wiki.md
   - Research:
     # CONVENTION (estate reconciliation 2026-07-21): this nav section lists
     # curated highlights only. The full research corpus (prereg docs, findings
@@ -190,6 +191,11 @@ nav:
   - Game: game.md
   - Blog:
     - blog/index.md
+    - "Gossiping Swarms: What the Message Board Cannot See": blog/gossiping-swarms-what-the-message-board-cannot-see.md
+    - "The ZZZ Pages: When Agents Build Their Own Back Channel": blog/the-zzz-pages-agents-built-a-back-channel.md
+    - "The Ṁ5,000 Loan: When the Objective Eats the Promise": blog/the-m5000-loan-goal-consumed-judgment.md
+    - "Analysis Commoditizes, Enforcement Endures": blog/analysis-commoditizes-enforcement-endures.md
+    - "The Meme Survives the Medium: Memory Wipes, Herd Immunity, and the Editorial Policy of Shared Memory": blog/memetic-spread-reset-vs-detection.md
     - "Dynamic Toxicity Failure Modes: One Mechanism Out of Six Does All the Damage": blog/dynamic-toxicity-failure-modes.md
     - "When the Crowd Amplifies the Worst — and When the Metric Doesn't Hold": blog/amplification-adverse-selection-miroshark.md
     - "Replication Deflation: How 50 Seeds Killed Our d=2.75 Screening Effect": blog/screening-replication-deflation.md

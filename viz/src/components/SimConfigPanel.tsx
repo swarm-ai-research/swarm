@@ -202,6 +202,9 @@ export function SimConfigPanel({ onComplete }: Props) {
             key={ag.type}
             onMouseEnter={() => setHoveredAgentType(ag.type)}
             onMouseLeave={() => setHoveredAgentType(null)}
+            onFocus={() => setHoveredAgentType(ag.type)}
+            onBlur={() => setHoveredAgentType(null)}
+            tabIndex={0}
           >
             <Slider
               label={ag.type.charAt(0).toUpperCase() + ag.type.slice(1)}

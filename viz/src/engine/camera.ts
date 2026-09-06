@@ -21,6 +21,18 @@ export function zoom(vp: Viewport, delta: number, focusX: number, focusY: number
   };
 }
 
+/** Zoom to an absolute zoom level around a focus point (used by pinch gestures). */
+export function zoomTo(vp: Viewport, targetZoom: number, focusX: number, focusY: number): Viewport {
+  const newZoom = clamp(targetZoom, MIN_ZOOM, MAX_ZOOM);
+  const ratio = newZoom / vp.zoom;
+  return {
+    ...vp,
+    zoom: newZoom,
+    x: focusX - (focusX - vp.x) * ratio,
+    y: focusY - (focusY - vp.y) * ratio,
+  };
+}
+
 /** Convert screen mouse coordinates to world coordinates */
 export function screenToWorld(vp: Viewport, screenX: number, screenY: number): Point {
   return {

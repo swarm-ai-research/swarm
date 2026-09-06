@@ -1327,3 +1327,72 @@ class TestAdversaryProposalRouting:
         pending = state.get_proposals_for_agent(action.counterparty_id)
         assert len(pending) == 1
         assert pending[0].initiator_id == "adaptive_1"
+
+
+class TestOutOfBandChannel:
+    """The collusion.wiki exhibit (bead 7y0p): coordination off-instrument."""
+
+    def _evasion(self, **gov):
+        ev = RedTeamEvaluator(governance_config=gov)
+        scenario = AttackLibrary.out_of_band_channel()
+        result = AttackResult(attack_id=scenario.attack_id, scenario=scenario)
+        # evasion_rate is deterministic (0.7 * success probability), unlike
+        # attack_succeeded, so compare it across governance configs.
+        return ev._simulate_attack_outcome(scenario, result).evasion_rate
+
+    def test_in_library(self):
+        ids = [a.attack_id for a in AttackLibrary.get_all_attacks()]
+        assert "out_of_band_channel" in ids
+        attack = AttackLibrary.out_of_band_channel()
+        assert attack.category == AttackCategory.COORDINATION
+        assert attack.adversary_config["channel_visible_to_proxy"] is False
+        assert attack.adversary_config["evasion_prefix"] == "ZZZ"
+        assert "volume_monitor" in attack.targeted_levers
+
+    def test_collusion_detection_does_not_help(self):
+        # Replay finding: pairwise/structural detection saturates on a hub page.
+        assert self._evasion() == self._evasion(collusion_detection_enabled=True)
+
+    def test_volume_monitor_reduces_and_allowlist_prevents(self):
+        none = self._evasion()
+        volume = self._evasion(volume_monitor_enabled=True)
+        allowlist = self._evasion(egress_allowlist_enabled=True)
+        assert allowlist < volume < none
+
+    def test_recommends_volume_monitor_when_attack_succeeds(self):
+        ev = RedTeamEvaluator(governance_config={})
+        scenario = AttackLibrary.out_of_band_channel()
+        result = AttackResult(attack_id=scenario.attack_id, scenario=scenario)
+        result.attack_succeeded = True
+        ev.attack_results = [result]
+        recs = ev._generate_recommendations(GovernanceRobustness(governance_config={}))
+        assert any("volume/rate monitor" in r for r in recs)
+
+
+    def test_population_monitor_is_host_count_invariant(self):
+        # vv3j.8: the per-host volume monitor weakens as the swarm gains hosts
+        # to relocate across; the population monitor does not.
+        def evasion(n_hosts, **gov):
+            ev = RedTeamEvaluator(governance_config=gov)
+            scenario = AttackLibrary.out_of_band_channel()
+            scenario.adversary_config["n_hosts"] = n_hosts
+            result = AttackResult(attack_id=scenario.attack_id, scenario=scenario)
+            return ev._simulate_attack_outcome(scenario, result).evasion_rate
+
+        one = evasion(1, volume_monitor_enabled=True)
+        four = evasion(4, volume_monitor_enabled=True)
+        eight = evasion(8, volume_monitor_enabled=True)
+        assert one < four < eight
+        pop = [evasion(n, substrate_population_monitor_enabled=True) for n in (1, 4, 8)]
+        assert pop[0] == pop[1] == pop[2] == one
+
+    def test_recommends_population_monitor_when_hosts_are_many(self):
+        ev = RedTeamEvaluator(governance_config={"volume_monitor_enabled": True})
+        scenario = AttackLibrary.out_of_band_channel()
+        result = AttackResult(attack_id=scenario.attack_id, scenario=scenario)
+        result.attack_succeeded = True
+        ev.attack_results = [result]
+        recs = ev._generate_recommendations(
+            GovernanceRobustness(governance_config=ev.governance_config)
+        )
+        assert any("population of hosts" in r for r in recs)

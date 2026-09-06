@@ -44,6 +44,7 @@ from swarm.agents.pressure_responsive import PressureResponsiveAgent
 from swarm.agents.rain_river import RainAgent, RiverAgent
 from swarm.agents.ralph_agent import AdversarialRalphAgent, RalphLoopAgent
 from swarm.agents.rivals_agent import RivalsCriticAgent, RivalsProducerAgent
+from swarm.agents.rl_organism import RLOrganismAgent
 from swarm.agents.rlm_agent import RLMAgent
 from swarm.agents.scholar_agent import (
     AdversarialRetrieverAgent,
@@ -154,6 +155,8 @@ AGENT_TYPES: Dict[str, Type[BaseAgent]] = {
     # Rain/River memory agents
     "rain": RainAgent,
     "river": RiverAgent,
+    # RL organism: tabular-bandit emergence testbed (bead boll)
+    "rl_organism": RLOrganismAgent,
     # Ralph loop agents (artifact-mediated memory)
     "ralph_loop": RalphLoopAgent,
     "adversarial_ralph": AdversarialRalphAgent,
@@ -739,6 +742,33 @@ def parse_memory_tier_config(data: Dict[str, Any]) -> Optional[MemoryTierConfig]
         hot_cache_size=data.get("hot_cache_size", 20),
         compaction_probability=data.get("compaction_probability", 0.05),
         seed=data.get("seed"),
+        contagion_enabled=data.get("contagion_enabled", False),
+        contagion_exposure_alpha=data.get("contagion_exposure_alpha", 0.25),
+        contagion_transmissibility=data.get("contagion_transmissibility", 0.8),
+        reset_cadence_epochs=data.get("reset_cadence_epochs", 0),
+        cache_ranking=data.get("cache_ranking", "quality"),
+        side_channel_enabled=data.get("side_channel_enabled", False),
+        side_discovery_rate=data.get("side_discovery_rate", 0.05),
+        side_referral_boost=data.get("side_referral_boost", 0.3),
+        side_write_preference=data.get("side_write_preference", 0.7),
+        side_detection_rate=data.get("side_detection_rate", 0.0),
+        side_teardown_resets_discovery=data.get(
+            "side_teardown_resets_discovery", False
+        ),
+        side_rebuild_lag_epochs=data.get("side_rebuild_lag_epochs", 1),
+        side_exposure_weight=data.get("side_exposure_weight", 0.5),
+        side_host_attention=data.get("side_host_attention"),
+        side_defender_error=data.get("side_defender_error", 0.0),
+        side_teardown_policy=data.get("side_teardown_policy", "complete"),
+        side_teardown_fraction=data.get("side_teardown_fraction", 0.5),
+        side_evasion_rate=data.get("side_evasion_rate", 0.0),
+        side_routing=data.get("side_routing", "fixed"),
+        side_task_overlap=data.get("side_task_overlap", 1.0),
+        side_deadline_pressure=data.get("side_deadline_pressure", 1.0),
+        side_value_alpha=data.get("side_value_alpha", 0.3),
+        side_value_prior=data.get("side_value_prior", 0.5),
+        side_monitor_threshold=data.get("side_monitor_threshold", 10.0),
+        side_monitor_trailing=data.get("side_monitor_trailing", 7),
     )
     return config
 
@@ -1653,6 +1683,25 @@ def build_orchestrator(scenario: ScenarioConfig) -> Orchestrator:
             "Pressure-responsive wiring active for %d agents",
             len(pressure_agents),
         )
+
+    # RL organisms (bead boll) choose a per-interaction effort that must
+    # drive observables (and hence p) through the normal proxy path. Wraps
+    # whichever generator was selected above; non-effort proposals fall
+    # through to the inner generator unchanged.
+    if any(isinstance(a, RLOrganismAgent) for a in agents):
+        from swarm.core.observable_generator import (
+            DefaultObservableGenerator,
+            EffortObservableGenerator,
+        )
+
+        seed = scenario.orchestrator_config.seed
+        effort_rng = random.Random(seed + 15485863) if seed is not None else None
+        inner = observable_generator or DefaultObservableGenerator(rng=effort_rng)
+        observable_generator = EffortObservableGenerator(
+            inner=inner,
+            rng=effort_rng,
+        )
+        logger.info("Effort-driven observable wiring active (rl_organism present)")
 
     # Create orchestrator
     orchestrator = Orchestrator(

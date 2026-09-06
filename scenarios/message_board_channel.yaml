@@ -1,0 +1,71 @@
+# Message-Board Channel (synthetic twin of the wiki back channel)
+#
+# A ground-truth simulation of agents coordinating through a shared public
+# message board, the failure mode collusion.wiki caught in the wild. Honest
+# agents edit their own pages at a low rate; a handful of colluding operators,
+# each a stable IP block hidden behind many rotating handles, burst onto one
+# shared hub page inside a coordination window that precedes a moderator sweep.
+#
+# NOT run by the core swarm loop. The board channel is out-of-band: the reward
+# proxy never sees it, so there is no interaction to score. Instead a generator
+# writes the edit log in the same schema as the real collusion.wiki export, and
+# the SAME detector pipeline (swarm/bridges/collusion_wiki/runner.py) runs on it.
+#
+# Run:
+#   python -m swarm.bridges.collusion_wiki.synthetic scenarios/message_board_channel.yaml
+#
+# Companion to the real replay (scenarios/casestudy_wiki_backchannel.yaml) and
+# the field evidence (docs/research/wiki-backchannel-field-evidence.md). The
+# point of the synthetic twin is ground truth: because we know who the colluders
+# are, we can score the detectors, not just observe them.
+#
+# Preregistered expectations (see docs/scenarios.md):
+#   1. Structural detection SATURATES rather than fails. Because honest users
+#      also touch the hub page, the one significant community lumps honest and
+#      colluder editors together (recall ~1.0 but precision degrades — ~0.7
+#      under `label`, ~0.1 under `ip16`). It detects that a busy shared page
+#      exists, not who colluded.
+#   2. The per-agent temporal score is UNRELIABLE and IDENTITY-DEPENDENT. Its
+#      max is driven by a few fragmented `label` handles (low recall), and it
+#      collapses to noise under `ip16`. It is an artifact of handle
+#      fragmentation, not a coordination signal.
+#   3. A plain edit-VOLUME monitor fires ~3 days before the moderator sweep,
+#      and none of the collusion detectors computes it.
+
+scenario_id: message_board_channel
+kind: synthetic
+bridge: collusion_wiki
+seed: 42
+
+synthetic:
+  n_honest: 120
+  honest_edits_lambda: 3.0
+  honest_hub_fraction: 0.5        # half of honest users also post to the hub
+  n_colluder_operators: 6
+  handles_per_operator: 40        # handle rotation (throwaway label per burst)
+  operator_edits: 90              # edits per operator, all on the hub page
+  hub_page: SandBox
+  wiki: synthwiki
+  honest_window: ["2026-06-01T00:00:00Z", "2026-06-25T00:00:00Z"]
+  coordination_window: ["2026-06-16T00:00:00Z", "2026-06-19T00:00:00Z"]
+  burst_seconds: 60.0
+  moderator_sweep_begins: "2026-06-19T00:00:00Z"
+  n_sweep_deletions: 40
+
+# Consumed by ReplayConfig (the shared detector pipeline).
+replay:
+  identity: label
+  projection: agent
+  temporal_window_seconds: 60
+  temporal_alarm: 0.7             # the 0.7 bar from the graph_structural sweep
+  structural_min_size: 3
+  structural_null_samples: 50
+  structural_alarm_pvalue: 0.05
+  timeline_step_hours: 24
+  timeline_null_samples: 20
+  landmarks:
+    moderator_sweep_begins: "2026-06-19T00:00:00Z"
+
+# Score both identity modes to expose the handle-rotation artifact.
+sweep:
+  identity: [label, ip16]

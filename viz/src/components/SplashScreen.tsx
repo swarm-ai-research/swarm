@@ -34,9 +34,9 @@ export function SplashScreen() {
       onClick={skip}
     >
       <img
-        src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/splash.png`}
+        src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/splash.webp`}
         alt="SWARM"
-        className={`w-64 h-64 object-contain ${
+        className={`w-44 h-44 object-contain sm:w-64 sm:h-64 ${
           phase === "enter"
             ? "animate-[splash-enter_0.8s_ease-out_forwards,splash-glow_1.7s_ease-in-out_0.8s_infinite]"
             : ""
@@ -46,7 +46,7 @@ export function SplashScreen() {
         Governance benchmark suite with receipts
       </p>
       <p className="text-muted/40 text-xs mt-6 animate-[splash-enter_1.4s_ease-out_forwards] opacity-0" style={{ animationDelay: "1.2s" }}>
-        click to continue
+        click or tap to continue
       </p>
     </div>
   );

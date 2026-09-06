@@ -64,10 +64,10 @@ export function LiveControlBar() {
   const redTeamScore = state.mode === "redteam" ? computeRedTeamScore() : 0;
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 bg-panel border-t border-border z-[10000]">
+    <div className="absolute bottom-0 left-0 right-0 bg-panel border-t border-border z-[10000] pb-[env(safe-area-inset-bottom)]">
       {/* Campaign objective bar */}
       {state.mode === "campaign" && state.currentLevel && state.levelStatus === "playing" && (
-        <div className="flex items-center gap-3 px-4 py-1.5 border-b border-border bg-blue-950/30 text-xs">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 sm:px-4 py-1.5 border-b border-border bg-blue-950/30 text-xs">
           <span className="text-blue-300 font-bold">{state.currentLevel.name}</span>
           <span className="text-muted">Win: {describeWinCondition(state.currentLevel.winCondition)}</span>
           <span className="text-muted">|</span>
@@ -86,7 +86,7 @@ export function LiveControlBar() {
 
       {/* Red team score bar */}
       {state.mode === "redteam" && (
-        <div className="flex items-center gap-3 px-4 py-1.5 border-b border-border bg-red-950/30 text-xs">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 sm:px-4 py-1.5 border-b border-border bg-red-950/30 text-xs">
           <span className="text-red-300 font-bold">RED TEAM</span>
           <span className="text-muted">Score:</span>
           <span className="font-mono text-red-400">{redTeamScore.toFixed(1)}</span>
@@ -98,12 +98,13 @@ export function LiveControlBar() {
       )}
 
       {/* Main controls */}
-      <div className="h-14 flex items-center gap-2 px-4">
+      <div className="min-h-14 flex flex-wrap items-center gap-x-2 gap-y-1.5 px-3 py-2 sm:px-4 md:h-14 md:flex-nowrap md:py-0">
         {/* Play/Pause */}
         <button
           onClick={togglePause}
           className="w-9 h-9 flex items-center justify-center rounded bg-btn hover:bg-btn-hover transition-colors"
           title={state.isPaused ? "Resume" : "Pause"}
+          aria-label={state.isPaused ? "Resume simulation" : "Pause simulation"}
         >
           {state.isPaused ? (
             <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
@@ -226,7 +227,7 @@ export function LiveControlBar() {
       {/* Governance panel (slides up) */}
       {showGovPanel && (
         <div className="border-t border-border px-4 py-3 bg-panel">
-          <div className="grid grid-cols-4 gap-4 text-xs">
+          <div className="grid grid-cols-2 gap-4 text-xs sm:grid-cols-4">
             <div>
               <label className="text-muted block mb-1">Tax Rate</label>
               <input

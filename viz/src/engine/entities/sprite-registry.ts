@@ -22,7 +22,7 @@ interface SpriteEntry {
 }
 
 /**
- * SpriteRegistry loads and caches agent sprite PNGs (idle only).
+ * SpriteRegistry loads and caches agent sprite images (idle only, WebP).
  * Applies background removal on load to ensure clean alpha transparency.
  * The engine's bob offset and position changes animate walking — no separate
  * walk sprites needed.
@@ -48,7 +48,7 @@ class SpriteRegistry {
         entry.loaded = true;
       };
       img.onerror = () => { /* silently fail — procedural fallback */ };
-      img.src = `${BASE_PATH}/sprites/${agentType}_idle.png`;
+      img.src = `${BASE_PATH}/sprites/${agentType}_idle.webp`;
 
       this.sprites.set(key, entry);
     }
@@ -64,7 +64,7 @@ class SpriteRegistry {
         entry.loaded = true;
       };
       img.onerror = () => { /* silently fail — procedural fallback */ };
-      img.src = `${BASE_PATH}/sprites/${key}.png`;
+      img.src = `${BASE_PATH}/sprites/${key}.webp`;
 
       this.envSprites.set(key, entry);
     }

@@ -211,7 +211,6 @@ def test_legacy_v0_bundle_still_verifies(tmp_path):
         payload=v0_payload,
         agent_id="codex",
         signing_key="0" * 64,
-        signer_id="agentgit-local",
         decisions=decisions,
     )
     bundle = {

@@ -10,8 +10,14 @@ from pydantic import ValidationError
 from swarm.governance import GovernanceConfig, GovernanceEngine
 from swarm.metrics.collusion import (
     CollusionDetector,
+    OutputCorrelationResult,
+    RederivationResult,
+    VolumeBurstResult,
     detect_vote_coordination,
+    output_correlation_signal,
+    rederivation_infeasibility_signal,
     temporal_clustering_score,
+    volume_burst_signal,
 )
 from swarm.models.interaction import InteractionType, SoftInteraction
 
@@ -290,6 +296,100 @@ class TestGroupDetection:
         # Should potentially detect a group (depends on scores)
         # At minimum, should detect suspicious pairs
         assert report.n_flagged_pairs > 0 or report.n_flagged_groups > 0
+
+    def test_export_harm_coalition_flagged_by_group_first_pass(self):
+        """Group-first pass (bead mwve): a coalition that trades HIGH-p
+        internally and dumps LOW-p extraction on outsiders is invisible to
+        the pair-first pipeline (no pair looks bad) but must be flagged.
+
+        This is the emergent-RL-coalition signature from
+        scenarios/rl_emergence.yaml capacity=3 seed=44, reproduced as a
+        synthetic fixture.
+        """
+        members = ["m1", "m2", "m3"]
+        victims = ["v1", "v2", "v3"]
+        interactions = []
+
+        # High-p internal trade among all member pairs (mutual favoritism).
+        for a, b in [("m1", "m2"), ("m2", "m3"), ("m1", "m3")]:
+            interactions.extend(create_collusion_pattern(a, b, count=12, p_internal=0.85))
+
+        # Each member extracts (low-p, accepted) from each victim.
+        for m in members:
+            for v in victims:
+                for _ in range(6):
+                    interactions.append(
+                        create_interaction(m, v, p=0.25, accepted=True)
+                    )
+
+        # Victims also do honest high-p work among themselves.
+        for a, b in [("v1", "v2"), ("v2", "v3"), ("v1", "v3")]:
+            for _ in range(5):
+                interactions.append(create_interaction(a, b, p=0.8, accepted=True))
+
+        detector = CollusionDetector(
+            min_interactions_for_analysis=3,
+            quality_asymmetry_threshold=0.2,
+        )
+        report = detector.analyze(interactions)
+
+        group_members = [set(g.members) for g in report.suspicious_groups]
+        assert any(
+            set(members) <= gm for gm in group_members
+        ), f"export-harm coalition not flagged; groups={group_members}"
+
+        flagged = next(
+            g for g in report.suspicious_groups if set(members) <= set(g.members)
+        )
+        assert flagged.detection_method == "mutual_favoritism"
+        assert flagged.directional_quality_asymmetry >= 0.2
+        # Victims must NOT be reported as coalition members.
+        assert not (set(victims) & set(flagged.members))
+
+    def test_group_first_pass_ignores_uniform_honest_population(self):
+        """A population where everyone trades high-p with everyone must not
+        be flagged — mutual favoritism without out-group harm is not
+        collusion."""
+        agents = ["h1", "h2", "h3", "h4", "h5"]
+        interactions = []
+        for i, a in enumerate(agents):
+            for b in agents[i + 1 :]:
+                for _ in range(6):
+                    interactions.append(create_interaction(a, b, p=0.8, accepted=True))
+
+        detector = CollusionDetector(
+            min_interactions_for_analysis=3,
+            quality_asymmetry_threshold=0.2,
+        )
+        report = detector.analyze(interactions)
+        assert report.n_flagged_groups == 0
+        assert report.ecosystem_collusion_risk == 0.0
+
+    def test_group_first_pass_ignores_favor_cluster_without_victims(self):
+        """A mutual-favoritism cluster whose members never engage the
+        out-group has no victims to extract from — not a harm-exporting
+        coalition, so it must not be flagged even though internal p is
+        high and external contact is nil."""
+        interactions = []
+        # Tight high-p cluster, no outbound at all.
+        for a, b in [("c1", "c2"), ("c2", "c3"), ("c1", "c3")]:
+            interactions.extend(create_collusion_pattern(a, b, count=10, p_internal=0.9))
+        # Separate outsiders doing their own thing.
+        for a, b in [("o1", "o2"), ("o2", "o3")]:
+            for _ in range(6):
+                interactions.append(create_interaction(a, b, p=0.7, accepted=True))
+
+        detector = CollusionDetector(
+            min_interactions_for_analysis=3,
+            quality_asymmetry_threshold=0.2,
+        )
+        report = detector.analyze(interactions)
+        # The cluster has no outbound engagement, so the group-first pass
+        # must not promote it to a harm-exporting coalition.
+        assert all(
+            g.detection_method != "mutual_favoritism"
+            for g in report.suspicious_groups
+        )
 
     def test_group_metrics_calculation(self):
         """Should compute metrics for detected groups."""
@@ -814,3 +914,344 @@ class TestCollusionPenaltyLever:
         lever.clear_history()
         assert len(lever._interaction_history) == 0
         assert lever._latest_report is None
+
+
+# =============================================================================
+# Volume-burst signal (bead hoer)
+# =============================================================================
+
+
+def _burst_interactions(quiet_days, quiet_per_day, spike_day, spike_n, page="Hub"):
+    base = datetime(2026, 6, 1)
+    out = []
+    for d in range(quiet_days):
+        for k in range(quiet_per_day):
+            out.append(
+                SoftInteraction(
+                    timestamp=base + timedelta(days=d, minutes=k),
+                    initiator=f"a{k % 5}",
+                    counterparty=f"b{k % 3}",
+                    accepted=True,
+                    metadata={"page_id": page},
+                )
+            )
+    for k in range(spike_n):
+        out.append(
+            SoftInteraction(
+                timestamp=base + timedelta(days=spike_day, minutes=k),
+                initiator=f"a{k % 20}",
+                counterparty="board",
+                accepted=True,
+                metadata={"page_id": page},
+            )
+        )
+    return out
+
+
+class TestVolumeBurstSignal:
+    def test_quiet_baseline_does_not_fire(self):
+        base = datetime(2026, 6, 1)
+        quiet = [
+            SoftInteraction(
+                timestamp=base + timedelta(days=d, minutes=k),
+                initiator=f"a{k}",
+                counterparty="board",
+                accepted=True,
+                metadata={"page_id": "Hub"},
+            )
+            for d in range(20)
+            for k in range(5)
+        ]
+        r = volume_burst_signal(quiet, threshold=10.0)
+        assert isinstance(r, VolumeBurstResult)
+        assert r.alarm is False
+        assert r.max_ratio < 10.0
+        assert r.n_alarm_windows == 0
+
+    def test_spike_fires_on_the_spike_day(self):
+        its = _burst_interactions(8, 3, spike_day=8, spike_n=300)
+        r = volume_burst_signal(its, threshold=10.0)
+        assert r.alarm is True
+        # spike day = 2026-06-01 + 8 days = 2026-06-09
+        assert r.first_alarm.startswith("2026-06-09")
+        assert r.peak_window.startswith("2026-06-09")
+        assert r.max_ratio == pytest.approx(100.0)  # 300 / max(median 3, 1)
+
+    def test_min_baseline_floor_prevents_divide_by_zero(self):
+        # One early low-activity day, then empty days, then a spike against an
+        # all-but-zero trailing median. Must not raise and must give a finite
+        # ratio via the max(median, min_baseline) floor.
+        its = _burst_interactions(1, 1, spike_day=3, spike_n=50)
+        r = volume_burst_signal(its, threshold=10.0)
+        assert r.alarm is True
+        # trailing median over [1, 0, 0] is 0 -> denom = max(0, 1) = 1
+        assert r.max_ratio == pytest.approx(50.0)
+
+    def test_per_object_attributes_burst_to_the_hub_page(self):
+        # A hub page spikes; a second page stays quiet.
+        its = _burst_interactions(8, 3, spike_day=8, spike_n=200, page="HubPage")
+        base = datetime(2026, 6, 1)
+        for d in range(9):
+            its.append(
+                SoftInteraction(
+                    timestamp=base + timedelta(days=d),
+                    initiator="x",
+                    counterparty="board",
+                    accepted=True,
+                    metadata={"page_id": "QuietPage"},
+                )
+            )
+        r = volume_burst_signal(its, threshold=10.0, per_object=True)
+        assert r.alarm is True
+        assert r.peak_object == "HubPage"
+
+    def test_per_object_min_events_suppresses_tiny_pages(self):
+        # Two edits on a brand-new page is ratio 2 but should not alarm because
+        # it is below min_object_events.
+        base = datetime(2026, 6, 1)
+        its = [
+            SoftInteraction(
+                timestamp=base + timedelta(days=2, minutes=k),
+                initiator="x",
+                counterparty="board",
+                accepted=True,
+                metadata={"page_id": "Tiny"},
+            )
+            for k in range(2)
+        ]
+        r = volume_burst_signal(its, threshold=1.5, per_object=True, min_object_events=5)
+        assert r.alarm is False
+
+    def test_empty_input(self):
+        r = volume_burst_signal([])
+        assert r.alarm is False
+        assert r.n_windows == 0
+
+    def test_surfaced_in_collusion_report(self):
+        its = _burst_interactions(8, 3, spike_day=8, spike_n=300)
+        report = CollusionDetector(volume_burst_threshold=10.0).analyze(its)
+        assert report.volume_burst is not None
+        assert report.volume_burst.alarm is True
+        assert report.volume_burst_object is not None
+        assert report.volume_burst_object.alarm is True
+
+    def test_threshold_is_configurable(self):
+        its = _burst_interactions(8, 3, spike_day=8, spike_n=300)  # ratio 100
+        assert volume_burst_signal(its, threshold=50.0).alarm is True
+        assert volume_burst_signal(its, threshold=500.0).alarm is False
+
+
+class TestSubstratePopulationSignal:
+    """bead vv3j.8: watch the population of hosts, not the host you found."""
+
+    def _sig(self, counts, **kw):
+        from swarm.metrics.collusion import substrate_population_signal
+        return substrate_population_signal(counts, **kw)
+
+    def test_relocation_keeps_population_alarm_and_loses_per_host(self):
+        # Host A carries the board for three windows, is torn down, and the
+        # swarm relocates to host B. Watched-host A's burst is a one-off; the
+        # population total never dips.
+        a = [0, 30, 30, 30, 0, 0, 0, 0]
+        b = [0, 0, 0, 0, 30, 30, 30, 30]
+        r = self._sig({"A": a, "B": b}, threshold=10.0)
+        assert r.population_first_alarm == 1
+        assert r.per_host_first_alarm == {"A": 1, "B": 4}
+        assert r.relocation_count == 1
+        assert r.relocations[0]["quiet_host"] == "A"
+        assert r.relocations[0]["lit_host"] == "B"
+        assert r.host_spread[1] == 0.5 and r.host_spread[0] == 0.0
+
+    def test_quiet_population_never_fires(self):
+        r = self._sig({"A": [2, 2, 3, 2, 3], "B": [1, 1, 1, 2, 1]}, threshold=10.0)
+        assert r.population_first_alarm is None
+        assert r.any_host_first_alarm is None
+        assert r.relocation_count == 0
+
+    def test_diluted_hosts_fire_only_in_aggregate(self):
+        # Eight hosts each carrying 3 writes: no host clears a 10x floor, the
+        # population (24) does.
+        counts = {str(i): [0, 3, 3, 3] for i in range(8)}
+        r = self._sig(counts, threshold=10.0)
+        assert r.any_host_first_alarm is None
+        assert r.population_first_alarm == 1
+
+    def test_ragged_input_rejected(self):
+        import pytest
+        with pytest.raises(ValueError):
+            self._sig({"A": [1, 2], "B": [1]})
+
+    def test_empty(self):
+        r = self._sig({})
+        assert r.n_hosts == 0 and r.population_first_alarm is None
+
+
+def _answer_interaction(agent, answer, task="T1", t=None, **md):
+    """One answer-bearing board interaction for the content-free detectors."""
+    meta = {"task_id": task, "answer": answer}
+    meta.update(md)
+    return SoftInteraction(
+        timestamp=t or datetime(2026, 6, 1),
+        initiator=agent,
+        counterparty="board",
+        accepted=True,
+        metadata=meta,
+    )
+
+
+class TestOutputCorrelationSignal:
+    def test_all_distinct_answers_no_alarm(self):
+        its = [_answer_interaction(f"a{i}", i) for i in range(6)]
+        res = output_correlation_signal(its)
+        assert isinstance(res, OutputCorrelationResult)
+        assert res.observed_agreement == 0.0
+        assert res.flagged_agents == set()
+        assert res.alarm is False
+
+    def test_shared_answers_flag_the_cluster(self):
+        # four agents on one answer, two on unique answers
+        its = [_answer_interaction(f"c{i}", "X") for i in range(4)]
+        its += [_answer_interaction("u1", "Y"), _answer_interaction("u2", "Z")]
+        res = output_correlation_signal(its, agreement_threshold=0.5)
+        assert res.flagged_agents == {"c0", "c1", "c2", "c3"}
+        assert res.observed_agreement == pytest.approx(4 / 6)
+        assert res.modal_share == pytest.approx(4 / 6, abs=1e-3)
+        assert res.alarm is True
+
+    def test_convergence_and_collusion_read_the_same(self):
+        # honest convergence: everyone lands on the optimum
+        conv = [_answer_interaction(f"h{i}", "OPT") for i in range(8)]
+        # collusion: everyone copies one posted answer
+        coll = [_answer_interaction(f"k{i}", "OPT") for i in range(8)]
+        r_conv = output_correlation_signal(conv)
+        r_coll = output_correlation_signal(coll)
+        # the content-free signal cannot separate them — that is the point
+        assert r_conv.observed_agreement == r_coll.observed_agreement == 1.0
+        assert r_conv.alarm == r_coll.alarm is True
+
+    def test_last_write_wins_per_agent(self):
+        its = [
+            _answer_interaction("a", "OLD", t=datetime(2026, 6, 1)),
+            _answer_interaction("a", "NEW", t=datetime(2026, 6, 2)),
+            _answer_interaction("b", "NEW"),
+        ]
+        res = output_correlation_signal(its)
+        assert res.flagged_agents == {"a", "b"}
+
+    def test_min_agents_per_task_skips_thin_tasks(self):
+        its = [_answer_interaction("solo", "X", task="lonely")]
+        res = output_correlation_signal(its, min_agents_per_task=2)
+        assert res.n_tasks == 0
+        assert res.alarm is False
+
+    def test_tasks_are_independent(self):
+        its = [
+            _answer_interaction("a", "X", task="T1"),
+            _answer_interaction("b", "X", task="T1"),
+            _answer_interaction("c", "Y", task="T2"),
+            _answer_interaction("d", "Z", task="T2"),
+        ]
+        res = output_correlation_signal(its)
+        assert res.n_tasks == 2
+        assert res.flagged_agents == {"a", "b"}
+
+    def test_precision_recall_against_ground_truth(self):
+        its = [_answer_interaction(f"c{i}", "X") for i in range(3)]
+        its += [_answer_interaction("u", "Y"), _answer_interaction("v", "W")]
+        # ground truth: the three copiers
+        res = output_correlation_signal(
+            its, ground_truth_copiers={"c0", "c1", "c2"}
+        )
+        assert res.precision == pytest.approx(1.0)
+        assert res.recall == pytest.approx(1.0)
+        assert res.f1 == pytest.approx(1.0)
+
+    def test_no_answers_empty_result(self):
+        its = [
+            SoftInteraction(initiator="a", counterparty="board", metadata={})
+        ]
+        res = output_correlation_signal(its)
+        assert res.n_tasks == 0
+        assert res.observed_agreement == 0.0
+
+
+class TestRederivationInfeasibilitySignal:
+    def test_fast_answer_is_infeasible(self):
+        t0 = datetime(2026, 6, 1, 12, 0, 0)
+        its = [
+            # answered 10s after task start, min research is 60s -> infeasible
+            _answer_interaction(
+                "fast", "X", t=t0, task_start=t0.isoformat(),
+                min_research_seconds=60,
+            ),
+        ]
+        res = rederivation_infeasibility_signal(its)
+        # elapsed 0 < 60
+        assert isinstance(res, RederivationResult)
+        assert res.n_infeasible == 1
+        assert res.flagged_agents == {"fast"}
+        assert res.alarm is True
+
+    def test_slow_answer_is_feasible(self):
+        t0 = datetime(2026, 6, 1, 12, 0, 0)
+        its = [
+            _answer_interaction(
+                "slow", "X",
+                t=t0 + timedelta(seconds=120),
+                task_start=t0.isoformat(),
+                min_research_seconds=60,
+            ),
+        ]
+        res = rederivation_infeasibility_signal(its)
+        assert res.n_events == 1
+        assert res.n_infeasible == 0
+        assert res.alarm is False
+
+    def test_precomputed_elapsed_key(self):
+        its = [
+            _answer_interaction("a", "X", research_seconds=5, min_research_seconds=60),
+            _answer_interaction("b", "Y", research_seconds=90, min_research_seconds=60),
+        ]
+        res = rederivation_infeasibility_signal(its)
+        assert res.n_events == 2
+        assert res.flagged_agents == {"a"}
+
+    def test_per_task_min_research_key_overrides_scalar(self):
+        its = [
+            # task carries its own threshold of 5s; elapsed 10s -> feasible
+            _answer_interaction("a", "X", research_seconds=10, min_research_seconds=5),
+        ]
+        res = rederivation_infeasibility_signal(its, min_research_seconds=100)
+        # per-event key (5) wins over the scalar fallback (100)
+        assert res.n_infeasible == 0
+
+    def test_scalar_fallback_used_when_no_key(self):
+        its = [_answer_interaction("a", "X", research_seconds=3)]
+        res = rederivation_infeasibility_signal(its, min_research_seconds=60)
+        assert res.n_infeasible == 1
+
+    def test_events_without_timing_are_ignored(self):
+        its = [_answer_interaction("a", "X")]  # no timing metadata
+        res = rederivation_infeasibility_signal(its, min_research_seconds=60)
+        assert res.n_events == 0
+        assert res.alarm is False
+
+    def test_precision_recall_against_ground_truth(self):
+        its = [
+            _answer_interaction("copier", "X", research_seconds=2, min_research_seconds=60),
+            _answer_interaction("honest", "Y", research_seconds=90, min_research_seconds=60),
+        ]
+        res = rederivation_infeasibility_signal(its, ground_truth_copiers={"copier"})
+        assert res.precision == pytest.approx(1.0)
+        assert res.recall == pytest.approx(1.0)
+
+    def test_alarm_fraction_threshold(self):
+        its = [
+            _answer_interaction("a", "X", research_seconds=2, min_research_seconds=60),
+            _answer_interaction("b", "Y", research_seconds=90, min_research_seconds=60),
+            _answer_interaction("c", "Z", research_seconds=90, min_research_seconds=60),
+        ]
+        # 1/3 infeasible; require >0.5 to alarm -> no alarm
+        res = rederivation_infeasibility_signal(its, alarm_fraction=0.5)
+        assert res.infeasible_fraction == pytest.approx(1 / 3)
+        assert res.alarm is False

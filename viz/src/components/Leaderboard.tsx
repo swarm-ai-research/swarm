@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useSimulation } from "@/state/use-simulation";
+import { useIsMobile } from "@/state/use-media-query";
 
 const STORAGE_KEY = "swarm-leaderboard";
 const MAX_ENTRIES = 10;
@@ -62,17 +63,27 @@ export function recordToLeaderboard(data: import("@/data/types").SimulationData)
 
 export function Leaderboard() {
   const { data } = useSimulation();
+  const isMobile = useIsMobile();
+  const [open, setOpen] = useState<boolean | null>(null);
 
   const entries = useMemo(() => loadEntries(), [data]); // eslint-disable-line react-hooks/exhaustive-deps -- reload when data changes
 
   if (entries.length === 0) return null;
 
+  // null = user hasn't chosen; default open on desktop, collapsed on phones
+  const isOpen = open ?? !isMobile;
   return (
-    <div className="absolute top-4 left-4 w-64 bg-panel border border-border rounded-lg shadow-lg z-20 text-xs max-h-72 overflow-y-auto">
-      <div className="px-3 py-2 border-b border-border font-bold">
+    <div className="absolute z-20 bg-panel border border-border rounded-lg shadow-lg text-xs overflow-y-auto top-9 left-2 w-44 max-h-40 md:top-4 md:left-4 md:w-64 md:max-h-72">
+      <button
+        onClick={() => setOpen(!isOpen)}
+        aria-expanded={isOpen}
+        className="w-full px-3 py-2 border-b border-border font-bold flex items-center justify-between text-left"
+      >
         Leaderboard
-      </div>
-      <div className="divide-y divide-border">
+        <span className="text-muted" aria-hidden>{isOpen ? "\u25BE" : "\u25B8"}</span>
+      </button>
+      {isOpen && (
+        <div className="divide-y divide-border">
         {entries.map((e, i) => (
           <div
             key={e.id}
@@ -98,6 +109,7 @@ export function Leaderboard() {
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }

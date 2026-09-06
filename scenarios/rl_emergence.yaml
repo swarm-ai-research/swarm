@@ -1,0 +1,77 @@
+# RL Emergence: de novo coordination on a deliberately dumb learner (bead boll)
+#
+# The question (Cammarata, 2026-08): can swarm emergence be produced with
+# significantly dumber models via actual RL — not selection within a
+# hand-designed strategy space? The rl_organism agent is a tabular
+# contextual bandit whose only primitives are per-decision choices
+# (partner, effort, transfer, accept/reject, an optional 1-bit cheap-talk
+# post). It has NO strategy enum and cannot see agent types.
+#
+# The single mechanism isolated here is CAPACITY-GATED EMERGENCE: the
+# agents' state-space size (capacity L0-L3, set in config) is the only
+# lever swept. Predictions worth falsifying:
+#   - extraction (low effort + negative transfer toward trusting victims)
+#     emerges at every capacity — it needs no partner discrimination
+#   - in-group non-aggression among RL agents (cooperate internally,
+#     extract externally) requires partner-conditioned state (L1+)
+#   - the emergent coalition, unlike the scripted ones the collusion
+#     detectors were tuned on, may or may not trip CollusionDetector /
+#     graph-structural metrics — that gap is the finding either way
+#
+# Economics: with theta=0.5, s_plus=2, s_minus=1, h=2, rho=0, an accepted
+# low-effort extraction (p~0.35, tau=-0.4) pays the initiator ~0.37 vs
+# ~0.28 for honest high effort — extraction beats honesty while victims
+# still accept, and honest agents' trust EMA locks extractors out after
+# ~1 bad trade. Whatever the population learns from there is the result.
+# Swept by scripts/sweep_rl_capacity.py.
+
+scenario_id: rl_emergence
+description: "RL organism capacity ladder: does coordination emerge de novo from tabular bandits?"
+motif: rl_emergence
+
+agents:
+  - type: rl_organism
+    count: 6
+    config:
+      capacity: 2          # overridden by sweep
+      signal_enabled: true
+  - type: honest
+    count: 5
+  - type: cautious
+    count: 1
+
+governance:
+  # All levers off: the baseline question is what the learners converge to
+  # in an ungoverned ecosystem. Detection runs post-hoc on the event log.
+  transaction_tax_rate: 0.0
+  reputation_decay_rate: 1.0
+  bandwidth_cap: 10
+  staking_enabled: false
+  circuit_breaker_enabled: false
+  audit_enabled: false
+
+simulation:
+  n_epochs: 60
+  steps_per_epoch: 10
+  seed: 42
+
+rate_limits:
+  posts_per_epoch: 10
+  interactions_per_step: 5
+  votes_per_epoch: 50
+
+payoff:
+  s_plus: 2.0
+  s_minus: 1.0
+  h: 2.0
+  theta: 0.5
+  rho_a: 0.0
+  rho_b: 0.0
+  w_rep: 1.0
+
+success_criteria:
+  min_epochs: 60
+  min_agents: 12
+
+outputs:
+  event_log: "logs/rl_emergence_events.jsonl"

@@ -228,6 +228,12 @@ someone took your task mid-flight. `/claim status` shows all holdings;
 `/claim release <bead-id>` when done. Read-only investigation needs no claim;
 claim once you intend to change files.
 
+If dispatch stamped the bead with a `WARDS:` line, `/claim` composes that
+track bound with your declaration (`.agentgit/wards.json` / `$AGENT_WARDS`)
+and refuses (exit 3) a claim that would widen it — a child may only narrow
+(INV-6). The effective ward set, negative spec included, is written into the
+claim marker. Unstamped beads claim as before. See `/claim` → "Wards".
+
 This complements the **heartbeat concurrency guard** above (presence-level:
 "don't two of you be in one checkout") with task-level ownership ("don't two of
 you do one task") — and unlike heartbeats, it works across isolated worktrees.

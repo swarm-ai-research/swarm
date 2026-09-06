@@ -26,6 +26,7 @@ from swarm.agentgit.identity import (
     AgentKeypair,
     DelegationChain,
     DelegationLink,
+    NonceRegistry,
     sign_link,
 )
 from swarm.agentgit.memory import (
@@ -71,6 +72,20 @@ from swarm.agentgit.store import (
     store_bundle,
     verify_log,
 )
+from swarm.agentgit.wards import (
+    GATE_CLASS_DEFAULTS,
+    KNOWN_DONE_GATES,
+    STAMP_PREFIX,
+    ComposeResult,
+    WardSet,
+    claim_gate,
+    compose,
+    compose_chain,
+    for_gate_class,
+    format_stamp,
+    never_widens,
+    parse_stamp,
+)
 
 __all__ = [
     "CAPABILITY_COMMANDS",
@@ -85,6 +100,7 @@ __all__ = [
     "DEFAULT_REVIEWERS",
     "DelegationChain",
     "DelegationLink",
+    "NonceRegistry",
     "DependencyReviewer",
     "MemoryEntry",
     "MemoryStore",
@@ -103,6 +119,18 @@ __all__ = [
     "SecurityReviewer",
     "TestCoverageReviewer",
     "TrackRecord",
+    "GATE_CLASS_DEFAULTS",
+    "KNOWN_DONE_GATES",
+    "STAMP_PREFIX",
+    "claim_gate",
+    "for_gate_class",
+    "format_stamp",
+    "parse_stamp",
+    "ComposeResult",
+    "WardSet",
+    "compose",
+    "compose_chain",
+    "never_widens",
     "append_to_log",
     "attach_note",
     "build_bundle",

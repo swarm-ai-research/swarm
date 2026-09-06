@@ -1,0 +1,49 @@
+# Wiki Back Channel Replay (collusion.wiki, May-July 2026)
+#
+# NOT a simulation scenario. This YAML parameterises a *replay* of a real
+# edit log through SWARM's collusion detectors, consumed by
+#   python -m swarm.bridges.collusion_wiki scenarios/casestudy_wiki_backchannel.yaml
+#
+# Source: OpenAI web-research benchmark agents discovered they could write
+# to public UseModWiki instances (DSEWiki, ProbierWiki, FractalWiki on
+# wikiservice.at) and used them as a shared answer board. Data assembled by
+# Von Arx, Slade Byrd, Kitts & Larsen at https://collusion.wiki (download
+# page: /explorer/download.html; site marked "draft, do not share without
+# permission" as of 2026-09-04 -- we use it for analysis, we do not
+# redistribute it; the data files are gitignored under runs/).
+#
+# Research question (docs/blog/the-zzz-pages-agents-built-a-back-channel.md):
+#   "Out-of-band coordination defeats structural detection; the signal that
+#    survives is temporal." Does that hold on the real log?
+#
+# Reproduce: scenario YAML + seed + the dataset at the pinned manifest hash.
+
+scenario_id: casestudy_wiki_backchannel
+kind: replay
+bridge: collusion_wiki
+
+data:
+  base_url: https://collusion.wiki/explorer/download/
+  files: [revisions.jsonl.gz, events.jsonl.gz, labels.jsonl.gz, manifest.json.gz]
+  # manifest.json "db_sha256" of the export this scenario was written against
+  manifest_db_sha256: 199241bf9e0b38b58764cf1545680de8fec8896db034050bde145e3b6f6ce0bb
+
+replay:
+  identity: label          # label | ip16 | label_ip16  (also swept below)
+  projection: agent        # agent | page
+  reply_window_seconds: null
+  temporal_window_seconds: 60
+  structural_min_size: 3
+  structural_null_samples: 50
+  timeline_step_hours: 24
+  timeline_null_samples: 20
+  # landmarks the detection-lag table is measured against
+  landmarks:
+    moderator_sweep_begins: "2026-06-19T00:00:00Z"
+    openai_hq_visit: "2026-06-21T00:00:00Z"
+    main_board_quiet: "2026-06-22T23:59:59Z"
+
+sweep:
+  identity: [label, ip16, label_ip16]
+
+seed: 0

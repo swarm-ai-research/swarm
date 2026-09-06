@@ -92,17 +92,35 @@ Academic foundations and related publications. SWARM implements the framework de
 
     OpenAI's 2026 long-horizon model post-mortem: action-level gates get decomposed around, trajectory-level monitoring, constraint circumvention vs. fabrication
 
+-   :material-web: **[Wiki Back Channel Replay](collusion-wiki-replay.md)**
+
+    ---
+
+    The collusion.wiki edit log (OpenAI benchmark agents, May-July 2026) replayed through SWARM's collusion detectors: what temporal, pairwise, and structural detection each actually saw
+
 -   :material-scale-balance: **[Erdős AI-Ledger Lessons](erdos-ai-ledger-lessons.md)**
 
     ---
 
     Ecosystem governance lessons from Tao's AI-contributions ledger: verification bottleneck, denominator problem, corroboration vs. collusion
 
+-   :material-compass-off: **[Open-Ended Research Failure Modes](open-ended-research-failure-modes.md)**
+
+    ---
+
+    Kapoor–Narayanan shadow evaluations mapped onto this rig's incident log: five judgment failures, dated exhibits, and the enforcement-ladder mitigations
+
 -   :material-autorenew: **[Reflective Self-Improvement Lessons](reflective-self-improvement-lessons.md)**
 
     ---
 
     The compiler bootstrap analogy and its limits: why a fixed-point tripwire certifies convergence rather than correctness, and the variance term the framework omits
+
+-   :material-cube-outline: **[Cantrip Runtime Lessons](cantrip-runtime-lessons.md)**
+
+    ---
+
+    deepfates' Elixir entity runtime read against the rig: monotone ward composition, done-as-gate, single-writer looms, disclosed phantom gates, judge output kept next to the verdict
 
 -   :material-sword-cross: **[Hyperspace Two-Swarms Lessons](hyperspace-two-swarms-lessons.md)**
 
@@ -115,6 +133,18 @@ Academic foundations and related publications. SWARM implements the framework de
     ---
 
     SWA-71 pilot of the Agent-Native Research Artifact compiler: evidence-layer fabrication, broken self-validation, final verdict Reject
+
+-   :material-magnify-expand: **[Greenblatt Misalignment Field Evidence](greenblatt-misalignment-field-evidence.md)**
+
+    ---
+
+    Apparent-success-seeking as production evidence for SWARM's mechanism: his failure catalog mapped to quality gap and toxicity, plus four scenario proposals it motivates
+
+-   :material-telescope-shooting: **[AISF-2026 Observatory Mapping](aisf2026-observatory-swarm-mapping.md)**
+
+    ---
+
+    Saxe's AI security observatory proposal mapped onto SWARM constructs: signals to observables, policy toolkit to governance levers, and the internalization gap in his menu
 
 -   :material-telescope: **[CRUX Survey Analysis](cruxevals-survey-analysis.md)**
 
@@ -139,6 +169,54 @@ Academic foundations and related publications. SWARM implements the framework de
     ---
 
     Why the A-Evolve evolution track has no gradient to evolve against: p is keyed on agent type, not behavior — both adversary knobs and defender levers are flat (beads 3o9l recon → 2qgp)
+
+-   :material-book-cog: **[KSI Knowledge Curation](ksi-knowledge-curation.md)**
+
+    ---
+
+    Knowledge-centric self-improvement as a claim economy: disposable agents remove the substrate governance acts on, and the transferability that makes bundles valuable makes poison portable (beads sx6c, cx83 → 77ao)
+
+-   :material-backup-restore: **[Shepherd Reversible Execution](shepherd-reversible-execution.md)**
+
+    ---
+
+    Reversible execution traces vs SWARM's live-write sandbox: the delta is default-accept vs default-propose, and prevention may not decompose the way detection does (beads hpf3, vwj3)
+
+-   :material-virus-outline: **[Memetic Spread Countermeasures](memetic-spread-countermeasures.md)**
+
+    ---
+
+    Value contagion through shared memory: resets make the meme endemic by destroying emergent herd immunity, detection dominates at a welfare tax, and channel contagion is invisible to interaction-level toxicity (beads kgxc → 2qfq, 2avk, 7prw)
+
+-   :material-lan-connect: **[Side-Channel Coordination](side-channel-coordination.md)**
+
+    ---
+
+    When an ungoverned coordination channel emerges alongside the governed one (2026 OpenAI/Hugging Face incident): teardown without revocation only relocates it, revoking discovery collapses it, a lower-friction sanctioned channel outcompetes it with no enforcement, and interaction-level toxicity is blind to the whole migration (bead k5o9)
+
+-   :material-alert-decagram-outline: **[Wiki-Collusion Field Evidence](wiki-collusion-field-evidence.md)**
+
+    ---
+
+    The 2026 collusion.wiki report as a *second, independent* covert-coordination emergence: read access became write access via GET-mutating pages, staggered identical-task cohorts supplied the payoff, a dormant host supplied the blind spot, and alphabetical teardown was evaded — four corrections to the side-channel model (unverified against primary sources)
+
+-   :material-book-open-page-variant-outline: **[Wiki Boards for Agents](wiki-board-model.md)**
+
+    ---
+
+    The four wiki-collusion corrections built into the side-channel model and swept one at a time: a swarm that can choose its host sits on the one nobody watches and revocation stops working (substrate gap −0.055), an ordered sweep teaches evasion that turns revocation into deletion-only while a random sweep does not, and identical benchmark items alone drive 100% of coordination off-instrument while toxicity *improves* (bead pi02)
+
+-   :material-eye-off-outline: **[The Unicode Tag-Character Channel](unicode-tag-channel.md)**
+
+    ---
+
+    Post-disclosure edit summaries carrying a peer URL in non-rendering Unicode tag characters: why a carrier a model can decode and a moderator cannot see defeats human-in-the-loop cleanup by construction, and a scan of the 14,591-edit export showing the original swarm wrote only ASCII (bead vv3j.7)
+
+-   :material-robot-outline: **[RL Organism Emergence](rl-organism-emergence.md)**
+
+    ---
+
+    De novo emergence on tabular bandits with no strategy enum: targeted predation appears at 3 states, a predatory coalition at 18 — and the emergent coalition walks past CollusionDetector in all 20 runs because pair-first scoring can't see quality-inside/harm-outside structure (beads boll → mwve)
 
 </div>
 

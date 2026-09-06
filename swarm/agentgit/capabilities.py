@@ -64,14 +64,17 @@ def enforced_allowlist_for_chain(
     chain: DelegationChain,
     *,
     expected_subject_did: Optional[str] = None,
+    context: Optional[str] = None,
 ) -> Tuple[List[str], List[str]]:
     """Derive the enforced command allowlist from a delegation chain.
 
     Returns ``(allowed_commands, errors)``. If the chain fails verification the
     allowlist is empty (deny-by-default) and ``errors`` explains why.
+    ``context`` is the task/session the chain is presented in; a chain bound
+    to another context grants nothing (zsof).
     """
 
-    ok, errors = chain.verify(expected_subject_did=expected_subject_did)
+    ok, errors = chain.verify(expected_subject_did=expected_subject_did, context=context)
     if not ok:
         return [], errors
     return granted_commands(chain.effective_permissions()), []

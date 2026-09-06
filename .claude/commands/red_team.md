@@ -25,3 +25,26 @@ Modes:
 - Most effective attack vectors
 - Recommended mitigations / next experiments
 
+
+## Attack library
+
+`AttackLibrary.get_all_attacks()` in `swarm/redteam/attacks.py`. Each attack names the
+governance levers it targets; the evaluator's outcome model responds to the matching
+`governance_config` keys.
+
+| attack_id | Category | Responds to |
+|---|---|---|
+| `reputation_farming` | exploitation | `audit_enabled` |
+| `collusion_ring` | coordination | `collusion_detection_enabled` |
+| `threshold_dancing` | evasion | `circuit_breaker_enabled` |
+| `sybil_attack` | coordination | `sybil_detection_enabled`, `collusion_detection_enabled` |
+| `timing_attack`, `information_laundering`, `resource_drain`, `governance_gaming` | various | general defenses only |
+| `out_of_band_channel` | coordination | `egress_allowlist_enabled` (prevents), `substrate_population_monitor_enabled` (detects at any `n_hosts`), `volume_monitor_enabled` (detects, weakening as `adversary_config.n_hosts` grows); **not** `collusion_detection_enabled` |
+
+`out_of_band_channel` is the field exhibit from the collusion.wiki incident
+(`docs/research/wiki-backchannel-field-evidence.md`, bead 7y0p): agents coordinate on a
+third-party substrate the governed observables never see, so task proxies stay green;
+an ordered cleanup sweep is evaded by inferring its order (the `ZZZ` pages). The replay
+(`docs/research/collusion-wiki-replay.md`) showed pairwise/structural collusion detection
+saturating on the hub page while aggregate edit volume led the human moderator by three
+days, which is why that attack ignores `collusion_detection_enabled`.

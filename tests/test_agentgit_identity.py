@@ -294,3 +294,180 @@ def test_legacy_bundle_without_identity_still_verifies(tmp_path):
     assert "identity" not in bundle
     ok, errors = verify_bundle(bundle)
     assert ok, errors
+
+
+# --- context binding, nonces, signed wards (zsof + illq.3) ---------------------
+
+
+def _bound_chain(human, org, agent, *, audience, agent_wards=None, org_wards=None):
+    link_org = sign_link(
+        human, subject_did=org.did, permissions=["read", "test", "open_pr"], wards=org_wards
+    )
+    link_agent = sign_link(
+        org,
+        subject_did=agent.did,
+        permissions=["read", "test"],
+        audience=audience,
+        wards=agent_wards,
+    )
+    return DelegationChain(links=[link_org, link_agent])
+
+
+def test_bound_link_verifies_in_its_context():
+    human, org, agent = (AgentKeypair.generate() for _ in range(3))
+    chain = _bound_chain(human, org, agent, audience="task-42")
+    ok, errors = chain.verify(expected_subject_did=agent.did, context="task-42")
+    assert ok, errors
+    assert chain.links[1].nonce and len(chain.links[1].nonce) == 32
+
+
+def test_bound_link_replayed_into_foreign_context_is_refused():
+    """The zsof regression: a valid link lifted into another task must die."""
+
+    human, org, agent = (AgentKeypair.generate() for _ in range(3))
+    chain = _bound_chain(human, org, agent, audience="task-42")
+    ok, errors = chain.verify(expected_subject_did=agent.did, context="task-99")
+    assert not ok
+    assert any("bound to audience 'task-42', presented in context 'task-99'" in e for e in errors)
+
+
+def test_bound_link_presented_without_context_is_refused():
+    human, org, agent = (AgentKeypair.generate() for _ in range(3))
+    chain = _bound_chain(human, org, agent, audience="task-42")
+    ok, errors = chain.verify(expected_subject_did=agent.did)
+    assert not ok
+    assert any("presented with no context" in e for e in errors)
+
+
+def test_legacy_unbound_chain_still_verifies_with_context():
+    human, org, agent = (AgentKeypair.generate() for _ in range(3))
+    chain = _chain(human, org, agent)
+    ok, errors = chain.verify(expected_subject_did=agent.did, context="task-42")
+    assert ok, errors
+
+
+def test_require_context_refuses_unbound_final_link():
+    human, org, agent = (AgentKeypair.generate() for _ in range(3))
+    chain = _chain(human, org, agent)
+    ok, errors = chain.verify(context="task-42", require_context=True)
+    assert not ok
+    assert any("unbound bearer credential" in e for e in errors)
+
+
+def test_legacy_link_dict_has_no_binding_fields_and_signature_is_stable():
+    """Signature bytes are unchanged for links without nonce/audience/wards."""
+
+    from swarm.agentgit.identity import DelegationLink
+
+    human, org = AgentKeypair.generate(), AgentKeypair.generate()
+    link = sign_link(human, subject_did=org.did, permissions=["read"], nonce="")
+    assert "nonce" not in link.to_dict() and "audience" not in link.to_dict()
+    assert DelegationLink.from_dict(link.to_dict()) == link
+
+
+def test_nonce_reuse_under_different_payload_is_refused(tmp_path):
+    from swarm.agentgit.identity import NonceRegistry
+
+    human, org, agent = (AgentKeypair.generate() for _ in range(3))
+    registry = NonceRegistry(tmp_path / "nonces.json")
+    first = sign_link(human, subject_did=org.did, permissions=["read"], nonce="a" * 32)
+    ok, errors = DelegationChain([first]).verify(nonces=registry)
+    assert ok, errors
+    # Same link again: fine (re-verification is routine).
+    ok, errors = DelegationChain([first]).verify(nonces=registry)
+    assert ok, errors
+    # New grant minted with the same nonce: reuse.
+    forged = sign_link(human, subject_did=agent.did, permissions=["read"], nonce="a" * 32)
+    ok, errors = DelegationChain([forged]).verify(nonces=registry)
+    assert not ok
+    assert any("reused under a different payload" in e for e in errors)
+    # Persisted: a fresh registry from the same file remembers.
+    fresh = NonceRegistry(tmp_path / "nonces.json")
+    assert len(fresh) == 1
+    ok, errors = DelegationChain([forged]).verify(nonces=fresh)
+    assert not ok
+
+
+def test_signed_wards_must_narrow_down_the_chain():
+    from swarm.agentgit.wards import WardSet
+
+    human, org, agent = (AgentKeypair.generate() for _ in range(3))
+    org_w = WardSet(max_turns=8, max_depth=1, permissions=frozenset({"read", "test"}))
+    narrower = WardSet(max_turns=4, max_depth=0, permissions=frozenset({"read"}))
+    wider = WardSet(max_turns=20, max_depth=0, permissions=frozenset({"read"}))
+
+    ok, errors = _bound_chain(
+        human, org, agent, audience="t", org_wards=org_w, agent_wards=narrower
+    ).verify(context="t")
+    assert ok, errors
+
+    ok, errors = _bound_chain(
+        human, org, agent, audience="t", org_wards=org_w, agent_wards=wider
+    ).verify(context="t")
+    assert not ok
+    assert any("wards widen beyond parent grant" in e and "max_turns" in e for e in errors)
+
+
+def test_tampered_wards_break_signature():
+    from swarm.agentgit.identity import DelegationLink
+    from swarm.agentgit.wards import WardSet
+
+    human, agent = AgentKeypair.generate(), AgentKeypair.generate()
+    link = sign_link(
+        human, subject_did=agent.did, permissions=["read"], audience="t",
+        wards=WardSet(max_turns=2, max_depth=0),
+    )
+    loosened = dict(link.to_dict())
+    loosened["wards"] = {**loosened["wards"], "max_turns": 200}
+    ok, errors = DelegationChain([DelegationLink.from_dict(loosened)]).verify(context="t")
+    assert not ok
+    assert any("invalid issuer signature" in e for e in errors)
+
+
+def test_from_chain_uses_signed_wards_and_context():
+    from swarm.agentgit.wards import WardSet, from_chain
+
+    human, org, agent = (AgentKeypair.generate() for _ in range(3))
+    signed = WardSet(max_turns=3, max_depth=0, negative_spec=("n",))
+    chain = _bound_chain(human, org, agent, audience="t", agent_wards=signed)
+    ws = from_chain(chain, context="t")
+    assert ws.max_turns == 3 and ws.negative_spec == ("n",)
+    assert ws.permissions == frozenset({"read", "test"})
+    assert chain.effective_wards() == signed.to_dict()
+    # Wrong context: deny-by-default, nothing granted.
+    denied = from_chain(chain, context="elsewhere")
+    assert denied.permissions == frozenset()
+
+
+def test_bundle_bound_to_task_verifies_and_replay_into_other_task_fails(tmp_path):
+    repo = _init_repo(tmp_path)
+    _allowed_diff(repo)
+    human, org, agent = (AgentKeypair.generate() for _ in range(3))
+    identity = AgentIdentity.for_keypair(
+        agent, owner="alice", org="acme", allowed_tools=["read", "test"]
+    )
+    chain = _bound_chain(human, org, agent, audience="issue-bound")
+    bundle = build_bundle(
+        repo=repo,
+        task_id="issue-bound",
+        agent_id="codex",
+        policy=AgentGitPolicy(allowed_paths=["swarm/**"]),
+        identity=identity,
+        agent_keypair=agent,
+        delegation=chain,
+    )
+    ok, errors = verify_bundle(bundle)
+    assert ok, errors
+
+    replayed = build_bundle(
+        repo=repo,
+        task_id="issue-other",
+        agent_id="codex",
+        policy=AgentGitPolicy(allowed_paths=["swarm/**"]),
+        identity=identity,
+        agent_keypair=agent,
+        delegation=chain,  # lifted from the other task
+    )
+    ok, errors = verify_bundle(replayed)
+    assert not ok
+    assert any("presented in context 'issue-other'" in e for e in errors)

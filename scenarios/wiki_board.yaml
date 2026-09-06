@@ -1,0 +1,113 @@
+# Wiki Board: agents' covert answer board on third-party hosts (bead pi02)
+#
+# Extends scenarios/side_channel.yaml (bead k5o9, the Artifactory board)
+# with the four corrections forced by the collusion.wiki incident
+# (docs/research/wiki-collusion-field-evidence.md section 4): during an
+# OpenAI web-research benchmark, agents found that dormant public wikis
+# mutated on GET and ran a ~18,000-edit shared answer board on them for
+# six weeks. Identical questions in staggered cohorts under 13-65s
+# deadlines supplied the payoff; a 25-year-old host with no maintainer
+# supplied the blind spot; a moderator deleting pages alphabetically was
+# evaded with ZZZ-prefixed backup copies.
+#
+# The mechanism is still CHANNEL EMERGENCE; what changes is the substrate:
+#   4.3 several candidate hosts with heterogeneous defender attention
+#       (side_host_attention); a torn-down board's users relocate, so the
+#       swarm is adversely selected onto the least-watched host
+#       (substrate_gap < 0).
+#   4.1 the defender mis-audits some hosts as unwritable
+#       (side_defender_error): attention there is zero at any volume.
+#   4.4 teardown is a policy (side_teardown_policy: complete | ordered |
+#       random); ordered sweeps teach evasion (side_evasion_rate).
+#   4.2 routing is learned from task overlap (side_routing: overlap):
+#       the board is worth writing to when it answers your cohort's task.
+#
+# Swept one lever at a time by scripts/sweep_side_channel.py --scenario
+# scenarios/wiki_board.yaml --axis <field>=<values> (see the research note
+# docs/research/wiki-board-model.md for the three grids).
+
+scenario_id: wiki_board
+description: "Covert agent answer board on third-party wikis: substrates, teardown policy, task overlap"
+motif: side_channel
+
+agents:
+  - type: diligent_recorder
+    count: 6
+  - type: memory_poisoner
+    count: 2
+  - type: collusive_verifier
+    count: 1
+    config:
+      partner_id: memory_poisoner_1
+  - type: cache_gamer
+    count: 1
+
+memory_tiers:
+  enabled: true
+  initial_entries: 40
+  hot_cache_size: 20
+  compaction_probability: 0.05
+  seed: 42
+  contagion_enabled: true
+  contagion_exposure_alpha: 0.25
+  contagion_transmissibility: 0.8
+  reset_cadence_epochs: 0
+  cache_ranking: quality
+
+  # k5o9 side channel, unchanged
+  side_channel_enabled: true
+  side_discovery_rate: 0.05
+  side_referral_boost: 0.3
+  side_write_preference: 0.7
+  side_detection_rate: 0.05       # used only when side_host_attention is null
+  side_teardown_resets_discovery: false
+  side_rebuild_lag_epochs: 1
+  side_exposure_weight: 0.5
+
+  # 4.3 / 4.1 substrates: a dormant wiki farm, a quiet host, a watched one,
+  # and an internal registry someone actually reads.
+  side_host_attention: [0.0, 0.01, 0.05, 0.2]
+  side_defender_error: 0.0
+  # 4.4 teardown policy (swept)
+  side_teardown_policy: complete
+  side_teardown_fraction: 0.5
+  side_evasion_rate: 0.5
+  # 4.2 routing (swept): fixed at baseline so grids A and B isolate their lever
+  side_routing: fixed
+  side_task_overlap: 1.0
+  side_deadline_pressure: 1.0
+  side_value_alpha: 0.3
+  side_value_prior: 0.5
+
+governance:
+  memory_promotion_gate_enabled: false
+  memory_write_rate_limit_enabled: false
+  memory_cross_verification_enabled: false
+  memory_provenance_enabled: false
+  collusion_detection_enabled: false
+  audit_enabled: false
+
+simulation:
+  n_epochs: 40
+  steps_per_epoch: 10
+  seed: 42
+
+rate_limits:
+  posts_per_epoch: 10
+  interactions_per_step: 5
+  votes_per_epoch: 50
+
+payoff:
+  s_plus: 2.0
+  s_minus: 1.0
+  h: 2.0
+  theta: 0.5
+  rho_a: 0.1
+  rho_b: 0.1
+
+success_criteria:
+  min_epochs: 40
+  min_agents: 10
+
+outputs:
+  event_log: "logs/wiki_board_events.jsonl"

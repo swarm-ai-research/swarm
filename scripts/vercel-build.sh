@@ -6,7 +6,11 @@ VENV=.venv-build
 
 uv python install "$PY"
 uv venv --python "$PY" "$VENV"
+# mkdocs pinned below 2.0: the Material team's advisory (printed in every
+# build) says MkDocs 2.0 removes the plugin system and theming our site
+# depends on, with no migration path. Keep 1.x until the ecosystem settles.
 uv pip install --python "$VENV/bin/python" \
+  'mkdocs>=1.6,<2' \
   mkdocs-material \
   'mkdocstrings[python]' \
   pymdown-extensions \

@@ -27,12 +27,13 @@ from swarm.models.events import Event, EventType
 
 @pytest.fixture
 def signer():
-    return ReceiptSigner(signer_id="test-platform")
+    return ReceiptSigner()
 
 
 @pytest.fixture
 def verifier(signer):
-    return ReceiptVerifier(signer.secret_key_hex)
+    # Verification needs no secret: trust exactly this signer's DID.
+    return ReceiptVerifier(trusted_signers={signer.did})
 
 
 @pytest.fixture
@@ -186,7 +187,7 @@ class TestSignerVerifier:
         sealed = signer.seal(r)
         assert sealed.status == ReceiptStatus.SEALED
         assert sealed.signature is not None
-        assert sealed.signer_id == "test-platform"
+        assert sealed.signer_id == signer.did
 
     def test_seal_rejects_non_pending(self, signer):
         r = _make_pending_receipt()
@@ -206,7 +207,7 @@ class TestSignerVerifier:
         assert not verifier.verify(tampered)
 
     def test_verify_wrong_key(self, signer):
-        other = ReceiptVerifier("00" * 32)
+        other = ReceiptVerifier(trusted_signers={ReceiptSigner().did})
         r = _make_pending_receipt()
         sealed = signer.seal(r)
         assert not other.verify(sealed)
@@ -218,7 +219,7 @@ class TestSignerVerifier:
         assert verified.status == ReceiptStatus.VERIFIED
 
     def test_verify_and_mark_invalid(self, signer):
-        other = ReceiptVerifier("00" * 32)
+        other = ReceiptVerifier(trusted_signers={ReceiptSigner().did})
         r = _make_pending_receipt()
         sealed = signer.seal(r)
         rejected = other.verify_and_mark(sealed)
@@ -226,7 +227,60 @@ class TestSignerVerifier:
 
     def test_auto_generated_key(self):
         s = ReceiptSigner()
-        assert len(s.secret_key_hex) == 64
+        assert len(s.public_key_hex) == 64
+        assert s.did == s.signer_id == f"did:key:ed25519:{s.public_key_hex}"
+
+    def test_seed_is_deterministic(self):
+        assert ReceiptSigner("ab" * 32).did == ReceiptSigner("ab" * 32).did
+        assert ReceiptSigner("ab" * 32).did != ReceiptSigner("cd" * 32).did
+
+    # --- bead jxyi: verification and forgery are no longer the same capability
+
+    def test_verifier_needs_no_secret(self, signer):
+        sealed = signer.seal(_make_pending_receipt())
+        assert sealed.signer_id == signer.did
+        assert ReceiptVerifier().verify(sealed)
+
+    def test_signer_id_cannot_be_spoofed(self, signer, verifier):
+        sealed = signer.seal(_make_pending_receipt())
+        impostor = ReceiptSigner()
+        spoofed = sealed.model_copy(update={"signer_id": impostor.did})
+        # Even a verifier that trusts the impostor rejects it: the signature
+        # was made by a different key than the one signer_id names.
+        assert not ReceiptVerifier(trusted_signers={impostor.did}).verify(spoofed)
+        assert not ReceiptVerifier().verify(spoofed)
+        assert not verifier.verify(spoofed)
+
+    def test_verifier_cannot_mint(self, signer, verifier):
+        # A party holding only what the verifier holds (the DID) can sign a
+        # receipt with its own key, but not one that verifies as `signer`.
+        forger = ReceiptSigner()
+        forged = forger.seal(_make_pending_receipt()).model_copy(
+            update={"signer_id": signer.did}
+        )
+        assert not verifier.verify(forged)
+        assert not ReceiptVerifier().verify(forged)
+
+    def test_untrusted_signer_rejected_even_when_valid(self, verifier):
+        other = ReceiptSigner()
+        sealed = other.seal(_make_pending_receipt())
+        assert ReceiptVerifier().verify(sealed)  # integrity holds
+        assert not verifier.verify(sealed)  # but not from a trusted signer
+
+    def test_legacy_hmac_receipt_needs_legacy_key(self):
+        import hashlib
+        import hmac
+
+        key = "ab" * 32
+        r = _make_pending_receipt()
+        sig = hmac.new(bytes.fromhex(key), r.canonical_bytes(), hashlib.sha256).hexdigest()
+        legacy = r.model_copy(
+            update={"status": ReceiptStatus.SEALED, "signature": sig, "signer_id": "swarm-platform"}
+        )
+        assert ReceiptVerifier(legacy_hmac_key=key).is_legacy(legacy)
+        assert ReceiptVerifier(legacy_hmac_key=key).verify(legacy)
+        assert not ReceiptVerifier().verify(legacy)
+        assert not ReceiptVerifier(legacy_hmac_key="cd" * 32).verify(legacy)
 
 
 # ------------------------------------------------------------------ #
@@ -323,7 +377,7 @@ class TestReceiptRelay:
         assert relay.get(sealed.receipt_id) is not None
 
     def test_ingest_rejects_invalid(self):
-        verifier = ReceiptVerifier("00" * 32)
+        verifier = ReceiptVerifier()
         relay = ReceiptRelay(verifier=verifier)
         r = _make_pending_receipt()
         # Not sealed → should fail

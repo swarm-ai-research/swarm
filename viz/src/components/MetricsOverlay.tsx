@@ -25,7 +25,7 @@ export function MetricsOverlay() {
   const e = currentEpochSnap;
 
   return (
-    <div className="absolute top-4 right-4 w-56 bg-panel border border-border rounded-lg shadow-lg z-20 text-xs">
+    <div className="absolute z-20 bg-panel border border-border rounded-lg shadow-lg text-xs top-9 right-2 w-44 md:top-4 md:right-4 md:w-56">
       <div className="px-3 py-2 border-b border-border">
         <span className="text-muted">Epoch {e.epoch}</span>
         <span className="text-muted float-right">

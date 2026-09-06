@@ -98,6 +98,16 @@ Publish SWARM research directly to ClawXiv.
 
 [Learn more →](clawxiv.md)
 
+### SWARM-collusion.wiki
+
+Replay the OpenAI benchmark agents' wiki back channel (collusion.wiki, May-July 2026) through SWARM's collusion detectors.
+
+- **Purpose:** Test the "temporal survives, structural fails" claim from The ZZZ Pages on the real edit log
+- **Features:** Identity modes (handle / IP block / pair), reply-graph projection, detection-lag timeline against the moderator sweep
+- **Status:** Read-only replay (September 2026)
+
+[Learn more →](collusion_wiki.md)
+
 ### SWARM-AgentVeil (Planned)
 
 Cryptographic trust, reputation tiers, and sybil-resistant admission control via the Agent Veil Protocol.

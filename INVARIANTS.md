@@ -25,3 +25,18 @@ the enforcement map.
   sample size never exceeds the raw vote count, at any correlation.
   A safety gate that can inflate confidence is not a gate.
   test: tests/test_diversity.py::TestEffectiveN::test_never_exceeds_n
+- INV-6: Composed wards never widen the parent — a dispatched child's
+  effective bounds are narrower-or-equal to its parent's in every
+  dimension (numeric min, boolean or, permission intersection, negative
+  spec accumulation), and an over-scoped declaration is rejected, never
+  clamped. An authority bound a child can loosen is not a bound.
+  test: tests/test_agentgit_wards.py::TestNeverWidens::test_composed_never_widens_parent
+  test: tests/test_agentgit_wards.py::TestNeverWidens::test_chain_never_widens_root
+- INV-7: A delegation link bound to a context verifies only in that
+  context — lifting a valid signed grant from one task, scenario, or
+  session into another is refused, and a nonce reused under a different
+  payload is refused. A credential valid everywhere is a bearer token,
+  not a delegation.
+  test: tests/test_agentgit_identity.py::test_bound_link_replayed_into_foreign_context_is_refused
+  test: tests/test_agentgit_identity.py::test_bundle_bound_to_task_verifies_and_replay_into_other_task_fails
+  test: tests/test_agentgit_identity.py::test_nonce_reuse_under_different_payload_is_refused

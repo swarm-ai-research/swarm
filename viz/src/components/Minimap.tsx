@@ -1,18 +1,55 @@
 "use client";
 
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useMemo } from "react";
 import { useSimulation } from "@/state/use-simulation";
-import { useCamera } from "@/state/use-camera";
 import { gridToScreen } from "@/engine/isometric";
+import { useCamera } from "@/state/use-camera";
+import { useIsMobile } from "@/state/use-media-query";
 import { AGENT_COLORS, COLORS } from "@/engine/constants";
 import { rgba } from "@/utils/color";
 
-const MINIMAP_SIZE = 140;
+const MINIMAP_SIZE_DESKTOP = 140;
+const MINIMAP_SIZE_MOBILE = 96;
 
 export function Minimap() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { agents, overlays, viewport } = useSimulation();
   const { handlePan } = useCamera();
+  const isMobile = useIsMobile();
+  const MINIMAP_SIZE = isMobile ? MINIMAP_SIZE_MOBILE : MINIMAP_SIZE_DESKTOP;
+
+  // Shared world→minimap mapping used by both drawing and click-to-navigate
+  const mapping = useMemo(() => {
+    let minX = 0, minY = 0, maxX = 100, maxY = 100;
+    for (const agent of agents) {
+      const s = gridToScreen(agent.gridX, agent.gridY);
+      minX = Math.min(minX, s.x - 40);
+      minY = Math.min(minY, s.y - 100);
+      maxX = Math.max(maxX, s.x + 40);
+      maxY = Math.max(maxY, s.y + 40);
+    }
+    const rangeX = maxX - minX || 1;
+    const rangeY = maxY - minY || 1;
+    const scale = Math.min(MINIMAP_SIZE / rangeX, MINIMAP_SIZE / rangeY) * 0.85;
+    return {
+      minX, minY, scale,
+      offX: (MINIMAP_SIZE - rangeX * scale) / 2,
+      offY: (MINIMAP_SIZE - rangeY * scale) / 2,
+    };
+  }, [agents, MINIMAP_SIZE]);
+
+  const handleMapClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const worldX = (mx - mapping.offX) / mapping.scale + mapping.minX;
+    const worldY = (my - mapping.offY) / mapping.scale + mapping.minY;
+    // Pan the camera so the tapped world point sits at viewport center
+    handlePan(
+      viewport.width / 2 - (worldX * viewport.zoom + viewport.x),
+      viewport.height / 2 - (worldY * viewport.zoom + viewport.y),
+    );
+  };
 
   useEffect(() => {
     if (!overlays.minimap) return;
@@ -25,22 +62,7 @@ export function Minimap() {
     canvas.width = MINIMAP_SIZE * dpr;
     canvas.height = MINIMAP_SIZE * dpr;
     ctx.scale(dpr, dpr);
-
-    // Compute bounds
-    let minX = 0, minY = 0, maxX = 100, maxY = 100;
-    for (const agent of agents) {
-      const s = gridToScreen(agent.gridX, agent.gridY);
-      minX = Math.min(minX, s.x - 40);
-      minY = Math.min(minY, s.y - 100);
-      maxX = Math.max(maxX, s.x + 40);
-      maxY = Math.max(maxY, s.y + 40);
-    }
-
-    const rangeX = maxX - minX || 1;
-    const rangeY = maxY - minY || 1;
-    const scale = Math.min(MINIMAP_SIZE / rangeX, MINIMAP_SIZE / rangeY) * 0.85;
-    const offX = (MINIMAP_SIZE - rangeX * scale) / 2;
-    const offY = (MINIMAP_SIZE - rangeY * scale) / 2;
+    const { minX, minY, scale, offX, offY } = mapping;
 
     // Background
     ctx.fillStyle = rgba(COLORS.bg, 0.9);
@@ -70,14 +92,18 @@ export function Minimap() {
     ctx.strokeStyle = COLORS.border;
     ctx.lineWidth = 1;
     ctx.strokeRect(0, 0, MINIMAP_SIZE, MINIMAP_SIZE);
-  }, [agents, overlays.minimap, viewport]);
+  }, [agents, overlays.minimap, viewport, MINIMAP_SIZE, mapping]);
 
   if (!overlays.minimap) return null;
 
   return (
     <canvas
       ref={canvasRef}
-      className="absolute bottom-16 right-4 rounded border border-border z-20 cursor-pointer"
+      onClick={handleMapClick}
+      aria-label="Minimap: click to center the view on a point"
+      className={`absolute rounded border border-border z-20 cursor-pointer ${
+        isMobile ? "bottom-[13.5rem] right-2" : "bottom-16 right-4"
+      }`}
       style={{ width: MINIMAP_SIZE, height: MINIMAP_SIZE }}
     />
   );

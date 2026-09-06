@@ -84,10 +84,32 @@ def resolve_agent_id() -> str:
     return f"main-checkout@{socket.gethostname()}"
 
 
-def write_claim_marker(repo_root: Path, task_id: str, agent: str) -> None:
+def write_claim_marker(
+    repo_root: Path,
+    task_id: str,
+    agent: str,
+    wards: Optional[Dict[str, Any]] = None,
+) -> None:
     marker = Path(repo_root) / CLAIM_MARKER
     marker.parent.mkdir(parents=True, exist_ok=True)
-    marker.write_text(json.dumps({"task_id": task_id, "agent": agent}, sort_keys=True))
+    payload: Dict[str, Any] = {"task_id": task_id, "agent": agent}
+    if wards is not None:
+        # The effective WardSet this session runs under (illq.2); retro and the
+        # Auditor read negative_spec from here rather than from prose.
+        payload["wards"] = wards
+    marker.write_text(json.dumps(payload, sort_keys=True))
+
+
+def read_claim_wards(repo_root: Path) -> Optional[Dict[str, Any]]:
+    marker = Path(repo_root) / CLAIM_MARKER
+    if not marker.exists():
+        return None
+    try:
+        data = json.loads(marker.read_text())
+    except json.JSONDecodeError:
+        return None
+    wards = data.get("wards") if isinstance(data, dict) else None
+    return wards if isinstance(wards, dict) else None
 
 
 def read_claim_marker(repo_root: Path) -> Optional[Dict[str, str]]:

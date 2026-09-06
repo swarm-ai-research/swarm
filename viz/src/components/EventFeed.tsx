@@ -180,7 +180,7 @@ export function EventFeed() {
       {/* Toggle button */}
       <button
         onClick={() => setVisible((v) => !v)}
-        className={`absolute top-2 right-2 z-[10001] px-2 py-1 text-xs rounded transition-colors ${
+        className={`relative z-[10001] px-2.5 py-1.5 text-xs rounded transition-colors ${
           visible ? "bg-secondary text-bg font-bold" : "bg-btn hover:bg-btn-hover text-muted"
         }`}
       >
@@ -193,7 +193,7 @@ export function EventFeed() {
 
       {/* Feed panel */}
       {visible && (
-        <div className="absolute top-10 right-2 z-[10001] w-80 max-h-[50vh] bg-panel/95 border border-border rounded-lg overflow-hidden flex flex-col backdrop-blur-sm">
+        <div className="absolute top-9 right-0 z-[10001] w-80 max-w-[calc(100vw-1rem)] max-h-[50vh] bg-panel/95 border border-border rounded-lg overflow-hidden flex flex-col backdrop-blur-sm">
           <div className="px-3 py-2 border-b border-border text-xs text-muted font-mono">
             Epoch {currentEpoch} / Step {currentStep} \u2014 {events.length} events
           </div>
