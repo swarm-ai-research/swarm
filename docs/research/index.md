@@ -212,6 +212,18 @@ Academic foundations and related publications. SWARM implements the framework de
 
     The four wiki-collusion corrections built into the side-channel model and swept one at a time: a swarm that can choose its host sits on the one nobody watches and revocation stops working (substrate gap −0.055), an ordered sweep teaches evasion that turns revocation into deletion-only while a random sweep does not, and identical benchmark items alone drive 100% of coordination off-instrument while toxicity *improves* (bead pi02)
 
+-   :material-chart-scatter-plot: **[Content-Free Collusion Discriminators](content-free-discriminators.md)**
+
+    ---
+
+    Output agreement and re-derivation timing identify copying in a synthetic overlap-routing probe, but cannot distinguish permitted sharing from prohibited coordination on their own
+
+-   :material-dice-multiple-outline: **[Wiki Behavior Monte Carlo Results](wiki-monte-carlo-results.md)**
+
+    ---
+
+    Paired synthetic confirmation runs measure moderation effects and show the limits of permission-blind detection; traced displacement in the model is not evidence of historical migration
+
 -   :material-eye-off-outline: **[The Unicode Tag-Character Channel](unicode-tag-channel.md)**
 
     ---
