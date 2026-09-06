@@ -22,6 +22,10 @@
 #   4.2 routing is learned from task overlap (side_routing: overlap):
 #       the board is worth writing to when it answers your cohort's task.
 #
+# Bead g9nu adds a cadence controller (side_cadence_quota,
+# side_cadence_cooldown) from the Strange Loop Syndicate PRD, to test whether
+# a fleet that rations its own writes sits under the volume monitor.
+#
 # Swept one lever at a time by scripts/sweep_side_channel.py --scenario
 # scenarios/wiki_board.yaml --axis <field>=<values> (see the research note
 # docs/research/wiki-board-model.md for the three grids).
@@ -90,6 +94,11 @@ memory_tiers:
   side_shape_window: 5
   side_shape_threshold: 0.0
   side_stego_detectability: 0.0
+  # Cadence controller (bead g9nu, swept): a designed community rations its
+  # own board writes — per-agent per-epoch quota and a cool-down in steps.
+  # Blocked writes go to the sanctioned store. 0 = off (pi02).
+  side_cadence_quota: 0
+  side_cadence_cooldown: 0
 
 governance:
   memory_promotion_gate_enabled: false

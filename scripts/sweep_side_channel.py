@@ -196,6 +196,8 @@ def main() -> None:
                 "watched_host_first_alarm": snaps[-1].get("watched_host_first_alarm_epoch"),
                 "any_host_first_alarm": snaps[-1].get("any_host_first_alarm_epoch"),
                 "relocations": snaps[-1].get("relocation_count", 0),
+                # bead g9nu: board writes the cadence controller redirected
+                "side_cadence_blocked": handler.side_cadence_blocked_count,
                 "mean_host_spread": (
                     sum(sn.get("host_spread", 0.0) for sn in snaps) / len(snaps)
                 ),

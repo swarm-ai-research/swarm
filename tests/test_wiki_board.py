@@ -336,3 +336,105 @@ class TestPopulationMonitor:
             make_handler(side_monitor_threshold=0.0)
         with pytest.raises(ValueError):
             make_handler(side_monitor_trailing=0)
+
+
+class TestCadenceController:
+    """Bead g9nu: the Strange Loop PRD's cadence controller as a knob.
+
+    A designed community rations its own board writes (quota per epoch,
+    cool-down between writes). Blocked writes go to the sanctioned store, so
+    the agent's work is unchanged and only the board's volume profile moves.
+    """
+
+    def test_negative_quota_rejected(self):
+        with pytest.raises(ValueError, match="side_cadence_quota"):
+            make_handler(side_cadence_quota=-1)
+
+    def test_negative_cooldown_rejected(self):
+        with pytest.raises(ValueError, match="side_cadence_cooldown"):
+            make_handler(side_cadence_cooldown=-1)
+
+    def test_loader_parses_cadence_fields(self):
+        cfg = parse_memory_tier_config(
+            {"enabled": True, "side_cadence_quota": 2, "side_cadence_cooldown": 3}
+        )
+        assert cfg.side_cadence_quota == 2
+        assert cfg.side_cadence_cooldown == 3
+
+    def test_default_reduces_to_pi02(self):
+        a = make_handler(side_detection_rate=0.0)
+        b = make_handler(side_detection_rate=0.0, side_cadence_quota=0, side_cadence_cooldown=0)
+        sa, sb = make_state(), make_state()
+        run_epochs(a, sa, 4)
+        run_epochs(b, sb, 4)
+        assert a.side_write_count == b.side_write_count
+        assert b.side_cadence_blocked_count == 0
+
+    def test_quota_caps_each_agents_board_writes_per_epoch(self):
+        h = make_handler(side_detection_rate=0.0, side_cadence_quota=2)
+        state = make_state(n=6)
+        run_epochs(h, state, 3, steps=5)
+        # 6 agents x 3 epochs x quota 2, with preference 1.0 and everyone discovered
+        assert h.side_write_count == 6 * 3 * 2
+        # The other 3 writes per agent per epoch went to the sanctioned store
+        assert h.side_cadence_blocked_count == 6 * 3 * 3
+        assert h.store.writes_this_epoch  # sanctioned store saw them
+
+    def test_blocked_writes_land_on_sanctioned_store_not_dropped(self):
+        h = make_handler(side_detection_rate=0.0, side_cadence_quota=1)
+        state = make_state(n=1)
+        state.current_epoch = 0
+        h.on_epoch_start(state)
+        r1 = write(h, state, "honest_0")
+        r2 = write(h, state, "honest_0")
+        assert r1.success and r2.success
+        assert not r1.metadata.get("memory_write")  # side write, ungoverned
+        assert r2.metadata.get("memory_write")  # redirected, governed
+
+    def test_quota_resets_each_epoch(self):
+        h = make_handler(side_detection_rate=0.0, side_cadence_quota=1)
+        state = make_state(n=1)
+        run_epochs(h, state, 3, steps=4)
+        assert h.side_write_count == 3
+
+    def test_cooldown_spaces_board_writes(self):
+        h = make_handler(side_detection_rate=0.0, side_cadence_cooldown=3)
+        state = make_state(n=1)
+        state.current_epoch = 0
+        h.on_epoch_start(state)
+        landed = []
+        for step in range(7):
+            state.current_step = step
+            before = h.side_write_count
+            write(h, state, "honest_0")
+            if h.side_write_count > before:
+                landed.append(step)
+        assert landed == [0, 3, 6]
+
+    def test_cooldown_clock_resets_with_epoch(self):
+        h = make_handler(side_detection_rate=0.0, side_cadence_cooldown=10)
+        state = make_state(n=1)
+        run_epochs(h, state, 3, steps=2)
+        assert h.side_write_count == 3  # one per epoch, step 0 each time
+
+    def test_snapshot_reports_blocked_count(self):
+        h = make_handler(side_detection_rate=0.0, side_cadence_quota=1)
+        state = make_state(n=2)
+        run_epochs(h, state, 2, steps=3)
+        snap = h.epoch_snapshots[-1]
+        assert snap["side_cadence_blocked"] == 2 * 2  # 2 agents x 2 blocked in epoch 0
+
+    def test_quota_caps_board_level_per_epoch(self):
+        """A quota caps the board's per-epoch level at n_agents x quota.
+
+        Whether that hides the board from the burst rule is a separate
+        question: the rule is a ratio against a trailing median, so a quota
+        scales the level and leaves the ratio alone. Measured in the g9nu
+        sweep (wiki-board-model.md section E), not asserted here.
+        """
+        h = make_handler(side_detection_rate=0.0, side_discovery_rate=0.3, side_cadence_quota=1)
+        state = make_state(n=6)
+        run_epochs(h, state, 12, steps=5)
+        per_epoch = [sn["side_writes"] for sn in h.epoch_snapshots]
+        assert max(per_epoch) <= 6 * 1
+        assert max(per_epoch) > 0

@@ -799,6 +799,8 @@ def parse_memory_tier_config(data: Dict[str, Any]) -> Optional[MemoryTierConfig]
         side_shape_window=data.get("side_shape_window", 5),
         side_shape_threshold=data.get("side_shape_threshold", 0.0),
         side_stego_detectability=data.get("side_stego_detectability", 0.0),
+        side_cadence_quota=data.get("side_cadence_quota", 0),
+        side_cadence_cooldown=data.get("side_cadence_cooldown", 0),
     )
     return config
 
