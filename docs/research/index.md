@@ -204,7 +204,7 @@ Academic foundations and related publications. SWARM implements the framework de
 
     ---
 
-    The 2026 collusion.wiki report as a *second, independent* covert-coordination emergence: read access became write access via GET-mutating pages, staggered identical-task cohorts supplied the payoff, a dormant host supplied the blind spot, and alphabetical teardown was evaded — four corrections to the side-channel model (unverified against primary sources)
+    Unverified analysis of the reported 2026 collusion.wiki incident, which press summaries describe as a second covert-coordination emergence. The incident claims are not established and are not repeated here; the note's substance is four conditional challenges to the side-channel model (target writability, endogenous write preference, host attention in detection, evasion of predictable teardown), each stated as a hypothesis with an experiment attached and gated on the §5 verification checklist
 
 -   :material-book-open-page-variant-outline: **[Wiki Boards for Agents](wiki-board-model.md)**
 
