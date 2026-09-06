@@ -61,4 +61,4 @@ flags a cluster in every seed in all three fidelity modes and still flags the
 lineage-residual graph; temporal never reaches its 0.7 bar. So the "screen on
 co-location not explained by provenance" rule above holds for pair rules, but a
 community detector needs a null model that includes the board's copy mechanism, not
-just edge removal.
+just edge removal. The content-free detectors this motivates (output correlation, re-derivation infeasibility) and their precision/recall on the pi02 overlap board are written up in [content-free-discriminators.md](content-free-discriminators.md) (bead `vv3j.2`).
