@@ -179,8 +179,13 @@ revision in the export. That is recorded as a date. Nothing links the two.
   population was observed. The component map compares a specification to an
   export, not two exports.
 - The claim that a cadence-controlled fleet sits under `volume_burst_signal`
-  is argued from the detector's definition (trailing-median ratio), not
-  measured. The `wiki_board.yaml` handler has no cadence knob; adding one and
-  sweeping quota against detection lag is the natural follow-up.
+  was argued here from the detector's definition and then measured in
+  [grid E of the wiki-board model](wiki-board-model.md#e-a-fleet-that-rations-its-own-writes-sits-under-every-monitor-and-keeps-the-board)
+  (bead `g9nu`): a quota of one or two board writes per agent per epoch keeps
+  the population, watched-host, and any-host monitors silent in ten seeds of
+  ten while the board keeps a fifth of the fleet's output. The mechanism is
+  not steady-state smoothing but the arrival ramp: the one-event floor makes
+  the ratio level-sensitive there, and the quota caps per-agent rate below
+  threshold-over-arrivals.
 - The GAME framework's own high-level planner is not examined. The PRD
   extends it; the extension is what is compared here.
