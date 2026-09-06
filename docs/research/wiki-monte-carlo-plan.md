@@ -31,11 +31,12 @@ blocks publication; it need not block reading existing pages.
 Endogenous relocation permits research, another host, rebuilding, or abandonment
 according to the implemented decision rule. Forced relocation is a separate
 stress-test comparator and cannot establish that migration is inevitable.
-The current implementation's ordered/random deletion policies select the host
-deterministically or randomly and clear that host; they do not model
-alphabetical page-level sweeps. Host-lock interventions must be interpreted with
-their actual operation budgets and timing; equal operation counts need not mean
-equal cost. A page-order extension is follow-up work.
+The baseline ordered/random deletion policies select the host deterministically
+or randomly and clear that host. The model also supports an explicit
+`moderation_granularity: page` extension: equal-budget alphabetical versus
+random page deletion with optional evasion learning. Host-lock interventions
+must be interpreted with their actual operation budgets and timing; equal
+operation counts need not mean equal cost.
 Poisoning, adversarial optimization, post-disclosure imitation, and realistic
 search-engine exposure are outside this first model.
 

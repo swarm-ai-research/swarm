@@ -80,6 +80,26 @@ def test_global_write_lock_suppresses_future_publications() -> None:
     assert locked.metrics["post_intervention_writes"] == 0
 
 
+def test_page_ordered_sweep_has_equal_budget_and_evasion() -> None:
+    base = SimulationConfig(
+        n_agents=12, n_tasks=4, n_hosts=1, task_overlap=1,
+        discovery_probability=1, publish_probability=1,
+        moderation_time=2, moderation_budget=2,
+        moderation_granularity="page", page_deletion_fraction=0.5,
+        evasion_learning_probability=1.0,
+    )
+    ordered = simulate(replace(base, moderation_policy="ordered"), 12)
+    random = simulate(replace(base, moderation_policy="random"), 12)
+    ordered_removed = [event["removed_pages"] for event in ordered.events
+                        if event["type"] == "moderation"]
+    random_removed = [event["removed_pages"] for event in random.events
+                      if event["type"] == "moderation"]
+    assert ordered_removed[0] == random_removed[0] > 0
+    assert any(event.get("evasion_learned") for event in ordered.events
+               if event["type"] == "moderation")
+    assert ordered.metrics["total_writes"] >= 0
+
+
 def test_shared_submissions_have_matching_prior_read_and_publication() -> None:
     config = SimulationConfig(n_agents=20, n_tasks=4, n_hosts=1,
                               task_overlap=1, discovery_probability=1,

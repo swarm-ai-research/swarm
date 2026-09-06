@@ -32,6 +32,9 @@ class SimulationConfig:
     moderation_time: float = 12.0
     moderation_interval: float = 3.0
     moderation_budget: int = 3
+    moderation_granularity: str = "host"
+    page_deletion_fraction: float = 0.5
+    evasion_learning_probability: float = 0.0
     relocation_mode: str = "endogenous"
     referrals_enabled: bool = True
     search_interval: float = 1.0
@@ -49,7 +52,8 @@ class SimulationConfig:
                 or self.moderation_budget < 0):
             raise ValueError("moderation_budget must be a nonnegative integer")
         for name in ("task_overlap", "discovery_probability", "publish_probability",
-                     "independent_accuracy"):
+                     "independent_accuracy", "page_deletion_fraction",
+                     "evasion_learning_probability"):
             if not 0 <= getattr(self, name) <= 1:
                 raise ValueError(f"{name} must lie in [0, 1]")
         for name in ("deadline", "research_mean", "search_interval", "moderation_interval"):
@@ -63,6 +67,7 @@ class SimulationConfig:
             "sharing_regime": {"independent", "authorized", "prohibited"},
             "moderation_policy": {"none", "ordered", "random", "lock", "global_lock"},
             "relocation_mode": {"endogenous", "forced"},
+            "moderation_granularity": {"host", "page"},
         }.items():
             if getattr(self, name) not in choices:
                 raise ValueError(f"{name} must be one of {sorted(choices)}")
@@ -100,9 +105,10 @@ def simulate(config: SimulationConfig, seed: int) -> SimulationResult:
     """Run one synthetic world. Event IDs index the returned append-only log.
 
     Ordered deletion targets the most populated host at each intervention;
-    random deletion selects a host uniformly using the same event budget. These
-    are host-selection policies in this first model, not page-level deletion
-    order. Locks additionally stop new
+    random deletion selects a host uniformly using the same event budget. With
+    ``moderation_granularity='page'``, ordered and random policies instead delete
+    an equal fraction of pages on the selected host; ordered deletion can teach
+    authors to evade later sweeps. Locks additionally stop new
     writes, but preserve read access. Global lock consumes one intervention.
     Deadlines are inclusive: a submission exactly at its deadline succeeds.
     Reads reduce work only when their referenced publication supplies the
@@ -116,6 +122,7 @@ def simulate(config: SimulationConfig, seed: int) -> SimulationResult:
     boards: list[dict[str, int]] = [{} for _ in range(c.n_hosts)]
     locked: set[int] = set()
     referrals: set[int] = set()
+    evaders: set[int] = set()
 
     def rng(stream: str, *keys: object) -> random.Random:
         token = repr((seed, stream, keys)).encode()
@@ -189,15 +196,37 @@ def simulate(config: SimulationConfig, seed: int) -> SimulationResult:
                 else:
                     targets = [max(available, key=lambda h: (len(boards[h]), -h))]
             for host in targets:
-                removed = len(boards[host])
                 is_lock = c.moderation_policy in {"lock", "global_lock"}
+                evasion_learned = 0
                 if is_lock:
                     locked.add(host)
+                    removed = 0
+                elif c.moderation_granularity == "page":
+                    entries = list(boards[host].items())
+                    eligible = [(page, event_id) for page, event_id in entries
+                                if events[event_id]["agent_id"] not in evaders]
+                    count = min(len(eligible), max(1, round(
+                        len(entries) * c.page_deletion_fraction))) if entries else 0
+                    if c.moderation_policy == "ordered":
+                        doomed = sorted(eligible, key=lambda item: item[0])[:count]
+                    else:
+                        doomed = rng("page_moderation", task, host).sample(eligible, count)
+                    for page, _ in doomed:
+                        boards[host].pop(page, None)
+                    removed = len(doomed)
+                    if c.moderation_policy == "ordered":
+                        authors = {events[event_id]["agent_id"] for _, event_id in entries}
+                        for author in authors:
+                            if rng("evasion", task, host, author).random() < c.evasion_learning_probability:
+                                evaders.add(author)
+                                evasion_learned += 1
                 else:
+                    removed = len(boards[host])
                     boards[host].clear()
                     referrals.discard(host)
                 log(time, "moderation", host=host, removed_pages=0 if is_lock else removed,
-                    locked=is_lock, intervention_id=task)
+                    locked=is_lock, intervention_id=task,
+                    evasion_learned=evasion_learned)
                 for (aid, tid), work in works.items():
                     if work.done or work.release > time or work.host != host:
                         continue

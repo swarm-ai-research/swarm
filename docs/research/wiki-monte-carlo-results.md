@@ -30,10 +30,11 @@ small completion differences (−0.0037 and −0.0028) but record about 11 trace
 displacements per run. Other deletion/lock contrasts include null completion
 effects after correction.
 
-These labels refer to the current model's host-level intervention policies.
-`ordered` and `random` choose the host deterministically or randomly; they do
-not implement alphabetical page deletion. The page-level ZZZ/evasion model is
-tracked separately in Bead `8000`.
+These labels refer to the baseline model's host-level intervention policies.
+`ordered` and `random` choose the host deterministically or randomly. The model
+now also exposes `moderation_granularity="page"` for equal-budget alphabetical
+versus random page deletion and evasion-learning tests; those page-level runs
+are separate from the confirmation matrix above.
 
 ## Detection interpretation
 
