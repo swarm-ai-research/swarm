@@ -188,9 +188,12 @@ One-page inspection ("you get what you inspect, not what you expect"): the
 inspection view for an epic is a single screen, produced the same way each
 round so the numbers are comparable:
 
-    bd list --parent <epic> --json | python -c 'import json,sys; \
-      [print(f"{i[\"id\"][-6:]:8} {i[\"status\"]:12} {i.get(\"due\",\"-\")[:10]:11} {i[\"title\"][:60]}") \
-       for i in json.load(sys.stdin)]'
+    bd list --parent <epic> --status all --json | python3 -c "import json,sys; \
+      [print(f\"{i['id'][-6:]:8} {i['status']:12} {(i.get('due_at') or '-')[:10]:11} {i['title'][:60]}\") \
+       for i in json.load(sys.stdin)]"
+
+(`--status all` matters: the default listing hides closed children, and the
+page is only an inspection if it shows what shipped next to what slipped.)
 
 Post that page to the channel with the round's digests. Inspection is
 supportive feedback: the question attached to every red line is "what
