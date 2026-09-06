@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 
 import pytest
 
@@ -193,3 +194,131 @@ class TestCsvLoader:
         assert scores == {"claude": {"i1": 0.8, "i2": 0.2}, "gpt": {"i1": 0.75}}
         assert rationales["claude"]["i1"] == "agent_type=honest"
         assert "i1" not in rationales.get("gpt", {})  # empty rationale → omitted
+
+
+@pytest.mark.parametrize("rubric", [None, "rubric.v3"])
+def test_inline_real_judge_preserves_schema_and_records_provenance(
+    tmp_path, monkeypatch, capsys, rubric
+):
+    """Exercise real LLMJudge prompt/parsing; replace only its network call."""
+    from experiments import calibration_join
+    from swarm.judges import judge, load_rubric
+    from swarm.judges.llm_call import LLMCallResult
+    from swarm.judges.views import FORBIDDEN_FIELDS
+
+    accepted = [i for i in generate_mixed_batch(count=20, seed=42) if i.accepted][:2]
+    assert len(accepted) == 2
+    monkeypatch.setattr(calibration_join, "_load_interactions", lambda *args: accepted)
+    monkeypatch.setenv("JUDGE_MODEL_LLAMA", "offline-test-model")
+    calls = []
+
+    def offline_ollama(**kwargs):
+        calls.append(kwargs)
+        prompt = kwargs["prompt"]
+        assert load_rubric(rubric or "rubric.v1") in prompt
+        payload = json.loads(prompt.split("===== INTERACTION =====\n")[1].split(
+            "\n===== OUTPUT ====="
+        )[0])
+        assert not set(payload).intersection(FORBIDDEN_FIELDS)
+        return LLMCallResult('{"score": 0.73, "rationale": "offline fixture"}', 1, 1, 0)
+
+    monkeypatch.setattr(judge, "call_ollama", offline_ollama)
+    argv = ["--scenario", "mixed", "--seed", "42", "--judges", "llama", "mock",
+            "llama", "--runs-dir", str(tmp_path)]
+    if rubric:
+        argv.extend(["--rubric", rubric])
+    assert calibration_join.main(argv) == 0
+
+    (run_dir,) = tmp_path.iterdir()
+    config = json.loads((run_dir / "config.json").read_text())
+    assert len(calls) == len(accepted)  # duplicate judge must not incur more calls
+    assert all(c["model"] == "offline-test-model" for c in calls)
+    assert config["schema_version"] == "joined.v1"
+    assert config["status"] == "completed"
+    assert config["n_scored_verdicts"] == 4
+    assert config["rubric_version"] == (rubric or "rubric.v1")
+    import hashlib
+
+    from swarm.judges import rubric_path
+
+    expected_hash = hashlib.sha256(rubric_path(rubric or "rubric.v1").read_bytes())
+    assert config["rubric_sha256_prefix"] == expected_hash.hexdigest()[:16]
+    assert config["judge_models"]["llama"]["model"] == "offline-test-model"
+    assert config["judge_models"]["llama"]["provider"] == "ollama"
+    assert config["judge_models"]["mock"]["rubric_version"] == (rubric or "rubric.v1")
+    assert "synthetic" in config["interaction_source"]
+    if rubric:
+        assert config["prereg_deviation"]["used_rubric"] == rubric
+        assert config["prereg_deviation"]["locked_rubric"] == "rubric.v1"
+        assert "[PREREG DEVIATION]" in capsys.readouterr().err
+    else:
+        assert config["prereg_deviation"] is None
+    with (run_dir / "joined.csv").open() as f:
+        reader = csv.DictReader(f)
+        assert reader.fieldnames == joined_header(["llama", "mock"])
+        rows = list(reader)
+    assert {r["interaction_id"] for r in rows} == {i.interaction_id for i in accepted}
+    assert all(r["judge_llama_score"] == "0.730000" for r in rows)
+
+
+def test_inline_unknown_judge_rejected_before_scoring(tmp_path, monkeypatch):
+    from experiments import calibration_join
+    from swarm.judges import LLMJudge
+
+    def forbidden_call(*args):
+        pytest.fail("invalid judge list incurred a provider call")
+
+    monkeypatch.setattr(LLMJudge, "score", forbidden_call)
+    with pytest.raises(ValueError, match="unknown judge"):
+        calibration_join.main([
+            "--scenario", "mixed", "--seed", "42", "--judges", "llama", "unknown",
+            "--runs-dir", str(tmp_path),
+        ])
+    assert not list(tmp_path.iterdir())
+
+
+def test_inline_provider_failure_preserves_prior_scores_and_run(tmp_path, monkeypatch):
+    from datetime import datetime
+    from types import SimpleNamespace
+
+    from experiments import calibration_join
+    from swarm.judges import judge
+    from swarm.judges.llm_call import LLMCallResult
+
+    accepted = [i for i in generate_mixed_batch(count=20, seed=42) if i.accepted][:2]
+    monkeypatch.setattr(calibration_join, "_load_interactions", lambda *args: accepted)
+    monkeypatch.setattr(calibration_join, "datetime", SimpleNamespace(
+        now=lambda tz: datetime(2026, 9, 6, tzinfo=tz)
+    ))
+    calls = []
+
+    def offline_ollama(**kwargs):
+        (run_dir,) = tmp_path.iterdir()
+        assert json.loads((run_dir / "config.json").read_text())["status"] == "scoring"
+        calls.append(kwargs)
+        text = '{"score": 0.73, "rationale": "saved"}' if len(calls) == 1 else 'invalid'
+        return LLMCallResult(text, 1, 1, 0)
+
+    monkeypatch.setattr(judge, "call_ollama", offline_ollama)
+    argv = ["--scenario", "mixed", "--seed", "42", "--judges", "llama",
+            "--runs-dir", str(tmp_path)]
+    with pytest.raises(ValueError, match="failed to parse response"):
+        calibration_join.main(argv)
+    (run_dir,) = tmp_path.iterdir()
+    config = json.loads((run_dir / "config.json").read_text())
+    assert config["status"] == "failed"
+    assert config["n_scored_verdicts"] == 1
+    assert not (run_dir / "joined.csv").exists()
+    with (run_dir / "judge_scores.csv").open() as f:
+        scores = list(csv.DictReader(f))
+    assert len(scores) == 1
+    assert scores[0]["interaction_id"] == accepted[0].interaction_id
+    assert scores[0]["score"] == "0.730000"
+    events = [json.loads(line) for line in (run_dir / "judge_calls.jsonl").read_text().splitlines()]
+    assert [e["event"] for e in events] == ["started", "completed", "started", "failed"]
+    assert events[-1]["error_type"] == "ValueError"
+    before = {p.name: p.read_bytes() for p in run_dir.iterdir()}
+    with pytest.raises(FileExistsError):
+        calibration_join.main(argv)
+    assert len(calls) == 2
+    assert before == {p.name: p.read_bytes() for p in run_dir.iterdir()}

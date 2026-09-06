@@ -47,6 +47,26 @@ For each judge in `--judges <judge1> <judge2> ...`, two columns are appended in 
 
 ## Join Key and Reproducibility
 
+The inline runner reuses Arm B's judge registry, including
+`JUDGE_MODEL_<NAME>` model overrides. It defaults to offline `mock` and
+the preregistered `rubric.v1`; an explicit `--rubric` override records a
+deviation. `config.json` records the rubric version/hash, resolved judge
+models, and synthetic fixture source before scoring starts. Historical
+mock-only Arm D configs did not record this metadata; recover it from the
+original code/configuration rather than assuming a rubric from today's defaults.
+
+Each run also writes `judge_scores.csv` in Arm B's format and an append-only
+`judge_calls.jsonl` journal of score invocations (started, completed, failed).
+Completed verdicts are flushed as they arrive. A scoring exception leaves
+the earlier scores and a `failed` config status, without a final joined CSV.
+An existing output directory is never overwritten. The journal does not
+record raw provider responses or individual transport retry attempts, and
+does not establish complete provider-call provenance or a spending cap.
+
+Real judge support is a pipeline capability. The current runner still uses
+synthetic fixtures; it does not by itself satisfy the preregistered held-out
+sample, model independence, agreement, or powered-study requirements.
+
 - **Join key:** `run_id` (implicit from the run directory name; not a column).
   - Downstream studies load the CSV from `runs/<timestamp>_calibration_join_seed<seed>/joined.csv`.
   - Join on `(scenario, seed, interaction_id)` to correlate with other tables.
@@ -125,7 +145,7 @@ The adaptive studies (arms 1–3) join the joined CSV by `(scenario, seed, inter
 
 ## Freeze Readiness
 
-**Schema is frozen and code is production-ready.** The joined CSV is emitted by `experiments/calibration_join.py` (arm D) with version-locked structure. Tests in `tests/test_calibration_joined.py` verify:
+**The `joined.v1` file contract is fixed; scientific handoff readiness is a separate gate.** The joined CSV is emitted by `experiments/calibration_join.py` (arm D) with version-locked structure. Tests in `tests/test_calibration_joined.py` verify:
 - ✅ Schema version assertion (`joined.v1`)
 - ✅ BASE_COLUMNS immutability (tuple, frozen order)
 - ✅ CSV round-trip (write → read via DictReader → consistency)
@@ -133,12 +153,12 @@ The adaptive studies (arms 1–3) join the joined CSV by `(scenario, seed, inter
 - ✅ Missing ground_truth handling (empty string, not null)
 
 **Ready for adaptive study integration when:**
-- ✅ Arm A (proxy fidelity) is run and optimal `k` is selected.
-- ✅ Arm B (judge scoring) produces `judge_scores.csv` at sufficient scale (≥50 per bin, stratified across scenarios).
-- ✅ Arm C (inter-rater agreement) verifies judges converge (α ≥ 0.5).
-- ⏳ Arm D joins and validates the CSV schema (this document).
+- Arm A's proxy-fidelity artifact and parameter-selection procedure are verified.
+- Arm B provides the preregistered held-out sample (at least 1,000 accepted interactions, stratified across scenarios and bins), with rubric and model provenance.
+- Arm C's actual data pass the registered agreement rule, or the escalation decision is documented.
+- Arm D's real-score output and the downstream parser pass their integration gate.
 
-**Remaining before declaring final schema frozen:**
+**Remaining before declaring the scientific handoff complete:**
 - Confirm adaptive study code can parse the joined CSV without errors (test load from a real arm B/D run).
 - Verify downstream pre-reg joiners (adaptive arms 1–3) match column expectations (search for hard-coded column names or assumptions in adaptive runner code).
 - Document any adaptive-study-specific post-processing (e.g., per-bin aggregation of judge scores for toxicity metrics).
