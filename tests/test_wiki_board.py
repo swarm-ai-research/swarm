@@ -301,3 +301,38 @@ class TestSnapshot:
         ):
             assert key in last
         assert last["population_attention"] == pytest.approx(0.05)
+
+
+class TestPopulationMonitor:
+    """bead vv3j.8: snapshot exposes the population monitor next to substrate_gap."""
+
+    def test_snapshot_fields_present(self):
+        handler = make_handler(side_host_attention=[0.0, 0.01, 0.05, 0.2])
+        state = make_state(6)
+        run_epochs(handler, state, 4)
+        last = handler.epoch_snapshots[-1]
+        for key in (
+            "population_volume_ratio", "population_alarm",
+            "population_first_alarm_epoch", "watched_host_first_alarm_epoch",
+            "any_host_first_alarm_epoch", "host_spread", "relocation_count",
+        ):
+            assert key in last, key
+        assert len(handler.side_host_writes) == len(handler.epoch_snapshots)
+        assert all(len(row) == 4 for row in handler.side_host_writes)
+
+    def test_population_fires_when_everyone_writes_off_instrument(self):
+        # Everyone discovered on epoch 0, write preference 1.0, six agents x
+        # five steps = 30 side writes per epoch against a zero baseline.
+        handler = make_handler(side_host_attention=[0.0, 0.0, 0.0, 0.0])
+        state = make_state(6)
+        run_epochs(handler, state, 3)
+        last = handler.epoch_snapshots[-1]
+        assert last["population_first_alarm_epoch"] == 1
+        assert last["population_alarm"] is True or last["population_volume_ratio"] > 0
+
+    def test_monitor_config_validated(self):
+        import pytest
+        with pytest.raises(ValueError):
+            make_handler(side_monitor_threshold=0.0)
+        with pytest.raises(ValueError):
+            make_handler(side_monitor_trailing=0)

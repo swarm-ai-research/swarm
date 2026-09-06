@@ -767,6 +767,8 @@ def parse_memory_tier_config(data: Dict[str, Any]) -> Optional[MemoryTierConfig]
         side_deadline_pressure=data.get("side_deadline_pressure", 1.0),
         side_value_alpha=data.get("side_value_alpha", 0.3),
         side_value_prior=data.get("side_value_prior", 0.5),
+        side_monitor_threshold=data.get("side_monitor_threshold", 10.0),
+        side_monitor_trailing=data.get("side_monitor_trailing", 7),
     )
     return config
 

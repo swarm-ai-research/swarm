@@ -100,12 +100,26 @@ def main() -> None:
         metavar="FIELD=V1,V2",
         help="extra memory_tiers field to sweep (repeatable); JSON values",
     )
+    parser.add_argument(
+        "--axis-json",
+        action="append",
+        default=[],
+        metavar="FIELD=[V1,V2,...]",
+        help="like --axis but the value list is one JSON array, so list-valued "
+             "fields (side_host_attention) can be swept",
+    )
     args = parser.parse_args()
     n_seeds = 2 if args.quick else args.seeds
     detections = [float(d) for d in args.detections.split(",")]
     prefs = [float(p) for p in args.prefs.split(",")]
     modes = args.modes.split(",")
     extra_axes = [_parse_axis(spec) for spec in args.axis]
+    for spec in args.axis_json:
+        name, _, values = spec.partition("=")
+        parsed = json.loads(values)
+        if not name or not isinstance(parsed, list):
+            raise SystemExit(f"--axis-json expects field=[v1,v2,...] got {spec!r}")
+        extra_axes.append((name, parsed))
 
     scenario_path = Path(args.scenario)
     scenario = load_scenario(scenario_path)
@@ -160,7 +174,7 @@ def main() -> None:
 
             row = result.to_dict()
             row.update({
-                **params,
+                **{k: (json.dumps(v) if isinstance(v, list) else v) for k, v in params.items()},
                 "peak_ungoverned": max(ungov),
                 "late_ungoverned": sum(late) / len(late),
                 "final_discovered": discovered[-1],
@@ -176,11 +190,23 @@ def main() -> None:
                 "final_evaders": snaps[-1].get("evader_fraction", 0.0),
                 "final_side_value": snaps[-1].get("mean_side_value", 0.0),
                 "final_host_users": json.dumps(snaps[-1].get("side_host_users", [])),
+                # bead vv3j.8: population monitor vs the host you found
+                "n_hosts": len(handler.side_hosts),
+                "population_first_alarm": snaps[-1].get("population_first_alarm_epoch"),
+                "watched_host_first_alarm": snaps[-1].get("watched_host_first_alarm_epoch"),
+                "any_host_first_alarm": snaps[-1].get("any_host_first_alarm_epoch"),
+                "relocations": snaps[-1].get("relocation_count", 0),
+                "mean_host_spread": (
+                    sum(sn.get("host_spread", 0.0) for sn in snaps) / len(snaps)
+                ),
             })
             rows.append(row)
 
             for sn in snaps:
-                series.append({**params, "seed": seed, **sn})
+                series.append({
+                    **{k: (json.dumps(v) if isinstance(v, list) else v) for k, v in params.items()},
+                    "seed": seed, **sn,
+                })
 
     # ── Export ──────────────────────────────────────────────────
     with open(out_dir / "sweep.csv", "w", newline="") as f:
@@ -215,7 +241,7 @@ def main() -> None:
     # ── Summary ─────────────────────────────────────────────────
     grouped = defaultdict(list)
     for r in rows:
-        grouped[tuple(r[name] for name in axis_names)].append(r)
+        grouped[tuple(str(r[name]) for name in axis_names)].append(r)
 
     metrics = [
         ("late_ungoverned", "late_ungov", "10.3f"),
@@ -236,7 +262,9 @@ def main() -> None:
     print("-" * len(header))
     summary = {}
     for cell in cells:
-        runs = grouped[tuple(cell)]
+        runs = grouped[tuple(
+            json.dumps(v) if isinstance(v, list) else str(v) for v in cell
+        )]
         if not runs:
             continue
         n = len(runs)

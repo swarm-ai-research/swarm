@@ -1059,3 +1059,126 @@ def _volume_burst_per_object(
     if merged.windows:
         merged.first_alarm = min(r["window_start"] for r in merged.windows)
     return merged
+
+
+# ---------------------------------------------------------------------------
+# Population-level substrate monitor (bead vv3j.8)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class SubstratePopulationResult:
+    """Traffic-shape monitor over a *population* of side hosts (bead vv3j.8).
+
+    Teardown and revocation both act on the host that was caught, and a swarm
+    with a choice of hosts sits on the one that will not be (pi02's negative
+    ``substrate_gap``). A per-host volume burst therefore watches the wrong
+    host by construction: after a teardown the caught host goes quiet and the
+    population total does not. This monitor sums per-host write counts per
+    window and applies the same trailing-median burst rule as
+    :func:`volume_burst_signal`, and additionally reports how many hosts are
+    live (``host_spread``) and how often one host goes quiet as another lights
+    up (``relocations``). It needs per-host counts only, never content.
+
+    Window index 0 has no trailing history and never fires. ``None`` for a
+    first-alarm field means the signal never fired.
+    """
+
+    n_windows: int = 0
+    n_hosts: int = 0
+    threshold: float = 10.0
+    population_ratio: List[float] = field(default_factory=list)
+    population_first_alarm: Optional[int] = None
+    per_host_first_alarm: Dict[str, Optional[int]] = field(default_factory=dict)
+    any_host_first_alarm: Optional[int] = None
+    host_spread: List[float] = field(default_factory=list)
+    relocations: List[Dict] = field(default_factory=list)
+
+    @property
+    def relocation_count(self) -> int:
+        return len(self.relocations)
+
+    @property
+    def population_alarm(self) -> bool:
+        return self.population_first_alarm is not None
+
+
+def _burst_ratios(
+    counts: List[int], *, trailing_windows: int, min_baseline: float
+) -> List[float]:
+    """Per-window count / max(trailing median, min_baseline); window 0 is 0."""
+    ratios: List[float] = []
+    for k, count in enumerate(counts):
+        if k == 0:
+            ratios.append(0.0)
+            continue
+        trailing = counts[max(0, k - trailing_windows) : k]
+        median = float(np.median(trailing)) if trailing else 0.0
+        ratios.append(count / max(median, min_baseline))
+    return ratios
+
+
+def substrate_population_signal(
+    counts_by_host: Dict[str, List[int]],
+    *,
+    trailing_windows: int = 7,
+    threshold: float = 10.0,
+    min_baseline: float = 1.0,
+    relocation_lag: int = 2,
+) -> SubstratePopulationResult:
+    """Population-level volume burst, host spread, and relocation events.
+
+    Args:
+        counts_by_host: host id -> per-window write counts, all the same length
+            (window = epoch in the simulation, day in a log replay).
+        trailing_windows: windows in the trailing median.
+        threshold: ratio at or above which a window fires.
+        min_baseline: floor on the trailing-median denominator.
+        relocation_lag: a host that goes quiet at window ``w`` is a relocation
+            if another host lights up in ``[w, w + relocation_lag)``.
+    """
+    hosts = list(counts_by_host)
+    if not hosts:
+        return SubstratePopulationResult(threshold=threshold)
+    n = len(next(iter(counts_by_host.values())))
+    if any(len(c) != n for c in counts_by_host.values()):
+        raise ValueError("every host needs the same number of windows")
+    res = SubstratePopulationResult(n_windows=n, n_hosts=len(hosts), threshold=threshold)
+    if n == 0:
+        return res
+
+    totals = [sum(counts_by_host[h][k] for h in hosts) for k in range(n)]
+    res.population_ratio = _burst_ratios(
+        totals, trailing_windows=trailing_windows, min_baseline=min_baseline
+    )
+    res.population_first_alarm = next(
+        (k for k, r in enumerate(res.population_ratio) if r >= threshold), None
+    )
+    for h in hosts:
+        ratios = _burst_ratios(
+            list(counts_by_host[h]), trailing_windows=trailing_windows, min_baseline=min_baseline
+        )
+        res.per_host_first_alarm[h] = next(
+            (k for k, r in enumerate(ratios) if r >= threshold), None
+        )
+    fired = [k for k in res.per_host_first_alarm.values() if k is not None]
+    res.any_host_first_alarm = min(fired) if fired else None
+
+    res.host_spread = [
+        sum(1 for h in hosts if counts_by_host[h][k] > 0) / len(hosts) for k in range(n)
+    ]
+
+    for w in range(1, n):
+        quiet = [h for h in hosts if counts_by_host[h][w - 1] > 0 and counts_by_host[h][w] == 0]
+        if not quiet:
+            continue
+        for w2 in range(w, min(n, w + relocation_lag)):
+            lit = [
+                h for h in hosts
+                if h not in quiet and counts_by_host[h][w2 - 1] == 0 and counts_by_host[h][w2] > 0
+            ]
+            if lit:
+                for q in quiet:
+                    res.relocations.append({"window": w, "quiet_host": q, "lit_host": lit[0], "lit_window": w2})
+                break
+    return res

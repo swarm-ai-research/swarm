@@ -1367,3 +1367,32 @@ class TestOutOfBandChannel:
         ev.attack_results = [result]
         recs = ev._generate_recommendations(GovernanceRobustness(governance_config={}))
         assert any("volume/rate monitor" in r for r in recs)
+
+
+    def test_population_monitor_is_host_count_invariant(self):
+        # vv3j.8: the per-host volume monitor weakens as the swarm gains hosts
+        # to relocate across; the population monitor does not.
+        def evasion(n_hosts, **gov):
+            ev = RedTeamEvaluator(governance_config=gov)
+            scenario = AttackLibrary.out_of_band_channel()
+            scenario.adversary_config["n_hosts"] = n_hosts
+            result = AttackResult(attack_id=scenario.attack_id, scenario=scenario)
+            return ev._simulate_attack_outcome(scenario, result).evasion_rate
+
+        one = evasion(1, volume_monitor_enabled=True)
+        four = evasion(4, volume_monitor_enabled=True)
+        eight = evasion(8, volume_monitor_enabled=True)
+        assert one < four < eight
+        pop = [evasion(n, substrate_population_monitor_enabled=True) for n in (1, 4, 8)]
+        assert pop[0] == pop[1] == pop[2] == one
+
+    def test_recommends_population_monitor_when_hosts_are_many(self):
+        ev = RedTeamEvaluator(governance_config={"volume_monitor_enabled": True})
+        scenario = AttackLibrary.out_of_band_channel()
+        result = AttackResult(attack_id=scenario.attack_id, scenario=scenario)
+        result.attack_succeeded = True
+        ev.attack_results = [result]
+        recs = ev._generate_recommendations(
+            GovernanceRobustness(governance_config=ev.governance_config)
+        )
+        assert any("population of hosts" in r for r in recs)

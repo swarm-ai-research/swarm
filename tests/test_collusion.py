@@ -1035,3 +1035,48 @@ class TestVolumeBurstSignal:
         its = _burst_interactions(8, 3, spike_day=8, spike_n=300)  # ratio 100
         assert volume_burst_signal(its, threshold=50.0).alarm is True
         assert volume_burst_signal(its, threshold=500.0).alarm is False
+
+
+class TestSubstratePopulationSignal:
+    """bead vv3j.8: watch the population of hosts, not the host you found."""
+
+    def _sig(self, counts, **kw):
+        from swarm.metrics.collusion import substrate_population_signal
+        return substrate_population_signal(counts, **kw)
+
+    def test_relocation_keeps_population_alarm_and_loses_per_host(self):
+        # Host A carries the board for three windows, is torn down, and the
+        # swarm relocates to host B. Watched-host A's burst is a one-off; the
+        # population total never dips.
+        a = [0, 30, 30, 30, 0, 0, 0, 0]
+        b = [0, 0, 0, 0, 30, 30, 30, 30]
+        r = self._sig({"A": a, "B": b}, threshold=10.0)
+        assert r.population_first_alarm == 1
+        assert r.per_host_first_alarm == {"A": 1, "B": 4}
+        assert r.relocation_count == 1
+        assert r.relocations[0]["quiet_host"] == "A"
+        assert r.relocations[0]["lit_host"] == "B"
+        assert r.host_spread[1] == 0.5 and r.host_spread[0] == 0.0
+
+    def test_quiet_population_never_fires(self):
+        r = self._sig({"A": [2, 2, 3, 2, 3], "B": [1, 1, 1, 2, 1]}, threshold=10.0)
+        assert r.population_first_alarm is None
+        assert r.any_host_first_alarm is None
+        assert r.relocation_count == 0
+
+    def test_diluted_hosts_fire_only_in_aggregate(self):
+        # Eight hosts each carrying 3 writes: no host clears a 10x floor, the
+        # population (24) does.
+        counts = {str(i): [0, 3, 3, 3] for i in range(8)}
+        r = self._sig(counts, threshold=10.0)
+        assert r.any_host_first_alarm is None
+        assert r.population_first_alarm == 1
+
+    def test_ragged_input_rejected(self):
+        import pytest
+        with pytest.raises(ValueError):
+            self._sig({"A": [1, 2], "B": [1]})
+
+    def test_empty(self):
+        r = self._sig({})
+        assert r.n_hosts == 0 and r.population_first_alarm is None

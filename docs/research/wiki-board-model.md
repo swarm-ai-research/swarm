@@ -188,8 +188,74 @@ healthier while the answers were being copied off a wiki.
 - **Monitoring the governed stream is worse than blind here.** It reads the
   migration as improvement.
 
+### D. Watch the population of hosts, not the host you found
+
+Bead `vv3j.8`, run `20260905T202212Z_wiki_board_sweep`. Teardown and revocation both act on
+the substrate that was caught, and grid A showed a swarm with a choice sits on
+the one that will not be. So a defender-side monitor that watches the caught
+host is watching the wrong host by construction. This grid gives the handler a
+population-level monitor (`substrate_population_signal` in
+`swarm/metrics/collusion.py`): per-host side-write counts per epoch, summed
+over hosts, under the same trailing-median burst rule as the replay's volume
+detector (`hoer`; threshold 10, trailing 7, one-event floor), next to the same
+rule on the single most-watched host ("watched", the host a defender who acts on
+what they caught is looking at) and on every host separately ("any host"). Host
+counts 1, 4 and 8 at the same mean attention 0.065; 10 seeds, 40 epochs.
+
+| hosts | mode | population alarm (seeds firing / mean epoch) | watched host | any host | relocations | late ungoverned | substrate gap |
+|---|---|---|---|---|---|---|---|
+| 1 | deletion | 10/10 / 6.8 | 10/10 / 6.8 | 10/10 / 6.8 | 0.0 | 0.361 | 0 |
+| 1 | revocation | 7/10 / 7.1 | 7/10 / 7.1 | 7/10 / 7.1 | 0.0 | 0.084 | 0 |
+| 4 | deletion | 6/10 / 6.0 | 2/10 / 16.0 | 9/10 / 8.7 | 4.6 | 0.691 | −0.055 |
+| 4 | revocation | 6/10 / 6.0 | 0/10 / never | 7/10 / 11.7 | 2.0 | 0.650 | −0.061 |
+| 8 | deletion | 9/10 / 5.2 | 1/10 / 6.0 | 9/10 / 7.3 | 9.8 | 0.701 | −0.059 |
+| 8 | revocation | 8/10 / 4.8 | 0/10 / never | 7/10 / 10.1 | 2.0 | 0.618 | −0.061 |
+
+**1. The watched host goes silent as the swarm gains hosts.** With one host the
+three monitors are the same monitor. At four hosts the watched host fires in two
+seeds of ten under deletion and never under revocation; at eight hosts, one and
+none. The population monitor fires in six to nine seeds of ten and its first
+alarm moves *earlier* with host count (6.8, 6.0, 5.2 epochs under deletion),
+because the total keeps climbing while the caught host's share of it falls.
+Relocation events, a host going quiet within two epochs of another lighting up,
+rise from zero to 4.6 to 9.8 per run under deletion: the population monitor is
+seeing the same swarm move.
+
+**2. Revocation looks like a monitor failure and is not.** Under revocation the
+watched host never fires at four or eight hosts. This is not because the swarm
+is hiding. Revocation removes the users of the caught host, and the caught host
+is the watched one, so its traffic really is gone; the population on the
+dormant hosts is untouched (ungoverned share 0.65 versus 0.08 on one host,
+grid A). The population monitor still fires in six to eight seeds. The lever
+that acts on the host you found is the lever that blinds the monitor on the
+host you found.
+
+**3. The honest miss: a burst rule wants a dip.** On one host the burst is
+manufactured by the defender. Each teardown zeroes the board for the rebuild
+lag, and the rebound against a zero median is the alarm (seed 42 deletion:
+writes 0, 18, 0, 26, 0, 32). With several hosts the total grows smoothly from
+discovery (0, 7, 11, 13, 10, 13, 20 ...), the trailing median grows with it,
+and in the four seeds where the population monitor is silent the ratio peaks
+near 7. A burst detector is blind to a channel that ramps. The population
+signals that do not need a dip are the ones to pair it with: host spread (the
+fraction of hosts live, 0.5 at four hosts under deletion) and total
+off-instrument volume against the *sanctioned* volume, which is
+`ungoverned_fraction` and is already in the snapshot. Both are shape, not
+content; neither is a burst.
+
+**4. Consequence for the red team.** `out_of_band_channel` now carries
+`n_hosts`, and the evaluator's `volume_monitor_enabled` effect decays with it
+(factor 0.4 at one host, 0.85 at four) while
+`substrate_population_monitor_enabled` holds at 0.4 for any host count. Only
+two levers in this whole model are host-count invariant: revoke discovery on
+the agent, or remove the write capability (the egress allow-list). Everything
+that acts on a host inherits the host's selection problem.
+
 ## Limitations
 
+- The population monitor sums every host, including ones the defender
+  mis-audited as unwritable; a defender who cannot enumerate the host
+  population cannot run it. That enumeration is the real cost of the lever.
 - Substrate choice is relocation only. Agents do not compare hosts by
   observed attention; the selection is survival of whoever landed well. A
   deliberate host-shopping swarm would sort faster, not slower.
@@ -215,5 +281,7 @@ python scripts/sweep_side_channel.py --seeds 10 --detections 0.05 --prefs 0.7 \
 python scripts/sweep_side_channel.py --seeds 10 --detections 0.0 --prefs 0.7 --modes deletion \
   --scenario scenarios/wiki_board.yaml --axis side_host_attention=null --axis side_routing=overlap \
   --axis side_task_overlap=0.1,0.3,1.0 --axis side_deadline_pressure=0.5,1.0        # C
-python -m pytest tests/test_wiki_board.py tests/test_side_channel.py -v            # 41 mechanism tests
+python scripts/sweep_side_channel.py --seeds 10 --detections 0.05 --prefs 0.7 --scenario scenarios/wiki_board.yaml \
+  --axis-json 'side_host_attention=[[0.065],[0.0,0.01,0.05,0.2],[0.0,0.0,0.01,0.01,0.05,0.05,0.2,0.2]]'  # D
+python -m pytest tests/test_wiki_board.py tests/test_side_channel.py -v            # mechanism tests
 ```

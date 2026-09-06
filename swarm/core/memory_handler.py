@@ -120,6 +120,12 @@ class MemoryTierConfig(BaseModel):
     side_deadline_pressure: float = 1.0
     side_value_alpha: float = 0.3
     side_value_prior: float = 0.5
+    # Population-level substrate monitor (bead vv3j.8): the defender-side
+    # burst rule applied to per-host write counts summed over all hosts, and
+    # to each host alone, so the snapshot can compare "watch the host you
+    # found" against "watch the population". Same rule as volume_burst_signal.
+    side_monitor_threshold: float = 10.0
+    side_monitor_trailing: int = 7
 
     @model_validator(mode="after")
     def _run_validation(self) -> "MemoryTierConfig":
@@ -158,6 +164,10 @@ class MemoryTierConfig(BaseModel):
                 raise ValueError(f"{prob_field} must be in [0, 1]")
         if not 0.0 < self.side_task_overlap <= 1.0:
             raise ValueError("side_task_overlap must be in (0, 1]")
+        if self.side_monitor_threshold <= 0.0:
+            raise ValueError("side_monitor_threshold must be positive")
+        if self.side_monitor_trailing < 1:
+            raise ValueError("side_monitor_trailing must be >= 1")
         if self.side_host_attention is not None:
             if not self.side_host_attention:
                 raise ValueError("side_host_attention must list at least one host")
@@ -238,6 +248,9 @@ class MemoryHandler(Handler):
         self._side_writes_this_epoch: int = 0
         self._sanctioned_writes_this_epoch: int = 0
         self.side_write_count: int = 0
+        # Per-epoch per-host side-write counts, in side_hosts order, one row
+        # per recorded snapshot (bead vv3j.8: the population monitor's input).
+        self.side_host_writes: List[List[int]] = []
         self.side_poisoned_write_count: int = 0
         self.side_swept_entries: int = 0
         if config.side_channel_enabled:
@@ -303,6 +316,7 @@ class MemoryHandler(Handler):
         sanctioned_writes_last_epoch = self._sanctioned_writes_this_epoch
         teardown = False
         if self.side_hosts:
+            self.side_host_writes.append([h.writes_this_epoch for h in self.side_hosts])
             for host in self.side_hosts:
                 tore = self._maybe_side_teardown(host)
                 teardown = teardown or tore
@@ -631,8 +645,44 @@ class MemoryHandler(Handler):
                     sum(1 for h in used if h.index == host.index)
                     for host in self.side_hosts
                 ],
+                **self._population_monitor(),
             })
         self.epoch_snapshots.append(snapshot)
+
+    def _population_monitor(self) -> Dict[str, Any]:
+        """Snapshot fields for the population-level substrate monitor (vv3j.8).
+
+        ``watched`` is the host with the highest effective attention: the host
+        a defender who acts on what they caught is looking at. ``population``
+        sums every host. ``any_host`` is a defender running the per-host rule
+        on every host separately, the upper bound for host-by-host watching.
+        """
+        from swarm.metrics.collusion import substrate_population_signal
+
+        counts = {
+            str(i): [row[i] for row in self.side_host_writes]
+            for i in range(len(self.side_hosts))
+        }
+        res = substrate_population_signal(
+            counts,
+            trailing_windows=self.config.side_monitor_trailing,
+            threshold=self.config.side_monitor_threshold,
+        )
+        watched = max(self.side_hosts, key=lambda h: h.effective_attention)
+        k = res.n_windows - 1
+        return {
+            "population_volume_ratio": res.population_ratio[k] if k >= 0 else 0.0,
+            "population_alarm": bool(
+                k >= 0 and res.population_ratio[k] >= res.threshold
+            ),
+            "population_first_alarm_epoch": res.population_first_alarm,
+            "watched_host_first_alarm_epoch": res.per_host_first_alarm.get(
+                str(watched.index)
+            ),
+            "any_host_first_alarm_epoch": res.any_host_first_alarm,
+            "host_spread": res.host_spread[k] if k >= 0 else 0.0,
+            "relocation_count": res.relocation_count,
+        }
 
     def maybe_compaction(self, agent_id: str, state: EnvState) -> int:
         """Randomly trigger compaction for an agent. Returns entries lost."""

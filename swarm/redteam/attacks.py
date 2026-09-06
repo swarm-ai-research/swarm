@@ -453,8 +453,14 @@ class AttackLibrary:
                 "handle_rotation": True,  # many throwaway handles per operator
                 "policy_inference": "ordered_sweep",  # learn the deletion order
                 "evasion_prefix": "ZZZ",  # write past the sweep line
+                # Candidate substrates the swarm can relocate across. A
+                # per-host volume monitor watches the host that was caught;
+                # with several hosts the swarm sits on the one that was not
+                # (pi02 substrate gap), so its effect decays with n_hosts.
+                "n_hosts": 4,
             },
             targeted_levers=[
+                "substrate_population_monitor",
                 "volume_monitor",
                 "egress_allowlist",
                 "collusion_detection",
