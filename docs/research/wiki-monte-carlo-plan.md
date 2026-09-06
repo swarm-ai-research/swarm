@@ -1,5 +1,8 @@
 # Wiki behavior Monte Carlo protocol
 
+Results from running this protocol are in
+[Wiki behavior Monte Carlo results](wiki-monte-carlo-results.md).
+
 Status: prospective protocol for a synthetic mechanism study. Pilot outputs are
 exploratory, not confirmation. Freeze the final contrasts, configurations, seed
 lists, and observer thresholds before running confirmatory experiments.

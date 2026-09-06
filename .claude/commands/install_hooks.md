@@ -26,7 +26,13 @@ Install repo-provided git hooks that enforce research hygiene. Also use this aft
 
 In order, before any push leaves the machine:
 
-1. `make ci` — lint, typecheck, tests with coverage (existing behaviour).
+1. `make lint typecheck test-parallel` — the same checks CI's lint, type-check
+   and test jobs run (parallel, `-m "not slow"`). This used to be `make ci`,
+   whose serial coverage run takes 10+ minutes locally; coverage thresholds
+   stay a CI concern. The hook first clears `GIT_DIR`/`GIT_INDEX_FILE`/
+   `GIT_WORK_TREE`, which git exports to hooks: without that, tests that
+   `git init` a temp repo run against *this* repo instead (found 2026-09-06
+   on the first real run of this hook — it had never been installed).
 2. **Main-parity checks** (bead `9qrv.1`, Joel Test Q3): the two cheap CI jobs
    that most often turn `main` red when a direct push skips the PR gate —
    `python scripts/build_kb_graph.py --check` (~1s) and `mkdocs build --strict`

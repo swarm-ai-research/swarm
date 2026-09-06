@@ -54,6 +54,11 @@ detector and a well-thresholded volume-burst are already robust to honest conver
 The general lesson: **do not screen on co-location alone; screen on co-location that
 is not explained by shared provenance, and confirm with a quality-asymmetry signal.**
 
+**Content-free follow-up.** The two content-free signals this note leaves open —
+output correlation and re-derivation infeasibility — are measured in
+[Content-free discriminators on an overlap-routing board](content-free-discriminators.md)
+(bead `vv3j.2`).
+
 **Companion probe.** The same bead was independently run against the graph-structural
 and temporal detectors (`docs/scenarios.md`, "Collusion detectors on honest copying";
 commit 2d028bda, `runs/20260906T131453Z_gossip_board_detector_fpr_seed42`). Structural
