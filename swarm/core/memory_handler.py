@@ -203,6 +203,15 @@ class MemoryTierConfig(BaseModel):
     # found" against "watch the population". Same rule as volume_burst_signal.
     side_monitor_threshold: float = 10.0
     side_monitor_trailing: int = 7
+    # Cadence controller (bead g9nu; the Strange Loop Syndicate PRD read in
+    # docs/research/designed-agent-community-vs-converged-board.md). A designed
+    # agent community rations its own board writes: a per-agent per-epoch
+    # quota and a cool-down between consecutive writes. A write the cadence
+    # blocks is not dropped: the agent still writes, to the sanctioned store,
+    # so its work is unchanged and only the board's volume profile moves.
+    # 0 = no quota / no cool-down, which reduces to pi02.
+    side_cadence_quota: int = 0  # Max side writes per agent per epoch
+    side_cadence_cooldown: int = 0  # Min steps between an agent's side writes
 
     # Covert carrier (bead vv3j.1): coordination the defender cannot read.
     # overt = the drop box above. covert = the side payload rides inside a
@@ -288,6 +297,10 @@ class MemoryTierConfig(BaseModel):
             raise ValueError("side_monitor_threshold must be positive")
         if self.side_monitor_trailing < 1:
             raise ValueError("side_monitor_trailing must be >= 1")
+        if self.side_cadence_quota < 0:
+            raise ValueError("side_cadence_quota must be non-negative")
+        if self.side_cadence_cooldown < 0:
+            raise ValueError("side_cadence_cooldown must be non-negative")
         if self.side_host_attention is not None:
             if not self.side_host_attention:
                 raise ValueError("side_host_attention must list at least one host")
@@ -439,6 +452,13 @@ class MemoryHandler(Handler):
         # Per-epoch per-host side-write counts, in side_hosts order, one row
         # per recorded snapshot (bead vv3j.8: the population monitor's input).
         self.side_host_writes: List[List[int]] = []
+        # Cadence controller state (g9nu): per-agent side writes this epoch,
+        # the step of each agent's last side write this epoch, and how many
+        # board-bound writes the cadence redirected to the sanctioned store.
+        self._side_writes_by_agent: Dict[str, int] = {}
+        self._last_side_write_step: Dict[str, int] = {}
+        self._side_cadence_blocked_this_epoch: int = 0
+        self.side_cadence_blocked_count: int = 0
         self.side_poisoned_write_count: int = 0
         self.side_swept_entries: int = 0
         if config.side_channel_enabled:
@@ -510,6 +530,7 @@ class MemoryHandler(Handler):
         side_writes_last_epoch = self._side_writes_this_epoch
         followup_side_writes_last_epoch = self._followup_side_writes_this_epoch
         sanctioned_writes_last_epoch = self._sanctioned_writes_this_epoch
+        cadence_blocked_last_epoch = self._side_cadence_blocked_this_epoch
         teardown = False
         if self.side_hosts:
             self.side_host_writes.append([h.writes_this_epoch for h in self.side_hosts])
@@ -542,10 +563,14 @@ class MemoryHandler(Handler):
             side_writes_last_epoch=side_writes_last_epoch,
             sanctioned_writes_last_epoch=sanctioned_writes_last_epoch,
             followup_side_writes_last_epoch=followup_side_writes_last_epoch,
+            cadence_blocked_last_epoch=cadence_blocked_last_epoch,
         )
         self._side_writes_this_epoch = 0
         self._followup_side_writes_this_epoch = 0
         self._sanctioned_writes_this_epoch = 0
+        self._side_cadence_blocked_this_epoch = 0
+        self._side_writes_by_agent.clear()
+        self._last_side_write_step.clear()
         self._emit_event(
             Event(
                 event_type=EventType.MEMORY_CACHE_REBUILT,
@@ -1095,6 +1120,7 @@ class MemoryHandler(Handler):
         side_writes_last_epoch: int = 0,
         sanctioned_writes_last_epoch: int = 0,
         followup_side_writes_last_epoch: int = 0,
+        cadence_blocked_last_epoch: int = 0,
     ) -> None:
         from swarm.metrics.memory_metrics import (
             cache_corruption,
@@ -1223,6 +1249,8 @@ class MemoryHandler(Handler):
                     sum(1 for h in used if h.index == host.index)
                     for host in self.side_hosts
                 ],
+                # g9nu: board-bound writes the cadence controller redirected.
+                "side_cadence_blocked": cadence_blocked_last_epoch,
                 **self._population_monitor(),
             })
         self.epoch_snapshots.append(snapshot)
@@ -1368,6 +1396,12 @@ class MemoryHandler(Handler):
             self._rng.random()
             < self._side_route_probability(action.agent_id, host, state)
         )
+        if route_side and not self._cadence_allows(action.agent_id, state):
+            # The cadence controller held this board write back; it lands on
+            # the sanctioned store below, so the agent's work is unchanged.
+            self._side_cadence_blocked_this_epoch += 1
+            self.side_cadence_blocked_count += 1
+            route_side = False
         if route_side and self.config.side_carrier == "overt":
             assert host is not None
             return self._handle_side_write(
@@ -1446,6 +1480,23 @@ class MemoryHandler(Handler):
             metadata=metadata,
         )
 
+    def _cadence_allows(self, agent_id: str, state: EnvState) -> bool:
+        """Cadence controller (g9nu): may this agent write to the board now?
+
+        Quota is per agent per epoch; cool-down is steps since the agent's
+        last side write in this epoch (an epoch is the controller's day, so
+        the clock resets with it). Both off at 0.
+        """
+        quota = self.config.side_cadence_quota
+        if quota and self._side_writes_by_agent.get(agent_id, 0) >= quota:
+            return False
+        cooldown = self.config.side_cadence_cooldown
+        if cooldown:
+            last = self._last_side_write_step.get(agent_id)
+            if last is not None and state.current_step - last < cooldown:
+                return False
+        return True
+
     def _record_side_payload(
         self,
         action: Action,
@@ -1515,6 +1566,10 @@ class MemoryHandler(Handler):
         ):
             self._followup_side_writes_this_epoch += 1
         self.side_write_count += 1
+        self._side_writes_by_agent[action.agent_id] = (
+            self._side_writes_by_agent.get(action.agent_id, 0) + 1
+        )
+        self._last_side_write_step[action.agent_id] = state.current_step
         if is_poisoned:
             self.side_poisoned_write_count += 1
         return entry

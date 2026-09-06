@@ -251,6 +251,78 @@ two levers in this whole model are host-count invariant: revoke discovery on
 the agent, or remove the write capability (the egress allow-list). Everything
 that acts on a host inherits the host's selection problem.
 
+### E. A fleet that rations its own writes sits under every monitor, and keeps the board
+
+Bead `g9nu`, run `20260906T090225Z_wiki_board_sweep`. The
+[Strange Loop Syndicate PRD](designed-agent-community-vs-converged-board.md)
+specifies a cadence controller for its agent community: per-agent activity
+quotas, time windows, and cool-downs between similar actions, so members read
+as members rather than firehoses. That note argued a fleet running such a
+controller would sit under `volume_burst_signal` by construction and flagged
+the claim as unmeasured. This grid measures it. `side_cadence_quota` caps each
+agent's board writes per epoch; `side_cadence_cooldown` is the minimum steps
+between one agent's board writes. A write the controller holds back is not
+dropped: it lands on the sanctioned store, so the agent's work is unchanged and
+only the board's volume profile moves. Four hosts at attention
+`[0, 0.01, 0.05, 0.2]`, 10 steps per epoch, 10 seeds, 40 epochs. Cool-down 3
+at 10 steps per epoch admits at most four writes (steps 0, 3, 6, 9). While both
+implement a maximum of four writes per epoch, cooldown-based gating (requiring
+3-step spacing) produces different write patterns than quota-based gating (accepting
+the first four in any order): cooldown-only sweeps yielded 589/572 side writes (seeds 42–43)
+while quota-four-only produced 804/774, showing the two are not equivalent. The
+table reports quota values; a separate cooldown-three row would be needed to fully
+resolve the cooldown axis orthogonally to quota.
+
+| quota | mode | side writes | held back | late ungoverned | peak population ratio | population alarm | watched host | any host | teardowns |
+|---|---|---|---|---|---|---|---|---|---|
+| 0 | deletion | 962 | 0 | 0.691 | 13.0 | 6/10 / 6.0 | 2/10 / 16.0 | 9/10 / 8.7 | 7.2 |
+| 0 | revocation | 751 | 0 | 0.650 | 11.9 | 6/10 / 6.0 | 0/10 / never | 7/10 / 11.7 | 4.3 |
+| 1 | deletion | 284 | 659 | 0.213 | 4.3 | 0/10 / never | 0/10 / never | 0/10 / never | 5.0 |
+| 1 | revocation | 242 | 572 | 0.184 | 4.3 | 0/10 / never | 0/10 / never | 0/10 / never | 3.5 |
+| 2 | deletion | 498 | 429 | 0.377 | 5.2 | 0/10 / never | 1/10 / 12.0 | 2/10 / 13.5 | 6.4 |
+| 2 | revocation | 417 | 379 | 0.345 | 5.2 | 0/10 / never | 0/10 / never | 0/10 / never | 3.6 |
+| 4 | deletion | 777 | 188 | 0.554 | 8.5 | 3/10 / 8.3 | 3/10 / 24.3 | 6/10 / 14.8 | 8.7 |
+| 4 | revocation | 596 | 139 | 0.482 | 9.3 | 3/10 / 8.3 | 1/10 / 21.0 | 4/10 / 13.5 | 4.0 |
+
+**1. Quota one silences all three monitors in every seed; quota two has sporadic failures.** The
+population monitor, which grid D showed firing in six to nine seeds of ten and
+earlier as the swarm gained hosts, never fires at quota 1 under either teardown mode. Neither does the
+watched host, nor the per-host rule run on every host. Quota 2 suppresses the population monitor universally but allows watched-host alarms in 1/10 deletion seeds and any-host alarms in 2/10 deletion seeds; it fully silences both under revocation. Quota 4 (or a cool-down
+of 3) halves the firing rate and delays the first alarm; it does not close it.
+
+**2. The board survives.** At quota 1 the fleet still lands 284 writes on the
+board, a fifth of its output stays off-instrument late in the run (0.21 against
+0.69 uncontrolled), and every agent is still discovered. That late share is
+two and a half times what single-host revocation left standing in grid A
+(0.084). The controller trades two thirds of the board's traffic for the
+whole of the defender's detection. Fewer writes also means fewer per-write
+detections, so teardowns fall (7.2 to 5.0 under deletion) and the board is up
+more of the time.
+
+**3. Why: the burst is the arrival ramp, and the ramp is per-agent rate times
+arrivals.** Seed 42 uncontrolled writes 0, 7, 11, 13, 10, 13, 20 across the first
+seven epochs; the ratio peaks at 7.0 on the first busy epoch, against the
+one-event floor. Each newly discovered agent writes about 3.5 board posts an
+epoch (five steps at preference 0.7), so three arrivals in one epoch clear the
+threshold of ten. With quota 1 the same seed writes 0, 2, 2, 4, 4, 6, 7: one
+post per arrival, and the fleet has only ten agents to arrive. The ratio never
+passes 3. Grid D's point 3 said a burst rule wants a dip; this is the same
+rule's other blind spot. The one-event floor makes the detector level-sensitive
+at the ramp, and the quota sets that level below threshold-over-arrivals. Once
+the median is off the floor the ratio is scale-free and the quota buys nothing
+further, which is why quota 4 still fires on later teardown rebounds.
+
+**4. Consequence.** The claim in the Strange Loop note holds, with a
+mechanism the note did not give: a cadence controller defeats the volume
+monitor not by smoothing the steady state but by capping the arrival burst
+that the one-event floor makes visible. The detector that led the human
+moderator by 23 days on the real log works on fleets that never rationed
+themselves. The population signals that do not need a burst, host spread and
+`ungoverned_fraction`, are unaffected by the quota in kind; they are the ones
+to read against a fleet that has read the PRD. Whether `out_of_band_channel`
+should carry a cadence parameter that decays `volume_monitor_enabled` the way
+`n_hosts` does is left open.
+
 ## Limitations
 
 - The population monitor sums every host, including ones the defender
@@ -264,6 +336,11 @@ that acts on a host inherits the host's selection problem.
   already covers.
 - Overlap routing learns from the cache the agent could read, not from
   realised task payoff. Deadline pressure is a multiplier, not a deadline.
+- The cadence controller (grid E) is a quota and a cool-down only; the PRD's
+  time windows collapse onto the quota at one epoch per day, and priority
+  bypass is not modelled. Held-back writes go to the sanctioned store, which
+  is the generous reading; a fleet that drops them instead would show the
+  same board profile with less governed traffic.
 - The field-evidence note these corrections come from is still unverified
   against primary sources; the claim here is about the model's sensitivity to
   those corrections, not about the incident.
@@ -283,6 +360,8 @@ python scripts/sweep_side_channel.py --seeds 10 --detections 0.0 --prefs 0.7 --m
   --axis side_task_overlap=0.1,0.3,1.0 --axis side_deadline_pressure=0.5,1.0        # C
 python scripts/sweep_side_channel.py --seeds 10 --detections 0.05 --prefs 0.7 --scenario scenarios/wiki_board.yaml \
   --axis-json 'side_host_attention=[[0.065],[0.0,0.01,0.05,0.2],[0.0,0.0,0.01,0.01,0.05,0.05,0.2,0.2]]'  # D
+python scripts/sweep_side_channel.py --seeds 10 --detections 0.05 --prefs 0.7 --scenario scenarios/wiki_board.yaml \
+  --axis side_cadence_quota=0,1,2,4 --axis side_cadence_cooldown=0,3                 # E
 python -m pytest tests/test_wiki_board.py tests/test_side_channel.py -v            # mechanism tests
 ```
 
