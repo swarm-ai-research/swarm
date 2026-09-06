@@ -34,6 +34,18 @@ from swarm.attestation.signer import ReceiptSigner, ReceiptVerifier
 
 DEFAULT_DEV_SIGNING_KEY = "0" * 64
 
+
+def receipt_verifier_for_key(signing_key: str) -> ReceiptVerifier:
+    """Build the verifier that trusts exactly the signer derived from ``signing_key``.
+
+    ``signing_key`` is an Ed25519 seed (64 hex chars). Receipts must be signed
+    by that seed's DID; the same hex doubles as the ``legacy_hmac_key`` so
+    bundles sealed under the pre-``jxyi`` shared-HMAC scheme stay verifiable.
+    """
+
+    trusted_did = AgentKeypair.from_seed_hex(signing_key).did
+    return ReceiptVerifier(trusted_signers={trusted_did}, legacy_hmac_key=signing_key)
+
 SCHEMA_V0 = "agentgit.provenance.v0"
 SCHEMA_V1 = "agentgit.provenance.v1"
 _SUPPORTED_SCHEMAS = {SCHEMA_V0, SCHEMA_V1}
@@ -84,7 +96,7 @@ def build_bundle(
     base_ref: str = "HEAD",
     check_results: Dict[str, bool] | None = None,
     signing_key: str | None = None,
-    signer_id: str = "agentgit-local",
+    signer_id: str | None = None,
     identity: AgentIdentity | None = None,
     agent_keypair: AgentKeypair | None = None,
     delegation: DelegationChain | None = None,
@@ -100,6 +112,10 @@ def build_bundle(
     key signs the receipt ``payload_hash``, binding a *verifiable* identity to
     this exact diff. An optional ``delegation`` chain records the
     ``human -> org -> agent`` authority under which the agent acted.
+
+    ``signing_key`` is a 32-byte Ed25519 seed (hex); the receipt's ``signer_id``
+    is that key's DID. ``signer_id`` is accepted for backward compatibility and
+    ignored — the field is derived from the key and cannot be chosen (bead jxyi).
 
     The ``provenance`` block records *what happened* producing the diff —
     commands run, execution environment, dependency-manifest changes (detected
@@ -127,7 +143,6 @@ def build_bundle(
         payload=payload,
         agent_id=agent_id,
         signing_key=signing_key or DEFAULT_DEV_SIGNING_KEY,
-        signer_id=signer_id,
         decisions=decisions,
     )
 
@@ -203,7 +218,7 @@ def verify_bundle(
         errors.append("receipt payload_hash does not match bundle payload")
 
     key = signing_key or DEFAULT_DEV_SIGNING_KEY
-    if not ReceiptVerifier(key).verify(receipt):
+    if not receipt_verifier_for_key(key).verify(receipt):
         errors.append("receipt signature verification failed")
 
     if require_policy_pass and not bundle.get("policy", {}).get("passed", False):
@@ -350,7 +365,6 @@ def _seal_receipt(
     payload: Dict[str, Any],
     agent_id: str,
     signing_key: str,
-    signer_id: str,
     decisions: list[PolicyDecision],
 ) -> AdmissibilityReceipt:
     payload_hash = AdmissibilityReceipt.hash_payload(payload)
@@ -376,4 +390,4 @@ def _seal_receipt(
         ],
         bounds=ExecutionBounds(max_delegation_depth=0),  # type: ignore[call-arg]
     )
-    return ReceiptSigner(secret_key=signing_key, signer_id=signer_id).seal(receipt)
+    return ReceiptSigner(seed_hex=signing_key).seal(receipt)

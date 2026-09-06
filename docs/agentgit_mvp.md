@@ -240,6 +240,13 @@ payload: forging a reviewer's decision after the fact fails `verify`.
 Custom reviewers subclass `swarm.agentgit.Reviewer` and return
 `ReviewFinding`s; pass them to `run_review_panel(repo, reviewers=[...])`.
 
+The repo's `pre-push` hook (`.claude/hooks/pre-push`, installed with
+`/install_hooks`) runs the panel over the commits being pushed, diffed
+against the remote branch, so a non-author check exercises every change
+before it leaves the machine (Joel Test Q10, bead `9qrv.3`). It is
+**advisory** by default — the synthesis is printed and the push proceeds —
+and becomes blocking with `SWARM_REVIEW_PANEL_BLOCK=1`.
+
 ## Conditional Policy & CI Gate
 
 Beyond the fixed limits (allowed/denied paths, file/line caps, required checks),
@@ -341,8 +348,9 @@ delegate task -> isolate worktree -> execute checks -> attest diff -> verify bun
 
 ## Cryptographic Identity & Delegation
 
-The MVP signs bundles with a shared HMAC key, which proves a bundle was sealed
-by *someone holding the key* but not *which agent* produced the change. The
+The MVP signed bundles with a shared HMAC key, which proved a bundle was sealed
+by *someone holding the key* but not *which agent* produced the change (the
+receipt seal now uses the same Ed25519 keys — see *Receipt Signing* below). The
 `swarm.agentgit.identity` module adds verifiable identity with Ed25519
 (asymmetric) signatures.
 
@@ -379,6 +387,43 @@ without identity blocks still verify (backward compatible).
 > The CLI (`attest`/`verify`) does not yet manage keypairs — that key-storage
 > surface is tracked as a follow-up. Today identity is wired through the library
 > API.
+
+## Receipt Signing
+
+Receipts (`swarm.attestation.signer`) are sealed with a **per-signer Ed25519
+key**, not a shared secret. This closes the single-global-key hole (bead
+`jxyi`, Matthew Green's "encrypted reasoning" finding reproduced in our own
+attestation layer): under HMAC, anyone able to *verify* a receipt held the key
+needed to *mint* one under any `agent_id`, and could fabricate the parent
+receipts too.
+
+- `ReceiptSigner(seed_hex=...)` (or `ReceiptSigner(keypair=AgentKeypair)`)
+  signs the receipt's canonical bytes. `signer_id` **is the key's DID**
+  (`did:key:ed25519:<hex>`) — it is derived from the key, never supplied, so it
+  cannot be spoofed: changing `signer_id` changes the key the verifier checks
+  against, and the signature fails.
+- `ReceiptVerifier()` needs **no secret**. It extracts the public key from the
+  receipt's `signer_id` DID. Pass `trusted_signers={did, ...}` to accept only
+  known signers — a valid signature from an unknown key is rejected.
+- `--signing-key` / `AGENTGIT_SIGNING_KEY` is now a 32-byte **Ed25519 seed**
+  (same 64-hex shape as before, so existing configuration keeps working).
+  `verify` and `gate` derive the trusted DID from that seed: a bundle signed by
+  any other key fails verification, and the seed itself never has to be given
+  to a verifier that only needs to *check* — publish the DID instead.
+- **Legacy HMAC receipts** (a `signer_id` that is not a DID) verify only when a
+  `legacy_hmac_key` is supplied, which `verify_bundle` does from the same
+  `--signing-key`, so older event logs and git notes stay replayable. New
+  receipts are never sealed with HMAC.
+
+```python
+from swarm.attestation import ReceiptSigner, ReceiptVerifier
+
+signer = ReceiptSigner()                       # fresh Ed25519 key
+sealed = signer.seal(receipt)                  # sealed.signer_id == signer.did
+ReceiptVerifier().verify(sealed)               # True — no secret required
+ReceiptVerifier(trusted_signers={signer.did}).verify(sealed)   # True
+ReceiptVerifier(trusted_signers={"did:key:ed25519:..."}).verify(sealed)  # False
+```
 
 ## Capability Enforcement
 

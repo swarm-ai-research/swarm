@@ -697,9 +697,13 @@ def build_parser() -> argparse.ArgumentParser:
     attest.add_argument(
         "--signing-key",
         default=None,
-        help="Hex HMAC key. Defaults to AGENTGIT_SIGNING_KEY or a dev key.",
+        help="Hex Ed25519 seed (64 hex chars). Defaults to AGENTGIT_SIGNING_KEY or a dev key.",
     )
-    attest.add_argument("--signer-id", default="agentgit-local")
+    attest.add_argument(
+        "--signer-id",
+        default=None,
+        help="Deprecated and ignored: signer_id is the signing key's DID (bead jxyi).",
+    )
     attest.add_argument(
         "--warn-only",
         action="store_true",
@@ -749,7 +753,7 @@ def build_parser() -> argparse.ArgumentParser:
     verify.add_argument(
         "--signing-key",
         default=None,
-        help="Hex HMAC key. Defaults to AGENTGIT_SIGNING_KEY or a dev key.",
+        help="Hex Ed25519 seed (64 hex chars). Defaults to AGENTGIT_SIGNING_KEY or a dev key.",
     )
     verify.add_argument(
         "--allow-policy-fail",
@@ -768,7 +772,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--signing-key",
         default=None,
         help=(
-            "Hex HMAC key for bundle verification (required; falls back to "
+            "Hex Ed25519 seed for bundle verification (required; falls back to "
             "AGENTGIT_SIGNING_KEY). The gate fails closed if neither is set so it "
             "never accepts a dev-key-signed bundle as authentic."
         ),
@@ -830,7 +834,7 @@ def build_parser() -> argparse.ArgumentParser:
     history.add_argument(
         "--signing-key",
         default=None,
-        help="Hex HMAC key. Defaults to AGENTGIT_SIGNING_KEY or a dev key.",
+        help="Hex Ed25519 seed (64 hex chars). Defaults to AGENTGIT_SIGNING_KEY or a dev key.",
     )
     history.set_defaults(func=cmd_history)
 

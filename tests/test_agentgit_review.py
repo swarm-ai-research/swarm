@@ -248,7 +248,11 @@ def test_cli_review_clean_diff_approves(tmp_path, capsys):
     assert "panel verdict: APPROVE" in capsys.readouterr().out
 
 
-def test_cli_attest_review_folds_panel_into_signed_bundle(tmp_path, capsys):
+def test_cli_attest_review_folds_panel_into_signed_bundle(tmp_path, capsys, monkeypatch):
+    # bead qkzc: attest signs with AGENTGIT_SIGNING_KEY when set (a local .env
+    # leaks it into xdist workers) while verify_bundle below uses the dev key.
+    # Pin both sides to the dev key so the test is env-independent.
+    monkeypatch.delenv("AGENTGIT_SIGNING_KEY", raising=False)
     repo = _init_repo(tmp_path)
     (repo / "module.py").write_text("def f():\n    return 1\n")
     policy_path = repo / "policy.yaml"

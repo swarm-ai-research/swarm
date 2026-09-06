@@ -123,6 +123,17 @@ Analyze the open task graph with graph theory, and show your numbers:
    the gate. G2 beads get ONE conservative agent plus a named reviewer;
    never point never-give-up prompting at a judgment gate.
 
+8. Bug-first ordering (Joel Test Q5, bead 9qrv.2: a P1 bug sat open for
+   25 days while 27 feature/research commits landed). Open P0/P1 **bugs**
+   outrank every feature bead in their track's digest regardless of fan-out
+   or centrality, and a P0/P1 bug older than 7 days is the round's
+   consolidation-quota primary (below). A feature bead that touches the same
+   module as an open P0/P1 bug is demoted below it. The only way a P0/P1 bug
+   leaves the top of a digest is fixed, or explicitly deferred/downgraded with
+   a reason on the bead (`bd defer` / `bd update --priority`) — silence is
+   not a deferral. State the count of open P0/P1 bugs in the summary table
+   even when it is zero.
+
 Then produce the ranking (beads-x3q7 pull model): for each persona/track, a
 ranked shortlist of 2–4 beads from that track, best first — the top pick is
 the *presumptive* primary, resolved at claim time, not a binding assignment.

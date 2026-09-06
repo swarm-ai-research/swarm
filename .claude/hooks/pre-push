@@ -12,6 +12,45 @@ fi
 echo "[swarm pre-push] running CI checks (lint, typecheck, tests)"
 make ci
 
+# --- Main-parity checks (bead 9qrv.1, Joel Test Q3) ---
+# Direct pushes to main skip the PR gate by design (parallel multi-session
+# merges), so a red quality-gate on main was landing routinely: 10 of 30
+# recent main runs. The two jobs that turned it red were both cheap doc
+# checks. Run them here so the failure blocks the push instead of main.
+echo "[swarm pre-push] main-parity: kb-graph ratchet"
+python scripts/build_kb_graph.py --check
+
+if command -v mkdocs &>/dev/null; then
+  echo "[swarm pre-push] main-parity: mkdocs build --strict"
+  _SITE_DIR="$(mktemp -d)"
+  mkdocs build --strict -q -d "$_SITE_DIR"
+  rm -rf "$_SITE_DIR"
+else
+  echo "[swarm pre-push] mkdocs not installed; skipping strict docs build (CI render-verify will run it)"
+fi
+
+# --- Review panel (bead 9qrv.3, Joel Test Q10) ---
+# A non-author check over exactly the commits being pushed, diffed against the
+# remote branch. Advisory by default; SWARM_REVIEW_PANEL_BLOCK=1 makes a
+# `block` verdict refuse the push.
+_REMOTE="${1:-origin}"
+_UPSTREAM="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)"
+if [[ -z "$_UPSTREAM" ]] || ! git rev-parse --verify -q "$_UPSTREAM" >/dev/null; then
+  _UPSTREAM="${_REMOTE}/main"
+fi
+if git rev-parse --verify -q "$_UPSTREAM" >/dev/null; then
+  _BASE="$(git merge-base HEAD "$_UPSTREAM" 2>/dev/null || echo "$_UPSTREAM")"
+  echo "[swarm pre-push] review panel over ${_BASE:0:8}..HEAD"
+  _PANEL_FLAGS=(--base "$_BASE")
+  [[ "${SWARM_REVIEW_PANEL_BLOCK:-0}" == "1" ]] || _PANEL_FLAGS+=(--warn-only)
+  if ! python -m swarm.agentgit review "${_PANEL_FLAGS[@]}"; then
+    echo "[swarm pre-push] review panel BLOCK verdict (SWARM_REVIEW_PANEL_BLOCK=1); refusing push"
+    exit 1
+  fi
+else
+  echo "[swarm pre-push] no remote base ref found; skipping review panel"
+fi
+
 # --- Repo topics guard ---
 # Ensure canonical topics from .github/repo-topics.txt are set on the remote.
 TOPICS_FILE="$(git rev-parse --show-toplevel)/.github/repo-topics.txt"
@@ -38,4 +77,3 @@ if [[ -f "$TOPICS_FILE" ]] && command -v gh &>/dev/null; then
 fi
 
 echo "[swarm pre-push] done"
-

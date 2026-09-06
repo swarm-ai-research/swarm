@@ -1,9 +1,10 @@
 """Cryptographic agent identity and delegation chains for AgentGit.
 
-The MVP signs provenance bundles with a shared HMAC key (see
-``swarm.attestation.signer``). That proves a bundle was sealed by *someone
-holding the key* — it cannot prove *which agent* produced a change, because
-anyone with the key can impersonate any ``agent_id`` string.
+The MVP signed provenance bundles with a shared HMAC key. That proved a
+bundle was sealed by *someone holding the key* — it could not prove *which
+agent* produced a change, because anyone with the key could impersonate any
+``agent_id`` string. Since bead ``jxyi`` the receipt seal itself uses the
+:class:`AgentKeypair` defined here (see ``swarm.attestation.signer``).
 
 This module adds verifiable identity using Ed25519 (asymmetric) signatures:
 

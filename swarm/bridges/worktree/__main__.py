@@ -444,8 +444,10 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="NAME=pass|fail",
         help="Record a required check result; may be repeated",
     )
-    attest_p.add_argument("--signing-key", default=None, help="Hex HMAC key")
-    attest_p.add_argument("--signer-id", default="agentgit-local")
+    attest_p.add_argument("--signing-key", default=None, help="Hex Ed25519 seed (64 hex chars)")
+    attest_p.add_argument(
+        "--signer-id", default=None, help="Deprecated and ignored (signer_id is the key's DID)"
+    )
     attest_p.add_argument(
         "--warn-only",
         action="store_true",
