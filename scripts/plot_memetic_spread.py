@@ -356,6 +356,85 @@ def plot_whistleblowers(rows: list, series_rows: list, out_dir: Path) -> None:
     plt.close(fig)
 
 
+def plot_lockout(rows: list, series_rows: list, out_dir: Path) -> None:
+    """Converts and pool closure under lockout, by whistleblower cell.
+
+    Produced only when the sweep has lockout on. One panel per detection
+    mode: the locked-out write rate (thick) and the number of converts
+    (thin, right axis) over epochs, one colour per
+    (whistleblower share, warning, reopen) cell.
+    """
+    lock_rows = [r for r in series_rows if int(r.get("lockout", 0)) == 1]
+    if not lock_rows:
+        return
+    cells = sorted(
+        {
+            (
+                float(r["whistleblowers"]),
+                float(r["wb_warning"]),
+                int(r["lockout_reopen"]),
+            )
+            for r in lock_rows
+        }
+    )
+    acc: dict = defaultdict(lambda: defaultdict(lambda: ([], [])))
+    for r in lock_rows:
+        cell = (
+            float(r["whistleblowers"]),
+            float(r["wb_warning"]),
+            int(r["lockout_reopen"]),
+        )
+        closed, conv = acc[(r["detection"], cell)][int(r["epoch"])]
+        closed.append(float(r["locked_out_rate"]))
+        conv.append(float(r["converts"]))
+
+    styles = ["-", "--", "-.", ":"]
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.2), sharey=True)
+    fig.patch.set_facecolor(SURFACE)
+    for ax, detection in zip(axes, ["off", "on"], strict=False):
+        ax2 = ax.twinx()
+        for i, cell in enumerate(cells):
+            fraction, warning, reopen = cell
+            per_epoch = acc[(detection, cell)]
+            epochs = sorted(per_epoch)
+            if not epochs:
+                continue
+            closed = [
+                sum(per_epoch[e][0]) / len(per_epoch[e][0]) for e in epochs
+            ]
+            conv = [sum(per_epoch[e][1]) / len(per_epoch[e][1]) for e in epochs]
+            label = (
+                "no whistleblowers"
+                if fraction == 0.0
+                else f"{fraction:.0%} wb, warn {warning:g}, "
+                + ("reopen" if reopen else "no reopen")
+            )
+            color = _wb_color(fraction) if fraction == 0.0 else None
+            style = styles[i % len(styles)]
+            (line,) = ax.plot(
+                epochs, closed, style, linewidth=2, color=color, label=label
+            )
+            ax2.plot(
+                epochs, conv, style, linewidth=1, alpha=0.6,
+                color=line.get_color(),
+            )
+        style_axes(ax, f"detection {detection}: locked-out write rate (thick)")
+        ax.set_xlabel("epoch", color=MUTED, fontsize=9)
+        ax2.set_ylabel("converts (thin)", color=MUTED, fontsize=9)
+        ax2.tick_params(colors=MUTED, labelsize=9)
+        ax2.spines[["top"]].set_visible(False)
+    axes[0].set_ylabel("share of writes with no open problem", color=MUTED, fontsize=9)
+    axes[0].legend(frameon=False, fontsize=8)
+    fig.suptitle(
+        "Lockout: locked-out rate and converts by whistleblower cell (seed means)",
+        color=TEXT,
+        fontsize=12,
+    )
+    fig.tight_layout()
+    fig.savefig(out_dir / "lockout_converts.png", dpi=150, facecolor=SURFACE)
+    plt.close(fig)
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         print(__doc__)
@@ -371,6 +450,8 @@ def main() -> None:
     plot_outcomes(rows, plots / "outcomes_by_condition.png")
     if "whistleblowers" in rows[0]:
         plot_whistleblowers(rows, series_rows, plots)
+    if "lockout" in rows[0]:
+        plot_lockout(rows, series_rows, plots)
     print(f"Plots written to {plots}")
 
 

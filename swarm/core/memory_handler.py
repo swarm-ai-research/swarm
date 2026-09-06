@@ -98,6 +98,24 @@ class MemoryTierConfig(BaseModel):
     # solving; the audit is not free at the population level).
     whistleblower_boycott_rate: float = 0.0
 
+    # Lockout (arXiv:2609.04170, the converts): a pool of problems that each
+    # pay once. A poisoned write on an open problem passes the gate and
+    # closes it with lockout_fake_pass_rate; an honest write solves and
+    # closes it with lockout_honest_solve_rate; a write with no open problem
+    # earns nothing (no entry, no interaction). Honest agents that know the
+    # exploit exists (any exposure) drift toward it as the share of the pool
+    # closed by fakes rises — adoption driven by payoff, not by exposure.
+    # A whistleblower revert of the closing entry reopens the problem when
+    # lockout_revert_reopens is on: the audit restores the honest payoff, not
+    # just the channel.
+    lockout_enabled: bool = False
+    lockout_problems: int = 20  # Initial stock of open problems
+    lockout_arrivals_per_epoch: int = 5  # New problems opened each epoch
+    lockout_fake_pass_rate: float = 0.9
+    lockout_honest_solve_rate: float = 0.3
+    lockout_conversion_alpha: float = 0.25
+    lockout_revert_reopens: bool = True
+
     # Unsanctioned side channel (bead k5o9, 2026 OpenAI Artifactory incident):
     # a second shared store agents can discover and write to. Side-channel
     # writes carry no governed-interaction metadata, so every memory lever
@@ -168,9 +186,16 @@ class MemoryTierConfig(BaseModel):
             "whistleblower_audit_rate",
             "whistleblower_warning_strength",
             "whistleblower_boycott_rate",
+            "lockout_fake_pass_rate",
+            "lockout_honest_solve_rate",
+            "lockout_conversion_alpha",
         ):
             if not 0.0 <= getattr(self, prob_field) <= 1.0:
                 raise ValueError(f"{prob_field} must be in [0, 1]")
+        if self.lockout_problems < 1:
+            raise ValueError("lockout_problems must be >= 1")
+        if self.lockout_arrivals_per_epoch < 0:
+            raise ValueError("lockout_arrivals_per_epoch must be non-negative")
         for prob_field in (
             "side_discovery_rate",
             "side_referral_boost",
@@ -273,6 +298,28 @@ class MemoryHandler(Handler):
         self.whistleblower_flags_last_epoch: int = 0
         self.boycotted_write_count: int = 0
 
+        # Lockout pool (arXiv:2609.04170, the converts). Problem ids are
+        # 0..n-1; a closed problem maps to the entry that closed it and
+        # whether that closure was a fake. Conversion is per-agent state,
+        # like infection, and survives store resets.
+        self.open_problems: set = (
+            set(range(config.lockout_problems)) if config.lockout_enabled else set()
+        )
+        self.next_problem_id: int = config.lockout_problems
+        self.problem_of_entry: Dict[str, int] = {}
+        self.fake_closed: set = set()
+        self.honest_closed: set = set()
+        self.conversion: Dict[str, float] = {}
+        self.locked_out_write_count: int = 0
+        self.reopened_count: int = 0
+        # Last-epoch counters behind the lockout pressure: how often honest
+        # work found nothing to earn, and whose closures took the credit.
+        self._attempts_this_epoch: int = 0
+        self._locked_out_this_epoch: int = 0
+        self.locked_out_rate_last_epoch: float = 0.0
+        self.closing_entries_this_epoch: List[str] = []
+        self._closing_entries_last_epoch: List[str] = []
+
         # Side channel: ungoverned second store + who knows about it.
         # Discovery, like infection, is agent state — teardown wipes the
         # store, not the knowledge (unless side_teardown_resets_discovery).
@@ -351,11 +398,14 @@ class MemoryHandler(Handler):
         self._assign_whistleblowers(state)
         # Exposure uses the cache as agents saw it during the previous epoch,
         # so it must run before any reset or rebuild.
+        self._roll_lockout_epoch()
         if state.current_epoch > 0:
             self._update_contagion(state)
+            self._update_conversion(state)
             # Whistleblowers audit the same cache their peers were exposed to;
             # reverted entries drop out at the rebuild below.
             self._whistleblower_audit(state)
+        self._open_arrivals(state)
 
         side_writes_last_epoch = self._side_writes_this_epoch
         sanctioned_writes_last_epoch = self._sanctioned_writes_this_epoch
@@ -443,6 +493,94 @@ class MemoryHandler(Handler):
             self.infection[agent_id] = (1 - alpha) * prev + alpha * agent_exposure
 
     # ------------------------------------------------------------------
+    # Lockout pool and conversion (arXiv:2609.04170, the converts)
+    # ------------------------------------------------------------------
+
+    def fake_closure_share(self) -> float:
+        """Share of all closures so far that were fakes."""
+        closed = len(self.fake_closed) + len(self.honest_closed)
+        return len(self.fake_closed) / closed if closed else 0.0
+
+    def lockout_pressure(self) -> float:
+        """P(a write last epoch found no open problem) x fake share of closures.
+
+        Honest work stopped paying, and it stopped paying because of fakes.
+        """
+        if not self.config.lockout_enabled:
+            return 0.0
+        return self.locked_out_rate_last_epoch * self.fake_closure_share()
+
+    def _roll_lockout_epoch(self) -> None:
+        if not self.config.lockout_enabled:
+            return
+        attempts = self._attempts_this_epoch
+        self.locked_out_rate_last_epoch = (
+            self._locked_out_this_epoch / attempts if attempts else 0.0
+        )
+        self._attempts_this_epoch = 0
+        self._locked_out_this_epoch = 0
+        self._closing_entries_last_epoch = self.closing_entries_this_epoch
+        self.closing_entries_this_epoch = []
+
+    def _open_arrivals(self, state: EnvState) -> None:
+        """New problems arrive each epoch after the first (a moving frontier)."""
+        if not self.config.lockout_enabled or state.current_epoch == 0:
+            return
+        for _ in range(self.config.lockout_arrivals_per_epoch):
+            self.open_problems.add(self.next_problem_id)
+            self.next_problem_id += 1
+
+    def _update_conversion(self, state: EnvState) -> None:
+        """Drift exposed honest/opportunistic agents toward the exploit as
+        fakes take the credit.
+
+        The target is the lockout pressure: the rate at which writes found no
+        open problem last epoch, weighted by the share of closures that were
+        fakes. An agent with no exposure at all (never infected or converted)
+        does not know the recipe and cannot convert; whistleblowers never
+        convert.
+        """
+        if not self.config.lockout_enabled:
+            return
+        pressure = self.lockout_pressure()
+        alpha = self.config.lockout_conversion_alpha
+        for agent_id, agent_state in state.agents.items():
+            if agent_state.agent_type not in (
+                AgentType.HONEST,
+                AgentType.OPPORTUNISTIC,
+            ):
+                continue
+            if agent_id in self.whistleblowers:
+                self.conversion[agent_id] = 0.0
+                continue
+            knows = self.infection.get(agent_id, 0.0) > 0.0 or (
+                self.conversion.get(agent_id, 0.0) > 0.0
+            )
+            target = pressure if knows else 0.0
+            prev = self.conversion.get(agent_id, 0.0)
+            self.conversion[agent_id] = (1 - alpha) * prev + alpha * target
+
+    def _claim_problem(self) -> Optional[int]:
+        if not self.open_problems:
+            return None
+        return int(self._rng.choice(sorted(self.open_problems)))
+
+    def _close_problem(self, problem: int, entry_id: str, fake: bool) -> None:
+        self.open_problems.discard(problem)
+        self.problem_of_entry[entry_id] = problem
+        (self.fake_closed if fake else self.honest_closed).add(problem)
+        self.closing_entries_this_epoch.append(entry_id)
+
+    def _reopen_from_entry(self, entry_id: str) -> bool:
+        problem = self.problem_of_entry.pop(entry_id, None)
+        if problem is None or problem not in self.fake_closed:
+            return False
+        self.fake_closed.discard(problem)
+        self.open_problems.add(problem)
+        self.reopened_count += 1
+        return True
+
+    # ------------------------------------------------------------------
     # Whistleblower faction (arXiv:2609.04170)
     # ------------------------------------------------------------------
 
@@ -487,7 +625,17 @@ class MemoryHandler(Handler):
         p_caught = 1.0 - (1.0 - rate) ** n_wb
         auditors = sorted(self.whistleblowers)
         flags = 0
-        for entry in self.store.hot_cache:
+        # What a whistleblower reads: the broadcast cache, plus — under
+        # lockout — the submissions that closed problems last epoch (the
+        # paper's whistleblowers audited the fraudulent proofs themselves).
+        candidates = list(self.store.hot_cache)
+        seen = {e.entry_id for e in candidates}
+        for entry_id in self._closing_entries_last_epoch:
+            entry = self.store.get_entry(entry_id)
+            if entry is not None and entry.entry_id not in seen:
+                candidates.append(entry)
+                seen.add(entry.entry_id)
+        for entry in candidates:
             if not entry.is_poisoned or entry.status != MemoryEntryStatus.ACTIVE:
                 continue
             if self._rng.random() >= p_caught:
@@ -497,6 +645,10 @@ class MemoryHandler(Handler):
             self.store.revert(entry.entry_id)
             self.whistleblowers_alerted.add(auditor)
             flags += 1
+            reopened = (
+                self.config.lockout_revert_reopens
+                and self._reopen_from_entry(entry.entry_id)
+            )
             self._emit_event(
                 Event(
                     event_type=EventType.MEMORY_REVERTED,
@@ -505,6 +657,7 @@ class MemoryHandler(Handler):
                         "entry_id": entry.entry_id,
                         "entry_author": entry.author_id,
                         "whistleblower": True,
+                        "reopened_problem": reopened,
                     },
                     epoch=state.current_epoch,
                     step=state.current_step,
@@ -744,6 +897,22 @@ class MemoryHandler(Handler):
             "tier3_poisoning": poisoning_rate(self.store),
             "promotion_accuracy": promotion_accuracy(self.store),
         }
+        if self.config.lockout_enabled:
+            conv = list(self.conversion.values())
+            snapshot.update({
+                "open_problems": len(self.open_problems),
+                "fake_closed_total": len(self.fake_closed),
+                "honest_closed_total": len(self.honest_closed),
+                "fake_closure_share": self.fake_closure_share(),
+                "locked_out_rate": self.locked_out_rate_last_epoch,
+                "lockout_pressure": self.lockout_pressure(),
+                "mean_conversion": sum(conv) / len(conv) if conv else 0.0,
+                # A convert: an honest agent whose payoff-driven propensity
+                # has crossed one half (the paper's "started honest, flipped").
+                "converts": sum(1 for c in conv if c >= 0.5),
+                "locked_out_writes_total": self.locked_out_write_count,
+                "reopened_total": self.reopened_count,
+            })
         if self.side_hosts:
             n_agents = len(state.agents)
             total_writes = side_writes_last_epoch + sanctioned_writes_last_epoch
@@ -891,20 +1060,39 @@ class MemoryHandler(Handler):
                 metadata={"memory_boycott": True},
             )
 
+        # Lockout: the write is work on an open problem; with none left it
+        # earns nothing — the honest payoff has been taken off the table.
+        problem: Optional[int] = None
+        if self.config.lockout_enabled:
+            self._attempts_this_epoch += 1
+            problem = self._claim_problem()
+            if problem is None:
+                self.locked_out_write_count += 1
+                self._locked_out_this_epoch += 1
+                return MemoryActionResult(
+                    success=False,
+                    initiator_id=action.agent_id,
+                    counterparty_id="memory_system",
+                    metadata={"memory_locked_out": True},
+                )
+
         quality, is_poisoned = self._quality_for_agent(agent_type)
 
         # Memetic contagion: an infected honest/opportunistic agent reproduces
-        # the meme with probability infection * transmissibility.
+        # the meme with probability infection * transmissibility. Conversion
+        # (payoff-driven adoption under lockout) adds to the propensity.
         contagion_poisoned = False
         if (
             self.config.contagion_enabled
             and not is_poisoned
             and agent_type in (AgentType.HONEST, AgentType.OPPORTUNISTIC)
         ):
-            p_transmit = (
+            propensity = min(
+                1.0,
                 self.infection.get(action.agent_id, 0.0)
-                * self.config.contagion_transmissibility
+                + self.conversion.get(action.agent_id, 0.0),
             )
+            p_transmit = propensity * self.config.contagion_transmissibility
             if self._rng.random() < p_transmit:
                 is_poisoned = True
                 contagion_poisoned = True
@@ -932,6 +1120,16 @@ class MemoryHandler(Handler):
             step=state.current_step,
         )
 
+        closed = False
+        if problem is not None:
+            if is_poisoned:
+                if self._rng.random() < self.config.lockout_fake_pass_rate:
+                    self._close_problem(problem, entry.entry_id, fake=True)
+                    closed = True
+            elif self._rng.random() < self.config.lockout_honest_solve_rate:
+                self._close_problem(problem, entry.entry_id, fake=False)
+                closed = True
+
         outcome = self._write_outcome(quality, is_poisoned, agent_type)
         observables = self.observable_generator.generate(outcome)
 
@@ -945,6 +1143,9 @@ class MemoryHandler(Handler):
                     "quality": quality,
                     "contagion_poisoned": contagion_poisoned,
                     "infection": self.infection.get(action.agent_id, 0.0),
+                    "conversion": self.conversion.get(action.agent_id, 0.0),
+                    "problem": problem,
+                    "problem_closed": closed,
                 },
                 epoch=state.current_epoch,
                 step=state.current_step,

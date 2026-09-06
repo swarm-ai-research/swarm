@@ -540,3 +540,255 @@ class TestWhistleblowers:
         assert cfg.whistleblower_audit_rate == 0.5
         assert cfg.whistleblower_warning_strength == 0.5
         assert cfg.whistleblower_boycott_rate == 0.3
+
+
+# ---------------------------------------------------------------------------
+# Lockout pool and conversion (arXiv:2609.04170, the converts)
+# ---------------------------------------------------------------------------
+
+
+def write(handler: MemoryHandler, state: EnvState, agent_id: str):
+    action = Action(agent_id=agent_id, action_type=ActionType.WRITE_MEMORY, content="w")
+    return handler.handle_action(action, state)
+
+
+class TestLockout:
+    def test_defaults_off_and_validation(self):
+        cfg = MemoryTierConfig()
+        assert cfg.lockout_enabled is False
+        assert cfg.lockout_revert_reopens is True
+        with pytest.raises(ValueError):
+            MemoryTierConfig(lockout_problems=0)
+        with pytest.raises(ValueError):
+            MemoryTierConfig(lockout_arrivals_per_epoch=-1)
+        with pytest.raises(ValueError):
+            MemoryTierConfig(lockout_fake_pass_rate=1.5)
+
+    def test_disabled_pool_is_empty_and_writes_never_lock_out(self):
+        handler = make_handler()
+        state = make_wb_state(n_honest=2)
+        assert handler.open_problems == set()
+        for _ in range(5):
+            assert write(handler, state, "honest_0").success
+        assert handler.locked_out_write_count == 0
+
+    def test_fake_closes_problem_and_honest_solve_closes_problem(self):
+        handler = make_handler(
+            lockout_enabled=True,
+            lockout_problems=3,
+            lockout_fake_pass_rate=1.0,
+            lockout_honest_solve_rate=1.0,
+        )
+        state = make_wb_state(n_honest=2)
+        write(handler, state, "poisoner_1")
+        assert len(handler.fake_closed) == 1
+        assert len(handler.open_problems) == 2
+        write(handler, state, "honest_0")
+        assert len(handler.honest_closed) == 1
+        assert len(handler.open_problems) == 1
+
+    def test_gate_that_rejects_fakes_never_closes(self):
+        handler = make_handler(
+            lockout_enabled=True, lockout_problems=3, lockout_fake_pass_rate=0.0
+        )
+        state = make_wb_state(n_honest=1)
+        for _ in range(10):
+            write(handler, state, "poisoner_1")
+        assert handler.fake_closed == set()
+        assert len(handler.open_problems) == 3
+
+    def test_exhausted_pool_locks_out_writes(self):
+        handler = make_handler(
+            lockout_enabled=True, lockout_problems=2, lockout_fake_pass_rate=1.0
+        )
+        state = make_wb_state(n_honest=1)
+        assert write(handler, state, "poisoner_1").success
+        assert write(handler, state, "poisoner_1").success
+        result = write(handler, state, "honest_0")
+        assert not result.success
+        assert result.metadata["memory_locked_out"] is True
+        assert handler.locked_out_write_count == 1
+        assert handler.fake_closure_share() == 1.0
+
+    def test_arrivals_reopen_the_frontier_each_epoch(self):
+        handler = make_handler(
+            lockout_enabled=True,
+            lockout_problems=1,
+            lockout_arrivals_per_epoch=3,
+            lockout_fake_pass_rate=1.0,
+        )
+        state = make_wb_state(n_honest=1)
+        handler.on_epoch_start(state)  # epoch 0: no arrivals
+        assert len(handler.open_problems) == 1
+        write(handler, state, "poisoner_1")
+        assert handler.open_problems == set()
+        state.current_epoch = 1
+        handler.on_epoch_start(state)
+        assert len(handler.open_problems) == 3
+        assert handler.next_problem_id == 4
+
+    def test_lockout_rate_is_per_epoch(self):
+        handler = make_handler(
+            lockout_enabled=True,
+            lockout_problems=1,
+            lockout_arrivals_per_epoch=0,
+            lockout_fake_pass_rate=1.0,
+        )
+        state = make_wb_state(n_honest=1)
+        handler.on_epoch_start(state)
+        write(handler, state, "poisoner_1")  # closes the only problem
+        write(handler, state, "honest_0")  # locked out
+        write(handler, state, "honest_0")  # locked out
+        state.current_epoch = 1
+        handler.on_epoch_start(state)
+        assert handler.locked_out_rate_last_epoch == pytest.approx(2 / 3)
+        assert handler.lockout_pressure() == pytest.approx(2 / 3)
+        snap = handler.epoch_snapshots[-1]
+        assert snap["locked_out_rate"] == pytest.approx(2 / 3)
+        assert snap["fake_closure_share"] == 1.0
+
+    def test_conversion_requires_exposure_and_pressure(self):
+        handler = make_handler(
+            lockout_enabled=True,
+            lockout_problems=1,
+            lockout_arrivals_per_epoch=0,
+            lockout_fake_pass_rate=1.0,
+            lockout_conversion_alpha=1.0,
+        )
+        state = make_wb_state(n_honest=2)
+        handler.on_epoch_start(state)
+        # A fake takes the only problem; every later write is locked out.
+        write(handler, state, "poisoner_1")
+        write(handler, state, "honest_0")
+        write(handler, state, "honest_1")
+        # honest_0 has seen the exploit, honest_1 has not.
+        handler.infection["honest_0"] = 0.1
+        handler.infection["honest_1"] = 0.0
+        state.current_epoch = 1
+        handler.on_epoch_start(state)
+        assert handler.conversion["honest_0"] == pytest.approx(2 / 3)
+        assert handler.conversion["honest_1"] == 0.0
+        snap = handler.epoch_snapshots[-1]
+        assert snap["lockout_pressure"] == pytest.approx(2 / 3)
+        assert snap["converts"] == 1
+
+    def test_honest_closures_carry_no_pressure(self):
+        handler = make_handler(
+            lockout_enabled=True,
+            lockout_problems=1,
+            lockout_arrivals_per_epoch=0,
+            lockout_honest_solve_rate=1.0,
+            lockout_conversion_alpha=1.0,
+        )
+        state = make_wb_state(n_honest=2)
+        handler.on_epoch_start(state)
+        write(handler, state, "honest_1")  # honest solve closes it
+        write(handler, state, "honest_0")  # locked out — but by honest work
+        handler.infection["honest_0"] = 0.5
+        state.current_epoch = 1
+        handler.on_epoch_start(state)
+        assert handler.locked_out_rate_last_epoch == 0.5
+        assert handler.fake_closure_share() == 0.0
+        assert handler.conversion["honest_0"] == 0.0
+
+    def test_no_conversion_without_pressure(self):
+        handler = make_handler(
+            lockout_enabled=True, lockout_problems=50, lockout_conversion_alpha=1.0
+        )
+        state = make_wb_state(n_honest=1)
+        handler.on_epoch_start(state)
+        handler.infection["honest_0"] = 0.5
+        state.current_epoch = 1
+        handler.on_epoch_start(state)
+        assert handler.conversion["honest_0"] == 0.0
+
+    def test_whistleblowers_never_convert(self):
+        handler = make_handler(
+            lockout_enabled=True,
+            lockout_problems=1,
+            lockout_arrivals_per_epoch=0,
+            lockout_fake_pass_rate=1.0,
+            lockout_conversion_alpha=1.0,
+            whistleblower_fraction=1.0,
+        )
+        state = make_wb_state(n_honest=2)
+        handler.on_epoch_start(state)
+        write(handler, state, "poisoner_1")
+        write(handler, state, "honest_0")
+        state.current_epoch = 1
+        handler.on_epoch_start(state)
+        assert all(v == 0.0 for v in handler.conversion.values())
+
+    def test_converted_agent_writes_poisoned(self):
+        handler = make_handler(
+            lockout_enabled=True,
+            lockout_problems=50,
+            contagion_transmissibility=1.0,
+        )
+        state = make_wb_state(n_honest=1)
+        handler.conversion["honest_0"] = 1.0
+        result = write(handler, state, "honest_0")
+        assert result.metadata["contagion_poisoned"] is True
+
+    def test_whistleblower_revert_reopens_fake_closed_problem(self):
+        handler = make_handler(
+            lockout_enabled=True,
+            lockout_problems=1,
+            lockout_arrivals_per_epoch=0,
+            lockout_fake_pass_rate=1.0,
+            whistleblower_fraction=0.5,
+            whistleblower_audit_rate=1.0,
+        )
+        state = make_wb_state(n_honest=2)
+        handler.on_epoch_start(state)
+        write(handler, state, "poisoner_1")
+        assert handler.open_problems == set()
+        # The closing submission is audited directly, cache or not.
+        state.current_epoch = 1
+        handler.on_epoch_start(state)
+        assert handler.whistleblower_revert_count == 1
+        assert handler.reopened_count == 1
+        assert handler.open_problems == {0}
+        assert handler.fake_closed == set()
+        # Reopened problems carry no pressure in the next epoch's accounting.
+        assert handler.fake_closure_share() == 0.0
+
+    def test_revert_without_reopen_keeps_problem_closed(self):
+        handler = make_handler(
+            lockout_enabled=True,
+            lockout_problems=1,
+            lockout_arrivals_per_epoch=0,
+            lockout_fake_pass_rate=1.0,
+            lockout_revert_reopens=False,
+            whistleblower_fraction=0.5,
+            whistleblower_audit_rate=1.0,
+        )
+        state = make_wb_state(n_honest=2)
+        handler.on_epoch_start(state)
+        write(handler, state, "poisoner_1")
+        state.current_epoch = 1
+        handler.on_epoch_start(state)
+        assert handler.whistleblower_revert_count == 1
+        assert handler.reopened_count == 0
+        assert handler.open_problems == set()
+
+    def test_loader_parses_lockout_fields(self):
+        cfg = parse_memory_tier_config(
+            {
+                "enabled": True,
+                "lockout_enabled": True,
+                "lockout_problems": 71,
+                "lockout_arrivals_per_epoch": 2,
+                "lockout_fake_pass_rate": 0.8,
+                "lockout_honest_solve_rate": 0.2,
+                "lockout_conversion_alpha": 0.1,
+                "lockout_revert_reopens": False,
+            }
+        )
+        assert cfg.lockout_enabled is True
+        assert cfg.lockout_problems == 71
+        assert cfg.lockout_arrivals_per_epoch == 2
+        assert cfg.lockout_fake_pass_rate == 0.8
+        assert cfg.lockout_honest_solve_rate == 0.2
+        assert cfg.lockout_conversion_alpha == 0.1
+        assert cfg.lockout_revert_reopens is False

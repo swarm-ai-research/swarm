@@ -53,6 +53,16 @@ memory_tiers:
   whistleblower_audit_rate: 0.0
   whistleblower_warning_strength: 0.0
   whistleblower_boycott_rate: 0.0
+  # Lockout pool (same paper, the converts): problems that pay once; fakes
+  # close them and exposed honest agents drift toward the exploit as their
+  # payoff disappears. Off at baseline; swept with --lockout.
+  lockout_enabled: false
+  lockout_problems: 20
+  lockout_arrivals_per_epoch: 5
+  lockout_fake_pass_rate: 0.9
+  lockout_honest_solve_rate: 0.3
+  lockout_conversion_alpha: 0.25
+  lockout_revert_reopens: true
 
 governance:
   # Baseline: all detection off (swept by sweep_memetic_spread.py)

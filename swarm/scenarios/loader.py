@@ -753,6 +753,13 @@ def parse_memory_tier_config(data: Dict[str, Any]) -> Optional[MemoryTierConfig]
             "whistleblower_warning_strength", 0.0
         ),
         whistleblower_boycott_rate=data.get("whistleblower_boycott_rate", 0.0),
+        lockout_enabled=data.get("lockout_enabled", False),
+        lockout_problems=data.get("lockout_problems", 20),
+        lockout_arrivals_per_epoch=data.get("lockout_arrivals_per_epoch", 5),
+        lockout_fake_pass_rate=data.get("lockout_fake_pass_rate", 0.9),
+        lockout_honest_solve_rate=data.get("lockout_honest_solve_rate", 0.3),
+        lockout_conversion_alpha=data.get("lockout_conversion_alpha", 0.25),
+        lockout_revert_reopens=data.get("lockout_revert_reopens", True),
         side_channel_enabled=data.get("side_channel_enabled", False),
         side_discovery_rate=data.get("side_discovery_rate", 0.05),
         side_referral_boost=data.get("side_referral_boost", 0.3),

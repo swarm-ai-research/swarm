@@ -23,6 +23,11 @@ population that refuses the exploit, audits the shared cache, warns peers
 (--wb-warning), and may boycott the task once it has caught fraud
 (--wb-boycott). Cells with a zero whistleblower share run only the first
 warning/boycott value, since both are no-ops without a faction.
+
+The --lockout axis (same paper, the converts) turns on a pool of problems
+that pay once: fakes close them, exposed honest agents drift toward the
+exploit as their payoff disappears, and --lockout-reopen controls whether
+a whistleblower revert gives the problem back.
 """
 
 import argparse
@@ -93,8 +98,26 @@ def main() -> None:
         default="0",
         help="comma-separated boycott rates",
     )
+    parser.add_argument(
+        "--lockout",
+        default="0",
+        help="comma-separated lockout flags (0 = no problem pool, 1 = pool on)",
+    )
+    parser.add_argument(
+        "--lockout-arrivals",
+        type=int,
+        default=None,
+        help="override lockout_arrivals_per_epoch (new problems per epoch)",
+    )
+    parser.add_argument(
+        "--lockout-reopen",
+        default="1",
+        help="comma-separated flags: does a whistleblower revert reopen the problem",
+    )
     args = parser.parse_args()
     n_seeds = 2 if args.quick else args.seeds
+    lockouts = [int(x) for x in args.lockout.split(",")]
+    reopens = [int(x) for x in args.lockout_reopen.split(",")]
     rankings = args.rankings.split(",")
     cadences = [int(c) for c in args.cadences.split(",")]
     wb_fractions = [float(w) for w in args.whistleblowers.split(",")]
@@ -102,13 +125,18 @@ def main() -> None:
     wb_boycotts = [float(b) for b in args.wb_boycott.split(",")]
 
     def wb_cells():
-        for fraction in wb_fractions:
-            if fraction == 0.0:
-                yield fraction, wb_warnings[0], wb_boycotts[0]
-                continue
-            for warning in wb_warnings:
-                for boycott in wb_boycotts:
-                    yield fraction, warning, boycott
+        for lockout in lockouts:
+            # Reopen only matters with both a pool and a faction.
+            for reopen in reopens if lockout else reopens[:1]:
+                for fraction in wb_fractions:
+                    if fraction == 0.0:
+                        if reopen != reopens[0]:
+                            continue
+                        yield fraction, wb_warnings[0], wb_boycotts[0], lockout, reopen
+                        continue
+                    for warning in wb_warnings:
+                        for boycott in wb_boycotts:
+                            yield fraction, warning, boycott, lockout, reopen
 
     wb_grid = list(wb_cells())
 
@@ -127,7 +155,7 @@ def main() -> None:
     for ranking in rankings:
         for detection in DETECTION_MODES:
             for cadence in cadences:
-                for wb_fraction, wb_warning, wb_boycott in wb_grid:
+                for wb_fraction, wb_warning, wb_boycott, lockout, reopen in wb_grid:
                     for seed_offset in range(n_seeds):
                         seed = SEED_BASE + seed_offset
                         run_num = len(rows) + 1
@@ -136,6 +164,7 @@ def main() -> None:
                             f"detection={detection} reset_cadence={cadence} "
                             f"whistleblowers={wb_fraction} "
                             f"warning={wb_warning} boycott={wb_boycott} "
+                            f"lockout={lockout} reopen={reopen} "
                             f"seed={seed}",
                             flush=True,
                         )
@@ -152,6 +181,10 @@ def main() -> None:
                         )
                         mem.whistleblower_warning_strength = wb_warning
                         mem.whistleblower_boycott_rate = wb_boycott
+                        mem.lockout_enabled = bool(lockout)
+                        mem.lockout_revert_reopens = bool(reopen)
+                        if args.lockout_arrivals is not None:
+                            mem.lockout_arrivals_per_epoch = args.lockout_arrivals
                         apply_detection(s, detection)
 
                         orch = build_orchestrator(s)
@@ -166,6 +199,8 @@ def main() -> None:
                             "whistleblowers": wb_fraction,
                             "wb_warning": wb_warning,
                             "wb_boycott": wb_boycott,
+                            "lockout": lockout,
+                            "lockout_reopen": reopen,
                         }
                         result = _extract_results(
                             orch, condition, seed_offset, seed
@@ -196,6 +231,21 @@ def main() -> None:
                                 handler.whistleblower_revert_count
                             ),
                             "boycotted_writes": handler.boycotted_write_count,
+                            "mean_locked_out_rate": sum(
+                                sn.get("locked_out_rate", 0.0) for sn in snaps
+                            ) / len(snaps),
+                            "fake_closure_share": (
+                                snaps[-1].get("fake_closure_share", 0.0)
+                            ),
+                            "mean_lockout_pressure": sum(
+                                sn.get("lockout_pressure", 0.0) for sn in snaps
+                            ) / len(snaps),
+                            "peak_converts": max(
+                                sn.get("converts", 0) for sn in snaps
+                            ),
+                            "final_converts": snaps[-1].get("converts", 0),
+                            "locked_out_writes": handler.locked_out_write_count,
+                            "reopened": handler.reopened_count,
                         })
                         rows.append(row)
 
@@ -222,8 +272,10 @@ def main() -> None:
             f"rankings: {rankings}\n"
             f"reset_cadences: {cadences}\n"
             f"detection_modes: {DETECTION_MODES}\n"
-            f"whistleblower_cells (fraction, warning, boycott): {wb_grid}\n"
+            f"whistleblower_cells (fraction, warning, boycott, lockout, reopen): {wb_grid}\n"
             f"whistleblower_audit_rate: {args.wb_audit_rate}\n"
+            f"lockout_arrivals_per_epoch: "
+            f"{args.lockout_arrivals if args.lockout_arrivals is not None else 'scenario default'}\n"
             f"seeds: {n_seeds} (base {SEED_BASE})\n"
             f"timestamp: {timestamp}\n"
         )
@@ -239,14 +291,17 @@ def main() -> None:
                 r["whistleblowers"],
                 r["wb_warning"],
                 r["wb_boycott"],
+                r["lockout"],
+                r["lockout_reopen"],
             )
         ].append(r)
 
     header = (
         f"{'ranking':>10} {'det':>4} {'cad':>4} {'wb':>5} {'warn':>5} "
-        f"{'boyc':>5}  {'peak_inf':>8}  {'late_inf':>8}  {'late_sus':>8}  "
-        f"{'tier3_poi':>9}  {'contagion_w':>11}  {'reverts':>7}  "
-        f"{'toxicity':>8}  {'welfare':>8}"
+        f"{'boyc':>5} {'lock':>4} {'reop':>4}  {'peak_inf':>8}  "
+        f"{'late_inf':>8}  {'late_sus':>8}  {'tier3_poi':>9}  "
+        f"{'contagion_w':>11}  {'reverts':>7}  {'fakeclose':>9}  "
+        f"{'converts':>8}  {'toxicity':>8}  {'welfare':>8}"
     )
     print(f"\n{header}")
     print("-" * len(header))
@@ -254,7 +309,7 @@ def main() -> None:
     for ranking in rankings:
         for detection in DETECTION_MODES:
             for cadence in cadences:
-                for wb_fraction, wb_warning, wb_boycott in wb_grid:
+                for wb_fraction, wb_warning, wb_boycott, lockout, reopen in wb_grid:
                     runs = grouped[
                         (
                             ranking,
@@ -263,6 +318,8 @@ def main() -> None:
                             wb_fraction,
                             wb_warning,
                             wb_boycott,
+                            lockout,
+                            reopen,
                         )
                     ]
                     n = len(runs)
@@ -284,6 +341,13 @@ def main() -> None:
                         "contagion_writes": mean("contagion_writes"),
                         "whistleblower_reverts": mean("whistleblower_reverts"),
                         "boycotted_writes": mean("boycotted_writes"),
+                        "mean_locked_out_rate": mean("mean_locked_out_rate"),
+                        "fake_closure_share": mean("fake_closure_share"),
+                        "mean_lockout_pressure": mean("mean_lockout_pressure"),
+                        "peak_converts": mean("peak_converts"),
+                        "final_converts": mean("final_converts"),
+                        "locked_out_writes": mean("locked_out_writes"),
+                        "reopened": mean("reopened"),
                         "avg_toxicity": mean("avg_toxicity"),
                         "avg_quality_gap": mean("avg_quality_gap"),
                         "total_welfare": mean("total_welfare"),
@@ -291,18 +355,21 @@ def main() -> None:
                     key = (
                         f"{ranking}_{detection}_cadence{cadence}"
                         f"_wb{wb_fraction}_warn{wb_warning}_boycott{wb_boycott}"
+                        f"_lock{lockout}_reopen{reopen}"
                     )
                     summary[key] = agg
                     print(
                         f"{ranking:>10} {detection:>4} {cadence:>4} "
                         f"{wb_fraction:>5.2f} {wb_warning:>5.2f} "
-                        f"{wb_boycott:>5.2f}  "
+                        f"{wb_boycott:>5.2f} {lockout:>4d} {reopen:>4d}  "
                         f"{agg['peak_infection']:8.3f}  "
                         f"{agg['late_infection']:8.3f}  "
                         f"{agg['late_susceptible_infection']:8.3f}  "
                         f"{agg['mean_tier3_poisoning']:9.3f}  "
                         f"{agg['contagion_writes']:11.1f}  "
                         f"{agg['whistleblower_reverts']:7.1f}  "
+                        f"{agg['mean_locked_out_rate']:9.3f}  "
+                        f"{agg['peak_converts']:8.2f}  "
                         f"{agg['avg_toxicity']:8.3f}  "
                         f"{agg['total_welfare']:8.1f}"
                     )
