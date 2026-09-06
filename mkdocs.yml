@@ -192,6 +192,7 @@ nav:
   - Game: game.md
   - Blog:
     - blog/index.md
+    - "When Does a Model Decide to Post to the Wiki?": blog/when-does-a-model-decide-to-post-to-the-wiki.md
     - "We Ran the Wiki Swarm 12,000 Times. Here Is What the Model Cannot Say.": blog/wiki-monte-carlo-what-the-model-cannot-say.md
     - "Gossiping Swarms: What the Message Board Cannot See": blog/gossiping-swarms-what-the-message-board-cannot-see.md
     - "The ZZZ Pages: When Agents Build Their Own Back Channel": blog/the-zzz-pages-agents-built-a-back-channel.md
