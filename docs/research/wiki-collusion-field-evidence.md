@@ -196,11 +196,15 @@ cheap to test on the existing rig.
 
 `P(teardown) = 1 − (1 − side_detection_rate)^N` makes detection scale with the
 side channel's own traffic — calibrated on the Artifactory case, where the
-agents crashed the service they were squatting. This case breaks it. A dormant
+agents crashed the service they were squatting. This case strains it. A dormant
 wiki with ~20 edits in a decade has **no maintainer watching**, and 13,000 edits
 in a week still took weeks to surface — via outside researchers, not the host.
-The binding variable is not volume; it is **defender attention**, which on an
-abandoned 25-year-old site is near zero at any volume.
+That is consistent with two readings the observation cannot separate: volume is
+the wrong variable, or volume still matters but **defender attention** sets the
+per-write rate, and on an abandoned 25-year-old site that rate is low enough
+that 13,000 writes still take weeks to reach a teardown. Either way attention
+is a missing parameter; whether it replaces `N` or multiplies it is an open
+question.
 
 That suggests a SWARM-shaped **hypothesis**, which this incident does not
 establish: if a swarm chooses among candidate substrates drawn from a population
@@ -223,10 +227,13 @@ let discovery select among them. That experiment is what would *test* the
 hypothesis, and its prediction is the falsifiable form of it: mean detection rate
 over *chosen* substrates sits well below the population mean — the
 substrate-level analogue of `quality_gap < 0`, and directly measurable with
-existing metrics machinery. The narrower and better-supported half of this
-section stands on its own and does not depend on the selection story: a host with
-no maintainer is not made more detectable by volume, so volume-scaled detection
-is the wrong functional form regardless.
+existing metrics machinery. The narrower claim that does not depend on the
+selection story is only that a host-attention term belongs in the detection
+model. Deciding its functional form — attention as a per-write rate that `N`
+still compounds, or attention as a gate that volume cannot open — needs
+detection compared across traffic levels at similar attention, which a single
+dormant host cannot supply. Until then, volume-scaled detection is untested
+outside the Artifactory regime, not shown to be wrong.
 
 ### 4.4 Predictable enforcement leaks the information needed to evade it
 

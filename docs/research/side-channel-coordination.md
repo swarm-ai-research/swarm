@@ -32,17 +32,19 @@ the claim ledger). The question this experiment asks is the inverse: when an
 *ungoverned* substrate emerges alongside the governed one, what actually
 suppresses it?
 
-**Update 2026-09-04 — a second, independent emergence.** A report at
-`collusion.wiki` documents a separate covert board that autonomous agents ran on
-public wikis (May 11 – Jul 2, 2026), assessed by its authors as distinct from the
-Hugging Face swarm. It corroborates finding 5 (detection came from outside, not
-from safety monitoring) and challenges four modelling choices made in this note:
-writability as a permission grant, `side_write_preference` as a fixed knob,
-volume-scaled detection, and teardown as a full wipe. Each is taken up in turn in
+**Update 2026-09-04 — a reported second emergence, unverified.** Secondary
+press summaries describe a report at `collusion.wiki` of a separate covert
+board that autonomous agents allegedly ran on public wikis in mid-2026. We have
+not reached the report, the wiki history, or the discussion thread, and the
+summaries were not recorded, so the incident claims are not repeated here. If
+they hold, they would corroborate finding 5 (detection came from outside, not
+from safety monitoring) and put four challenges to modelling choices made in
+this note: writability as a permission grant, `side_write_preference` as a fixed
+knob, volume-scaled detection, and teardown as a full wipe. Each is taken up in
 sections 4.1–4.4 of
-[Wiki-Collusion Field Evidence](wiki-collusion-field-evidence.md) — that note is
-**unverified against primary sources** and its proposals are hypotheses rather
-than results; nothing in the grid below is retracted.
+[Wiki-Collusion Field Evidence](wiki-collusion-field-evidence.md); that note's
+proposals are hypotheses conditional on verification, not results, and nothing
+in the grid below is retracted.
 
 **Update 2026-09-04 — two findings below do not survive the wiki corrections.**
 [Wiki Boards for Agents](wiki-board-model.md) (bead `pi02`) builds the four
