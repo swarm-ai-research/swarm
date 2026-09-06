@@ -102,7 +102,7 @@ Academic foundations and related publications. SWARM implements the framework de
 
     ---
 
-    OpenAI's chief scientist's 2026-09-06 safety essay read against this rig's results: its mandated-bars ask leans on voluntary slowdowns, the protocol the July retro found gets zero uptake; its monitoring section restates the fm-agent-harness gate finding and the Erdős verification asymmetry
+    Pachocki's 2026-09-06 safety essay read against this rig's results: its mandated-bars ask leans on voluntary slowdowns, the protocol the July retro found gets zero uptake; its monitoring section restates the fm-agent-harness gate finding and the Erdős verification asymmetry
 
 -   :material-scale-balance: **[Erdős AI-Ledger Lessons](erdos-ai-ledger-lessons.md)**
 

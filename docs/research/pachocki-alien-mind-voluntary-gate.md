@@ -2,11 +2,11 @@
 description: "Pachocki's 'An Alien Mind' (2026-09-06) read against this rig's measured results: the essay asks for mandated safety bars and leans on voluntary slowdowns meanwhile, which is the protocol the 2026-07-19 retro found gets zero uptake; its monitoring section restates the fm-agent-harness gate finding and the Erdős verification asymmetry."
 ---
 
-# Pachocki's voluntary gate
+# Pachocki's Voluntary Gate
 
 Jakub Pachocki, OpenAI's chief scientist, published ["An Alien Mind"](https://openai.com/index/an-alien-mind/) on 2026-09-06. It is a safety essay: internal results make him expect current progress to sustain into recursive self-improvement, no lab has solved alignment or monitoring well enough to keep scaling at full speed, and governments should make international coordination a top priority. This note is not a summary. It reads four of his claims against results this rig has already measured, because in each case the rig has a number or a build where the essay has a hope.
 
-Every quotation below is `[read]` from the essay. Everything mapped to it is from this repo's own docs, linked.
+All quoted passages below are direct excerpts from the essay and marked `[read]` in the sources. Everything mapped to these quotations is from this repo's own docs, linked.
 
 ## 1. Mandated bars, voluntary meanwhile
 
@@ -46,7 +46,7 @@ The essay's "OpenAI-Hugging Face incident" example is this pattern at deployment
 
 Nothing here changes a design. It changes what this rig can say. Three of the essay's central claims, that monitoring outranks technique, that an unsupervised channel is what makes monitoring work, and that optimization bends aligned reasoning, are things this repo has measured or built rather than argued. The fourth, that voluntary slowdowns will hold until mandated bars exist, is the one claim the rig's evidence points against.
 
-Open follow-up, not filed: the fm-agent-harness result is at ceiling on one easy task (bead fmah-8sg), so "gate not explanation" is established for the case where the model can self-repair from a bare verdict and untested beyond it. The CoT-monitoring analogue is exactly the case where it cannot.
+Open follow-up, not filed: the fm-agent-harness result is at ceiling on one easy task (bead fmah-8sg), so "gate not explanation" is established for the case where the model can self-repair from a bare verdict and is untested beyond it. The CoT-monitoring analogue is exactly the case where it cannot.
 
 ## Sources
 
