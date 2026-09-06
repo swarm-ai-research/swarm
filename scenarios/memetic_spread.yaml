@@ -46,6 +46,13 @@ memory_tiers:
   contagion_transmissibility: 0.8
   reset_cadence_epochs: 0  # baseline: never reset (swept)
   cache_ranking: quality   # quality | recency | engagement (swept, bead 2qfq)
+  # Whistleblower faction (arXiv:2609.04170, DeepMind 100-agent Lean swarm):
+  # honest agents that refuse the exploit, audit the cache, warn peers, and
+  # may boycott. Off at baseline; swept with --whistleblowers.
+  whistleblower_fraction: 0.0
+  whistleblower_audit_rate: 0.0
+  whistleblower_warning_strength: 0.0
+  whistleblower_boycott_rate: 0.0
 
 governance:
   # Baseline: all detection off (swept by sweep_memetic_spread.py)

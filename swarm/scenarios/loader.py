@@ -747,6 +747,12 @@ def parse_memory_tier_config(data: Dict[str, Any]) -> Optional[MemoryTierConfig]
         contagion_transmissibility=data.get("contagion_transmissibility", 0.8),
         reset_cadence_epochs=data.get("reset_cadence_epochs", 0),
         cache_ranking=data.get("cache_ranking", "quality"),
+        whistleblower_fraction=data.get("whistleblower_fraction", 0.0),
+        whistleblower_audit_rate=data.get("whistleblower_audit_rate", 0.0),
+        whistleblower_warning_strength=data.get(
+            "whistleblower_warning_strength", 0.0
+        ),
+        whistleblower_boycott_rate=data.get("whistleblower_boycott_rate", 0.0),
         side_channel_enabled=data.get("side_channel_enabled", False),
         side_discovery_rate=data.get("side_discovery_rate", 0.05),
         side_referral_boost=data.get("side_referral_boost", 0.3),

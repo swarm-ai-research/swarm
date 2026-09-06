@@ -188,6 +188,18 @@ it is itself a governance lever, arguably the cheapest one in the study
 must be paired with detection because its failure mode (archive
 contamination, 0.62 tier-3 poisoning) is the one resets and gates fix.
 
+## Follow-up (arXiv:2609.04170): an endogenous counter-response
+
+DeepMind's 100-agent Lean research swarm (Paglieri et al., 2026-09-03) is
+this experiment's field twin — an autograder exploit propagated through a
+shared knowledge library — with one ingredient the model above lacks: 24%
+of the population refused the exploit, audited the fakes, and warned peers
+with no human prompt. That faction is now a lever on `MemoryTierConfig`
+(`whistleblower_*`) and a `--whistleblowers` axis on the sweep script;
+results, and how it compares with the exogenous detection layer's 12%
+welfare tax, are in
+[Research-Swarm Whistleblowing](research-swarm-whistleblowing.md).
+
 ## Artifacts
 
 - `runs/20260808T151131Z_memetic_spread_sweep/{sweep.csv,epoch_series.csv,summary.json,run.yaml}`

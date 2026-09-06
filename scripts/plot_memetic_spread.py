@@ -210,6 +210,152 @@ def plot_outcomes(rows: list, out: Path) -> None:
     plt.close(fig)
 
 
+# Whistleblower share (arXiv:2609.04170 sweep axis), fixed order: 0, 0.1,
+# 0.24 (the paper's observed share), 0.5. Same validated palette as above.
+WB_COLORS = {
+    0.0: "#e34948",   # red — no faction
+    0.1: "#eda100",   # yellow
+    0.24: "#1baf7a",  # aqua
+    0.5: "#2a78d6",   # blue
+}
+
+
+def _wb_color(fraction: float) -> str:
+    return WB_COLORS.get(fraction, "#52514e")
+
+
+def plot_whistleblowers(rows: list, series_rows: list, out_dir: Path) -> None:
+    """Infection trajectories and outcomes by whistleblower share.
+
+    Produced only when the sweep carried more than one whistleblower share.
+    Trajectories use the warning-on cells where available (the paper's
+    faction both audited and alerted peers); the outcomes panel shows warning
+    off and on side by side. Boycott is held at its first value.
+    """
+    fractions = sorted({float(r["whistleblowers"]) for r in rows})
+    if len(fractions) < 2:
+        return
+    rankings = sorted(
+        {r.get("ranking", "quality") for r in rows},
+        key=lambda x: ["quality", "recency", "engagement"].index(x),
+    )
+    warnings = sorted({float(r["wb_warning"]) for r in rows})
+    boycott = min(float(r["wb_boycott"]) for r in rows)
+    traj_warning = max(warnings)
+
+    def cell_warning(fraction: float) -> float:
+        # A zero share only ran the first warning value (no-op there).
+        return warnings[0] if fraction == 0.0 else traj_warning
+
+    # ── Trajectories ─────────────────────────────────────────────
+    acc: dict = defaultdict(lambda: defaultdict(list))
+    for r in series_rows:
+        if float(r["wb_boycott"]) != boycott:
+            continue
+        fraction = float(r["whistleblowers"])
+        if float(r["wb_warning"]) != cell_warning(fraction):
+            continue
+        key = (r.get("ranking", "quality"), r["detection"], fraction)
+        acc[key][int(r["epoch"])].append(float(r["susceptible_infection"]))
+
+    fig, axes = plt.subplots(
+        len(rankings),
+        2,
+        figsize=(11, 3.4 * len(rankings)),
+        sharey=True,
+        sharex=True,
+        squeeze=False,
+    )
+    fig.patch.set_facecolor(SURFACE)
+    for row, ranking in enumerate(rankings):
+        for col, detection in enumerate(["off", "on"]):
+            ax = axes[row][col]
+            for fraction in fractions:
+                per_epoch = acc[(ranking, detection, fraction)]
+                epochs = sorted(per_epoch)
+                if not epochs:
+                    continue
+                means = [sum(per_epoch[e]) / len(per_epoch[e]) for e in epochs]
+                label = (
+                    "no whistleblowers"
+                    if fraction == 0.0
+                    else f"{fraction:.0%} whistleblowers"
+                )
+                ax.plot(
+                    epochs, means, color=_wb_color(fraction), linewidth=2,
+                    label=label,
+                )
+            style_axes(ax, f"{ranking} cache · detection {detection}")
+            if row == len(rankings) - 1:
+                ax.set_xlabel("epoch", color=MUTED, fontsize=9)
+        axes[row][0].set_ylabel(
+            "susceptible infection (seed avg)", color=MUTED, fontsize=9
+        )
+    axes[0][0].legend(frameon=False, fontsize=9)
+    fig.suptitle(
+        f"Whistleblower faction vs exogenous detection "
+        f"(warning {traj_warning:g}, boycott {boycott:g})",
+        color=TEXT,
+        fontsize=12,
+    )
+    fig.tight_layout()
+    fig.savefig(out_dir / "whistleblower_trajectories.png", dpi=150, facecolor=SURFACE)
+    plt.close(fig)
+
+    # ── Outcomes vs share ────────────────────────────────────────
+    grouped: dict = defaultdict(list)
+    for r in rows:
+        if float(r["wb_boycott"]) != boycott:
+            continue
+        key = (
+            r.get("ranking", "quality"),
+            r["detection"],
+            float(r["whistleblowers"]),
+            float(r["wb_warning"]),
+        )
+        grouped[key].append(r)
+
+    metrics = [
+        ("late_susceptible_infection", "late-run infection (susceptible)"),
+        ("mean_tier3_poisoning", "mean tier-3 poisoning"),
+        ("total_welfare", "total welfare"),
+    ]
+    fig, axes = plt.subplots(
+        len(rankings), 3, figsize=(13, 4.0 * len(rankings)), squeeze=False
+    )
+    fig.patch.set_facecolor(SURFACE)
+    x = list(range(len(fractions)))
+    for row, ranking in enumerate(rankings):
+        for ax, (field, title) in zip(axes[row], metrics, strict=False):
+            for detection, marker in [("off", "o"), ("on", "s")]:
+                for warning in warnings:
+                    ys = []
+                    for fraction in fractions:
+                        w = warnings[0] if fraction == 0.0 else warning
+                        vals = [
+                            float(r[field])
+                            for r in grouped[(ranking, detection, fraction, w)]
+                        ]
+                        ys.append(sum(vals) / len(vals) if vals else float("nan"))
+                    color = "#4a3aa7" if detection == "on" else "#e34948"
+                    style = "-" if warning == max(warnings) else "--"
+                    label = f"det {detection}, warning {warning:g}"
+                    ax.plot(
+                        x, ys, style, marker=marker, markersize=5,
+                        linewidth=2, color=color, label=label,
+                    )
+            ax.set_xticks(x, [f"{f:.0%}" for f in fractions])
+            ax.set_xlabel("whistleblower share of honest roster", color=MUTED, fontsize=9)
+            style_axes(ax, f"{ranking} · {title}")
+        axes[row][0].legend(frameon=False, fontsize=8)
+    fig.suptitle(
+        "Whistleblower outcomes by share (seed means)", color=TEXT, fontsize=12
+    )
+    fig.tight_layout()
+    fig.savefig(out_dir / "whistleblower_outcomes.png", dpi=150, facecolor=SURFACE)
+    plt.close(fig)
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         print(__doc__)
@@ -223,6 +369,8 @@ def main() -> None:
 
     plot_trajectories(series_rows, plots / "infection_trajectories.png")
     plot_outcomes(rows, plots / "outcomes_by_condition.png")
+    if "whistleblowers" in rows[0]:
+        plot_whistleblowers(rows, series_rows, plots)
     print(f"Plots written to {plots}")
 
 

@@ -230,6 +230,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Post-disclosure edit summaries carrying a peer URL in non-rendering Unicode tag characters: why a carrier a model can decode and a moderator cannot see defeats human-in-the-loop cleanup by construction, and a scan of the 14,591-edit export showing the original swarm wrote only ASCII (bead vv3j.7)
 
+-   :material-bullhorn-outline: **[Research-Swarm Whistleblowing](research-swarm-whistleblowing.md)**
+
+    ---
+
+    DeepMind's 100-agent Lean swarm (arXiv:2609.04170) as field evidence for the memetic-spread model, plus the first endogenous counter-response: a whistleblower faction that audits the shared cache and warns peers, swept against the exogenous detection layer on quality- and recency-ranked caches
+
 -   :material-robot-outline: **[RL Organism Emergence](rl-organism-emergence.md)**
 
     ---

@@ -351,3 +351,192 @@ class TestCacheRanking:
         state.current_epoch = 1
         handler.on_epoch_start(state)
         assert handler.store._ranking == "recency"
+
+
+# ---------------------------------------------------------------------------
+# Whistleblower faction (arXiv:2609.04170)
+# ---------------------------------------------------------------------------
+
+
+def make_wb_state(n_honest: int = 4) -> EnvState:
+    state = EnvState()
+    for i in range(n_honest):
+        state.add_agent(f"honest_{i}", agent_type=AgentType.HONEST)
+    state.add_agent("poisoner_1", agent_type=AgentType.ADVERSARIAL)
+    return state
+
+
+class TestWhistleblowers:
+    def test_config_defaults_off(self):
+        cfg = MemoryTierConfig()
+        assert cfg.whistleblower_fraction == 0.0
+        assert cfg.whistleblower_audit_rate == 0.0
+        assert cfg.whistleblower_warning_strength == 0.0
+        assert cfg.whistleblower_boycott_rate == 0.0
+
+    @pytest.mark.parametrize(
+        "field_name",
+        [
+            "whistleblower_fraction",
+            "whistleblower_audit_rate",
+            "whistleblower_warning_strength",
+            "whistleblower_boycott_rate",
+        ],
+    )
+    def test_out_of_range_rejected(self, field_name):
+        with pytest.raises(ValueError):
+            MemoryTierConfig(**{field_name: 1.5})
+
+    def test_faction_drawn_from_honest_roster_only(self):
+        handler = make_handler(whistleblower_fraction=0.5)
+        state = make_wb_state(n_honest=4)
+        handler.on_epoch_start(state)
+        assert len(handler.whistleblowers) == 2
+        assert "poisoner_1" not in handler.whistleblowers
+        # Drawn once: a later epoch does not redraw.
+        before = set(handler.whistleblowers)
+        state.current_epoch = 1
+        handler.on_epoch_start(state)
+        assert handler.whistleblowers == before
+
+    def test_small_fraction_rounds_up_to_one(self):
+        handler = make_handler(whistleblower_fraction=0.05)
+        state = make_wb_state(n_honest=4)
+        handler.on_epoch_start(state)
+        assert len(handler.whistleblowers) == 1
+
+    def test_zero_fraction_no_faction(self):
+        handler = make_handler(whistleblower_fraction=0.0)
+        state = make_wb_state()
+        handler.on_epoch_start(state)
+        assert handler.whistleblowers == set()
+
+    def test_whistleblower_immune_to_contagion(self):
+        handler = make_handler(whistleblower_fraction=0.25)
+        state = make_wb_state(n_honest=4)
+        handler.on_epoch_start(state)
+        (wb,) = handler.whistleblowers
+        fill_cache(handler, n_poisoned=5, n_clean=0)
+        state.current_epoch = 1
+        handler.on_epoch_start(state)
+        assert handler.infection[wb] == 0.0
+        others = [a for a in handler.infection if a != wb]
+        assert all(handler.infection[a] > 0.0 for a in others)
+
+    def test_audit_reverts_poisoned_cache_entries(self):
+        handler = make_handler(
+            whistleblower_fraction=0.5, whistleblower_audit_rate=1.0
+        )
+        state = make_wb_state(n_honest=4)
+        handler.on_epoch_start(state)
+        fill_cache(handler, n_poisoned=3, n_clean=2)
+        state.current_epoch = 1
+        handler.on_epoch_start(state)
+        assert handler.whistleblower_revert_count == 3
+        assert handler.whistleblower_flags_last_epoch == 3
+        # Reverted entries leave the rebuilt cache; clean ones stay.
+        cache = handler.store.hot_cache
+        assert len(cache) == 2
+        assert not any(e.is_poisoned for e in cache)
+        assert handler.epoch_snapshots[-1]["whistleblower_flags"] == 3
+
+    def test_audit_never_touches_clean_entries(self):
+        handler = make_handler(
+            whistleblower_fraction=0.5, whistleblower_audit_rate=1.0
+        )
+        state = make_wb_state(n_honest=4)
+        handler.on_epoch_start(state)
+        fill_cache(handler, n_poisoned=0, n_clean=4)
+        state.current_epoch = 1
+        handler.on_epoch_start(state)
+        assert handler.whistleblower_revert_count == 0
+        assert len(handler.store.hot_cache) == 4
+
+    def test_zero_audit_rate_reverts_nothing(self):
+        handler = make_handler(
+            whistleblower_fraction=0.5, whistleblower_audit_rate=0.0
+        )
+        state = make_wb_state(n_honest=4)
+        handler.on_epoch_start(state)
+        fill_cache(handler, n_poisoned=3, n_clean=0)
+        state.current_epoch = 1
+        handler.on_epoch_start(state)
+        assert handler.whistleblower_revert_count == 0
+        assert len(handler.store.hot_cache) == 3
+
+    def test_warning_reduces_peer_infection_only_after_a_catch(self):
+        handler = make_handler(
+            whistleblower_fraction=0.25,
+            whistleblower_audit_rate=1.0,
+            whistleblower_warning_strength=0.5,
+            contagion_exposure_alpha=1.0,
+        )
+        state = make_wb_state(n_honest=4)
+        handler.on_epoch_start(state)
+        (wb,) = handler.whistleblowers
+        peers = [a for a in state.agents if a != wb and a != "poisoner_1"]
+        fill_cache(handler, n_poisoned=4, n_clean=0)
+        state.current_epoch = 1
+        handler.on_epoch_start(state)
+        # Exposure drove peers to 1.0 (alpha 1, fully poisoned cache); the
+        # warning then halves it in the same epoch.
+        assert all(abs(handler.infection[a] - 0.5) < 1e-9 for a in peers)
+        # No poison left to catch: no warning, infection follows exposure only.
+        state.current_epoch = 2
+        handler.on_epoch_start(state)
+        assert handler.whistleblower_flags_last_epoch == 0
+        assert all(handler.infection[a] == 0.0 for a in peers)
+
+    def test_boycott_withholds_writes_only_after_a_catch(self):
+        handler = make_handler(
+            whistleblower_fraction=0.25,
+            whistleblower_audit_rate=1.0,
+            whistleblower_boycott_rate=1.0,
+        )
+        state = make_wb_state(n_honest=4)
+        handler.on_epoch_start(state)
+        (wb,) = handler.whistleblowers
+        action = Action(
+            agent_id=wb, action_type=ActionType.WRITE_MEMORY, content="x"
+        )
+        # Nothing caught yet: writes go through.
+        assert handler.handle_action(action, state).success
+        fill_cache(handler, n_poisoned=2, n_clean=0)
+        state.current_epoch = 1
+        handler.on_epoch_start(state)
+        result = handler.handle_action(action, state)
+        assert not result.success
+        assert result.metadata["memory_boycott"] is True
+        assert handler.boycotted_write_count == 1
+        # Non-whistleblowers are unaffected.
+        other = Action(
+            agent_id="honest_0" if wb != "honest_0" else "honest_1",
+            action_type=ActionType.WRITE_MEMORY,
+            content="y",
+        )
+        assert handler.handle_action(other, state).success
+
+    def test_susceptible_infection_excludes_faction(self):
+        handler = make_handler(whistleblower_fraction=0.5)
+        state = make_wb_state(n_honest=4)
+        handler.on_epoch_start(state)
+        fill_cache(handler, n_poisoned=5, n_clean=0)
+        state.current_epoch = 1
+        handler.on_epoch_start(state)
+        snap = handler.epoch_snapshots[-1]
+        assert snap["susceptible_infection"] > snap["mean_infection"] > 0.0
+
+    def test_loader_parses_whistleblower_fields(self):
+        cfg = parse_memory_tier_config(
+            {
+                "enabled": True,
+                "whistleblower_fraction": 0.24,
+                "whistleblower_audit_rate": 0.5,
+                "whistleblower_warning_strength": 0.5,
+                "whistleblower_boycott_rate": 0.3,
+            }
+        )
+        assert cfg.whistleblower_fraction == 0.24
+        assert cfg.whistleblower_audit_rate == 0.5
+        assert cfg.whistleblower_warning_strength == 0.5
+        assert cfg.whistleblower_boycott_rate == 0.3
