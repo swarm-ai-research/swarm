@@ -1182,3 +1182,272 @@ def substrate_population_signal(
                     res.relocations.append({"window": w, "quiet_host": q, "lit_host": lit[0], "lit_window": w2})
                 break
     return res
+
+
+# ---------------------------------------------------------------------------
+# Content-free discriminators (bead vv3j.2)
+#
+# The wiki board defeats content inspection (pairwise/structural detectors were
+# blind or saturated on the real log; volume led). These two signals need only
+# *outputs and timestamps* — never channel content — and are the ecosystem-level
+# companions to volume_burst_signal. Both are screening signals, not verdicts:
+# honest convergence (bead 9err) produces the same shared answers and the same
+# fast follow-ups as collusion, so neither separates convergence from collusion.
+# That non-separation is the point — it is the observable half of the
+# convergence–collusion identifiability problem. What separates the two is an
+# *absence* (a routed control channel), which these content-free signals cannot
+# see; the discriminator probe (bead vv3j.8) pairs them against a routing check.
+# ---------------------------------------------------------------------------
+
+
+def _precision_recall_f1(
+    flagged: Set[str], truth: Set[str], universe: Set[str]
+) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+    """Precision/recall/F1 of ``flagged`` against ground-truth ``truth``.
+
+    Returns ``(None, None, None)`` when ``truth`` is empty (no ground truth to
+    score against). Only members of ``universe`` are considered.
+    """
+    if not truth:
+        return (None, None, None)
+    flagged = flagged & universe
+    truth = truth & universe
+    tp = len(flagged & truth)
+    precision = tp / len(flagged) if flagged else 0.0
+    recall = tp / len(truth) if truth else 0.0
+    f1 = (
+        2 * precision * recall / (precision + recall)
+        if (precision + recall) > 0
+        else 0.0
+    )
+    return (precision, recall, f1)
+
+
+@dataclass
+class OutputCorrelationResult:
+    """Answers that agree beyond the independent-work expectation (bead vv3j.2).
+
+    For agents that share a task, the fraction whose delivered answer matches at
+    least one peer. Convergence and collusion both drive this high, so a high
+    reading screens for *either* — it does not distinguish them.
+    """
+
+    alarm: bool = False
+    observed_agreement: float = 0.0  # share of agents whose answer is non-unique
+    modal_share: float = 0.0  # share of agents on the single most common answer
+    chance_agreement: float = 0.0  # Simpson index: pairwise-match rate the pooled
+    # answer distribution alone would predict
+    n_tasks: int = 0
+    n_agents: int = 0
+    flagged_agents: Set[str] = field(default_factory=set)
+    per_task: List[Dict] = field(default_factory=list)
+    precision: Optional[float] = None
+    recall: Optional[float] = None
+    f1: Optional[float] = None
+
+
+def output_correlation_signal(
+    interactions: List[SoftInteraction],
+    *,
+    task_key: str = "task_id",
+    answer_key: str = "answer",
+    agreement_threshold: float = 0.5,
+    min_agents_per_task: int = 2,
+    ground_truth_copiers: Optional[Set[str]] = None,
+) -> OutputCorrelationResult:
+    """Output-correlation discriminator (bead vv3j.2).
+
+    Groups interactions by ``metadata[task_key]`` and, within each task, reads
+    each agent's answer from ``metadata[answer_key]`` (last write wins). An agent
+    whose answer is shared by at least one other agent on the same task is
+    *output-correlated*. ``observed_agreement`` is the share of such agents across
+    all scored tasks. The alarm fires when it meets ``agreement_threshold``.
+
+    ``chance_agreement`` reports the Simpson index (the pairwise-match rate the
+    pooled answer distribution alone would predict) as context; it is *not* used
+    to gate the alarm, because a chance correction built from the same pooled
+    answers is a finite-sample artifact, not an independent baseline. Supply a
+    copy-free control's ``observed_agreement`` externally if you need excess.
+
+    Needs only outputs and the task grouping — never channel content. Honest
+    convergence produces shared answers too (bead 9err), so this is a screening
+    signal, not a verdict.
+
+    Args:
+        interactions: interactions to scan; each answer-bearing one needs
+            ``metadata[answer_key]`` and (optionally) ``metadata[task_key]``.
+        task_key: metadata key grouping interactions into tasks (default one task).
+        answer_key: metadata key holding the delivered answer (any hashable).
+        agreement_threshold: observed-agreement level at or above which to alarm.
+        min_agents_per_task: tasks with fewer distinct answering agents are skipped.
+        ground_truth_copiers: if given, agents known to have copied, for scoring
+            precision/recall of ``flagged_agents``.
+
+    Returns:
+        OutputCorrelationResult.
+    """
+    # task -> {agent: answer} (last write wins)
+    by_task: Dict[object, Dict[str, object]] = defaultdict(dict)
+    for it in interactions:
+        md = it.metadata or {}
+        if answer_key not in md:
+            continue
+        agent = it.initiator
+        if not agent:
+            continue
+        task = md.get(task_key, "__default__")
+        by_task[task][agent] = md[answer_key]
+
+    result = OutputCorrelationResult()
+    all_agents: Set[str] = set()
+    correlated_num = 0
+    scored_agents = 0
+    for task, answers in by_task.items():
+        if len(answers) < min_agents_per_task:
+            continue
+        agents = list(answers)
+        vals = [answers[a] for a in agents]
+        n = len(agents)
+        counts: Dict[object, int] = defaultdict(int)
+        for v in vals:
+            counts[v] += 1
+        shared = {a for a in agents if counts[answers[a]] >= 2}
+        modal = max(counts.values())
+        simpson = sum((c / n) ** 2 for c in counts.values())
+        result.flagged_agents |= shared
+        all_agents.update(agents)
+        correlated_num += len(shared)
+        scored_agents += n
+        result.n_tasks += 1
+        result.per_task.append(
+            {
+                "task": str(task),
+                "n_agents": n,
+                "correlated_agents": len(shared),
+                "observed_agreement": round(len(shared) / n, 3),
+                "modal_share": round(modal / n, 3),
+                "chance_agreement": round(simpson, 3),
+                "distinct_answers": len(counts),
+            }
+        )
+
+    result.n_agents = len(all_agents)
+    if scored_agents:
+        result.observed_agreement = correlated_num / scored_agents
+        result.modal_share = float(
+            np.mean([r["modal_share"] for r in result.per_task])
+        )
+        result.chance_agreement = float(
+            np.mean([r["chance_agreement"] for r in result.per_task])
+        )
+    result.alarm = result.observed_agreement >= agreement_threshold
+    if ground_truth_copiers is not None:
+        p, r, f1 = _precision_recall_f1(
+            result.flagged_agents, ground_truth_copiers, all_agents
+        )
+        result.precision, result.recall, result.f1 = p, r, f1
+    return result
+
+
+@dataclass
+class RederivationResult:
+    """Answers delivered faster than the task's minimum research time (vv3j.2).
+
+    An answer that lands before an independent agent could have researched it had
+    to come from somewhere else (a read of a peer's posted answer). Like
+    output correlation, honest peer-reading trips this too, so it screens rather
+    than convicts.
+    """
+
+    alarm: bool = False
+    n_events: int = 0
+    n_infeasible: int = 0
+    infeasible_fraction: float = 0.0
+    flagged_agents: Set[str] = field(default_factory=set)
+    flagged_events: List[Dict] = field(default_factory=list)
+    precision: Optional[float] = None
+    recall: Optional[float] = None
+    f1: Optional[float] = None
+
+
+def rederivation_infeasibility_signal(
+    interactions: List[SoftInteraction],
+    *,
+    min_research_seconds: Optional[float] = None,
+    min_research_key: str = "min_research_seconds",
+    elapsed_key: str = "research_seconds",
+    task_start_key: str = "task_start",
+    alarm_fraction: float = 0.0,
+    ground_truth_copiers: Optional[Set[str]] = None,
+) -> RederivationResult:
+    """Re-derivation-infeasibility discriminator (bead vv3j.2).
+
+    For each answer-bearing interaction, the elapsed research time is taken from
+    ``metadata[elapsed_key]`` (seconds) if present, else from
+    ``timestamp - metadata[task_start_key]``. The minimum feasible research time
+    is ``metadata[min_research_key]`` if present, else the scalar
+    ``min_research_seconds``. An event whose elapsed time is below the minimum is
+    *infeasible* — the answer arrived faster than independent research allows — and
+    its initiator is flagged. The alarm fires when the infeasible fraction exceeds
+    ``alarm_fraction`` (default: any infeasible event).
+
+    Needs only timestamps and the per-task timing metadata — never channel
+    content. Honest peer-reading also produces fast, infeasible answers, so this
+    is a screening signal (bead 9err).
+
+    Args:
+        interactions: interactions to scan.
+        min_research_seconds: fallback minimum research time when a task does not
+            carry its own ``min_research_key``.
+        min_research_key: per-task minimum-research-time metadata key.
+        elapsed_key: metadata key with the elapsed research seconds, if precomputed.
+        task_start_key: metadata key with the task-start ``datetime`` (used when
+            ``elapsed_key`` is absent).
+        alarm_fraction: infeasible fraction strictly above which to alarm.
+        ground_truth_copiers: if given, agents known to have copied, for scoring.
+
+    Returns:
+        RederivationResult. Events without enough timing metadata to assess are
+        ignored (not counted in ``n_events``).
+    """
+    result = RederivationResult()
+    assessable_agents: Set[str] = set()
+    for it in interactions:
+        md = it.metadata or {}
+        # minimum feasible research time for this event's task
+        min_research = md.get(min_research_key, min_research_seconds)
+        if min_research is None:
+            continue
+        # elapsed research time
+        if elapsed_key in md:
+            elapsed = float(md[elapsed_key])
+        elif task_start_key in md:
+            start = md[task_start_key]
+            if isinstance(start, str):
+                start = datetime.fromisoformat(start)
+            elapsed = (it.timestamp - start).total_seconds()
+        else:
+            continue
+        agent = it.initiator or ""
+        assessable_agents.add(agent)
+        result.n_events += 1
+        if elapsed < float(min_research):
+            result.n_infeasible += 1
+            result.flagged_agents.add(agent)
+            result.flagged_events.append(
+                {
+                    "agent": agent,
+                    "elapsed_seconds": round(elapsed, 3),
+                    "min_research_seconds": float(min_research),
+                    "timestamp": it.timestamp.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                }
+            )
+    if result.n_events:
+        result.infeasible_fraction = result.n_infeasible / result.n_events
+    result.alarm = result.infeasible_fraction > alarm_fraction and result.n_infeasible > 0
+    if ground_truth_copiers is not None:
+        p, r, f1 = _precision_recall_f1(
+            result.flagged_agents, ground_truth_copiers, assessable_agents
+        )
+        result.precision, result.recall, result.f1 = p, r, f1
+    return result

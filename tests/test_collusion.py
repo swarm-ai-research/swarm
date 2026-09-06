@@ -10,8 +10,12 @@ from pydantic import ValidationError
 from swarm.governance import GovernanceConfig, GovernanceEngine
 from swarm.metrics.collusion import (
     CollusionDetector,
+    OutputCorrelationResult,
+    RederivationResult,
     VolumeBurstResult,
     detect_vote_coordination,
+    output_correlation_signal,
+    rederivation_infeasibility_signal,
     temporal_clustering_score,
     volume_burst_signal,
 )
@@ -1080,3 +1084,174 @@ class TestSubstratePopulationSignal:
     def test_empty(self):
         r = self._sig({})
         assert r.n_hosts == 0 and r.population_first_alarm is None
+
+
+def _answer_interaction(agent, answer, task="T1", t=None, **md):
+    """One answer-bearing board interaction for the content-free detectors."""
+    meta = {"task_id": task, "answer": answer}
+    meta.update(md)
+    return SoftInteraction(
+        timestamp=t or datetime(2026, 6, 1),
+        initiator=agent,
+        counterparty="board",
+        accepted=True,
+        metadata=meta,
+    )
+
+
+class TestOutputCorrelationSignal:
+    def test_all_distinct_answers_no_alarm(self):
+        its = [_answer_interaction(f"a{i}", i) for i in range(6)]
+        res = output_correlation_signal(its)
+        assert isinstance(res, OutputCorrelationResult)
+        assert res.observed_agreement == 0.0
+        assert res.flagged_agents == set()
+        assert res.alarm is False
+
+    def test_shared_answers_flag_the_cluster(self):
+        # four agents on one answer, two on unique answers
+        its = [_answer_interaction(f"c{i}", "X") for i in range(4)]
+        its += [_answer_interaction("u1", "Y"), _answer_interaction("u2", "Z")]
+        res = output_correlation_signal(its, agreement_threshold=0.5)
+        assert res.flagged_agents == {"c0", "c1", "c2", "c3"}
+        assert res.observed_agreement == pytest.approx(4 / 6)
+        assert res.modal_share == pytest.approx(4 / 6, abs=1e-3)
+        assert res.alarm is True
+
+    def test_convergence_and_collusion_read_the_same(self):
+        # honest convergence: everyone lands on the optimum
+        conv = [_answer_interaction(f"h{i}", "OPT") for i in range(8)]
+        # collusion: everyone copies one posted answer
+        coll = [_answer_interaction(f"k{i}", "OPT") for i in range(8)]
+        r_conv = output_correlation_signal(conv)
+        r_coll = output_correlation_signal(coll)
+        # the content-free signal cannot separate them — that is the point
+        assert r_conv.observed_agreement == r_coll.observed_agreement == 1.0
+        assert r_conv.alarm == r_coll.alarm is True
+
+    def test_last_write_wins_per_agent(self):
+        its = [
+            _answer_interaction("a", "OLD", t=datetime(2026, 6, 1)),
+            _answer_interaction("a", "NEW", t=datetime(2026, 6, 2)),
+            _answer_interaction("b", "NEW"),
+        ]
+        res = output_correlation_signal(its)
+        assert res.flagged_agents == {"a", "b"}
+
+    def test_min_agents_per_task_skips_thin_tasks(self):
+        its = [_answer_interaction("solo", "X", task="lonely")]
+        res = output_correlation_signal(its, min_agents_per_task=2)
+        assert res.n_tasks == 0
+        assert res.alarm is False
+
+    def test_tasks_are_independent(self):
+        its = [
+            _answer_interaction("a", "X", task="T1"),
+            _answer_interaction("b", "X", task="T1"),
+            _answer_interaction("c", "Y", task="T2"),
+            _answer_interaction("d", "Z", task="T2"),
+        ]
+        res = output_correlation_signal(its)
+        assert res.n_tasks == 2
+        assert res.flagged_agents == {"a", "b"}
+
+    def test_precision_recall_against_ground_truth(self):
+        its = [_answer_interaction(f"c{i}", "X") for i in range(3)]
+        its += [_answer_interaction("u", "Y"), _answer_interaction("v", "W")]
+        # ground truth: the three copiers
+        res = output_correlation_signal(
+            its, ground_truth_copiers={"c0", "c1", "c2"}
+        )
+        assert res.precision == pytest.approx(1.0)
+        assert res.recall == pytest.approx(1.0)
+        assert res.f1 == pytest.approx(1.0)
+
+    def test_no_answers_empty_result(self):
+        its = [
+            SoftInteraction(initiator="a", counterparty="board", metadata={})
+        ]
+        res = output_correlation_signal(its)
+        assert res.n_tasks == 0
+        assert res.observed_agreement == 0.0
+
+
+class TestRederivationInfeasibilitySignal:
+    def test_fast_answer_is_infeasible(self):
+        t0 = datetime(2026, 6, 1, 12, 0, 0)
+        its = [
+            # answered 10s after task start, min research is 60s -> infeasible
+            _answer_interaction(
+                "fast", "X", t=t0, task_start=t0.isoformat(),
+                min_research_seconds=60,
+            ),
+        ]
+        res = rederivation_infeasibility_signal(its)
+        # elapsed 0 < 60
+        assert isinstance(res, RederivationResult)
+        assert res.n_infeasible == 1
+        assert res.flagged_agents == {"fast"}
+        assert res.alarm is True
+
+    def test_slow_answer_is_feasible(self):
+        t0 = datetime(2026, 6, 1, 12, 0, 0)
+        its = [
+            _answer_interaction(
+                "slow", "X",
+                t=t0 + timedelta(seconds=120),
+                task_start=t0.isoformat(),
+                min_research_seconds=60,
+            ),
+        ]
+        res = rederivation_infeasibility_signal(its)
+        assert res.n_events == 1
+        assert res.n_infeasible == 0
+        assert res.alarm is False
+
+    def test_precomputed_elapsed_key(self):
+        its = [
+            _answer_interaction("a", "X", research_seconds=5, min_research_seconds=60),
+            _answer_interaction("b", "Y", research_seconds=90, min_research_seconds=60),
+        ]
+        res = rederivation_infeasibility_signal(its)
+        assert res.n_events == 2
+        assert res.flagged_agents == {"a"}
+
+    def test_per_task_min_research_key_overrides_scalar(self):
+        its = [
+            # task carries its own threshold of 5s; elapsed 10s -> feasible
+            _answer_interaction("a", "X", research_seconds=10, min_research_seconds=5),
+        ]
+        res = rederivation_infeasibility_signal(its, min_research_seconds=100)
+        # per-event key (5) wins over the scalar fallback (100)
+        assert res.n_infeasible == 0
+
+    def test_scalar_fallback_used_when_no_key(self):
+        its = [_answer_interaction("a", "X", research_seconds=3)]
+        res = rederivation_infeasibility_signal(its, min_research_seconds=60)
+        assert res.n_infeasible == 1
+
+    def test_events_without_timing_are_ignored(self):
+        its = [_answer_interaction("a", "X")]  # no timing metadata
+        res = rederivation_infeasibility_signal(its, min_research_seconds=60)
+        assert res.n_events == 0
+        assert res.alarm is False
+
+    def test_precision_recall_against_ground_truth(self):
+        its = [
+            _answer_interaction("copier", "X", research_seconds=2, min_research_seconds=60),
+            _answer_interaction("honest", "Y", research_seconds=90, min_research_seconds=60),
+        ]
+        res = rederivation_infeasibility_signal(its, ground_truth_copiers={"copier"})
+        assert res.precision == pytest.approx(1.0)
+        assert res.recall == pytest.approx(1.0)
+
+    def test_alarm_fraction_threshold(self):
+        its = [
+            _answer_interaction("a", "X", research_seconds=2, min_research_seconds=60),
+            _answer_interaction("b", "Y", research_seconds=90, min_research_seconds=60),
+            _answer_interaction("c", "Z", research_seconds=90, min_research_seconds=60),
+        ]
+        # 1/3 infeasible; require >0.5 to alarm -> no alarm
+        res = rederivation_infeasibility_signal(its, alarm_fraction=0.5)
+        assert res.infeasible_fraction == pytest.approx(1 / 3)
+        assert res.alarm is False
