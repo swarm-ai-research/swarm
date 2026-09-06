@@ -134,3 +134,28 @@ def test_deadlines_produce_one_terminal_event_per_assignment() -> None:
     assert result.metrics["deadline_miss_rate"] > 0
     assert all(event["time"] <= event["deadline"] for event in terminals
                if event["type"] == "submission")
+
+
+def test_confirmation_summary_reports_displacement_denominators(tmp_path) -> None:
+    import json
+    import subprocess
+    import sys
+
+    sweep = subprocess.run(
+        [sys.executable, "scripts/sweep_wiki_mc.py", "--family", "moderation",
+         "--seeds", "2", "--max-cells", "3", "--output", str(tmp_path / "sweep")],
+        capture_output=True, text=True, check=True)
+    assert "pairs" in sweep.stdout
+    subprocess.run(
+        [sys.executable, "scripts/analyze_wiki_mc_confirmation.py", "--summary",
+         "--input", str(tmp_path / "sweep"), "--output", str(tmp_path / "summary.json")],
+        capture_output=True, text=True, check=True)
+    cells = json.loads((tmp_path / "summary.json").read_text())["cells"]
+    assert len(cells) == 3 and all(cell["n"] == 2 for cell in cells)
+    untreated, row = cells[0], cells[2]
+    assert untreated["disrupted_works"] == 0 and untreated["displaced_per_disrupted"] is None
+    assert row["overrides"] == '{"moderation_policy": "ordered", "relocation_mode": "endogenous"}'
+    assert 0 < row["displaced_works"] <= row["relocated_works"] <= row["disrupted_works"]
+    assert row["displaced_per_disrupted"] == row["displaced_works"] / row["disrupted_works"]
+    assert 0 <= row["alarm_wilson_low"] <= row["alarm_rate"] <= row["alarm_wilson_high"] <= 1
+    assert (tmp_path / "summary.csv").exists()

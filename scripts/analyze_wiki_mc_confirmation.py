@@ -11,7 +11,10 @@ import argparse
 import csv
 import hashlib
 import json
+import math
 import random
+import statistics
+from collections import defaultdict
 from pathlib import Path
 
 
@@ -53,11 +56,92 @@ def load_differences(directory: Path, cell_id: str, metric: str) -> list[float]:
     return values
 
 
+def wilson(successes: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    """Wilson score interval for an event proportion across independent runs."""
+    if n == 0:
+        return (0.0, 0.0)
+    p = successes / n
+    denominator = 1 + z * z / n
+    center = (p + z * z / (2 * n)) / denominator
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denominator
+    return (center - half, center + half)
+
+
+def summarize(directory: Path) -> list[dict]:
+    """Per-cell run-level summary of outcomes the paired CSV does not carry.
+
+    Displacement is reported against two denominators: works disrupted by a
+    moderation action (``response`` events) and works that chose to relocate.
+    Alarm rates are run-level proportions with Wilson intervals; in the
+    detection family the treatment run is the untreated run, so treatment and
+    control are identical and only the treatment side is reported.
+    """
+    manifest = json.loads((directory / "manifest.json").read_text())
+    cells = {cell["id"]: cell for cell in manifest["cells"]}
+    rows = []
+    for cell_id, cell in cells.items():
+        runs = [json.loads(path.read_text())
+                for path in sorted(directory.glob(f"{cell_id}-seed-*.json"))]
+        if not runs:
+            continue
+        metrics: dict[str, list[float]] = defaultdict(list)
+        counts = defaultdict(int)
+        for run in runs:
+            for key, value in run["treatment_metrics"].items():
+                metrics[key].append(float(value))
+            for key, value in run["control_metrics"].items():
+                metrics["control_" + key].append(float(value))
+            events = run["treatment"]["events"]
+            for event in events:
+                if event["type"] == "response":
+                    counts["disrupted"] += 1
+                    counts["relocated"] += event["action"] == "relocate"
+                elif event["type"] == "displacement":
+                    counts["displaced"] += 1
+                elif event["type"] == "moderation":
+                    counts["evasion_learned"] += event.get("evasion_learned", 0)
+        n = len(runs)
+        alarms = int(sum(metrics["screen_alarm"]))
+        control_alarms = int(sum(metrics["control_screen_alarm"]))
+        low, high = wilson(alarms, n)
+        row = {"cell_id": cell_id, "family": cell["family"], "n": n,
+               "overrides": json.dumps(cell["overrides"], sort_keys=True),
+               "coverage": cell["observation_fraction"]}
+        for key in ("completion_rate", "task_success_rate", "shared_submission_rate",
+                    "total_writes", "post_intervention_writes", "displacements",
+                    "removed_pages", "useful_reads", "screen_agreement",
+                    "screen_comparable_pairs"):
+            row[key + "_mean"] = statistics.fmean(metrics[key])
+            row["control_" + key + "_mean"] = statistics.fmean(metrics["control_" + key])
+        row.update(alarm_runs=alarms, alarm_rate=alarms / n, alarm_wilson_low=low,
+                   alarm_wilson_high=high, control_alarm_runs=control_alarms,
+                   zero_write_control_runs=int(sum(v == 0 for v in metrics["control_total_writes"])),
+                   disrupted_works=counts["disrupted"], relocated_works=counts["relocated"],
+                   displaced_works=counts["displaced"], evasion_learned=counts["evasion_learned"],
+                   displaced_per_disrupted=(counts["displaced"] / counts["disrupted"]
+                                            if counts["disrupted"] else None),
+                   displaced_per_relocated=(counts["displaced"] / counts["relocated"]
+                                            if counts["relocated"] else None))
+        rows.append(row)
+    return rows
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--summary", action="store_true",
+                        help="Write a per-cell run-level summary (any family, any seed "
+                             "count) instead of the 200-seed moderation Holm analysis")
     args = parser.parse_args()
+    if args.summary:
+        rows = summarize(args.input)
+        args.output.write_text(json.dumps({"input": str(args.input), "cells": rows}, indent=2) + "\n")
+        with args.output.with_suffix(".csv").open("w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+            writer.writeheader()
+            writer.writerows(rows)
+        return 0
     tests = []
     cells = sorted({path.name.split("-seed-")[0]
                     for path in args.input.glob("moderation-*-seed-*.json")})
