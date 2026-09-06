@@ -109,7 +109,7 @@ The empirical finding that populations with only 20% honest agents achieve 55% h
 
 ## Trust-Then-Exploit {#trust-then-exploit}
 
-A two-phase deceptive strategy: (1) build trust by behaving honestly for several epochs, then (2) leverage accumulated reputation to extract maximum value. Produces a distinctive signature of rising then sharply falling per-agent reputation. — [Deception](concepts/deception.md)
+A two-phase deceptive strategy: (1) build trust by behaving honestly for several epochs, then (2) use accumulated reputation to extract maximum value. Produces a distinctive signature of rising then sharply falling per-agent reputation. — [Deception](concepts/deception.md)
 
 ## Governance Latency {#governance-latency}
 

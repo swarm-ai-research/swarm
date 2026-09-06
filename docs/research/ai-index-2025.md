@@ -30,7 +30,7 @@ SWE-bench improvement from 4.4% to 71.7% in one year demonstrates that AI agents
 
 ### 2. Rising Incidents
 
-The 56.4% increase in AI incidents (to 233 in 2024) underscores the urgency of:
+The 56.4% increase in AI incidents (to 233 in 2024) adds urgency to:
 
 - **Distributional safety**: System-level risks from agent interactions
 - **Toxicity metrics**: Early detection of harmful patterns

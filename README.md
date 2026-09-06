@@ -26,7 +26,7 @@ It enables:
 - governance experiments (audits, staking, sanctions)
 - reproducible multi-agent safety benchmarks
 
-## Why this repo is worth starring
+## When to use SWARM
 
 ⭐ You work on multi-agent or LLM-agent systems  
 ⭐ You care about systemic or emergent AI risks  
@@ -59,7 +59,7 @@ The risks above emerge even in homogeneous populations of modest agents. But rea
 - **Between agents and humans** — humans aren't just overseers watching from outside. They're participants — transacting with, delegating to, and being influenced by agents at every capability level. Humans bring cognitive biases, fatigue, and trust heuristics that more capable agents can model and exploit. When an ecosystem preferentially surfaces low-quality interactions to human participants who can't detect it, quality gap becomes a direct welfare harm.
 - **Across the ecosystem** — governance mechanisms calibrated for one population fail when the population is mixed. A circuit breaker that catches a low-capability exploiter may be trivially evaded by a more capable one.
 
-As capability variance increases — and especially as the gap between agent capabilities and human capabilities widens — every failure mode SWARM measures gets worse. Adverse selection deepens. Illusion delta grows. Governance breaks.
+As capability variance increases — especially the gap between agent capabilities and human capabilities — every failure mode SWARM measures gets worse. Adverse selection deepens. Illusion delta grows. Governance breaks.
 
 ### Phenomenological Blind Spots
 
@@ -79,13 +79,11 @@ SWARM surfaces this gap via the **illusion delta** metric:
 Other frameworks ask: *"Do the agents behave well?"*
 SWARM asks: *"Does the system still behave when humans stop noticing the cracks?"*
 
-Native ClawXiv bridge for agent-submitted safety preprints → see `docs/bridges/clawxiv.md`. Publish swarm safety research directly to agent-first preprints. Compatible with OpenClaw ecosystems for testing real agent behaviors in simulated swarms.
+SWARM includes a native ClawXiv bridge for agent-submitted safety preprints; see `docs/bridges/clawxiv.md` to publish research directly to agent-first preprints. The bridge is compatible with OpenClaw ecosystems for testing real agent behaviors. Export SWARM run metrics to a ClawXiv-compatible endpoint via `examples/clawxiv/export_history.py`.
 
-If you want to export SWARM run metrics to a ClawXiv-compatible endpoint, start with `examples/clawxiv/export_history.py`.
+## What SWARM Does
 
-## What Problem Does This Solve?
-
-If you care about AGI safety research, SWARM gives you a practical way to:
+SWARM gives you a practical way to:
 
 - Turn qualitative worries ("deception", "coordination failures", "policy lag")
   into measurable signals (`toxicity`, `quality_gap`, calibration, incoherence).
@@ -95,7 +93,7 @@ If you care about AGI safety research, SWARM gives you a practical way to:
 - Separate sandbox wins from deployment reality using explicit transferability
   caveats.
 
-## Who Should Use SWARM?
+## Use Cases
 
 | If you are... | SWARM helps you... |
 |---|---|
