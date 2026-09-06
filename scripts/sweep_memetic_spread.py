@@ -11,7 +11,8 @@ memetic_spread scenario:
 Usage:
     python scripts/sweep_memetic_spread.py [--seeds N] [--quick]
         [--rankings quality,recency,engagement] [--cadences 0,2,5,10]
-        [--whistleblowers 0,0.24] [--wb-audit-rate 0.5]
+        [--whistleblowers 0,0.24] [--wb-audit-rate 0.5] [--wb-fpr 0]
+        [--wb-suspect-quality 0.65]
         [--wb-warning 0,0.5] [--wb-boycott 0]
 
 The --rankings axis (bead 2qfq) tests whether the no-reset epidemic burnout
@@ -22,7 +23,10 @@ research swarm) adds an endogenous counter-response: a share of the honest
 population that refuses the exploit, audits the shared cache, warns peers
 (--wb-warning), and may boycott the task once it has caught fraud
 (--wb-boycott). Cells with a zero whistleblower share run only the first
-warning/boycott value, since both are no-ops without a faction.
+warning/boycott value, since both are no-ops without a faction. The audit
+is a noisy classifier over an observable signal, never the hidden poison
+label: an entry whose quality_score is below --wb-suspect-quality is
+flagged per member with --wb-audit-rate, any other entry with --wb-fpr.
 
 The --lockout axis (same paper, the converts) turns on a pool of problems
 that pay once: fakes close them, exposed honest agents drift toward the
@@ -86,7 +90,19 @@ def main() -> None:
         "--wb-audit-rate",
         type=float,
         default=0.5,
-        help="per-whistleblower per-epoch P(catch) per poisoned cache entry",
+        help="per-whistleblower per-epoch P(flag) per suspect cache entry",
+    )
+    parser.add_argument(
+        "--wb-fpr",
+        type=float,
+        default=0.0,
+        help="per-whistleblower per-epoch P(flag) per non-suspect cache entry",
+    )
+    parser.add_argument(
+        "--wb-suspect-quality",
+        type=float,
+        default=0.65,
+        help="entries with quality_score below this are suspect to the audit",
     )
     parser.add_argument(
         "--wb-warning",
@@ -179,6 +195,10 @@ def main() -> None:
                         mem.whistleblower_audit_rate = (
                             args.wb_audit_rate if wb_fraction > 0 else 0.0
                         )
+                        mem.whistleblower_false_positive_rate = (
+                            args.wb_fpr if wb_fraction > 0 else 0.0
+                        )
+                        mem.whistleblower_suspect_quality = args.wb_suspect_quality
                         mem.whistleblower_warning_strength = wb_warning
                         mem.whistleblower_boycott_rate = wb_boycott
                         mem.lockout_enabled = bool(lockout)
@@ -186,6 +206,11 @@ def main() -> None:
                         if args.lockout_arrivals is not None:
                             mem.lockout_arrivals_per_epoch = args.lockout_arrivals
                         apply_detection(s, detection)
+                        # The scenario's event log appends every run to one
+                        # JSONL (~10 MB per run; a 200-run sweep wrote 2.3 GB).
+                        # The sweep's CSVs and summary.json are its record.
+                        s.orchestrator_config.log_events = False
+                        s.orchestrator_config.log_path = None
 
                         orch = build_orchestrator(s)
                         orch.run()
@@ -229,6 +254,9 @@ def main() -> None:
                             "contagion_writes": handler.contagion_write_count,
                             "whistleblower_reverts": (
                                 handler.whistleblower_revert_count
+                            ),
+                            "whistleblower_false_reverts": (
+                                handler.whistleblower_false_revert_count
                             ),
                             "boycotted_writes": handler.boycotted_write_count,
                             "mean_locked_out_rate": sum(
@@ -274,6 +302,8 @@ def main() -> None:
             f"detection_modes: {DETECTION_MODES}\n"
             f"whistleblower_cells (fraction, warning, boycott, lockout, reopen): {wb_grid}\n"
             f"whistleblower_audit_rate: {args.wb_audit_rate}\n"
+            f"whistleblower_false_positive_rate: {args.wb_fpr}\n"
+            f"whistleblower_suspect_quality: {args.wb_suspect_quality}\n"
             f"lockout_arrivals_per_epoch: "
             f"{args.lockout_arrivals if args.lockout_arrivals is not None else 'scenario default'}\n"
             f"seeds: {n_seeds} (base {SEED_BASE})\n"
@@ -340,6 +370,9 @@ def main() -> None:
                         "mean_tier3_poisoning": mean("mean_tier3_poisoning"),
                         "contagion_writes": mean("contagion_writes"),
                         "whistleblower_reverts": mean("whistleblower_reverts"),
+                        "whistleblower_false_reverts": mean(
+                            "whistleblower_false_reverts"
+                        ),
                         "boycotted_writes": mean("boycotted_writes"),
                         "mean_locked_out_rate": mean("mean_locked_out_rate"),
                         "fake_closure_share": mean("fake_closure_share"),

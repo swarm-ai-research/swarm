@@ -161,22 +161,36 @@ on the recency cache where detection does not?**
 
 ### Mechanism (`swarm/core/memory_handler.py`)
 
-Four knobs on `MemoryTierConfig`, all default 0 (the baseline is
+Six knobs on `MemoryTierConfig`, all off by default (the baseline is
 bit-identical with the lever off — verified on seed 42: 207 contagion
 writes, peak infection 0.525 before and after the patch):
 
 - `whistleblower_fraction` — share of the honest + opportunistic roster
   drawn once, seeded, at the first epoch. Members have infection pinned
   at 0: they refuse the exploit regardless of exposure.
-- `whistleblower_audit_rate` — per whistleblower, per epoch, the probability
-  a poisoned entry in the hot cache is caught. Every whistleblower sees the
-  whole cache (it is broadcast), so an entry survives the epoch with
-  probability `(1 − rate)^n_wb`. A catch is a `challenge` + `revert` on the
-  store, attributed to a random whistleblower, emitted as a
-  `MEMORY_REVERTED` event; the entry leaves the cache at the rebuild that
-  follows. The audit runs on the *same* cache the peers were just exposed
-  to, after the contagion update, so it cannot retroactively un-expose
-  anyone — it only stops the entry from being seen again.
+- `whistleblower_audit_rate`, `whistleblower_false_positive_rate`, and
+  `whistleblower_suspect_quality` — the audit is a noisy classifier over
+  an *observable* signal, never the hidden poison label (`is_poisoned` is
+  ground truth the agents cannot see). An entry whose `quality_score` is
+  below `suspect_quality` (default 0.65) is suspect; per whistleblower,
+  per epoch, a suspect entry is flagged with probability `audit_rate` and
+  any other entry with `false_positive_rate`. Every whistleblower sees the
+  whole cache (it is broadcast) and draws independently, so a suspect
+  entry survives the epoch with probability `(1 − audit_rate)^n_wb`. The
+  threshold sits inside the writers' quality ranges: adversarial poison
+  (0.3–0.6) and opportunistic writes (0.4–0.65) are always suspect,
+  deceptive writes (0.4–0.7) mostly, and the bottom of the honest range
+  (0.6–0.9) is suspect too — so the auditor misses some poison and
+  reverts some honest work even at `false_positive_rate` 0. A flagged
+  entry is `challenge`d + `revert`ed once and emitted as a
+  `MEMORY_REVERTED` event per member that flagged it (payload
+  `false_positive` marks a wrongly reverted clean entry, for accounting
+  only); the entry leaves the cache at the rebuild that follows, and every
+  member that flagged it enters the alerted set the boycott reads. The
+  audit runs on the *same* cache the peers were just exposed to, after
+  the contagion update, so it cannot retroactively un-expose anyone — it
+  only stops the entry from being seen again. The snapshot carries
+  `whistleblower_flags` and `whistleblower_false_flags` per epoch.
 - `whistleblower_warning_strength` — in any epoch with at least one catch,
   every non-whistleblower honest/opportunistic agent's infection is
   multiplied by `(1 − strength)`. This is the broadcast/DM alert: the
@@ -463,6 +477,13 @@ give the honest agents their payoff back.
   question the paper's design cannot answer and this model does not try
   to. The lever measures what a faction of a given size *does*, not where
   it comes from.
+- **The audit's noise is one threshold on one signal.** The classifier
+  reads `quality_score` against a fixed cut and nothing else; a real
+  auditor would read content, provenance, and the writer's history. The
+  reported grids run `false_positive_rate` 0, so the only false positives
+  are honest entries that land under the cut (about a sixth of honest
+  writes at 0.65); `--wb-fpr` and `--wb-suspect-quality` are the axes for
+  a worse or a better auditor (§6).
 - **Audit is free unless boycott is on.** A whistleblower's audit consumes
   no write budget and no interaction. The boycott arm is the only cost
   modelled; the paper's whistleblowers also spent effort auditing and
@@ -508,6 +529,12 @@ give the honest agents their payoff back.
    hybrid: detection *only* when the population asks for it.
 5. **Read the paper.** Replace §1 with the paper's own numbers and add its
    recommendations to §3.
+6. **Price the auditor's errors.** Sweep `--wb-suspect-quality 0.55,0.65,0.75`
+   and `--wb-fpr 0,0.05,0.2`: each wrongly reverted honest entry is welfare
+   lost and, under lockout with reopen on, gives back no problem (only
+   fake-closed problems reopen), so the cost lands entirely on the honest
+   side. Find where the faction's welfare advantage over the detection
+   layer (finding 1) closes.
 
 ## 7. Reproduce
 
@@ -518,7 +545,8 @@ python scripts/sweep_memetic_spread.py --seeds 10 --rankings quality,recency \
 # Boycott arm
 python scripts/sweep_memetic_spread.py --seeds 10 --rankings quality --cadences 0 \
   --whistleblowers 0.24 --wb-warning 0.5 --wb-boycott 0.5,1.0
-# Audit-rate sensitivity
+# Audit-rate sensitivity (--wb-fpr / --wb-suspect-quality set the auditor's
+# noise; every cell in this note ran at the defaults, fpr 0 and cut 0.65)
 python scripts/sweep_memetic_spread.py --seeds 10 --rankings quality --cadences 0 \
   --whistleblowers 0.24 --wb-audit-rate 0.2 --wb-warning 0,0.5 --wb-boycott 0
 # Lockout / converts arms (fast frontier: 5 new problems per epoch; slow: 15)

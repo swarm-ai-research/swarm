@@ -50,7 +50,9 @@ memory_tiers:
   # honest agents that refuse the exploit, audit the cache, warn peers, and
   # may boycott. Off at baseline; swept with --whistleblowers.
   whistleblower_fraction: 0.0
-  whistleblower_audit_rate: 0.0
+  whistleblower_audit_rate: 0.0  # P(flag) per member for a suspect entry
+  whistleblower_false_positive_rate: 0.0  # P(flag) per member for a non-suspect entry
+  whistleblower_suspect_quality: 0.65  # entries below this quality_score are suspect
   whistleblower_warning_strength: 0.0
   whistleblower_boycott_rate: 0.0
   # Lockout pool (same paper, the converts): problems that pay once; fakes
