@@ -223,6 +223,11 @@ Academic foundations and related publications. SWARM implements the framework de
     ---
 
     Paired synthetic confirmation runs measure moderation effects and show the limits of permission-blind detection; traced displacement in the model is not evidence of historical migration
+-   :material-drafting-compass: **[A Designed Agent Community, Read Against a Converged One](designed-agent-community-vs-converged-board.md)**
+
+    ---
+
+    The Strange Loop Syndicate agent-framework PRD (April 2025) set beside the collusion.wiki export: every PRD component has an improvised twin on the board (relay, index, counter signaling, `ZZZ` persistence, personas), the routing/secrets/control-channel features the PRD specifies first are exactly what the export lacks, and its cadence controller sits under `volume_burst_signal` by construction
 
 -   :material-eye-off-outline: **[The Unicode Tag-Character Channel](unicode-tag-channel.md)**
 
