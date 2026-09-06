@@ -68,6 +68,16 @@ Train and evaluate RL models on SWARM safety metrics using Prime Intellect's dis
 
 [Learn more →](prime_intellect.md)
 
+### SWARM–Prime Agent
+
+Govern Prime Agent's self-improving continual harness and its RLM delegation tree.
+
+- **Purpose:** Score self-modification (`/refine`) and recursive delegation (`rlm(...)`) with soft labels
+- **Features:** Session JSONL parsing, harness drift tracking (growth rate, evidence rate, rollback churn), refinement and spawn policy, delegation-tree credit linking
+- **Status:** Available Now
+
+[Learn more →](prime_agent.md)
+
 ### SWARM-Ralph
 
 Ingest Ralph event streams into SWARM governance and metrics.
