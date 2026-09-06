@@ -1,0 +1,15 @@
+........................................................................ [ 58%]
+...................................................                      [100%]
+=============================== warnings summary ===============================
+tests/test_attestation.py: 8 warnings
+tests/test_agentgit_identity.py: 7 warnings
+tests/test_agentgit_review.py: 1 warning
+  /opt/anaconda3/lib/python3.13/site-packages/pydantic/main.py:250: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+
+tests/test_attestation.py: 93 warnings
+  /Users/raelisavitt/swarm/swarm/attestation/middleware.py:94: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+123 passed, 109 warnings in 9.20s

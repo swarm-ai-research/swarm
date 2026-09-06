@@ -1,0 +1,456 @@
+{
+  "head": "a3a0d5acbe1ced58316bcb4a889bb3d4745025a7",
+  "python": "3.13.5 | packaged by Anaconda, Inc. | (main, Jun 12 2025, 11:23:37) [Clang 14.0.6 ]",
+  "executable": "/opt/anaconda3/bin/python",
+  "command": "python scripts/sweep_wiki_mc.py --family detection --phase confirmation --seeds 1 --seed-start 10000 --detector-threshold 0.8 --output /tmp/swarm-wave1-wiki-replay",
+  "cells": [
+    {
+      "file": "detection-000-seed-10000.json",
+      "field_equal": {
+        "treatment_metrics": true,
+        "cell_id": true,
+        "control_metrics": true,
+        "elapsed_seconds": false,
+        "treatment": false,
+        "control": false,
+        "seed": true
+      },
+      "differences": [
+        {
+          "path": "/control/config/evasion_learning_probability",
+          "archive": null,
+          "replay": 0.0
+        },
+        {
+          "path": "/control/config/moderation_granularity",
+          "archive": null,
+          "replay": "host"
+        },
+        {
+          "path": "/control/config/page_deletion_fraction",
+          "archive": null,
+          "replay": 0.5
+        },
+        {
+          "path": "/elapsed_seconds",
+          "archive": 0.012423709034919739,
+          "replay": 0.012910499703139067
+        },
+        {
+          "path": "/treatment/config/evasion_learning_probability",
+          "archive": null,
+          "replay": 0.0
+        },
+        {
+          "path": "/treatment/config/moderation_granularity",
+          "archive": null,
+          "replay": "host"
+        },
+        {
+          "path": "/treatment/config/page_deletion_fraction",
+          "archive": null,
+          "replay": 0.5
+        }
+      ],
+      "archive_sha256": "dccb7737fdb6912990940eebf90ba8815ab56aedbab343fa329942d15cb5b211",
+      "replay_sha256": "d6c7e549a0e63dbc9be9e06b97d6f69662b65b84e486d29eafee3f321bef54d3",
+      "exact_scientific_fields": {
+        "treatment/events": true,
+        "treatment/metrics": true,
+        "treatment/seed": true,
+        "control/events": true,
+        "control/metrics": true,
+        "control/seed": true
+      },
+      "added_config_fields": {
+        "treatment": {
+          "moderation_granularity": "host",
+          "page_deletion_fraction": 0.5,
+          "evasion_learning_probability": 0.0
+        },
+        "control": {
+          "moderation_granularity": "host",
+          "page_deletion_fraction": 0.5,
+          "evasion_learning_probability": 0.0
+        }
+      }
+    },
+    {
+      "file": "detection-001-seed-10000.json",
+      "field_equal": {
+        "treatment_metrics": true,
+        "cell_id": true,
+        "control_metrics": true,
+        "elapsed_seconds": false,
+        "treatment": false,
+        "control": false,
+        "seed": true
+      },
+      "differences": [
+        {
+          "path": "/control/config/evasion_learning_probability",
+          "archive": null,
+          "replay": 0.0
+        },
+        {
+          "path": "/control/config/moderation_granularity",
+          "archive": null,
+          "replay": "host"
+        },
+        {
+          "path": "/control/config/page_deletion_fraction",
+          "archive": null,
+          "replay": 0.5
+        },
+        {
+          "path": "/elapsed_seconds",
+          "archive": 0.013308125082403421,
+          "replay": 0.013730000238865614
+        },
+        {
+          "path": "/treatment/config/evasion_learning_probability",
+          "archive": null,
+          "replay": 0.0
+        },
+        {
+          "path": "/treatment/config/moderation_granularity",
+          "archive": null,
+          "replay": "host"
+        },
+        {
+          "path": "/treatment/config/page_deletion_fraction",
+          "archive": null,
+          "replay": 0.5
+        }
+      ],
+      "archive_sha256": "eb747fbed4724707ca611bfc7750248d21e593bf7ee8bf922c777f82008bb59c",
+      "replay_sha256": "e1879f1d918cd22824bed64a8e52143d5a9f14d842b65388455bd1ca210b1596",
+      "exact_scientific_fields": {
+        "treatment/events": true,
+        "treatment/metrics": true,
+        "treatment/seed": true,
+        "control/events": true,
+        "control/metrics": true,
+        "control/seed": true
+      },
+      "added_config_fields": {
+        "treatment": {
+          "moderation_granularity": "host",
+          "page_deletion_fraction": 0.5,
+          "evasion_learning_probability": 0.0
+        },
+        "control": {
+          "moderation_granularity": "host",
+          "page_deletion_fraction": 0.5,
+          "evasion_learning_probability": 0.0
+        }
+      }
+    },
+    {
+      "file": "detection-002-seed-10000.json",
+      "field_equal": {
+        "treatment_metrics": true,
+        "cell_id": true,
+        "control_metrics": true,
+        "elapsed_seconds": false,
+        "treatment": false,
+        "control": false,
+        "seed": true
+      },
+      "differences": [
+        {
+          "path": "/control/config/evasion_learning_probability",
+          "archive": null,
+          "replay": 0.0
+        },
+        {
+          "path": "/control/config/moderation_granularity",
+          "archive": null,
+          "replay": "host"
+        },
+        {
+          "path": "/control/config/page_deletion_fraction",
+          "archive": null,
+          "replay": 0.5
+        },
+        {
+          "path": "/elapsed_seconds",
+          "archive": 0.028367875143885612,
+          "replay": 0.03196804178878665
+        },
+        {
+          "path": "/treatment/config/evasion_learning_probability",
+          "archive": null,
+          "replay": 0.0
+        },
+        {
+          "path": "/treatment/config/moderation_granularity",
+          "archive": null,
+          "replay": "host"
+        },
+        {
+          "path": "/treatment/config/page_deletion_fraction",
+          "archive": null,
+          "replay": 0.5
+        }
+      ],
+      "archive_sha256": "86bb3e050e5c1277eb45b589f017ef15a1082fa53e0817203f28a7caf1a52123",
+      "replay_sha256": "991c1a830aec97c2f5fbe02949d0d37bdff32712064aff77cb8bf71b695e33ce",
+      "exact_scientific_fields": {
+        "treatment/events": true,
+        "treatment/metrics": true,
+        "treatment/seed": true,
+        "control/events": true,
+        "control/metrics": true,
+        "control/seed": true
+      },
+      "added_config_fields": {
+        "treatment": {
+          "moderation_granularity": "host",
+          "page_deletion_fraction": 0.5,
+          "evasion_learning_probability": 0.0
+        },
+        "control": {
+          "moderation_granularity": "host",
+          "page_deletion_fraction": 0.5,
+          "evasion_learning_probability": 0.0
+        }
+      }
+    },
+    {
+      "file": "detection-003-seed-10000.json",
+      "field_equal": {
+        "treatment_metrics": true,
+        "cell_id": true,
+        "control_metrics": true,
+        "elapsed_seconds": false,
+        "treatment": false,
+        "control": false,
+        "seed": true
+      },
+      "differences": [
+        {
+          "path": "/control/config/evasion_learning_probability",
+          "archive": null,
+          "replay": 0.0
+        },
+        {
+          "path": "/control/config/moderation_granularity",
+          "archive": null,
+          "replay": "host"
+        },
+        {
+          "path": "/control/config/page_deletion_fraction",
+          "archive": null,
+          "replay": 0.5
+        },
+        {
+          "path": "/elapsed_seconds",
+          "archive": 0.02992970822378993,
+          "replay": 0.03145816596224904
+        },
+        {
+          "path": "/treatment/config/evasion_learning_probability",
+          "archive": null,
+          "replay": 0.0
+        },
+        {
+          "path": "/treatment/config/moderation_granularity",
+          "archive": null,
+          "replay": "host"
+        },
+        {
+          "path": "/treatment/config/page_deletion_fraction",
+          "archive": null,
+          "replay": 0.5
+        }
+      ],
+      "archive_sha256": "835ae66159dcc80ff49717397aa10bda2ef6e64139e865c987b6a962958fcc02",
+      "replay_sha256": "917054270294dd49bc24478d9c74c4ef6ca7164e9c3ec45e5643f17957a6f969",
+      "exact_scientific_fields": {
+        "treatment/events": true,
+        "treatment/metrics": true,
+        "treatment/seed": true,
+        "control/events": true,
+        "control/metrics": true,
+        "control/seed": true
+      },
+      "added_config_fields": {
+        "treatment": {
+          "moderation_granularity": "host",
+          "page_deletion_fraction": 0.5,
+          "evasion_learning_probability": 0.0
+        },
+        "control": {
+          "moderation_granularity": "host",
+          "page_deletion_fraction": 0.5,
+          "evasion_learning_probability": 0.0
+        }
+      }
+    },
+    {
+      "file": "detection-004-seed-10000.json",
+      "field_equal": {
+        "treatment_metrics": true,
+        "cell_id": true,
+        "control_metrics": true,
+        "elapsed_seconds": false,
+        "treatment": false,
+        "control": false,
+        "seed": true
+      },
+      "differences": [
+        {
+          "path": "/control/config/evasion_learning_probability",
+          "archive": null,
+          "replay": 0.0
+        },
+        {
+          "path": "/control/config/moderation_granularity",
+          "archive": null,
+          "replay": "host"
+        },
+        {
+          "path": "/control/config/page_deletion_fraction",
+          "archive": null,
+          "replay": 0.5
+        },
+        {
+          "path": "/elapsed_seconds",
+          "archive": 0.028348291758447886,
+          "replay": 0.029883541632443666
+        },
+        {
+          "path": "/treatment/config/evasion_learning_probability",
+          "archive": null,
+          "replay": 0.0
+        },
+        {
+          "path": "/treatment/config/moderation_granularity",
+          "archive": null,
+          "replay": "host"
+        },
+        {
+          "path": "/treatment/config/page_deletion_fraction",
+          "archive": null,
+          "replay": 0.5
+        }
+      ],
+      "archive_sha256": "5385d07fe52b558929d47903436f612f7a87ff47923dabfe3b87e2ca4a17703a",
+      "replay_sha256": "0df37ce0259bc0b150f27423b6fe290d2ab52578c2f38d14e459450267f45305",
+      "exact_scientific_fields": {
+        "treatment/events": true,
+        "treatment/metrics": true,
+        "treatment/seed": true,
+        "control/events": true,
+        "control/metrics": true,
+        "control/seed": true
+      },
+      "added_config_fields": {
+        "treatment": {
+          "moderation_granularity": "host",
+          "page_deletion_fraction": 0.5,
+          "evasion_learning_probability": 0.0
+        },
+        "control": {
+          "moderation_granularity": "host",
+          "page_deletion_fraction": 0.5,
+          "evasion_learning_probability": 0.0
+        }
+      }
+    },
+    {
+      "file": "detection-005-seed-10000.json",
+      "field_equal": {
+        "treatment_metrics": true,
+        "cell_id": true,
+        "control_metrics": true,
+        "elapsed_seconds": false,
+        "treatment": false,
+        "control": false,
+        "seed": true
+      },
+      "differences": [
+        {
+          "path": "/control/config/evasion_learning_probability",
+          "archive": null,
+          "replay": 0.0
+        },
+        {
+          "path": "/control/config/moderation_granularity",
+          "archive": null,
+          "replay": "host"
+        },
+        {
+          "path": "/control/config/page_deletion_fraction",
+          "archive": null,
+          "replay": 0.5
+        },
+        {
+          "path": "/elapsed_seconds",
+          "archive": 0.030806667171418667,
+          "replay": 0.03119083261117339
+        },
+        {
+          "path": "/treatment/config/evasion_learning_probability",
+          "archive": null,
+          "replay": 0.0
+        },
+        {
+          "path": "/treatment/config/moderation_granularity",
+          "archive": null,
+          "replay": "host"
+        },
+        {
+          "path": "/treatment/config/page_deletion_fraction",
+          "archive": null,
+          "replay": 0.5
+        }
+      ],
+      "archive_sha256": "e24bfb6bb12bbfb59a90f1de66312094a74fc6b5fd7125ab8b39b5eeffe19489",
+      "replay_sha256": "084f43fc447d2fd62b17ac56bd42052d72c819b6afc8eba929f608ccbd8fcb6a",
+      "exact_scientific_fields": {
+        "treatment/events": true,
+        "treatment/metrics": true,
+        "treatment/seed": true,
+        "control/events": true,
+        "control/metrics": true,
+        "control/seed": true
+      },
+      "added_config_fields": {
+        "treatment": {
+          "moderation_granularity": "host",
+          "page_deletion_fraction": 0.5,
+          "evasion_learning_probability": 0.0
+        },
+        "control": {
+          "moderation_granularity": "host",
+          "page_deletion_fraction": 0.5,
+          "evasion_learning_probability": 0.0
+        }
+      }
+    }
+  ],
+  "manifest_differences": [
+    {
+      "path": "/completed_pairs",
+      "archive": 1200,
+      "replay": 6
+    },
+    {
+      "path": "/elapsed_seconds",
+      "archive": 33.19025958282873,
+      "replay": 0.1690565417520702
+    },
+    {
+      "path": "/seeds",
+      "archive_length": 200,
+      "replay_length": 1
+    }
+  ],
+  "code_sha256": {
+    "scripts/sweep_wiki_mc.py": "de1ee7f9394823593e2778a6f9d62e45488ab3604253296d12605427000aaa9c",
+    "swarm/bridges/wiki_sim/__init__.py": "d13f5aae2b12312fbfeed07b3b8fa290f7db83dd0d8a0c82013c5387714ef8ab",
+    "swarm/bridges/wiki_sim/model.py": "010c844c3e8d9a415975a595ccfe8a0d75d58da0d13c1dab13c26ae55b224d78"
+  }
+}

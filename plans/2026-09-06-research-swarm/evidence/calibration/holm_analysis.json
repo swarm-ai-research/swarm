@@ -1,0 +1,187 @@
+{
+  "method": "paired two-sided Monte Carlo sign-flip test; 20,000 draws per test",
+  "family": "10 moderation cells x 2 prespecified outcomes",
+  "correction": "Holm step-down across 20 tests",
+  "tests": [
+    {
+      "cell_id": "moderation-000",
+      "metric": "completion_rate",
+      "mean_difference": 0.0,
+      "p_value": 1.0,
+      "n": 200,
+      "zero_fraction": 1.0,
+      "holm_p": 1.0
+    },
+    {
+      "cell_id": "moderation-000",
+      "metric": "total_writes",
+      "mean_difference": 0.0,
+      "p_value": 1.0,
+      "n": 200,
+      "zero_fraction": 1.0,
+      "holm_p": 1.0
+    },
+    {
+      "cell_id": "moderation-001",
+      "metric": "completion_rate",
+      "mean_difference": 0.0,
+      "p_value": 1.0,
+      "n": 200,
+      "zero_fraction": 1.0,
+      "holm_p": 1.0
+    },
+    {
+      "cell_id": "moderation-001",
+      "metric": "total_writes",
+      "mean_difference": 0.0,
+      "p_value": 1.0,
+      "n": 200,
+      "zero_fraction": 1.0,
+      "holm_p": 1.0
+    },
+    {
+      "cell_id": "moderation-002",
+      "metric": "completion_rate",
+      "mean_difference": -0.0036718750000000033,
+      "p_value": 4.999750012499375e-05,
+      "n": 200,
+      "zero_fraction": 0.175,
+      "holm_p": 0.000999950002499875
+    },
+    {
+      "cell_id": "moderation-002",
+      "metric": "total_writes",
+      "mean_difference": -3.215,
+      "p_value": 4.999750012499375e-05,
+      "n": 200,
+      "zero_fraction": 0.08,
+      "holm_p": 0.000999950002499875
+    },
+    {
+      "cell_id": "moderation-003",
+      "metric": "completion_rate",
+      "mean_difference": -0.0028385416666666698,
+      "p_value": 0.0012999350032498376,
+      "n": 200,
+      "zero_fraction": 0.205,
+      "holm_p": 0.009099545022748862
+    },
+    {
+      "cell_id": "moderation-003",
+      "metric": "total_writes",
+      "mean_difference": -3.13,
+      "p_value": 4.999750012499375e-05,
+      "n": 200,
+      "zero_fraction": 0.075,
+      "holm_p": 0.000999950002499875
+    },
+    {
+      "cell_id": "moderation-004",
+      "metric": "completion_rate",
+      "mean_difference": -0.0003125000000000033,
+      "p_value": 0.6706664666766662,
+      "n": 200,
+      "zero_fraction": 0.295,
+      "holm_p": 1.0
+    },
+    {
+      "cell_id": "moderation-004",
+      "metric": "total_writes",
+      "mean_difference": -1.5,
+      "p_value": 4.999750012499375e-05,
+      "n": 200,
+      "zero_fraction": 0.155,
+      "holm_p": 0.000999950002499875
+    },
+    {
+      "cell_id": "moderation-005",
+      "metric": "completion_rate",
+      "mean_difference": 0.0007291666666666657,
+      "p_value": 0.37378131093445327,
+      "n": 200,
+      "zero_fraction": 0.3,
+      "holm_p": 1.0
+    },
+    {
+      "cell_id": "moderation-005",
+      "metric": "total_writes",
+      "mean_difference": -1.37,
+      "p_value": 4.999750012499375e-05,
+      "n": 200,
+      "zero_fraction": 0.195,
+      "holm_p": 0.000999950002499875
+    },
+    {
+      "cell_id": "moderation-006",
+      "metric": "completion_rate",
+      "mean_difference": -0.016197916666666666,
+      "p_value": 4.999750012499375e-05,
+      "n": 200,
+      "zero_fraction": 0.075,
+      "holm_p": 0.000999950002499875
+    },
+    {
+      "cell_id": "moderation-006",
+      "metric": "total_writes",
+      "mean_difference": -17.805,
+      "p_value": 4.999750012499375e-05,
+      "n": 200,
+      "zero_fraction": 0.0,
+      "holm_p": 0.000999950002499875
+    },
+    {
+      "cell_id": "moderation-007",
+      "metric": "completion_rate",
+      "mean_difference": -0.015755208333333333,
+      "p_value": 4.999750012499375e-05,
+      "n": 200,
+      "zero_fraction": 0.085,
+      "holm_p": 0.000999950002499875
+    },
+    {
+      "cell_id": "moderation-007",
+      "metric": "total_writes",
+      "mean_difference": -17.325,
+      "p_value": 4.999750012499375e-05,
+      "n": 200,
+      "zero_fraction": 0.0,
+      "holm_p": 0.000999950002499875
+    },
+    {
+      "cell_id": "moderation-008",
+      "metric": "completion_rate",
+      "mean_difference": -0.05106770833333333,
+      "p_value": 4.999750012499375e-05,
+      "n": 200,
+      "zero_fraction": 0.005,
+      "holm_p": 0.000999950002499875
+    },
+    {
+      "cell_id": "moderation-008",
+      "metric": "total_writes",
+      "mean_difference": -49.355,
+      "p_value": 4.999750012499375e-05,
+      "n": 200,
+      "zero_fraction": 0.0,
+      "holm_p": 0.000999950002499875
+    },
+    {
+      "cell_id": "moderation-009",
+      "metric": "completion_rate",
+      "mean_difference": -0.050078125,
+      "p_value": 4.999750012499375e-05,
+      "n": 200,
+      "zero_fraction": 0.0,
+      "holm_p": 0.000999950002499875
+    },
+    {
+      "cell_id": "moderation-009",
+      "metric": "total_writes",
+      "mean_difference": -49.355,
+      "p_value": 4.999750012499375e-05,
+      "n": 200,
+      "zero_fraction": 0.0,
+      "holm_p": 0.000999950002499875
+    }
+  ]
+}

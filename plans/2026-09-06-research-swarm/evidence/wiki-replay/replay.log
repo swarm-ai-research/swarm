@@ -1,0 +1,4 @@
+Replay command exit: 0
+Pairs: 6
+Elapsed: 0.1690565417520702 seconds
+Initial exact non-timing comparison: FAILED AssertionError. Full recursive differences saved to comparison.json; no retry or new seeds.

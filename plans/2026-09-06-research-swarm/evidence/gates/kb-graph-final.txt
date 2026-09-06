@@ -1,0 +1,53 @@
+KB graph: 432 nodes, 1481 edges, 149 orphans, 0 stale refs
+By kind: agent=6, code=7, command=56, doc=233, role=5, scenario=125
+Artifacts included: False
+
+Most central pages (PageRank):
+  0.0268  [doc] research/theory.md
+  0.0253  [doc] concepts/governance.md
+  0.0225  [doc] concepts/metrics.md
+  0.0177  [doc] tutorials/understanding-soft-labels.md
+  0.0174  [doc] getting-started/first-scenario.md
+  0.0169  [doc] blog/soft-vs-binary-detection.md
+  0.0169  [doc] concepts/soft-labels.md
+  0.0151  [doc] notes/detection_soft_ceiling_caveat.md
+  0.0146  [doc] guides/parameter-sweeps.md
+  0.0141  [doc] research/calibration-prereg.md
+
+First 30 orphans (no inbound):
+  [agent/agents] agent/adversary_designer  (out:2)
+  [agent/agents] agent/auditor  (out:7)
+  [agent/agents] agent/mechanism_designer  (out:3)
+  [agent/agents] agent/reproducibility_sheriff  (out:3)
+  [agent/agents] agent/research_scout  (out:0)
+  [agent/agents] agent/scenario_architect  (out:2)
+  [command/commands] cmd/address_review  (out:0)
+  [command/commands] cmd/audit_docs  (out:0)
+  [command/commands] cmd/audit_fix  (out:0)
+  [command/commands] cmd/build_game  (out:1)
+  [command/commands] cmd/check_ignore  (out:0)
+  [command/commands] cmd/cherry_pick_pr  (out:0)
+  [command/commands] cmd/compare_studies  (out:0)
+  [command/commands] cmd/fix_ci  (out:2)
+  [command/commands] cmd/guard  (out:4)
+  [command/commands] cmd/last30days  (out:0)
+  [command/commands] cmd/lint_fix  (out:1)
+  [command/commands] cmd/load_keys  (out:0)
+  [command/commands] cmd/log_run  (out:1)
+  [command/commands] cmd/obsidian  (out:0)
+  [command/commands] cmd/publish_figures  (out:1)
+  [command/commands] cmd/retro  (out:0)
+  [command/commands] cmd/scrub_id  (out:1)
+  [command/commands] cmd/security_review  (out:1)
+  [command/commands] cmd/submit_to_list  (out:2)
+  [command/commands] cmd/tmux  (out:2)
+  [doc/analysis] analysis/metaclaw_integration_scout.md  (out:0)
+  [doc/api] api/index.md  (out:4)
+  [doc/blog] blog/evo-game-gamescape-prisoners-dilemma.md  (out:1)
+  [doc/blog] blog/qwen3-30b-v2-training-results.md  (out:3)
+
+Good news: 1 baseline orphans now have inbound links:
+  + cmd/claim
+  -> consider `--update-baseline` to ratchet the budget down.
+
+No new orphans or stale refs vs baseline. ✓

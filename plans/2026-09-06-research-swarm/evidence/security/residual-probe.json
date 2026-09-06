@@ -1,0 +1,8 @@
+{
+  "bound_foreign_context": false,
+  "first_registered": true,
+  "identical_replay_registered": true,
+  "different_payload_reuse_registered": false,
+  "different_payload_reuse_default": true,
+  "unbound_default_with_context": true
+}

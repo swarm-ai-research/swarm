@@ -1,0 +1,24 @@
+{
+  "purpose": "Post-execution evidence integrity; not pre-run preregistration proof",
+  "sha256": {
+    "evidence/calibration/CODE_REVIEW.md": "3ab9ad1af1fc4c0c781a7c51a7cf21f9bac7f8497a9ec1ca2f8e63e483032510",
+    "evidence/calibration/INVENTORY.md": "2db8948b49d3c8c759bf6c060ed00760ecbab005244bc0834ae42a1431967338",
+    "evidence/calibration/final-code-review-tests.txt": "ba831a6b778d4f8442c9d8b394af536e174543d1116a2cf91c4e36cfca350da3",
+    "evidence/calibration/holm_analysis.csv": "03392c8543637959b4a18f4df38da18f28685fa8c5aa26aa092e397e0bae2fc8",
+    "evidence/calibration/holm_analysis.json": "a26ec88861f8b95979658d9516e7f9f56d782b8c4a2d717b09091e0305eab9d3",
+    "evidence/calibration/inventory.json": "4a8faf7ac7381c103bcd961a0b8bc9f8b76c048dbe70db5692a8aa79c8acd6e7",
+    "evidence/gates/calibration-mypy.txt": "5d4b6d285b77932e3d08212c3b4974d0a803f98ec60408ac6ccf6a063fa6c19e",
+    "evidence/gates/calibration-tests.txt": "952ced3fe975f9058cdbe200763b7f46869217ecf549e7bb1f09c0637d68fd03",
+    "evidence/gates/kb-graph-final.txt": "e9f91b01b8c224306d41596569ba76a7f2f3fa949f1b4af57e1e36aff969ae1b",
+    "evidence/index-and-plan-review.md": "5fe35bbe1df68977334bd859c0743e7cb530fea3070646243efd43cc9b35e408",
+    "evidence/security/AUDIT.md": "cf69bec01ca689e770f6612e67126dd4ed29f8923ca7d858e749ee793d5b0fd3",
+    "evidence/security/qkzc-env-xdist.log": "577d88384791e9dd928632484efc0473a8f0d73790c9831818aac848ddf03087",
+    "evidence/security/regressions.log": "ade84a42b9f37b32bebeddbc75428aa0137c9ed2feb7c4144369b39660042a99",
+    "evidence/security/residual-probe.json": "db18ee18e68e55e3743ca8ee4236017cf39c2f81bb21586e3598d63f7bfeb0fb",
+    "evidence/security/residual_probe.py": "31bd2bacdedf5db3ddbc1bed1052de9f9bbcd1c24eb4d557fec2eef296ca78cc",
+    "evidence/wiki-replay/REPORT.md": "70cb7f7276c11d189d4d527cc0847b995d6270dd49e4404005368d6af51e0cc2",
+    "evidence/wiki-replay/comparison.json": "62839cd6860e0cf277f76f95e9ab4240920a29a0de05e09b2c40382ce9f7a051",
+    "evidence/wiki-replay/replay.log": "310816549236b8e538e46402324a42ccced44fb6e676f45b362b266ccef9939b",
+    "evidence/wiki-replay/tests.log": "27497c848a88e2045cad107394e3d651a2cd9735d0e7635e5c6d8f0dc2138bc3"
+  }
+}

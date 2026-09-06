@@ -1,0 +1,11 @@
+bringing up nodes...
+bringing up nodes...
+
+.                                                                        [100%]
+=============================== warnings summary ===============================
+tests/test_agentgit_review.py::test_cli_attest_review_folds_panel_into_signed_bundle
+  /opt/anaconda3/lib/python3.13/site-packages/pydantic/main.py:250: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1 passed, 1 warning in 2.10s

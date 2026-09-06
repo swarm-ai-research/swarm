@@ -1,0 +1,143 @@
+{
+  "wiki_mc_pilot_all": {
+    "pairs": 720,
+    "cells": 24,
+    "seeds_per_cell": {
+      "detection-018": 30,
+      "detection-019": 30,
+      "detection-020": 30,
+      "detection-021": 30,
+      "detection-022": 30,
+      "detection-023": 30,
+      "emergence-000": 30,
+      "emergence-001": 30,
+      "emergence-002": 30,
+      "emergence-003": 30,
+      "emergence-004": 30,
+      "emergence-005": 30,
+      "emergence-006": 30,
+      "emergence-007": 30,
+      "moderation-008": 30,
+      "moderation-009": 30,
+      "moderation-010": 30,
+      "moderation-011": 30,
+      "moderation-012": 30,
+      "moderation-013": 30,
+      "moderation-014": 30,
+      "moderation-015": 30,
+      "moderation-016": 30,
+      "moderation-017": 30
+    },
+    "manifest_seed_matches": true,
+    "seed_range": [
+      0,
+      29
+    ],
+    "pair_seed_mismatches": [],
+    "manifest_sha256": "174c30b14dbde7fb832e191e30be923d61ae2dfde12ebc10b869eff269e7dd9f",
+    "manifest_keys": [
+      "schema_version",
+      "phase",
+      "seeds",
+      "cells",
+      "base_config",
+      "smoke",
+      "detector",
+      "interval",
+      "pairing",
+      "elapsed_seconds",
+      "completed_pairs"
+    ]
+  },
+  "wiki_mc_confirm_detection": {
+    "pairs": 1200,
+    "cells": 6,
+    "seeds_per_cell": {
+      "detection-000": 200,
+      "detection-001": 200,
+      "detection-002": 200,
+      "detection-003": 200,
+      "detection-004": 200,
+      "detection-005": 200
+    },
+    "manifest_seed_matches": true,
+    "seed_range": [
+      10000,
+      10199
+    ],
+    "pair_seed_mismatches": [],
+    "manifest_sha256": "f1874e5358114950a5465b4e11c668389c2ab6eed6ebf85993c951f9e04c4155",
+    "manifest_keys": [
+      "schema_version",
+      "phase",
+      "seeds",
+      "cells",
+      "base_config",
+      "smoke",
+      "detector",
+      "interval",
+      "pairing",
+      "elapsed_seconds",
+      "completed_pairs"
+    ]
+  },
+  "wiki_mc_confirm_moderation": {
+    "pairs": 2000,
+    "cells": 10,
+    "seeds_per_cell": {
+      "moderation-000": 200,
+      "moderation-001": 200,
+      "moderation-002": 200,
+      "moderation-003": 200,
+      "moderation-004": 200,
+      "moderation-005": 200,
+      "moderation-006": 200,
+      "moderation-007": 200,
+      "moderation-008": 200,
+      "moderation-009": 200
+    },
+    "manifest_seed_matches": true,
+    "seed_range": [
+      10000,
+      10199
+    ],
+    "pair_seed_mismatches": [],
+    "manifest_sha256": "3017122f5157ce2836573d1aa0e44d864fb214615104066cabca9b1b279fed74",
+    "manifest_keys": [
+      "schema_version",
+      "phase",
+      "seeds",
+      "cells",
+      "base_config",
+      "smoke",
+      "detector",
+      "interval",
+      "pairing",
+      "elapsed_seconds",
+      "completed_pairs"
+    ]
+  },
+  "authorized_prohibited_identical_metric_pairs": {
+    "002 vs 004": 0,
+    "003 vs 005": 0
+  },
+  "rubric_sha256": {
+    "rubric_v1.md": "254a10e42f42a8d9b0288654260fa7c8d1866b9320effee64d0082852742390a",
+    "rubric_v3.md": "50ef407852f27a6e72b67418930ae336ca48203bc602b7dd3d7c62959a51eae2",
+    "rubric_v2.md": "25af1f4eccfadcee7ada666687bf09c875e3a3676a4a503e9b6401fecc8eb5e5"
+  },
+  "authorized_prohibited_behavior_comparison": {
+    "002 vs 004": {
+      "pairs_equal_except_permission_metric": 200,
+      "differing_metrics": [
+        "unauthorized_submission_rate"
+      ]
+    },
+    "003 vs 005": {
+      "pairs_equal_except_permission_metric": 200,
+      "differing_metrics": [
+        "unauthorized_submission_rate"
+      ]
+    }
+  }
+}

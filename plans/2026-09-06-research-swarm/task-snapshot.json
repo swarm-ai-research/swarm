@@ -1,0 +1,1261 @@
+{
+  "snapshot_date": "2026-09-06",
+  "local_head": "7dcb672b",
+  "source": "bd list --status all --limit 0 --json",
+  "scope": "Live issues only; descriptions and graph are not independently verified completion evidence.",
+  "issues": [
+    {
+      "id": "distributional-agi-safety-xwhu",
+      "title": "kb-graph-check red on main since f2bbd700: two orphan research pages",
+      "status": "open",
+      "priority": 1,
+      "issue_type": "bug"
+    },
+    {
+      "id": "distributional-agi-safety-zsof",
+      "title": "DelegationLink signatures are unbound bearer credentials (no nonce or context binding)",
+      "status": "open",
+      "priority": 1,
+      "issue_type": "bug"
+    },
+    {
+      "id": "distributional-agi-safety-jxyi",
+      "title": "Receipt signing uses a shared HMAC secret: any verifier can forge any agent_id",
+      "status": "open",
+      "priority": 1,
+      "issue_type": "bug"
+    },
+    {
+      "id": "distributional-agi-safety-zxkw",
+      "title": "Staking bridge: validate min-stake deterrence law against the real StakingLever end-to-end",
+      "status": "in_progress",
+      "priority": 1,
+      "issue_type": "feature"
+    },
+    {
+      "id": "distributional-agi-safety-7bwz",
+      "title": "Attacker-economics model: when does decomposition cost deter within a false-positive budget (staking connection)",
+      "status": "in_progress",
+      "priority": 1,
+      "issue_type": "feature"
+    },
+    {
+      "id": "distributional-agi-safety-njvs",
+      "title": "Adversarial validation: decomposition ladder \u2014 adaptive attacker defeats each aggregation level one rung up",
+      "status": "in_progress",
+      "priority": 1,
+      "issue_type": "task"
+    },
+    {
+      "id": "distributional-agi-safety-0pvm",
+      "title": "EPIC: Agent-first git infrastructure (agentgit beyond MVP)",
+      "status": "open",
+      "priority": 1,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-0pvm",
+          "depends_on_id": "distributional-agi-safety-7ge5",
+          "type": "blocks",
+          "created_at": "2026-05-27T20:58:07Z",
+          "created_by": "raelisavitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-0pvm",
+          "depends_on_id": "distributional-agi-safety-s17e",
+          "type": "blocks",
+          "created_at": "2026-05-27T20:58:08Z",
+          "created_by": "raelisavitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-0pvm",
+          "depends_on_id": "distributional-agi-safety-b61g",
+          "type": "blocks",
+          "created_at": "2026-05-27T20:58:07Z",
+          "created_by": "raelisavitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-0pvm",
+          "depends_on_id": "distributional-agi-safety-2m9z",
+          "type": "blocks",
+          "created_at": "2026-05-27T20:58:08Z",
+          "created_by": "raelisavitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-0pvm",
+          "depends_on_id": "distributional-agi-safety-8ll9",
+          "type": "blocks",
+          "created_at": "2026-05-27T20:58:07Z",
+          "created_by": "raelisavitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-0pvm",
+          "depends_on_id": "distributional-agi-safety-kugs",
+          "type": "blocks",
+          "created_at": "2026-05-27T20:58:07Z",
+          "created_by": "raelisavitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-0pvm",
+          "depends_on_id": "distributional-agi-safety-enqe",
+          "type": "blocks",
+          "created_at": "2026-05-27T20:58:07Z",
+          "created_by": "raelisavitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-0pvm",
+          "depends_on_id": "distributional-agi-safety-am5c",
+          "type": "blocks",
+          "created_at": "2026-05-27T20:58:07Z",
+          "created_by": "raelisavitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-0pvm",
+          "depends_on_id": "distributional-agi-safety-mjn4",
+          "type": "blocks",
+          "created_at": "2026-05-27T20:58:08Z",
+          "created_by": "raelisavitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-0pvm",
+          "depends_on_id": "distributional-agi-safety-n3tm",
+          "type": "blocks",
+          "created_at": "2026-05-27T20:58:07Z",
+          "created_by": "raelisavitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-3vrx",
+      "title": "Wiki scanner: persist reproducible run provenance and calibration fixtures",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "task"
+    },
+    {
+      "id": "distributional-agi-safety-dfxk",
+      "title": "Wiki census: qualify absence claims and document scanner versions",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "task"
+    },
+    {
+      "id": "distributional-agi-safety-10ta",
+      "title": "Wiki scanner: count engine edit rows instead of arbitrary timestamps",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "task"
+    },
+    {
+      "id": "distributional-agi-safety-vv3j.1",
+      "title": "Covert carrier: side writes hidden inside sanctioned traffic with a per-bit capacity cost",
+      "status": "in_progress",
+      "priority": 2,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-vv3j.1",
+          "depends_on_id": "distributional-agi-safety-vv3j",
+          "type": "parent-child",
+          "created_at": "2026-09-05T12:47:03Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-vv3j",
+      "title": "Covert channels: coordination the defender cannot read",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "epic"
+    },
+    {
+      "id": "distributional-agi-safety-illq.2",
+      "title": "Dispatch stamps carry a WardSet; /claim checks narrowing at claim time",
+      "status": "in_progress",
+      "priority": 2,
+      "issue_type": "task",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-illq.2",
+          "depends_on_id": "distributional-agi-safety-illq",
+          "type": "parent-child",
+          "created_at": "2026-09-04T21:54:53Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-illq.2",
+          "depends_on_id": "distributional-agi-safety-illq.1",
+          "type": "blocks",
+          "created_at": "2026-09-04T21:54:54Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-illq",
+      "title": "EPIC: Wards \u2014 structural authority bounds for dispatched agents (Cantrip lesson 1)",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "epic"
+    },
+    {
+      "id": "distributional-agi-safety-b4ef",
+      "title": "Add CI gate that builds and lints viz/ (currently zero npm coverage)",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "task"
+    },
+    {
+      "id": "distributional-agi-safety-0jxz",
+      "title": "Red-team attack: provenance_replay (extend AttackLibrary, do not add a module)",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-0jxz",
+          "depends_on_id": "distributional-agi-safety-iujo",
+          "type": "blocks",
+          "created_at": "2026-08-12T15:34:02Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-iujo",
+      "title": "Scenario: artifact replay as provenance-detached quality signal (adverse selection in an artifact market)",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-iujo",
+          "depends_on_id": "distributional-agi-safety-jxyi",
+          "type": "blocks",
+          "created_at": "2026-08-12T15:34:01Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-iujo",
+          "depends_on_id": "distributional-agi-safety-zsof",
+          "type": "blocks",
+          "created_at": "2026-08-12T15:34:01Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-vwj3",
+      "title": "Prevention vs detection: does a capability precondition resist the decomposition that zeroes out audit?",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "feature"
+    },
+    {
+      "id": "distributional-agi-safety-hpf3",
+      "title": "Propose-then-apply worktree execution: retained changesets reviewed before landing",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "feature"
+    },
+    {
+      "id": "distributional-agi-safety-qkzc",
+      "title": "test_cli_attest_review_folds_panel_into_signed_bundle fails when AGENTGIT_SIGNING_KEY is in the env",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "bug"
+    },
+    {
+      "id": "distributional-agi-safety-ebv1",
+      "title": "rubric_v4: add externalized reasoning scaffold + worked example (Apollo monitoring-prompt findings)",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "feature"
+    },
+    {
+      "id": "distributional-agi-safety-2qgp",
+      "title": "aevolve defender benchmark: flat fitness landscape \u2014 stake/audit/breaker/theta are dead levers, score mode blind to welfare",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "bug"
+    },
+    {
+      "id": "distributional-agi-safety-rrsf",
+      "title": "Verification aggregation rule as a governance lever (majority vs unanimous-drop)",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-rrsf",
+          "depends_on_id": "distributional-agi-safety-pcdq",
+          "type": "discovered-from",
+          "created_at": "2026-07-26T23:17:04Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-81sk",
+      "title": "Survivorship-gap metric: E[p|accepted] - E[p|attempted] dual reporting",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-81sk",
+          "depends_on_id": "distributional-agi-safety-mt8a",
+          "type": "blocks",
+          "created_at": "2026-07-22T22:13:42Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-mzrd",
+      "title": "Sweep tooling files beads edgeless (88% orphan influx) \u2014 add discovered-from default to pg-cleanup/joel-test skills",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "chore",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-mzrd",
+          "depends_on_id": "distributional-agi-safety-uusq",
+          "type": "discovered-from",
+          "created_at": "2026-07-19T10:42:31Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-urch",
+      "title": "Joel Test Q8: interruption-equivalent hazards \u2014 flaky mypy hook, shared session index",
+      "status": "in_progress",
+      "priority": 2,
+      "issue_type": "chore"
+    },
+    {
+      "id": "distributional-agi-safety-170j",
+      "title": "EvasionGapDetector: separate proxy-gaming from genuine quality gains",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-170j",
+          "depends_on_id": "distributional-agi-safety-h5bo",
+          "type": "blocks",
+          "created_at": "2026-07-18T18:01:11Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-h5bo",
+      "title": "Calibration arm D: freeze joined CSV schema for downstream studies",
+      "status": "in_progress",
+      "priority": 2,
+      "issue_type": "task",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-h5bo",
+          "depends_on_id": "distributional-agi-safety-k2yr",
+          "type": "blocks",
+          "created_at": "2026-06-01T21:07:55Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-h5bo",
+          "depends_on_id": "distributional-agi-safety-5bpg",
+          "type": "blocks",
+          "created_at": "2026-06-01T21:07:55Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-h5bo",
+          "depends_on_id": "distributional-agi-safety-p6bz",
+          "type": "blocks",
+          "created_at": "2026-06-01T21:07:55Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-p6bz",
+      "title": "Calibration arm C: inter-rater agreement (Krippendorff alpha + ICC)",
+      "status": "in_progress",
+      "priority": 2,
+      "issue_type": "task",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-p6bz",
+          "depends_on_id": "distributional-agi-safety-5bpg",
+          "type": "blocks",
+          "created_at": "2026-06-01T21:07:55Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-4e2s",
+      "title": "Calibration study: epic + pre-registration",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-4e2s",
+          "depends_on_id": "distributional-agi-safety-k2yr",
+          "type": "blocks",
+          "created_at": "2026-06-01T21:07:56Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-4e2s",
+          "depends_on_id": "distributional-agi-safety-h5bo",
+          "type": "blocks",
+          "created_at": "2026-06-01T21:07:56Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-4e2s",
+          "depends_on_id": "distributional-agi-safety-69lz",
+          "type": "blocks",
+          "created_at": "2026-07-18T18:01:11Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-4e2s",
+          "depends_on_id": "distributional-agi-safety-p6bz",
+          "type": "blocks",
+          "created_at": "2026-06-01T21:07:56Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-4e2s",
+          "depends_on_id": "distributional-agi-safety-eftp",
+          "type": "blocks",
+          "created_at": "2026-07-18T20:56:06Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-4e2s",
+          "depends_on_id": "distributional-agi-safety-naa8",
+          "type": "blocks",
+          "created_at": "2026-07-18T18:01:10Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-4e2s",
+          "depends_on_id": "distributional-agi-safety-5bpg",
+          "type": "blocks",
+          "created_at": "2026-06-01T21:07:56Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-5bpg",
+      "title": "Calibration arm B: external LLM-judge anchor",
+      "status": "in_progress",
+      "priority": 2,
+      "issue_type": "feature"
+    },
+    {
+      "id": "distributional-agi-safety-53rj",
+      "title": "Adaptive study arm 2: adaptive-generation RL (PRIMARY)",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-53rj",
+          "depends_on_id": "distributional-agi-safety-u4av",
+          "type": "blocks",
+          "created_at": "2026-06-01T21:03:56Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-lu3o",
+      "title": "Adaptive study arm 1: adaptive-acceptance condition",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-lu3o",
+          "depends_on_id": "distributional-agi-safety-u4av",
+          "type": "blocks",
+          "created_at": "2026-06-01T21:03:56Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-mcrn",
+      "title": "Adaptive study arm 3: fully-adaptive RL + evasion detection",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-mcrn",
+          "depends_on_id": "distributional-agi-safety-u4av",
+          "type": "blocks",
+          "created_at": "2026-06-01T21:03:56Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-mcrn",
+          "depends_on_id": "distributional-agi-safety-170j",
+          "type": "blocks",
+          "created_at": "2026-07-18T18:01:11Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-mcrn",
+          "depends_on_id": "distributional-agi-safety-53rj",
+          "type": "blocks",
+          "created_at": "2026-06-01T21:03:57Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-u4av",
+      "title": "Adaptive study arm 0: external-quality anchor (calibration dep)",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "task",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-u4av",
+          "depends_on_id": "distributional-agi-safety-h5bo",
+          "type": "blocks",
+          "created_at": "2026-06-01T21:07:56Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-xvb3",
+      "title": "Adaptive agents study: epic + pre-registration",
+      "status": "open",
+      "priority": 2,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-xvb3",
+          "depends_on_id": "distributional-agi-safety-gajd",
+          "type": "blocks",
+          "created_at": "2026-06-01T21:03:57Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-xvb3",
+          "depends_on_id": "distributional-agi-safety-mcrn",
+          "type": "blocks",
+          "created_at": "2026-06-01T21:03:57Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-xvb3",
+          "depends_on_id": "distributional-agi-safety-lu3o",
+          "type": "blocks",
+          "created_at": "2026-06-01T21:03:57Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-xvb3",
+          "depends_on_id": "distributional-agi-safety-53rj",
+          "type": "blocks",
+          "created_at": "2026-06-01T21:03:57Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-xvb3",
+          "depends_on_id": "distributional-agi-safety-u4av",
+          "type": "blocks",
+          "created_at": "2026-06-01T21:03:57Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-m6tu",
+      "title": "collusion.wiki export body_len is the placeholder length for 555/1013 ProbierWiki revisions",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "task",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-m6tu",
+          "depends_on_id": "distributional-agi-safety-xmtv",
+          "type": "discovered-from",
+          "created_at": "2026-09-05T22:33:42Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-vv3j.6",
+      "title": "Research note + ZZZ Pages follow-up: what survives when the messages are unreadable",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "task",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-vv3j.6",
+          "depends_on_id": "distributional-agi-safety-vv3j.3",
+          "type": "blocks",
+          "created_at": "2026-09-05T12:47:17Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-vv3j.6",
+          "depends_on_id": "distributional-agi-safety-vv3j",
+          "type": "parent-child",
+          "created_at": "2026-09-05T12:47:07Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-vv3j.6",
+          "depends_on_id": "distributional-agi-safety-vv3j.5",
+          "type": "blocks",
+          "created_at": "2026-09-05T12:47:18Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-vv3j.6",
+          "depends_on_id": "distributional-agi-safety-vv3j.4",
+          "type": "blocks",
+          "created_at": "2026-09-05T12:47:17Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-vv3j.4",
+      "title": "Sweep: is the payoff lever channel-agnostic? task overlap x carrier",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "task",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-vv3j.4",
+          "depends_on_id": "distributional-agi-safety-vv3j",
+          "type": "parent-child",
+          "created_at": "2026-09-05T12:47:05Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-vv3j.4",
+          "depends_on_id": "distributional-agi-safety-vv3j.1",
+          "type": "blocks",
+          "created_at": "2026-09-05T12:47:16Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-vv3j.3",
+      "title": "Sweep: how many bits does collusion need? capacity x carrier x defender view",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "task",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-vv3j.3",
+          "depends_on_id": "distributional-agi-safety-vv3j.2",
+          "type": "blocks",
+          "created_at": "2026-09-05T12:47:15Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-vv3j.3",
+          "depends_on_id": "distributional-agi-safety-vv3j",
+          "type": "parent-child",
+          "created_at": "2026-09-05T12:47:04Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-vv3j.3",
+          "depends_on_id": "distributional-agi-safety-vv3j.1",
+          "type": "blocks",
+          "created_at": "2026-09-05T12:47:15Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-illq.3",
+      "title": "Bind WardSet into DelegationLink signing payload",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "task",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-illq.3",
+          "depends_on_id": "distributional-agi-safety-zsof",
+          "type": "blocks",
+          "created_at": "2026-09-04T21:54:55Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-illq.3",
+          "depends_on_id": "distributional-agi-safety-illq.1",
+          "type": "blocks",
+          "created_at": "2026-09-04T21:54:54Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-illq.3",
+          "depends_on_id": "distributional-agi-safety-illq",
+          "type": "parent-child",
+          "created_at": "2026-09-04T21:54:54Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-y2t2",
+      "title": "graph_structural: hub-aware (bipartite) null for co-editing graphs",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "task"
+    },
+    {
+      "id": "distributional-agi-safety-l1d6",
+      "title": "Certainty adversary: audit whether proxy pins v_hat at \u00b11 and measure loss share from extreme p",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "task"
+    },
+    {
+      "id": "distributional-agi-safety-lbri",
+      "title": "viz keyboard shortcuts and deeper accessibility pass",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "task"
+    },
+    {
+      "id": "distributional-agi-safety-885m",
+      "title": "Refresh committed docs/game-app snapshot after viz mobile pass",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "task"
+    },
+    {
+      "id": "distributional-agi-safety-qjw9",
+      "title": "Streamlit dashboard (examples/demo/app.py) mobile/responsive pass",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "task"
+    },
+    {
+      "id": "distributional-agi-safety-1f2k",
+      "title": "External-validation writeup: reasoning-trace theft (arXiv:2608.09867 + Green) mapped to SWARM mechanisms",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "task"
+    },
+    {
+      "id": "distributional-agi-safety-vtee",
+      "title": "Channel-level observables (artifact size, response latency) alongside the five interaction-level signals",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "feature"
+    },
+    {
+      "id": "distributional-agi-safety-h6nt",
+      "title": "Blog: Semantica's confidence=1.0 default \u2014 binary labels in soft clothing",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "task"
+    },
+    {
+      "id": "distributional-agi-safety-1o1x",
+      "title": "Scenario: frontier migration under metric hill-climbing \u2014 measured vs true toxicity decoupling",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-1o1x",
+          "depends_on_id": "distributional-agi-safety-81sk",
+          "type": "blocks",
+          "created_at": "2026-08-08T15:23:43Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-4ly6",
+      "title": "Sweep: verification-difficulty gradient as primary axis for toxicity/quality-gap",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "task"
+    },
+    {
+      "id": "distributional-agi-safety-xf2c",
+      "title": "Scenario: costly-disclosure mechanism \u2014 make volunteering low-p components incentive-compatible",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "feature"
+    },
+    {
+      "id": "distributional-agi-safety-pj7y",
+      "title": "Scenario: endogenous verifier quality \u2014 reviewers drawn from worker population, correlated error",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "feature"
+    },
+    {
+      "id": "distributional-agi-safety-7prw",
+      "title": "Channel-vs-interaction monitoring divergence metric",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-7prw",
+          "depends_on_id": "distributional-agi-safety-vtee",
+          "type": "blocks",
+          "created_at": "2026-08-12T15:34:02Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-2avk",
+      "title": "Heterogeneous susceptibility + source density in memetic_spread",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "task"
+    },
+    {
+      "id": "distributional-agi-safety-cx83",
+      "title": "Claim-bond lever: stake the claim, not the agent (governance for disposable-agent knowledge bases)",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-cx83",
+          "depends_on_id": "distributional-agi-safety-sx6c",
+          "type": "blocks",
+          "created_at": "2026-08-06T22:33:50Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-sx6c",
+      "title": "KSI-shaped acceptance scenario: corroboration gate over disposable, unidentified agents",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-sx6c",
+          "depends_on_id": "distributional-agi-safety-a2il",
+          "type": "blocks",
+          "created_at": "2026-08-06T22:33:50Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-zj6b",
+      "title": "LLMJudge.rubric_version defaults to v1 (back-compat footgun) \u2014 audit call sites",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "bug"
+    },
+    {
+      "id": "distributional-agi-safety-f54g",
+      "title": "load_rubric: strip provenance/meta sections from prompt sent to model (~30% token cut)",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "task",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-f54g",
+          "depends_on_id": "distributional-agi-safety-ebv1",
+          "type": "blocks",
+          "created_at": "2026-07-27T21:09:23Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-stl4",
+      "title": "council ranking prompt: allow reasoning before ranking (drop 'Output ONLY the ranking')",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "task"
+    },
+    {
+      "id": "distributional-agi-safety-oa5h",
+      "title": "Claim-dependency contamination: falsification cascade through citations of accepted-unverified claims",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-oa5h",
+          "depends_on_id": "distributional-agi-safety-a2il",
+          "type": "blocks",
+          "created_at": "2026-07-26T23:50:07Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-u8x6",
+      "title": "Heterogeneous verification-cost claim economy: retrieval-cheap vs proof-expensive vs mechanically-checkable claim classes",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-u8x6",
+          "depends_on_id": "distributional-agi-safety-a2il",
+          "type": "blocks",
+          "created_at": "2026-07-26T23:50:06Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-48yr",
+      "title": "Corpus-level effective size: is there an N_eff for a knowledge base?",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-48yr",
+          "depends_on_id": "distributional-agi-safety-py2w",
+          "type": "discovered-from",
+          "created_at": "2026-07-26T22:29:08Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-q2fg",
+      "title": "Metric: trajectory-coverage \u2014 action-level vs trajectory-level check granularity (extends PCG family)",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-q2fg",
+          "depends_on_id": "distributional-agi-safety-e30l",
+          "type": "blocks",
+          "created_at": "2026-07-22T22:58:27Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-q2fg",
+          "depends_on_id": "distributional-agi-safety-mtht",
+          "type": "blocks",
+          "created_at": "2026-07-22T22:58:27Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-77ao",
+      "title": "Corroboration-weighted acceptance with collusion discount",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-77ao",
+          "depends_on_id": "distributional-agi-safety-a2il",
+          "type": "blocks",
+          "created_at": "2026-07-22T22:13:43Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-a2il",
+      "title": "Claim-ledger scenario: scarce verification budget, default-unverified claims",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "feature"
+    },
+    {
+      "id": "distributional-agi-safety-5kwp",
+      "title": "Stash inventory: 9 surviving stashes hold potentially-unlanded work \u2014 owner review",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "chore"
+    },
+    {
+      "id": "distributional-agi-safety-6x8p",
+      "title": "Miroshark: boot cleanup killpg can kill the fresh backend via pid recycling",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "bug"
+    },
+    {
+      "id": "distributional-agi-safety-g2zd",
+      "title": "Retire fixed policy constraints (allowed/denied paths, size caps, required_checks) in favor of conditional rules",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "task"
+    },
+    {
+      "id": "distributional-agi-safety-ja4u",
+      "title": "Joel Test Q6: research plan of record is 4+ months stale",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "chore"
+    },
+    {
+      "id": "distributional-agi-safety-36t6.1",
+      "title": "Miroshark-GTB: per-market event sourcing + projection-reducer",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "task",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-36t6.1",
+          "depends_on_id": "distributional-agi-safety-36t6",
+          "type": "parent-child",
+          "created_at": "2026-06-07T23:32:46Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-36t6.3",
+      "title": "Miroshark-GTB: CSS-selector persona->model routing for GTB agents",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "task",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-36t6.3",
+          "depends_on_id": "distributional-agi-safety-36t6",
+          "type": "parent-child",
+          "created_at": "2026-06-07T23:32:46Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-36t6",
+      "title": "EPIC: Adapt Fabro components into Miroshark-GTB",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "epic",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-36t6",
+          "depends_on_id": "distributional-agi-safety-u5fv",
+          "type": "blocked-by",
+          "created_at": "2026-06-07T23:32:30Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-36t6",
+          "depends_on_id": "distributional-agi-safety-u5fv.2",
+          "type": "blocks",
+          "created_at": "2026-07-18T18:01:11Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-gajd",
+      "title": "Adaptive study arm 4: LLM-feedback corroboration",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-gajd",
+          "depends_on_id": "distributional-agi-safety-53rj",
+          "type": "blocks",
+          "created_at": "2026-06-01T21:03:57Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-2m9z",
+      "title": "Human control plane: air-traffic-control UI for active agents, policies fired, blocked, needs-judgment",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-2m9z",
+          "depends_on_id": "distributional-agi-safety-b61g",
+          "type": "blocks",
+          "created_at": "2026-05-27T20:58:09Z",
+          "created_by": "raelisavitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-2m9z",
+          "depends_on_id": "distributional-agi-safety-kugs",
+          "type": "blocks",
+          "created_at": "2026-05-27T20:58:09Z",
+          "created_by": "raelisavitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-3o9l",
+      "title": "A-Evolve adversary track: evolved agents as adaptive attackers",
+      "status": "open",
+      "priority": 3,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-3o9l",
+          "depends_on_id": "distributional-agi-safety-2qgp",
+          "type": "blocks",
+          "created_at": "2026-07-26T23:39:39Z",
+          "created_by": "Raeli Savitt",
+          "metadata": "{}"
+        },
+        {
+          "issue_id": "distributional-agi-safety-3o9l",
+          "depends_on_id": "distributional-agi-safety-ni9b",
+          "type": "blocks",
+          "created_at": "2026-04-10T21:34:28Z",
+          "created_by": "raelisavitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-j6gs",
+      "title": "docs: restore ZZZ Pages cross-link in gossiping-swarms post once ZZZ post lands",
+      "status": "open",
+      "priority": 4,
+      "issue_type": "task"
+    },
+    {
+      "id": "distributional-agi-safety-xf50",
+      "title": "Miroshark: watch-page API calls (SSE + polling) blocked on internal-key-locked deployments",
+      "status": "open",
+      "priority": 4,
+      "issue_type": "task"
+    },
+    {
+      "id": "distributional-agi-safety-2thn",
+      "title": "Joel Test Q12: no usability pass on operator-facing surfaces",
+      "status": "open",
+      "priority": 4,
+      "issue_type": "chore"
+    },
+    {
+      "id": "distributional-agi-safety-se2m",
+      "title": "Bidirectional validation: SWARM governance levers inside SimWorld",
+      "status": "open",
+      "priority": 4,
+      "issue_type": "feature",
+      "dependencies": [
+        {
+          "issue_id": "distributional-agi-safety-se2m",
+          "depends_on_id": "distributional-agi-safety-bv3p",
+          "type": "blocks",
+          "created_at": "2026-03-15T23:44:23Z",
+          "created_by": "raelisavitt",
+          "metadata": "{}"
+        }
+      ]
+    },
+    {
+      "id": "distributional-agi-safety-bv3p",
+      "title": "Wrap SimWorld Case 2 as a swarm_gym environment",
+      "status": "open",
+      "priority": 4,
+      "issue_type": "feature"
+    }
+  ]
+}
