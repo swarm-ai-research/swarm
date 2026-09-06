@@ -181,11 +181,22 @@ def cmd_run(args: argparse.Namespace) -> int:
             agent_states = orchestrator.state.agents
             frozen = orchestrator.state.frozen_agents
             quarantined = getattr(orchestrator.state, 'quarantined_agents', set())
+            # Get memory handler snapshot if available
+            memory_snapshot = None
+            memory_handler = getattr(orchestrator, '_memory_handler', None)
+            if memory_handler and hasattr(memory_handler, 'epoch_snapshots'):
+                epoch_idx = epoch_metrics.epoch
+                if epoch_idx < len(memory_handler.epoch_snapshots):
+                    mem_snap = memory_handler.epoch_snapshots[epoch_idx]
+                    memory_snapshot = {
+                        "followup_side_write_fraction": mem_snap.get("followup_side_write_fraction", 0.0)
+                    }
             aggregator.finalize_epoch(
                 epoch=epoch_metrics.epoch,
                 agent_states=agent_states,
                 frozen_agents=frozen,
                 quarantined_agents=quarantined,
+                memory_snapshot=memory_snapshot,
             )
 
         orchestrator.on_epoch_end(_on_epoch_end)

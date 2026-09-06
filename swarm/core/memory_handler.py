@@ -20,6 +20,7 @@ from swarm.models.interaction import SoftInteraction
 
 SIDE_TEARDOWN_POLICIES = ("complete", "ordered", "random")
 SIDE_ROUTINGS = ("fixed", "overlap")
+SIDE_ROUND_STRUCTURES = ("uniform", "fast_follow")
 
 
 @dataclass
@@ -120,6 +121,23 @@ class MemoryTierConfig(BaseModel):
     side_deadline_pressure: float = 1.0
     side_value_alpha: float = 0.3
     side_value_prior: float = 0.5
+    # 4.5 Round structure. side_deadline_pressure alone is a constant, but
+    # the incident's fast-follow-question-bench episodes were not uniform in
+    # time: R1 carries the whole schema on a minutes-long deadline, then each
+    # follow-up is "Now, do the same for X." on a seconds-long one
+    # (JD finding 04, ratio 10x-22x). A fresh lookup fits the first window and
+    # cannot fit the second, so the board is worthless on R1 and load-bearing
+    # on every round after it. uniform keeps the constant; fast_follow derives
+    # the pressure per round from the deadline the round actually carries.
+    # Rounds cycle with the step (round = step % side_rounds_per_episode), so
+    # an epoch of steps_per_epoch steps contains floor(steps_per_epoch /
+    # side_rounds_per_episode) complete episodes plus a partial final episode
+    # if steps_per_epoch is not divisible by side_rounds_per_episode.
+    side_round_structure: str = "uniform"
+    side_rounds_per_episode: int = 5
+    side_initial_deadline: float = 180.0  # task seconds on R1
+    side_followup_deadline: float = 12.0  # task seconds on R2..RN
+    side_research_cost: float = 45.0  # task seconds for one fresh lookup
     # Population-level substrate monitor (bead vv3j.8): the defender-side
     # burst rule applied to per-host write counts summed over all hosts, and
     # to each host alone, so the snapshot can compare "watch the host you
@@ -180,6 +198,19 @@ class MemoryTierConfig(BaseModel):
             )
         if self.side_routing not in SIDE_ROUTINGS:
             raise ValueError(f"side_routing must be one of {SIDE_ROUTINGS}")
+        if self.side_round_structure not in SIDE_ROUND_STRUCTURES:
+            raise ValueError(
+                f"side_round_structure must be one of {SIDE_ROUND_STRUCTURES}"
+            )
+        if self.side_rounds_per_episode < 1:
+            raise ValueError("side_rounds_per_episode must be >= 1")
+        for seconds_field in (
+            "side_initial_deadline",
+            "side_followup_deadline",
+            "side_research_cost",
+        ):
+            if getattr(self, seconds_field) < 0.0:
+                raise ValueError(f"{seconds_field} must be non-negative")
         if self.cache_ranking not in MemoryStore.VALID_RANKINGS:
             raise ValueError(
                 f"cache_ranking must be one of {MemoryStore.VALID_RANKINGS}"
@@ -246,6 +277,8 @@ class MemoryHandler(Handler):
         self.side_value: Dict[str, float] = {}
         self.agent_task: Dict[str, int] = {}
         self._side_writes_this_epoch: int = 0
+        # Board writes made under a follow-up deadline (fast_follow only).
+        self._followup_side_writes_this_epoch: int = 0
         self._sanctioned_writes_this_epoch: int = 0
         self.side_write_count: int = 0
         # Per-epoch per-host side-write counts, in side_hosts order, one row
@@ -313,6 +346,7 @@ class MemoryHandler(Handler):
             self._update_contagion(state)
 
         side_writes_last_epoch = self._side_writes_this_epoch
+        followup_side_writes_last_epoch = self._followup_side_writes_this_epoch
         sanctioned_writes_last_epoch = self._sanctioned_writes_this_epoch
         teardown = False
         if self.side_hosts:
@@ -344,8 +378,10 @@ class MemoryHandler(Handler):
             side_teardown=teardown,
             side_writes_last_epoch=side_writes_last_epoch,
             sanctioned_writes_last_epoch=sanctioned_writes_last_epoch,
+            followup_side_writes_last_epoch=followup_side_writes_last_epoch,
         )
         self._side_writes_this_epoch = 0
+        self._followup_side_writes_this_epoch = 0
         self._sanctioned_writes_this_epoch = 0
         self._emit_event(
             Event(
@@ -544,7 +580,44 @@ class MemoryHandler(Handler):
         for agent_id in sorted(state.agents):
             self.agent_task[agent_id] = self._rng.randrange(n_tasks)
 
-    def _side_route_probability(self, agent_id: str, host: SideHost) -> float:
+    def _round_index(self, state: EnvState) -> int:
+        """Round position inside the current fast-follow episode.
+
+        Rounds cycle with the step (round = step % side_rounds_per_episode).
+        An epoch of ``steps_per_epoch`` steps contains
+        floor(steps_per_epoch / side_rounds_per_episode) complete episodes
+        plus a partial final episode if not evenly divisible.
+        Round 0 is ``R1``, the round that carries the full schema.
+        """
+        return state.current_step % self.config.side_rounds_per_episode
+
+    def _round_pressure(self, state: EnvState) -> float:
+        """Deadline pressure for the round this step sits in.
+
+        Under ``uniform`` the pressure is the configured constant, which is
+        what every scenario written before the round structure existed gets.
+        Under ``fast_follow`` it is the share of a fresh lookup that the
+        round's own deadline cannot cover: ``R1``'s minutes-long window pays
+        for the lookup outright (pressure 0, the board is worthless), while a
+        seconds-long follow-up window covers only a fraction of it and the
+        rest has to come from somewhere that is not the source.
+        """
+        base = self.config.side_deadline_pressure
+        if self.config.side_round_structure == "uniform":
+            return base
+        cost = self.config.side_research_cost
+        if cost <= 0.0:
+            return 0.0
+        deadline = (
+            self.config.side_initial_deadline
+            if self._round_index(state) == 0
+            else self.config.side_followup_deadline
+        )
+        return base * min(1.0, max(0.0, 1.0 - deadline / cost))
+
+    def _side_route_probability(
+        self, agent_id: str, host: SideHost, state: EnvState
+    ) -> float:
         """P(this write goes to the board) under the configured routing."""
         if self.config.side_routing == "fixed":
             return self.config.side_write_preference
@@ -559,7 +632,7 @@ class MemoryHandler(Handler):
         prev = self.side_value.get(agent_id, self.config.side_value_prior)
         value = (1 - alpha) * prev + alpha * hit
         self.side_value[agent_id] = value
-        return self.config.side_deadline_pressure * value
+        return self._round_pressure(state) * value
 
     def _reset_store(self) -> None:
         """Wipe and re-seed the store. Infection state deliberately survives."""
@@ -579,6 +652,7 @@ class MemoryHandler(Handler):
         side_teardown: bool = False,
         side_writes_last_epoch: int = 0,
         sanctioned_writes_last_epoch: int = 0,
+        followup_side_writes_last_epoch: int = 0,
     ) -> None:
         from swarm.metrics.memory_metrics import (
             cache_corruption,
@@ -640,6 +714,15 @@ class MemoryHandler(Handler):
                 # adverse selection over substrates.
                 "substrate_gap": chosen_attention - population_attention,
                 "mean_side_value": sum(values) / len(values) if values else 0.0,
+                "side_round_structure": self.config.side_round_structure,
+                # Share of board traffic written under a follow-up
+                # deadline. Under fast_follow this is where the channel
+                # earns its keep; 0.0 under uniform, which never counts.
+                "followup_side_write_fraction": (
+                    followup_side_writes_last_epoch / side_writes_last_epoch
+                    if side_writes_last_epoch
+                    else 0.0
+                ),
                 # Discovered agents per host, in side_hosts order.
                 "side_host_users": [
                     sum(1 for h in used if h.index == host.index)
@@ -752,7 +835,8 @@ class MemoryHandler(Handler):
         # preference knob IS the agent policy, so agent code stays unchanged.
         host = self._host_of(action.agent_id)
         if host is not None and host.active and (
-            self._rng.random() < self._side_route_probability(action.agent_id, host)
+            self._rng.random()
+            < self._side_route_probability(action.agent_id, host, state)
         ):
             return self._handle_side_write(
                 action, state, host, quality, is_poisoned, contagion_poisoned
@@ -838,6 +922,11 @@ class MemoryHandler(Handler):
             host.tasks[entry.entry_id] = self.agent_task[action.agent_id]
         host.writes_this_epoch += 1
         self._side_writes_this_epoch += 1
+        if (
+            self.config.side_round_structure == "fast_follow"
+            and self._round_index(state) > 0
+        ):
+            self._followup_side_writes_this_epoch += 1
         self.side_write_count += 1
         if is_poisoned:
             self.side_poisoned_write_count += 1

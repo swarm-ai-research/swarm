@@ -285,3 +285,15 @@ python scripts/sweep_side_channel.py --seeds 10 --detections 0.05 --prefs 0.7 --
   --axis-json 'side_host_attention=[[0.065],[0.0,0.01,0.05,0.2],[0.0,0.0,0.01,0.01,0.05,0.05,0.2,0.2]]'  # D
 python -m pytest tests/test_wiki_board.py tests/test_side_channel.py -v            # mechanism tests
 ```
+
+---
+
+## Follow-up: the deadline is not a constant
+
+[Deadline Asymmetry Inside the Episode](fast-follow-round-structure.md) (bead
+`pi02.5`) adds a fifth correction to this model. `side_deadline_pressure` above
+is a constant, but the incident's fast-follow episodes paired a minutes-long R1
+deadline with a seconds-long follow-up deadline (10x-22x), so the board's payoff
+is zero on R1 and near-total afterwards. Modelling the round structure halves
+the ungoverned fraction this note reports and moves all of it into the
+follow-up rounds.

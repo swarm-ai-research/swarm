@@ -1,0 +1,121 @@
+# Fast-Follow Board: deadline asymmetry inside the episode (bead pi02 follow-up)
+#
+# Extends scenarios/wiki_board.yaml (bead pi02) with the fifth correction, the
+# one the fast-follow-question-bench recreation
+# (https://github.com/AI-Safety-Commons/oai-rlvr-task-recreations) models in
+# its scaffold and SWARM's board model did not: the payoff for using the board
+# is not constant in time.
+#
+# Joshua David's finding 04 (WikiAgentSwarmInvestigation/tasks/
+# fast-follow-question-bench/findings/04-deadline-asymmetry.md) pairs a
+# generous R1 deadline (2m56-19m11 across families) with a tight follow-up
+# deadline (11-68s), a 10x-22x ratio. One fresh lookup fits the first window
+# and cannot fit the second. So on R1 the board is worthless — you can just go
+# and read the source — and on every round after it the board is the only
+# thing that answers in time. That is the shape wiki_board.yaml's constant
+# side_deadline_pressure averages away.
+#
+# The recreation's default profile is the tightest observed family (Cashiers
+# bachelor, 3m0s / 11s); this scenario uses its 180s / 12s pair with a 45s
+# lookup cost, so R1 pressure is 0 and follow-up pressure is 1 - 12/45 = 0.733.
+#
+# What to look at: followup_side_write_fraction in the epoch snapshots. Under
+# side_round_structure: uniform the channel's traffic is flat across the
+# episode; under fast_follow it should concentrate in R2..R5. Compare against
+# scenarios/wiki_board.yaml (identical roster and substrate) with
+#   python -m swarm run scenarios/fast_follow_board.yaml --seed 42
+#
+# Reproduce: scenario YAML + seed + exported history/CSVs.
+
+scenario_id: fast_follow_board
+description: "Covert answer board under fast-follow deadline asymmetry: R1 is affordable, follow-ups are not"
+motif: side_channel
+
+agents:
+  - type: diligent_recorder
+    count: 6
+  - type: memory_poisoner
+    count: 2
+  - type: collusive_verifier
+    count: 1
+    config:
+      partner_id: memory_poisoner_1
+  - type: cache_gamer
+    count: 1
+
+memory_tiers:
+  enabled: true
+  initial_entries: 40
+  hot_cache_size: 20
+  compaction_probability: 0.05
+  seed: 42
+  contagion_enabled: true
+  contagion_exposure_alpha: 0.25
+  contagion_transmissibility: 0.8
+  reset_cadence_epochs: 0
+  cache_ranking: quality
+
+  # k5o9 side channel, unchanged from wiki_board.yaml
+  side_channel_enabled: true
+  side_discovery_rate: 0.05
+  side_referral_boost: 0.3
+  side_write_preference: 0.7
+  side_detection_rate: 0.05
+  side_teardown_resets_discovery: false
+  side_rebuild_lag_epochs: 1
+  side_exposure_weight: 0.5
+
+  # pi02 substrates, unchanged from wiki_board.yaml
+  side_host_attention: [0.0, 0.01, 0.05, 0.2]
+  side_defender_error: 0.0
+  side_teardown_policy: complete
+  side_teardown_fraction: 0.5
+  side_evasion_rate: 0.5
+
+  # 4.2 routing must be learned for the round structure to bite: the board's
+  # value is deadline pressure x how much of it answers your own task.
+  side_routing: overlap
+  side_task_overlap: 1.0
+  side_deadline_pressure: 1.0
+  side_value_alpha: 0.3
+  side_value_prior: 0.5
+
+  # 4.5 round structure (this scenario's lever)
+  side_round_structure: fast_follow
+  side_rounds_per_episode: 5
+  side_initial_deadline: 180.0
+  side_followup_deadline: 12.0
+  side_research_cost: 45.0
+
+governance:
+  memory_promotion_gate_enabled: false
+  memory_write_rate_limit_enabled: false
+  memory_cross_verification_enabled: false
+  memory_provenance_enabled: false
+  collusion_detection_enabled: false
+  audit_enabled: false
+
+simulation:
+  n_epochs: 40
+  steps_per_epoch: 10
+  seed: 42
+
+rate_limits:
+  posts_per_epoch: 10
+  interactions_per_step: 5
+  votes_per_epoch: 50
+
+payoff:
+  s_plus: 2.0
+  s_minus: 1.0
+  h: 2.0
+  theta: 0.5
+  rho_a: 0.1
+  rho_b: 0.1
+
+success_criteria:
+  min_epochs: 40
+  min_agents: 10
+
+outputs:
+  event_log: "logs/fast_follow_board_events.jsonl"

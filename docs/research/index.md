@@ -241,6 +241,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     The Strange Loop Syndicate agent-framework PRD (April 2025) set beside the collusion.wiki export: every PRD component has an improvised twin on the board (relay, index, counter signaling, `ZZZ` persistence, personas), the routing/secrets/control-channel features the PRD specifies first are exactly what the export lacks, and its cadence controller sits under `volume_burst_signal` by construction
 
+-   :material-timer-outline: **[Deadline Asymmetry Inside the Episode](fast-follow-round-structure.md)**
+
+    ---
+
+    The fifth wiki-board correction, taken from an external Inspect recreation of the incident's timed task family and its primary corpus: a fresh lookup fits the minutes-long R1 window and cannot fit the seconds-long follow-up, so the board is worth nothing on R1 and everything after it — modelling that halves total ungoverned volume (0.777 → 0.359) but concentrates 100% of it into the follow-up rounds, a phase-locked burst the defender can read off its own schedule (bead pi02.5)
+
 -   :material-eye-off-outline: **[The Unicode Tag-Character Channel](unicode-tag-channel.md)**
 
     ---

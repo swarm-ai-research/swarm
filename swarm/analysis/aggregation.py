@@ -99,6 +99,9 @@ class EpochSnapshot:
     avg_synergy_score: float = 0.0
     tasks_completed: int = 0
 
+    # Memory-side channel metrics (optional)
+    followup_side_write_fraction: float = 0.0
+
 
 @dataclass
 class SimulationHistory:
@@ -252,6 +255,7 @@ class MetricsAggregator:
         security_report: Optional[Any] = None,
         collusion_report: Optional[Any] = None,
         capability_metrics: Optional[Any] = None,
+        memory_snapshot: Optional[Dict[str, Any]] = None,
     ) -> EpochSnapshot:
         """
         Create a snapshot at the end of an epoch.
@@ -268,6 +272,7 @@ class MetricsAggregator:
             security_report: SecurityReport from security lever
             collusion_report: CollusionReport from collusion lever
             capability_metrics: EmergentCapabilityMetrics
+            memory_snapshot: Optional dict with memory handler metrics (e.g., followup_side_write_fraction)
 
         Returns:
             EpochSnapshot with all aggregated metrics
@@ -401,6 +406,12 @@ class MetricsAggregator:
                 capability_metrics, "avg_synergy_score", 0.0
             )
             snapshot.tasks_completed = getattr(capability_metrics, "tasks_completed", 0)
+
+        # Add memory-side channel metrics
+        if memory_snapshot:
+            snapshot.followup_side_write_fraction = memory_snapshot.get(
+                "followup_side_write_fraction", 0.0
+            )
 
         self._history.add_epoch_snapshot(snapshot)
 
