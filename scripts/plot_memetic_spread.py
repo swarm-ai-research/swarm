@@ -389,6 +389,9 @@ def plot_lockout(rows: list, series_rows: list, out_dir: Path) -> None:
         conv.append(float(r["converts"]))
 
     styles = ["-", "--", "-.", ":"]
+    # Faction cells take the palette minus red, which is reserved for the
+    # no-whistleblower cell.
+    faction_colors = ["#2a78d6", "#eb6834", "#1baf7a", "#4a3aa7", "#eda100"]
     fig, axes = plt.subplots(1, 2, figsize=(12, 4.2), sharey=True)
     fig.patch.set_facecolor(SURFACE)
     for ax, detection in zip(axes, ["off", "on"], strict=False):
@@ -409,7 +412,11 @@ def plot_lockout(rows: list, series_rows: list, out_dir: Path) -> None:
                 else f"{fraction:.0%} wb, warn {warning:g}, "
                 + ("reopen" if reopen else "no reopen")
             )
-            color = _wb_color(fraction) if fraction == 0.0 else None
+            color = (
+                _wb_color(0.0)
+                if fraction == 0.0
+                else faction_colors[i % len(faction_colors)]
+            )
             style = styles[i % len(styles)]
             (line,) = ax.plot(
                 epochs, closed, style, linewidth=2, color=color, label=label

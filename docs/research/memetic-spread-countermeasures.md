@@ -194,10 +194,12 @@ DeepMind's 100-agent Lean research swarm (Paglieri et al., 2026-09-03) is
 this experiment's field twin — an autograder exploit propagated through a
 shared knowledge library — with one ingredient the model above lacks: 24%
 of the population refused the exploit, audited the fakes, and warned peers
-with no human prompt. That faction is now a lever on `MemoryTierConfig`
-(`whistleblower_*`) and a `--whistleblowers` axis on the sweep script;
-results, and how it compares with the exogenous detection layer's 12%
-welfare tax, are in
+with no human prompt — and 5% of honest agents flipped to the exploit
+once fakes had closed the problems they were working on. Both are now
+levers on `MemoryTierConfig` (`whistleblower_*`, `lockout_*`) with
+`--whistleblowers` / `--lockout` axes on the sweep script; results, and
+how the faction compares with the exogenous detection layer's 12% welfare
+tax, are in
 [Research-Swarm Whistleblowing](research-swarm-whistleblowing.md).
 
 ## Artifacts

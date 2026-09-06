@@ -9,7 +9,8 @@ unfiled (`bd` is not available in this environment).
 **Runs:** `runs/20260906T013832Z_memetic_spread_sweep` (main grid),
 `runs/20260906T015959Z_memetic_spread_sweep` (boycott arm),
 `runs/20260906T020255Z_memetic_spread_sweep` (audit-rate sensitivity),
-LOCKOUT_RUN (lockout / converts).
+`runs/20260906T142558Z_memetic_spread_sweep` (lockout, 5 arrivals per
+epoch), `runs/20260906T142600Z_memetic_spread_sweep` (lockout, 15 per epoch).
 **Scenario:** `scenarios/memetic_spread.yaml` with the new `whistleblower_*`
 and `lockout_*` keys. Companion notes:
 [Memetic Spread Countermeasures](memetic-spread-countermeasures.md) (the
@@ -372,7 +373,82 @@ peak. Reverts per run barely move (18–19 vs 32 at rate 0.5) because a
 weak auditor catches the same entries later rather than fewer of them;
 what it loses is time, and the warning is what buys the time back.
 
-LOCKOUT_RESULTS
+**Lockout arms** (quality cache, no boycott, audit 0.5; "locked out" =
+share of writes that found no open problem, averaged over epochs;
+"pressure" = locked-out rate × fake share of closures; "converts" = peak
+number of the 7 susceptible agents with conversion ≥ 0.5; welfare without
+lockout is 3057 ungoverned and 2690 under detection).
+
+*Fast frontier — 5 new problems per epoch, fakes outrun it:*
+
+| det | wb share | warning | reopen | locked out | fake share | pressure | converts | reopened | peak inf (susc.) | welfare |
+|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|
+| off | 0 | – | – | 0.792 | 0.830 | 0.614 | **7.0** | 0 | 0.158 | 1611 |
+| off | 0.24 | 0 | off | 0.775 | 0.795 | 0.579 | 5.0 | 0 | 0.127 | 1709 |
+| off | 0.24 | 0.5 | off | 0.774 | 0.795 | 0.578 | 5.0 | 0 | 0.045 | 1728 |
+| off | 0.24 | 0 | on | 0.710 | 0.697 | 0.464 | 4.0 | 64 | 0.143 | 1898 |
+| off | 0.24 | 0.5 | on | 0.715 | 0.701 | 0.468 | 4.5 | 54 | 0.048 | 1882 |
+| on | 0 | – | – | 0.777 | 0.804 | 0.575 | 7.0 | 0 | 0.074 | 1294 |
+| on | 0.24 | 0.5 | off | 0.755 | 0.728 | 0.517 | 3.5 | 0 | 0.008 | 1433 |
+| on | 0.24 | 0.5 | on | 0.544 | 0.462 | 0.237 | **0.0** | 176 | 0.012 | 1808 |
+
+*Slow frontier — 15 new problems per epoch, it outruns the fakes:*
+
+| det | wb share | warning | reopen | locked out | fake share | pressure | converts | reopened | peak inf (susc.) | welfare |
+|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|
+| off | 0 | – | – | 0.416 | 0.803 | 0.326 | 0.7 | 0 | 0.307 | 2352 |
+| off | 0.24 | 0 | off | 0.353 | 0.726 | 0.249 | 0.0 | 0 | 0.173 | 2513 |
+| off | 0.24 | 0.5 | off | 0.343 | 0.717 | 0.240 | 0.0 | 0 | 0.052 | 2531 |
+| off | 0.24 | 0 | on | 0.020 | 0.488 | 0.010 | 0.0 | 294 | 0.176 | 3062 |
+| off | 0.24 | 0.5 | on | **0.017** | 0.480 | 0.008 | 0.0 | 286 | 0.052 | **3066** |
+| on | 0 | – | – | 0.360 | 0.735 | 0.251 | 0.0 | 0 | 0.075 | 2047 |
+| on | 0.24 | 0.5 | off | 0.311 | 0.688 | 0.210 | 0.0 | 0 | 0.007 | 2199 |
+| on | 0.24 | 0.5 | on | 0.004 | 0.383 | 0.001 | 0.0 | 367 | 0.008 | 2723 |
+
+![Lockout, fast frontier: locked-out rate and converts](figures/lockout-converts-arrivals5.png)
+
+![Lockout, slow frontier: locked-out rate and converts](figures/lockout-converts-arrivals15.png)
+
+**9. Converts are a race, not an exposure.** With 5 new problems per
+epoch the two poisoners' fakes take 83% of all closures, four writes in
+five find nothing open, and **every susceptible agent converts** (7 of
+7) — with no whistleblowers, whether or not the detection layer is on.
+With 15 per epoch the same poisoners take the same share of closures but
+honest work still finds an open problem most of the time (locked out
+0.42), and conversion never takes hold (peak 0.7 agents, 0 at run end).
+The paper's 5% converts is therefore a statement about how fast its
+fakes closed 71 problems relative to how fast honest agents could, not
+about how many agents read the recipe — which is why it is a separate
+cohort from the exploiters in the first place.
+
+**10. Warnings do nothing for converts.** In every lockout cell the
+warning cuts peak infection by 3× (0.127 → 0.045; 0.173 → 0.052) and
+leaves pressure and converts unchanged (0.579 vs 0.578; 5.0 vs 5.0).
+Conversion is payoff-driven; telling an agent the recipe is fraudulent
+does not give it back the problem the fraud closed. The half of the
+counter-response that dominated the no-lockout grid (finding 2) is the
+half that is useless here.
+
+**11. Reopening the problem is the lever, and it restores the whole
+economy when the frontier is fast enough.** On the slow frontier,
+whistleblowers whose reverts give the problem back take the locked-out
+rate from 0.35 to 0.017 and welfare from 2531 to 3066 — *above* the
+no-lockout ungoverned baseline (3057) and 14% above detection-only
+(2690), with zero converts. The same faction without reopen recovers
+none of that (2513–2531). On the fast frontier reopen recovers part of
+the welfare (1728 → 1882) but not the converts (5.0 → 4.5): the audit
+gives back ~60 problems per run against ~1,350 locked-out writes, and
+the race is lost anyway.
+
+**12. Only the audit-plus-gate hybrid zeroes converts under the fast
+frontier.** Detection on, two whistleblowers, reopen on: converts 0.0,
+pressure 0.24, welfare 1808 (against 1294 for detection alone, which,
+like the ungoverned baseline, converts everyone). The promotion gate
+slows the fakes' *promotion* so the whistleblowers' reverts reach more
+of them (176 reopened vs 54 without the gate); neither alone gets there.
+This is the division of labour from finding 5 again, now with the
+converts as the outcome: the gate buys the auditors time, the auditors
+give the honest agents their payoff back.
 
 ## 5. Limitations
 
