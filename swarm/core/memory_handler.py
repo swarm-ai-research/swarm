@@ -1364,12 +1364,9 @@ class MemoryHandler(Handler):
         # channel is up. Routing lives in the handler, not the agents: the
         # preference knob IS the agent policy, so agent code stays unchanged.
         host = self._host_of(action.agent_id)
-        if host is not None and host.active and (
+        route_side = host is not None and host.active and (
             self._rng.random()
             < self._side_route_probability(action.agent_id, host, state)
-        ):
-        route_side = host is not None and host.active and (
-            self._rng.random() < self._side_route_probability(action.agent_id, host)
         )
         if route_side and self.config.side_carrier == "overt":
             assert host is not None
