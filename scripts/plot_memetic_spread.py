@@ -224,17 +224,35 @@ def _wb_color(fraction: float) -> str:
     return WB_COLORS.get(fraction, "#52514e")
 
 
+def _whistleblower_cadence(rows: list) -> int:
+    """The single reset cadence the whistleblower and lockout plots read.
+
+    Reset cadence is a major intervention of its own, so these plots never
+    average across it: they take the no-reset cells when the sweep has
+    them, else the minimum cadence present, and name it in the title.
+    """
+    cadences = {int(r.get("reset_cadence", 0)) for r in rows}
+    return 0 if 0 in cadences else min(cadences)
+
+
 def plot_whistleblowers(rows: list, series_rows: list, out_dir: Path) -> None:
     """Infection trajectories and outcomes by whistleblower share.
 
     Produced only when the sweep carried more than one whistleblower share.
     Trajectories use the warning-on cells where available (the paper's
     faction both audited and alerted peers); the outcomes panel shows warning
-    off and on side by side. Boycott is held at its first value.
+    off and on side by side. Boycott is held at its minimum swept value and
+    reset cadence at the one chosen by ``_whistleblower_cadence``.
     """
     fractions = sorted({float(r["whistleblowers"]) for r in rows})
     if len(fractions) < 2:
         return
+    cadence = _whistleblower_cadence(rows)
+    rows = [r for r in rows if int(r.get("reset_cadence", 0)) == cadence]
+    series_rows = [
+        r for r in series_rows if int(r.get("reset_cadence", 0)) == cadence
+    ]
+    cadence_label = "no resets" if cadence == 0 else f"reset every {cadence}"
     rankings = sorted(
         {r.get("ranking", "quality") for r in rows},
         key=lambda x: ["quality", "recency", "engagement"].index(x),
@@ -255,7 +273,9 @@ def plot_whistleblowers(rows: list, series_rows: list, out_dir: Path) -> None:
         fraction = float(r["whistleblowers"])
         if float(r["wb_warning"]) != cell_warning(fraction):
             continue
-        key = (r.get("ranking", "quality"), r["detection"], fraction)
+        # Include reset_cadence in key to detect if rows with different cadences
+        # slip through (should not happen, but makes the bug obvious if it does).
+        key = (r.get("ranking", "quality"), r["detection"], int(r.get("reset_cadence", 0)), fraction)
         acc[key][int(r["epoch"])].append(float(r["susceptible_infection"]))
 
     fig, axes = plt.subplots(
@@ -294,7 +314,7 @@ def plot_whistleblowers(rows: list, series_rows: list, out_dir: Path) -> None:
     axes[0][0].legend(frameon=False, fontsize=9)
     fig.suptitle(
         f"Whistleblower faction vs exogenous detection "
-        f"(warning {traj_warning:g}, boycott {boycott:g})",
+        f"(warning {traj_warning:g}, boycott {boycott:g}, {cadence_label})",
         color=TEXT,
         fontsize=12,
     )
@@ -349,7 +369,9 @@ def plot_whistleblowers(rows: list, series_rows: list, out_dir: Path) -> None:
             style_axes(ax, f"{ranking} · {title}")
         axes[row][0].legend(frameon=False, fontsize=8)
     fig.suptitle(
-        "Whistleblower outcomes by share (seed means)", color=TEXT, fontsize=12
+        f"Whistleblower outcomes by share (seed means, {cadence_label})",
+        color=TEXT,
+        fontsize=12,
     )
     fig.tight_layout()
     fig.savefig(out_dir / "whistleblower_outcomes.png", dpi=150, facecolor=SURFACE)
@@ -362,11 +384,15 @@ def plot_lockout(rows: list, series_rows: list, out_dir: Path) -> None:
     Produced only when the sweep has lockout on. One panel per detection
     mode: the locked-out write rate (thick) and the number of converts
     (thin, right axis) over epochs, one colour per
-    (whistleblower share, warning, reopen) cell.
+    (whistleblower share, warning, reopen) cell, at the single reset
+    cadence chosen by ``_whistleblower_cadence``.
     """
     lock_rows = [r for r in series_rows if int(r.get("lockout", 0)) == 1]
     if not lock_rows:
         return
+    cadence = _whistleblower_cadence(lock_rows)
+    lock_rows = [r for r in lock_rows if int(r.get("reset_cadence", 0)) == cadence]
+    cadence_label = "no resets" if cadence == 0 else f"reset every {cadence}"
     cells = sorted(
         {
             (
@@ -433,7 +459,8 @@ def plot_lockout(rows: list, series_rows: list, out_dir: Path) -> None:
     axes[0].set_ylabel("share of writes with no open problem", color=MUTED, fontsize=9)
     axes[0].legend(frameon=False, fontsize=8)
     fig.suptitle(
-        "Lockout: locked-out rate and converts by whistleblower cell (seed means)",
+        "Lockout: locked-out rate and converts by whistleblower cell "
+        f"(seed means, {cadence_label})",
         color=TEXT,
         fontsize=12,
     )

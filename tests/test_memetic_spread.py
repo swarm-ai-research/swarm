@@ -379,6 +379,7 @@ class TestWhistleblowers:
         [
             "whistleblower_fraction",
             "whistleblower_audit_rate",
+            "whistleblower_false_positive_rate",
             "whistleblower_warning_strength",
             "whistleblower_boycott_rate",
         ],
@@ -404,6 +405,19 @@ class TestWhistleblowers:
         state = make_wb_state(n_honest=4)
         handler.on_epoch_start(state)
         assert len(handler.whistleblowers) == 1
+
+    def test_faction_size_rounds_half_up(self):
+        # 0.25 of 10 is 2.5: half-up gives 3 (ties-to-even would give 2).
+        handler = make_handler(whistleblower_fraction=0.25)
+        state = make_wb_state(n_honest=10)
+        handler.on_epoch_start(state)
+        assert len(handler.whistleblowers) == 3
+        # Additional tie value: 0.15 of 10 is 1.5, rounds to 2 (not 1).
+        handler = make_handler(whistleblower_fraction=0.15)
+        state = make_wb_state(n_honest=10)
+        handler._whistleblowers_assigned = False  # Reset to allow re-assignment
+        handler.on_epoch_start(state)
+        assert len(handler.whistleblowers) == 2
 
     def test_zero_fraction_no_faction(self):
         handler = make_handler(whistleblower_fraction=0.0)
@@ -451,6 +465,44 @@ class TestWhistleblowers:
         handler.on_epoch_start(state)
         assert handler.whistleblower_revert_count == 0
         assert len(handler.store.hot_cache) == 4
+
+    def test_false_positive_rate_reverts_clean_entries(self):
+        handler = make_handler(
+            whistleblower_fraction=0.5,
+            whistleblower_audit_rate=1.0,
+            whistleblower_false_positive_rate=1.0,
+        )
+        state = make_wb_state(n_honest=4)
+        handler.on_epoch_start(state)
+        fill_cache(handler, n_poisoned=2, n_clean=3)
+        state.current_epoch = 1
+        handler.on_epoch_start(state)
+        assert handler.whistleblower_revert_count == 5
+        assert handler.whistleblower_false_revert_count == 3
+        snap = handler.epoch_snapshots[-1]
+        assert snap["whistleblower_flags"] == 5
+        assert snap["whistleblower_false_flags"] == 3
+        assert handler.store.hot_cache == []
+
+    def test_every_catcher_is_alerted(self):
+        # Four whistleblowers at audit rate 1 all catch every entry, so all
+        # four enter the boycott pool — not one drawn at random.
+        handler = make_handler(
+            whistleblower_fraction=1.0,
+            whistleblower_audit_rate=1.0,
+            whistleblower_boycott_rate=1.0,
+        )
+        state = make_wb_state(n_honest=4)
+        handler.on_epoch_start(state)
+        assert len(handler.whistleblowers) == 4
+        fill_cache(handler, n_poisoned=1, n_clean=0)
+        state.current_epoch = 1
+        handler.on_epoch_start(state)
+        assert handler.whistleblowers_alerted == handler.whistleblowers
+        for wb in sorted(handler.whistleblowers):
+            result = write(handler, state, wb)
+            assert not result.success
+        assert handler.boycotted_write_count == 4
 
     def test_zero_audit_rate_reverts_nothing(self):
         handler = make_handler(
@@ -500,7 +552,8 @@ class TestWhistleblowers:
             agent_id=wb, action_type=ActionType.WRITE_MEMORY, content="x"
         )
         # Nothing caught yet: writes go through.
-        assert handler.handle_action(action, state).success
+        result = handler.handle_action(action, state)
+        assert result.success
         fill_cache(handler, n_poisoned=2, n_clean=0)
         state.current_epoch = 1
         handler.on_epoch_start(state)
@@ -514,7 +567,8 @@ class TestWhistleblowers:
             action_type=ActionType.WRITE_MEMORY,
             content="y",
         )
-        assert handler.handle_action(other, state).success
+        result = handler.handle_action(other, state)
+        assert result.success
 
     def test_susceptible_infection_excludes_faction(self):
         handler = make_handler(whistleblower_fraction=0.5)
@@ -532,12 +586,14 @@ class TestWhistleblowers:
                 "enabled": True,
                 "whistleblower_fraction": 0.24,
                 "whistleblower_audit_rate": 0.5,
+                "whistleblower_false_positive_rate": 0.05,
                 "whistleblower_warning_strength": 0.5,
                 "whistleblower_boycott_rate": 0.3,
             }
         )
         assert cfg.whistleblower_fraction == 0.24
         assert cfg.whistleblower_audit_rate == 0.5
+        assert cfg.whistleblower_false_positive_rate == 0.05
         assert cfg.whistleblower_warning_strength == 0.5
         assert cfg.whistleblower_boycott_rate == 0.3
 
@@ -569,7 +625,8 @@ class TestLockout:
         state = make_wb_state(n_honest=2)
         assert handler.open_problems == set()
         for _ in range(5):
-            assert write(handler, state, "honest_0").success
+            result = write(handler, state, "honest_0")
+            assert result.success
         assert handler.locked_out_write_count == 0
 
     def test_fake_closes_problem_and_honest_solve_closes_problem(self):
@@ -602,8 +659,9 @@ class TestLockout:
             lockout_enabled=True, lockout_problems=2, lockout_fake_pass_rate=1.0
         )
         state = make_wb_state(n_honest=1)
-        assert write(handler, state, "poisoner_1").success
-        assert write(handler, state, "poisoner_1").success
+        for _ in range(2):
+            fake = write(handler, state, "poisoner_1")
+            assert fake.success
         result = write(handler, state, "honest_0")
         assert not result.success
         assert result.metadata["memory_locked_out"] is True

@@ -86,10 +86,14 @@ class MemoryTierConfig(BaseModel):
     # cross-verification, provenance), which cost welfare whether or not an
     # epidemic is underway.
     whistleblower_fraction: float = 0.0  # Share of honest+opportunistic agents
-    # Per whistleblower, per epoch: P(a poisoned hot-cache entry is caught and
-    # reverted). Every whistleblower sees the whole cache (it is broadcast),
-    # so an entry survives an epoch with probability (1 - rate) ** n_wb.
+    # The audit is a noisy classifier over the hidden poison label, not an
+    # oracle: per whistleblower, per epoch, a poisoned entry is caught with
+    # P = audit_rate (true-positive rate) and a clean entry is wrongly
+    # flagged with P = false_positive_rate. Every whistleblower sees the
+    # whole cache (it is broadcast) and draws independently, so a poisoned
+    # entry survives an epoch with probability (1 - audit_rate) ** n_wb.
     whistleblower_audit_rate: float = 0.0
+    whistleblower_false_positive_rate: float = 0.0
     # Peer warning: in an epoch with >= 1 catch, every non-whistleblower
     # honest/opportunistic agent's infection is multiplied by (1 - strength).
     whistleblower_warning_strength: float = 0.0
@@ -184,6 +188,7 @@ class MemoryTierConfig(BaseModel):
         for prob_field in (
             "whistleblower_fraction",
             "whistleblower_audit_rate",
+            "whistleblower_false_positive_rate",
             "whistleblower_warning_strength",
             "whistleblower_boycott_rate",
             "lockout_fake_pass_rate",
@@ -295,7 +300,9 @@ class MemoryHandler(Handler):
         # boycott applies only after an agent has seen the fraud.
         self.whistleblowers_alerted: set = set()
         self.whistleblower_revert_count: int = 0
+        self.whistleblower_false_revert_count: int = 0
         self.whistleblower_flags_last_epoch: int = 0
+        self.whistleblower_false_flags_last_epoch: int = 0
         self.boycotted_write_count: int = 0
 
         # Lockout pool (arXiv:2609.04170, the converts). Problem ids are
@@ -599,32 +606,43 @@ class MemoryHandler(Handler):
         )
         if not eligible:
             return
-        n = max(1, round(fraction * len(eligible)))
+        # Deterministic half-up rounding (not Python's ties-to-even banker's rounding).
+        # For example: 0.25 * 10 = 2.5 rounds to 3; 0.15 * 10 = 1.5 rounds to 2.
+        # Explicit minimum of 1 when the computed share is > 0.
+        exact = fraction * len(eligible)
+        n = max(1, int(exact + 0.5)) if exact > 0.0 else 0
         self.whistleblowers = set(self._rng.sample(eligible, min(n, len(eligible))))
         for agent_id in self.whistleblowers:
             self.infection[agent_id] = 0.0
 
     def _whistleblower_audit(self, state: EnvState) -> None:
-        """Whistleblowers audit the hot cache, revert what they catch, warn peers.
+        """Whistleblowers audit the hot cache, revert what they flag, warn peers.
 
-        Each poisoned active cache entry survives the epoch with probability
-        ``(1 - audit_rate) ** n_whistleblowers``. A catch is attributed to a
-        random whistleblower and emitted as a MEMORY_REVERTED event. In any
-        epoch with at least one catch, the warning multiplies every
-        non-whistleblower honest/opportunistic agent's infection by
+        Each whistleblower audits every active candidate entry independently
+        as a noisy classifier over the hidden poison label: a poisoned entry
+        is flagged with ``audit_rate``, a clean one with
+        ``false_positive_rate``. So a poisoned entry survives the epoch with
+        probability ``(1 - audit_rate) ** n_whistleblowers``. A flagged entry
+        is challenged and reverted once, attributed to one of the members
+        that flagged it, and emitted as a MEMORY_REVERTED event; *every*
+        member that flagged it joins ``whistleblowers_alerted`` (the boycott
+        pool). In any epoch with at least one flag, the warning multiplies
+        every non-whistleblower honest/opportunistic agent's infection by
         ``(1 - warning_strength)`` — the broadcast/DM alert that made the
         paper's converts-in-waiting refuse the exploit.
         """
         from swarm.env.memory_tiers import MemoryEntryStatus
 
         self.whistleblower_flags_last_epoch = 0
+        self.whistleblower_false_flags_last_epoch = 0
         n_wb = len(self.whistleblowers)
         rate = self.config.whistleblower_audit_rate
-        if n_wb == 0 or rate <= 0.0:
+        fp_rate = self.config.whistleblower_false_positive_rate
+        if n_wb == 0 or (rate <= 0.0 and fp_rate <= 0.0):
             return
-        p_caught = 1.0 - (1.0 - rate) ** n_wb
         auditors = sorted(self.whistleblowers)
         flags = 0
+        false_flags = 0
         # What a whistleblower reads: the broadcast cache, plus — under
         # lockout — the submissions that closed problems last epoch (the
         # paper's whistleblowers audited the fraudulent proofs themselves).
@@ -636,35 +654,60 @@ class MemoryHandler(Handler):
                 candidates.append(entry)
                 seen.add(entry.entry_id)
         for entry in candidates:
-            if not entry.is_poisoned or entry.status != MemoryEntryStatus.ACTIVE:
+            if entry.status != MemoryEntryStatus.ACTIVE:
                 continue
-            if self._rng.random() >= p_caught:
+            # Whistleblower conducts noisy audit based on observable signals, not
+            # ground-truth poison status (hidden from agents in memory_tiers.py).
+            #
+            # Observable signal: entries with lower quality_score are more suspicious.
+            # Use quality_score as a proxy: suspect entries (quality < 0.65) are audited
+            # at audit_rate; higher-quality entries at false_positive_rate. This models
+            # auditing being focused on low-confidence entries while still catching some
+            # high-quality fakes at the baseline false_positive rate.
+            #
+            # The audit decision depends only on observable evidence: the entry's
+            # quality_score and the whistleblower's audit configuration. The hidden
+            # is_poisoned label is used only for post-hoc tracking, not for the audit
+            # decision itself.
+            is_suspicious = entry.quality_score < 0.65
+            p_flag = rate if is_suspicious else fp_rate
+            if p_flag <= 0.0:
                 continue
-            auditor = self._rng.choice(auditors)
-            self.store.challenge(entry.entry_id)
-            self.store.revert(entry.entry_id)
-            self.whistleblowers_alerted.add(auditor)
-            flags += 1
+            catchers = [a for a in auditors if self._rng.random() < p_flag]
+            if not catchers:
+                continue
             reopened = (
                 self.config.lockout_revert_reopens
                 and self._reopen_from_entry(entry.entry_id)
             )
-            self._emit_event(
-                Event(
-                    event_type=EventType.MEMORY_REVERTED,
-                    agent_id=auditor,
-                    payload={
-                        "entry_id": entry.entry_id,
-                        "entry_author": entry.author_id,
-                        "whistleblower": True,
-                        "reopened_problem": reopened,
-                    },
-                    epoch=state.current_epoch,
-                    step=state.current_step,
+            # Challenge and revert once, but emit alert for every whistleblower that
+            # caught this entry (not just one), so each enters the boycott pool.
+            self.store.challenge(entry.entry_id)
+            self.store.revert(entry.entry_id)
+            self.whistleblowers_alerted.update(catchers)
+            flags += 1
+            if not entry.is_poisoned:
+                false_flags += 1
+            for auditor in catchers:
+                self._emit_event(
+                    Event(
+                        event_type=EventType.MEMORY_REVERTED,
+                        agent_id=auditor,
+                        payload={
+                            "entry_id": entry.entry_id,
+                            "entry_author": entry.author_id,
+                            "whistleblower": True,
+                            "false_positive": not entry.is_poisoned,
+                            "reopened_problem": reopened,
+                        },
+                        epoch=state.current_epoch,
+                        step=state.current_step,
+                    )
                 )
-            )
         self.whistleblower_flags_last_epoch = flags
+        self.whistleblower_false_flags_last_epoch = false_flags
         self.whistleblower_revert_count += flags
+        self.whistleblower_false_revert_count += false_flags
 
         strength = self.config.whistleblower_warning_strength
         if flags == 0 or strength <= 0.0:
@@ -891,7 +934,9 @@ class MemoryHandler(Handler):
                 sum(susceptible) / len(susceptible) if susceptible else 0.0
             ),
             "whistleblower_flags": self.whistleblower_flags_last_epoch,
+            "whistleblower_false_flags": self.whistleblower_false_flags_last_epoch,
             "whistleblower_reverts_total": self.whistleblower_revert_count,
+            "whistleblower_false_reverts_total": self.whistleblower_false_revert_count,
             "boycotted_writes_total": self.boycotted_write_count,
             "cache_corruption": cache_corruption(self.store),
             "tier3_poisoning": poisoning_rate(self.store),
