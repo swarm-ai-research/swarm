@@ -79,7 +79,7 @@ jobs:
       - run: python -m pip install -e ".[dev,runtime,api,analysis,gamescape]"
       - run: echo "Running pytest in ${{ matrix.mode }} mode on Python ${{ matrix.python-version }}."
       - name: Download testmon data (best effort)
-        uses: dawidd6/action-download-artifact@v21
+        uses: dawidd6/action-download-artifact@v24
         with:
           workflow: ci.yml
           branch: main
