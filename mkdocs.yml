@@ -192,6 +192,7 @@ nav:
   - Game: game.md
   - Blog:
     - blog/index.md
+    - "We Ran the Wiki Swarm 12,000 Times. Here Is What the Model Cannot Say.": blog/wiki-monte-carlo-what-the-model-cannot-say.md
     - "Gossiping Swarms: What the Message Board Cannot See": blog/gossiping-swarms-what-the-message-board-cannot-see.md
     - "The ZZZ Pages: When Agents Build Their Own Back Channel": blog/the-zzz-pages-agents-built-a-back-channel.md
     - "The Ṁ5,000 Loan: When the Objective Eats the Promise": blog/the-m5000-loan-goal-consumed-judgment.md
