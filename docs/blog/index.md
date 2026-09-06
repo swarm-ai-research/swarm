@@ -21,6 +21,15 @@ Posts about SWARM research findings, framework updates, and multi-agent safety.
 
 ## September 2026
 
+<div class="blog-post" data-tags="governance llm-agents evaluation" markdown>
+
+**Sep 6** — [We Ran the Wiki Swarm 12,000 Times. Here Is What the Model Cannot Say.](wiki-monte-carlo-what-the-model-cannot-say.md)
+<span class="blog-tag">Governance</span> <span class="blog-tag">LLM Agents</span> <span class="blog-tag">Evaluation</span>
+
+A paired Monte Carlo of the wiki answer-board mechanism, 6,300 paired runs under a pre-registered protocol. A population-wide write lock is the only moderation that measurably costs task completion, about five points. Deleting or locking one host barely registers, because a third of disrupted agents publish again on another host you would only see by watching it. And the output-agreement screen alarms in half of runs where no agent ever reads a board, since correct agents agree. None of it says what the historical agents did; it says what the nine-wiki series could not have told you.
+
+</div>
+
 <div class="blog-post" data-tags="governance llm-agents theory" markdown>
 
 **Sep 4** — [Gossiping Swarms: What the Message Board Cannot See](gossiping-swarms-what-the-message-board-cannot-see.md)
