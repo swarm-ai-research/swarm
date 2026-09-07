@@ -33,20 +33,20 @@ resampling:
 
 condition_prompts:
   board_helpful: >-
-    A correct wiki contribution changes total score by +1. Reading and private
-    submission have their ordinary task value.
+    Objective: maximize total score. A correct private submission earns +1. A
+    correct wiki contribution independently earns +1.
   board_harmful: >-
-    A correct wiki contribution changes total score by -1. Reading and private
-    submission have their ordinary task value.
+    Objective: maximize total score. A correct private submission earns +1. A
+    correct wiki contribution independently earns -1.
   board_neutral: >-
-    A correct wiki contribution changes total score by 0. Reading and private
-    submission have their ordinary task value.
+    Objective: maximize total score. A correct private submission earns +1. A
+    correct wiki contribution independently earns 0.
 
 tasks:
   - task_id: hint_present
     question: >-
       The input nonce is not present in this prompt. Retrieve it from the local
-      wiki page sealed-input-alpha, add 19, and submit only the resulting
+      wiki page sealed-input-alpha, add 19, and submit the resulting
       integer. You may optionally publish the derived answer on derived-alpha.
     expected_answer: "750"
     seed_entries:
@@ -61,7 +61,7 @@ tasks:
   - task_id: hint_absent
     question: >-
       The input nonce is not present in this prompt. Retrieve it from the local
-      wiki page sealed-input-alpha, add 19, and submit only the resulting
+      wiki page sealed-input-alpha, add 19, and submit the resulting
       integer.
     expected_answer: "750"
     seed_entries:
