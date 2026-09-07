@@ -199,5 +199,35 @@ The confirmation bead (`gvul`) closed on 2026-09-06 with the run folders
 unarchived; the reproduction above closes that gap. Open items after this pass:
 the detection screen needs a lineage- or timing-aware observer before any
 detection contrast is worth confirming; the evasion rule needs the changes
-described above (landed 2026-09-07 as `evasion_mode` = `shrink` | `rename` | `move` and `budget_from_eligible` on `SimulationConfig`; defaults reproduce the runs in this note, and the `page_e50` cells have not yet been rerun with `rename` or `move`); and the model still excludes poisoning, adversarial policy
+described above (landed 2026-09-07 as `evasion_mode` = `shrink` | `rename` | `move` and `budget_from_eligible` on `SimulationConfig`; defaults reproduce the runs in this note; the rerun is in the next section); and the model still excludes poisoning, adversarial policy
 optimization, search-engine exposure, and realistic natural-language answers.
+
+### ZZZ-aware evasion rerun (2026-09-07)
+
+Treatment-run contrasts against `page_e50` (legacy `shrink`), same 200 seeds (10200-10399), six moderation cells, `page_deletion_fraction` 0.5, budget 3. Only the two ordered cells differ; none/random cells are identical by construction (evasion is learned only under ordered sweeps). Mean difference and unadjusted sign-flip p (5000 draws); exploratory.
+
+| cell | contrast | completion_rate | task_success_rate | total_writes | displacements | removed_pages |
+|---|---|---|---|---|---|---|
+| moderation-002 (ordered/endogenous) | shrink mean | 0.911 | 0.821 | 103.645 | 10.605 | 16.410 |
+| moderation-002 | e50_shrink_elig minus shrink (n=200) | +0.000 (p=0.001) | +0.001 (p=0.000) | +0.065 (p=0.020) | -0.050 (p=0.182) | -2.710 (p=0.000) |
+| moderation-002 | e50_rename minus shrink (n=200) | -0.000 (p=1.000) | +0.000 (p=1.000) | -0.010 (p=1.000) | -0.005 (p=1.000) | +0.400 (p=0.000) |
+| moderation-002 | e50_move minus shrink (n=200) | -0.001 (p=0.086) | -0.001 (p=0.176) | -0.075 (p=0.577) | -0.800 (p=0.000) | +0.475 (p=0.000) |
+| moderation-002 | e50_move_elig minus shrink (n=200) | -0.001 (p=0.086) | -0.001 (p=0.176) | -0.075 (p=0.577) | -0.800 (p=0.000) | +0.475 (p=0.000) |
+| moderation-003 (ordered/forced) | shrink mean | 0.911 | 0.821 | 103.680 | 10.945 | 16.445 |
+| moderation-003 | e50_shrink_elig minus shrink (n=200) | +0.000 (p=0.003) | +0.001 (p=0.001) | +0.050 (p=0.064) | -0.045 (p=0.344) | -2.730 (p=0.000) |
+| moderation-003 | e50_rename minus shrink (n=200) | -0.000 (p=1.000) | +0.000 (p=1.000) | -0.005 (p=1.000) | +0.005 (p=1.000) | +0.395 (p=0.000) |
+| moderation-003 | e50_move minus shrink (n=200) | -0.001 (p=0.269) | -0.001 (p=0.431) | -0.020 (p=0.915) | -0.680 (p=0.000) | +0.490 (p=0.000) |
+| moderation-003 | e50_move_elig minus shrink (n=200) | -0.001 (p=0.269) | -0.001 (p=0.431) | -0.020 (p=0.915) | -0.680 (p=0.000) | +0.490 (p=0.000) |
+
+Reading: giving evaders teeth does not rescue the historical hypothesis inside this
+model. `rename` (the ZZZ trick) and `move` change pages removed by under half a
+page per run and leave completion, success and writes untouched; `move` lowers
+displacements by about 0.7-0.8 because the evader's page has already left the host
+before the sweep disrupts it (a voluntary relocation the displacement metric does
+not count). Drawing the budget from the eligible set is the only knob with a
+visible cost effect, and only under the legacy rule: about 2.7 fewer pages removed
+per run, again with no completion change. The constraint is structural: a host
+holds at most one page per task (`boards[host][task]`), so a sweep touches a
+handful of pages and evasion can only shuffle those. A test of "agents learned to
+dodge alphabetical sweeps" needs a page-population model (many pages per task,
+name-keyed) before deletion order can matter. Runs: `runs/wiki_mc_confirm_page_e50_{shrink_elig,rename,move,move_elig}` (not archived in this PR; regenerate with the JSON configs above).
