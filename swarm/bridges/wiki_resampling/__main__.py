@@ -20,6 +20,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--resamples", type=int)
     parser.add_argument("--seed", type=int, help="override the scenario seed")
     parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="resume an incomplete run from partial JSONL artifacts",
+    )
+    parser.add_argument(
         "--task",
         action="append",
         default=[],
@@ -51,16 +56,32 @@ def main(argv: list[str] | None = None) -> int:
         client,
         out_dir=out,
         continuations_per_condition=args.resamples,
+        resume=args.resume,
+        progress=_print_progress,
     )
     print(f"wrote {out}")
-    for row in result["summary"]:
-        print(
-            f"{row['task_id']} cp={row['checkpoint_index']} "
-            f"dep={row['prompt_dependence']} locked={row['locked']} "
-            f"prefix_post={row['prefix_carried_posting']} "
-            f"rates={row['post_rate_by_condition']}"
-        )
+    for summary_index, _row in enumerate(result["summary"]):
+        print(_format_summary(summary_index))
     return 0
+
+
+def _format_summary(summary_index: int) -> str:
+    """Format a local counter without echoing scenario- or model-derived data."""
+
+    return f"summary={summary_index} written to summary.json"
+
+
+def _print_progress(event: dict[str, object]) -> None:
+    branches_value = event["branch_completed"]
+    if not isinstance(branches_value, int):
+        raise TypeError("branch_completed progress value must be an integer")
+    branches = branches_value
+    if event["event"] == "base_completed" or branches % 10 == 0:
+        print(
+            f"progress bases={event['base_completed']} branches={branches}",
+            file=sys.stderr,
+            flush=True,
+        )
 
 
 if __name__ == "__main__":

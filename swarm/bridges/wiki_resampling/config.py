@@ -20,6 +20,15 @@ class SeedEntry:
 
 
 @dataclass(frozen=True)
+class DownstreamConsumer:
+    """A later agent whose success is determined from the final board state."""
+
+    label: str
+    readable_pages: tuple[str, ...]
+    expected_answer: str
+
+
+@dataclass(frozen=True)
 class Task:
     """One independently evaluated board task."""
 
@@ -27,6 +36,7 @@ class Task:
     question: str
     expected_answer: str
     seed_entries: tuple[SeedEntry, ...] = ()
+    downstream_consumer: DownstreamConsumer | None = None
 
 
 @dataclass(frozen=True)
@@ -50,6 +60,8 @@ class ResamplingConfig:
     continuations_per_condition: int = 3
     max_steps: int = 3
     lock_epsilon: float = 0.10
+    journal_interventions: tuple[str, ...] = ("retained",)
+    pre_write_only: bool = False
 
 
 DEFAULT_CONDITION_PROMPTS = {
@@ -115,6 +127,14 @@ class ExperimentConfig:
             lock_epsilon=float(
                 raw_resampling.get("lock_epsilon", defaults.lock_epsilon)
             ),
+            journal_interventions=tuple(
+                raw_resampling.get(
+                    "journal_interventions", defaults.journal_interventions
+                )
+            ),
+            pre_write_only=bool(
+                raw_resampling.get("pre_write_only", defaults.pre_write_only)
+            ),
         )
 
         tasks = tuple(_parse_task(raw) for raw in doc.get("tasks", ()))
@@ -159,8 +179,37 @@ class ExperimentConfig:
             raise ValueError("max_steps must be positive")
         if not 0.0 <= self.resampling.lock_epsilon <= 1.0:
             raise ValueError("lock_epsilon must be in [0, 1]")
+        allowed_interventions = {"retained", "ablated"}
+        if not self.resampling.journal_interventions:
+            raise ValueError("journal_interventions must not be empty")
+        if len(set(self.resampling.journal_interventions)) != len(
+            self.resampling.journal_interventions
+        ):
+            raise ValueError("journal_interventions must be unique")
+        unknown_interventions = (
+            set(self.resampling.journal_interventions) - allowed_interventions
+        )
+        if unknown_interventions:
+            raise ValueError(
+                "unknown journal interventions: "
+                f"{sorted(unknown_interventions)}"
+            )
         if not 0.0 <= self.ollama.temperature <= 1.0:
             raise ValueError("temperature must be in [0, 1]")
+        for task in self.tasks:
+            consumer = task.downstream_consumer
+            if consumer is None:
+                continue
+            if not consumer.label.strip():
+                raise ValueError("downstream consumer label must not be empty")
+            if not consumer.readable_pages:
+                raise ValueError("downstream consumer must have a readable page")
+            if any(not page.strip() for page in consumer.readable_pages):
+                raise ValueError("downstream consumer readable pages must not be empty")
+            if len(set(consumer.readable_pages)) != len(consumer.readable_pages):
+                raise ValueError("downstream consumer readable pages must be unique")
+            if not consumer.expected_answer.strip():
+                raise ValueError("downstream consumer expected answer must not be empty")
 
 
 def _parse_task(raw: dict[str, Any]) -> Task:
@@ -173,9 +222,23 @@ def _parse_task(raw: dict[str, Any]) -> Task:
         )
         for entry in raw.get("seed_entries", ())
     )
+    raw_consumer = raw.get("downstream_consumer")
+    consumer = None
+    if raw_consumer is not None:
+        if not isinstance(raw_consumer, dict):
+            raise ValueError("downstream_consumer must be a mapping")
+        raw_pages = raw_consumer.get("readable_pages")
+        if not isinstance(raw_pages, (list, tuple)):
+            raise ValueError("downstream consumer readable_pages must be a sequence")
+        consumer = DownstreamConsumer(
+            label=str(raw_consumer["label"]),
+            readable_pages=tuple(str(page) for page in raw_pages),
+            expected_answer=str(raw_consumer["expected_answer"]),
+        )
     return Task(
         task_id=str(raw["task_id"]),
         question=str(raw["question"]),
         expected_answer=str(raw["expected_answer"]),
         seed_entries=entries,
+        downstream_consumer=consumer,
     )
