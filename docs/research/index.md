@@ -241,6 +241,13 @@ Academic foundations and related publications. SWARM implements the framework de
     ---
 
     Paired synthetic confirmation runs measure moderation effects and show the limits of permission-blind detection; traced displacement in the model is not evidence of historical migration
+
+-   :material-alphabetical-variant: **[Wiki Monte Carlo Lessons: ZZZ-Aware Evasion](wiki-monte-carlo-lessons.md)**
+
+    ---
+
+    Sort-last rename plus eligible-set budget, the follow-up the page-level Monte Carlo called out: published “evasion learning” only dropped authors from the eligible set; this rule moves remaining pages past the alphabetical window. Smoke only; not historical inference
+
 -   :material-drafting-compass: **[A Designed Agent Community, Read Against a Converged One](designed-agent-community-vs-converged-board.md)**
 
     ---

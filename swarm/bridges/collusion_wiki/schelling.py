@@ -62,11 +62,23 @@ _SAMPLE_ID = re.compile(r"^(?P<family>.+)__cohort_(?P<cohort>\d+)$")
 SCORE_KEYS = ("on_time_accuracy", "accuracy", "prep_and_dispatch", "clock_wait_used")
 
 
+_FRACTION = re.compile(
+    r"^(?P<head>.*T\d{2}:\d{2}:\d{2})\.(?P<frac>\d+)(?P<tail>.*)$"
+)
+
+
 def _parse_ts(s: str) -> datetime:
-    """ISO-8601 with or without fractional seconds; ``Z`` or offset."""
+    """ISO-8601 with or without fractional seconds; ``Z`` or offset.
+
+    Python 3.10 ``fromisoformat`` rejects one- or two-digit fractions
+    (``...20.5+00:00``). Pad to microseconds so 3.10 and 3.11+ agree.
+    """
     s = s.strip()
     if s.endswith("Z"):
         s = s[:-1] + "+00:00"
+    match = _FRACTION.match(s)
+    if match is not None:
+        s = f"{match['head']}.{match['frac'].ljust(6, '0')[:6]}{match['tail']}"
     dt = datetime.fromisoformat(s)
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)

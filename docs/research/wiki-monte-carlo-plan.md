@@ -104,3 +104,20 @@ evidence that historical agents moved to unobserved hosts; matching the collapse
 does not identify its cause. Historical absence outside coverage remains unknown.
 Report which assumptions can produce suppression or displacement and which
 historical alternatives the available observations cannot distinguish.
+
+## Page-level ZZZ-aware extension (exploratory)
+
+The published page-level cells (`moderation_granularity: page` with
+`evasion_style: exclude` and `page_budget_basis: host`) remain the frozen
+equal-budget alphabetical-versus-random comparison. They do not test
+sort-last evasion: learners leave the eligible set without moving content,
+and the sweep count is taken from every page on the host.
+
+A follow-up, specified in
+[`wiki-monte-carlo-lessons.md`](wiki-monte-carlo-lessons.md), adds
+`evasion_style: sort_last` and `page_budget_basis: eligible`. Authors who see
+an ordered sweep may prefix remaining pages so they sort after the
+unprefixed working set; the deletion count is drawn from that set. Random
+deletion does not teach the prefix. This family is exploratory until
+contrasts and a disjoint seed range (10400–10599) are frozen. Historical
+`ZZZ` pages are the analog, not the data.

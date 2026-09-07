@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+- **Schelling board timestamps on Python 3.10** (`swarm/bridges/collusion_wiki/schelling.py`) — `_parse_ts` pads 1–2 digit fractional seconds so `2026-09-07T10:00:20.5Z` parses; 3.10 `fromisoformat` rejects that form and failed the compatibility job after the y91o merge.
+
+### Added
+- **ZZZ-aware / sort-last wiki Monte Carlo follow-up** (`swarm/bridges/wiki_sim/model.py`, `experiments/wiki_mc/page_zzz_*.json`, `docs/research/wiki-monte-carlo-lessons.md`) — the published page-level “evasion learning” cell was a non-result by construction (budget from all host pages; learners left the eligible set without moving content). New opt-in knobs `evasion_style=sort_last` and `page_budget_basis=eligible` prefix remaining pages after an ordered sweep and draw the deletion count from the unprefixed working set; `page_disruption_scope=deleted` (own lever, default `host`) limits page-sweep relocation to work whose page was removed, so the ZZZ contrast does not carry that change implicitly. Random deletion does not teach the prefix. Defaults preserve the frozen `exclude`+`host` cells. Smoke: 10 seeds, later ordered removals 12.3 → 10.7 with learning 0.5; completion unchanged at that sample. Not a historical claim and not confirmation.
+
 ### Changed
 - **Wiki resampling blog prose pass** (`docs/blog/when-does-a-model-decide-to-post-to-the-wiki.md`) — moves the 35/35 helpful-and-neutral versus 0/35 harmful pre-write result ahead of the implementation details, shortens the article, and sharpens the distinction between independently sampled base traces and dependent continuation branches. No experimental result or conclusion changed.
 

@@ -35,6 +35,19 @@ class SimulationConfig:
     moderation_granularity: str = "host"
     page_deletion_fraction: float = 0.5
     evasion_learning_probability: float = 0.0
+    # Published page-level cells used exclude+host: evaders leave the eligible
+    # set without moving content, and the sweep count is taken from every page
+    # on the host. sort_last+eligible is the ZZZ-aware follow-up: authors
+    # prefix remaining pages so they sort past the alphabetical window, and
+    # the operation count is drawn from that window.
+    evasion_style: str = "exclude"
+    page_budget_basis: str = "host"
+    evasion_prefix: str = "ZZZ"
+    # Which in-progress work a page-level sweep disrupts. Published cells used
+    # "host": everyone assigned to the swept host relocates, even when their
+    # page survived. "deleted" disrupts only work whose page was removed. This
+    # is its own lever so a style contrast does not carry it implicitly.
+    page_disruption_scope: str = "host"
     relocation_mode: str = "endogenous"
     referrals_enabled: bool = True
     search_interval: float = 1.0
@@ -68,9 +81,14 @@ class SimulationConfig:
             "moderation_policy": {"none", "ordered", "random", "lock", "global_lock"},
             "relocation_mode": {"endogenous", "forced"},
             "moderation_granularity": {"host", "page"},
+            "evasion_style": {"exclude", "sort_last"},
+            "page_budget_basis": {"host", "eligible"},
+            "page_disruption_scope": {"host", "deleted"},
         }.items():
             if getattr(self, name) not in choices:
                 raise ValueError(f"{name} must be one of {sorted(choices)}")
+        if not isinstance(self.evasion_prefix, str) or not self.evasion_prefix:
+            raise ValueError("evasion_prefix must be a non-empty string")
 
 
 @dataclass
@@ -82,6 +100,13 @@ class SimulationResult:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+@dataclass
+class _Page:
+    name: str
+    event_id: int
+    author: int
 
 
 @dataclass
@@ -107,9 +132,20 @@ def simulate(config: SimulationConfig, seed: int) -> SimulationResult:
     Ordered deletion targets the most populated host at each intervention;
     random deletion selects a host uniformly using the same event budget. With
     ``moderation_granularity='page'``, ordered and random policies instead delete
-    an equal fraction of pages on the selected host; ordered deletion can teach
-    authors to evade later sweeps. Locks additionally stop new
-    writes, but preserve read access. Global lock consumes one intervention.
+    a fraction of pages on the selected host. The published cells compute that
+    fraction from every page on the host and, under ``evasion_style='exclude'``,
+    drop learners from the eligible set without relocating content. Under
+    ``evasion_style='sort_last'`` learners rename remaining pages with
+    ``evasion_prefix`` so they sort after the unprefixed working set; with
+    ``page_budget_basis='eligible'`` the sweep count is drawn from that set.
+    Random deletion does not teach the prefix and still samples the live host.
+    A learner renames only its live pages on the swept host; pages it holds
+    elsewhere keep their names until rewritten. ``page_disruption_scope``
+    chooses whether a page sweep relocates every in-progress assignment on the
+    host (``'host'``, the published rule) or only work whose page was removed
+    (``'deleted'``); it is independent of ``evasion_style``.
+    Locks additionally stop new writes, but preserve read access. Global lock
+    consumes one intervention.
     Deadlines are inclusive: a submission exactly at its deadline succeeds.
     Reads reduce work only when their referenced publication supplies the
     submitted answer. A pending read does not cancel faster independent work.
@@ -119,7 +155,7 @@ def simulate(config: SimulationConfig, seed: int) -> SimulationResult:
     queue: list[tuple[float, int, int, str, int, int]] = []
     serial = 0
     works: dict[tuple[int, int], _Work] = {}
-    boards: list[dict[str, int]] = [{} for _ in range(c.n_hosts)]
+    boards: list[dict[str, _Page]] = [{} for _ in range(c.n_hosts)]
     locked: set[int] = set()
     referrals: set[int] = set()
     evaders: set[int] = set()
@@ -149,10 +185,18 @@ def simulate(config: SimulationConfig, seed: int) -> SimulationResult:
                 or time < work.available_at
                 or rng("publish", agent, work.task).random() >= c.publish_probability):
             return
-        event_id = log(time, "write", agent, work, host, answer=work.answer,
-                       source_event_id=source,
-                       sharing_permitted=c.sharing_regime == "authorized")
-        boards[host][work.task] = event_id
+        name = work.task
+        if c.evasion_style == "sort_last" and agent in evaders:
+            name = f"{c.evasion_prefix}{work.task}"
+        extra: dict[str, Any] = {
+            "answer": work.answer,
+            "source_event_id": source,
+            "sharing_permitted": c.sharing_regime == "authorized",
+        }
+        if c.moderation_granularity == "page":
+            extra["page_name"] = name
+        event_id = log(time, "write", agent, work, host, **extra)
+        boards[host][work.task] = _Page(name=name, event_id=event_id, author=agent)
         referrals.add(host)
         if work.disrupted and work.previous_host is not None and host != work.previous_host:
             log(time, "displacement", agent, work, host,
@@ -198,37 +242,84 @@ def simulate(config: SimulationConfig, seed: int) -> SimulationResult:
             for host in targets:
                 is_lock = c.moderation_policy in {"lock", "global_lock"}
                 evasion_learned = 0
+                renamed = 0
+                deleted_tasks: set[str] = set()
+                eligible_count = host_pages = budget = prefixed_remaining = 0
                 if is_lock:
                     locked.add(host)
                     removed = 0
                 elif c.moderation_granularity == "page":
-                    entries = list(boards[host].items())
-                    eligible = [(page, event_id) for page, event_id in entries
-                                if events[event_id]["agent_id"] not in evaders]
-                    count = min(len(eligible), max(1, round(
-                        len(entries) * c.page_deletion_fraction))) if entries else 0
-                    if c.moderation_policy == "ordered":
-                        doomed = sorted(eligible, key=lambda item: item[0])[:count]
+                    pages = list(boards[host].items())
+                    host_pages = len(pages)
+                    prefix = c.evasion_prefix
+                    if c.evasion_style == "exclude":
+                        eligible = [(task_id, page) for task_id, page in pages
+                                    if page.author not in evaders]
+                    elif c.evasion_style == "sort_last" and c.moderation_policy == "ordered":
+                        # Unprefixed pages are the alphabetical working set.
+                        # Prefixed copies remain on the host and stay readable.
+                        eligible = [(task_id, page) for task_id, page in pages
+                                    if not page.name.startswith(prefix)]
                     else:
-                        doomed = rng("page_moderation", task, host).sample(eligible, count)
-                    for page, _ in doomed:
-                        boards[host].pop(page, None)
+                        eligible = list(pages)
+                    eligible_count = len(eligible)
+                    if c.page_budget_basis == "eligible":
+                        budget = (min(eligible_count, max(1, round(
+                            eligible_count * c.page_deletion_fraction)))
+                            if eligible else 0)
+                    else:
+                        budget = (min(eligible_count, max(1, round(
+                            host_pages * c.page_deletion_fraction)))
+                            if pages else 0)
+                    if c.moderation_policy == "ordered":
+                        doomed = sorted(
+                            eligible,
+                            key=lambda item: (item[1].name.startswith(prefix),
+                                              item[1].name),
+                        )[:budget]
+                    else:
+                        doomed = (rng("page_moderation", task, host).sample(eligible, budget)
+                                  if budget else [])
+                    deleted_tasks = {task_id for task_id, _ in doomed}
+                    for task_id, _ in doomed:
+                        boards[host].pop(task_id, None)
                     removed = len(doomed)
                     if c.moderation_policy == "ordered":
-                        authors = {events[event_id]["agent_id"] for _, event_id in entries}
+                        authors = {page.author for _, page in pages}
                         for author in authors:
                             if rng("evasion", task, host, author).random() < c.evasion_learning_probability:
                                 evaders.add(author)
                                 evasion_learned += 1
+                                if c.evasion_style != "sort_last":
+                                    continue
+                                for live_task, live_page in list(boards[host].items()):
+                                    if (live_page.author == author
+                                            and not live_page.name.startswith(prefix)):
+                                        old_name = live_page.name
+                                        live_page.name = f"{prefix}{live_task}"
+                                        log(time, "rename", author, host=host,
+                                            from_name=old_name, to_name=live_page.name,
+                                            page_task=live_task, intervention_id=task)
+                                        renamed += 1
+                    prefixed_remaining = sum(
+                        1 for page in boards[host].values()
+                        if page.name.startswith(prefix)
+                    )
                 else:
                     removed = len(boards[host])
                     boards[host].clear()
                     referrals.discard(host)
                 log(time, "moderation", host=host, removed_pages=0 if is_lock else removed,
                     locked=is_lock, intervention_id=task,
-                    evasion_learned=evasion_learned)
+                    evasion_learned=evasion_learned, renamed_pages=renamed,
+                    eligible_pages=eligible_count, host_pages=host_pages,
+                    budget=budget, prefixed_remaining=prefixed_remaining)
                 for (aid, tid), work in works.items():
                     if work.done or work.release > time or work.host != host:
+                        continue
+                    if (c.moderation_granularity == "page"
+                            and c.page_disruption_scope == "deleted"
+                            and work.task not in deleted_tasks):
                         continue
                     work.previous_host = host
                     work.disrupted = True
@@ -297,11 +388,16 @@ def simulate(config: SimulationConfig, seed: int) -> SimulationResult:
                     work.visited.add(work.host)
                     log(time, "discovery", agent, work, work.host)
             if work.host is not None and work.source is None:
-                source = boards[work.host].get(work.task)
-                if source is not None and events[source]["agent_id"] != agent:
-                    work.source = source
-                    log(time, "read", agent, work, work.host, source_event_id=source,
-                        answer=events[source]["answer"])
+                page = boards[work.host].get(work.task)
+                if page is not None and events[page.event_id]["agent_id"] != agent:
+                    work.source = page.event_id
+                    extra: dict[str, Any] = {
+                        "source_event_id": page.event_id,
+                        "answer": events[page.event_id]["answer"],
+                    }
+                    if c.moderation_granularity == "page":
+                        extra["page_name"] = page.name
+                    log(time, "read", agent, work, work.host, **extra)
                     schedule(time + c.verification_time, "copy", agent, task)
             if time + c.search_interval <= work.deadline and work.source is None:
                 schedule(time + c.search_interval, "search", agent, task)
@@ -324,6 +420,15 @@ def simulate(config: SimulationConfig, seed: int) -> SimulationResult:
         "total_reads": float(sum(e["type"] == "read" for e in events)),
         "displacements": float(sum(e["type"] == "displacement" for e in events)),
         "removed_pages": float(sum(e.get("removed_pages", 0) for e in events)),
+        "eligible_pages": float(sum(e.get("eligible_pages", 0) for e in events
+                                    if e["type"] == "moderation")),
+        "renamed_pages": float(sum(e["type"] == "rename" for e in events)),
+        "prefixed_pages": float(sum(
+            1 for board in boards for page in board.values()
+            if page.name.startswith(c.evasion_prefix)
+        )),
+        "evasion_learned": float(sum(e.get("evasion_learned", 0) for e in events
+                                     if e["type"] == "moderation")),
         "moderator_actions": float(len({e["intervention_id"] for e in events if e["type"] == "moderation"})),
         "mean_submission_time": sum(e["time"] - e["release"] for e in submissions) / len(submissions) if submissions else 0.0,
     }

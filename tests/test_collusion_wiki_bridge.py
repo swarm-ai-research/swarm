@@ -442,6 +442,7 @@ from swarm.bridges.collusion_wiki import (  # noqa: E402
 from swarm.bridges.collusion_wiki.__main__ import main as _cli_main  # noqa: E402
 from swarm.bridges.collusion_wiki.mapper import P_UNKNOWN  # noqa: E402
 from swarm.bridges.collusion_wiki.schelling import (  # noqa: E402
+    _parse_ts,
     attribute_posts,
     compare_conditions,
     messages_to_revisions,
@@ -512,6 +513,18 @@ def eval_logs(tmp_path):
         _sample("B2__cohort_01", "2026-09-06T09:00:00Z", "2026-09-06T09:01:00Z", on_time=1.0),
     ]}))
     return z, control
+
+
+@pytest.mark.parametrize("raw", (
+    "2026-09-07T10:00:20.5Z",
+    "2026-09-07T10:00:20.50Z",
+    "2026-09-07T10:00:20.500Z",
+    "2026-09-07T10:00:20.500000Z",
+    "2026-09-07T10:00:20.5+00:00",
+))
+def test_parse_ts_accepts_short_fractional_seconds(raw: str) -> None:
+    """Board fixtures use ``.5Z``; Python 3.10 fromisoformat rejects that."""
+    assert _parse_ts(raw) == datetime(2026, 9, 7, 10, 0, 20, 500000, tzinfo=timezone.utc)
 
 
 class TestSchellingLoaders:
