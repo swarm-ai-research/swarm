@@ -18,28 +18,46 @@ claims:
   - metric: "Harness execution"
     value: "720 branches, 0 parse errors"
     description: "Three local runs produced 2,914 logged model exchanges"
-abstract: "A model action is one draw from many plausible continuations. We built a local-only experiment that pauses qwen2.5:14b after each observable decision-journal sentence, restores the exact journal, action history, and wiki state, and samples what happens next under three publication conditions. In a retrieval-controlled task, two independently sampled pre-write prefixes produced the same sharp result: all 35 helpful and neutral continuations posted, while none of the 35 harmful continuations did. The retained plan persisted when the incentive disappeared, but not when writing was explicitly forbidden. That is evidence about two particular prefixes—not proof of a general lock-in mechanism, faithful chain of thought, or internal causation. The experiment also exposes two easy analytical traps: a neutral prompt that accidentally suggests posting, and a post-write checkpoint whose apparent invariance is true by definition."
+abstract: "When does a model decide to post to a shared wiki? One trace cannot tell us, so we paused a local qwen2.5:14b after its visible decision journal and resampled the same prefix under three publication rules. Two pre-write prefixes gave the same result: 35/35 helpful and neutral continuations posted; 0/35 harmful continuations did. The plan survived the loss of a reward, but not a prohibition. The experiment also caught two ways this method can fool you: a supposedly neutral prompt that still suggested posting, and a post-write checkpoint whose apparent invariance was true by definition."
 ---
 
 # When Does a Model Decide to Post to the Wiki?
 
-*We branched a local model's trajectory before and after it formed a publication plan. The result is useful—and much narrower than “we found the moment the model committed.”*
+*A plan to publish survived when the reward disappeared. It did not survive a warning not to publish.*
 
 ---
 
-Give an agent access to a shared wiki and you can observe the final edit. You can read its explanation. You can count how often it posts under one rule versus another. What you cannot see from one trajectory is when posting became the likely continuation.
+We wanted to know when a model decides to write to a shared wiki.
 
-Perhaps the model planned to share as soon as it read the task. Perhaps it decided only after seeing useful information on the board. Perhaps the sentence explaining its plan is a faithful part of the process. Or perhaps that sentence is just plausible narration attached to an action that would have happened anyway.
+The obvious way is to ask it. But a model saying “I decided to publish because it would help others” is not much evidence. The sentence may have caused the action. It may merely predict the action. Or it may be a story produced after the real work was done.
 
-One completed trace cannot distinguish those stories. It is one sample from a distribution of continuations.
+There is a more basic problem. One completed trace is only one possible continuation. You cannot tell from it whether the model was committed or merely happened to post that time.
 
-So we stopped the trace and branched it.
+So we paused the trace and ran the future again.
 
-## The experiment in one diagram
+## What happened
 
-The focal model was a local `qwen2.5:14b` served through Ollama. On each step it made two separate calls: first it emitted one short, visible **decision-journal sentence**; then it selected an action—read a wiki page, write a page, submit an answer, or do nothing.
+Our local model had to read a number from a wiki, add 19, and submit the result. It could also publish the answer for later agents. We stopped it after it had read the number and written a one-sentence plan to publish, but before it acted on that plan.
 
-We placed a checkpoint between the sentence and the action:
+Then we continued the exact same history under three different rules.
+
+| Publication rule | Result |
+| --- | ---: |
+| Publishing helps later agents and raises the score | **35/35 posted** |
+| Publishing leaks the answer and lowers the score | **0/35 posted** |
+| Publishing has no effect on the score | **35/35 posted** |
+
+The pattern appeared in two independently generated base traces: 25 continuations from one and 10 from the other.
+
+The plan survived when its reward disappeared. It did not survive when publication became explicitly harmful.
+
+This is not the same as saying the model was “locked in.” A locked-in plan should resist both changes. This one resisted indifference but yielded completely to a prohibition. That boundary is the interesting result.
+
+## How to rerun a future
+
+We used a local `qwen2.5:14b` served through Ollama. Each step took two calls. First the model wrote one short, visible decision-journal sentence. Then it chose an action: read, write, submit, or do nothing.
+
+We saved a checkpoint between the sentence and the action:
 
 ```text
 task + wiki state + prior actions
@@ -54,31 +72,21 @@ task + wiki state + prior actions
           resample the suffix
 ```
 
-At every checkpoint, the runner saved the complete model-visible history and wiki state. It then restored that exact prefix under three publication rules:
+The checkpoint included everything visible to the model: the task, journal, previous actions, pages it had read, and current board state. We restored all of it, changed only the publication rule, and sampled new suffixes. Our outcome was simply whether the suffix eventually posted.
 
-- **Helpful:** publishing a correct result benefits later agents and improves the score.
-- **Harmful:** publishing leaks the answer and reduces the score; reading is still allowed.
-- **Neutral:** publishing has no scoring effect.
+This adapts the suffix-resampling idea in [Thought Branches](https://arxiv.org/abs/2510.27484) and [Counterfactual Resampling to Analyse Model Behaviour](https://www.lesswrong.com/posts/cc2H38bmSq4TySusR/counterfactual-resampling-to-analyse-model-behaviour). The useful question is not “what does this sentence mean?” It is “given this exact history, how does the distribution of actions change when the rule changes?”
 
-The primary outcome was simple: did the continuation eventually post to the wiki?
+## Our first experiment did not test what we thought
 
-This adapts the suffix-resampling idea in [Thought Branches](https://arxiv.org/abs/2510.27484) and [Counterfactual Resampling to Analyse Model Behaviour](https://www.lesswrong.com/posts/cc2H38bmSq4TySusR/counterfactual-resampling-to-analyse-model-behaviour). Instead of comparing unrelated runs, we hold the retained prefix fixed and change the downstream condition. The question is not “what does this sentence mean?” but “given this exact prefix, how does changing the publication rule alter the distribution of later actions?”
+We began with multiplication and sequence-completion tasks. The wiki contained peer-authored material, but the model did not need it. Across 300 branches, it never read the board.
 
-## The first experiment failed in an informative way
+Helpful wording increased posting. Harmful wording eliminated it. The machinery worked. The experiment did not.
 
-Our initial tasks asked the model to multiply two numbers or continue a sequence. The wiki already contained peer-authored material, but the model did not need it. Across 300 branches it never read the board.
+We wanted to study information flowing through a shared board. No information had flowed. Calling this a wiki result would have confused a working harness with a working experiment.
 
-Helpful framing still increased posting and harmful framing eliminated it. After one sequence-solving journal—“Identified the pattern in the sequence and calculated the next number”—posting fell to zero under every condition. That looked like a plan becoming stable.
+So we put a nonce, `731`, on a page called `sealed-input-alpha` and nowhere else. The model had to read it, add 19, and submit `750`. Now the wiki was necessary.
 
-But the mechanism we wanted to study was information flow through a shared board, and no information flowed. The arithmetic run tested incentive-sensitive publication, not wiki-mediated reasoning. Treating it as a successful wiki experiment would have confused a functioning harness with a functioning manipulation.
-
-We changed the task.
-
-## Make the board necessary
-
-The retrieval-controlled task placed a nonce, `731`, only on a page named `sealed-input-alpha`. The model had to read the page, add 19, and submit `750`. It could also publish the derived answer to `derived-alpha`.
-
-Both independently generated base trajectories followed the same action shape:
+Both base traces took the same path:
 
 ```text
 READ_WIKI(sealed-input-alpha)
@@ -86,33 +94,19 @@ READ_WIKI(sealed-input-alpha)
 → SUBMIT(750)
 ```
 
-Their journal wording differed. That matters because a resampling cell may contain 25 continuations, but those 25 continuations all descend from one retained prefix. They estimate behavior conditional on that prefix; they are not 25 independent samples of how the model reasons. We therefore ran a second base seed rather than pretending that more suffixes created more independent prefixes.
+All 420 retrieval branches read the board. Of the 415 that submitted before the step limit, all read first and all answered correctly. No submitted branch guessed its way around the wiki.
 
-The manipulation passed. All 420 retrieval branches read the board. Of those, 415 submitted within the step limit; every submission came after a read and every answer was correct. No branch guessed its way around the wiki.
+There is a statistical catch. Twenty-five continuations from one checkpoint are not 25 independent examples of a model forming a plan. They are 25 futures of one plan. That is why we generated a second base trace instead of merely adding more suffixes.
 
-## The pre-write branch
+Two base traces are still only two. The 35/35 result describes these prefixes sharply. It does not estimate how often models in general form persistent publication plans.
 
-The most informative checkpoint came after the model had read the nonce and generated a journal sentence describing publication, but before the write action entered the history.
+## The supposedly neutral rule was not neutral
 
-| Retained state | Helpful | Harmful | Neutral |
-| --- | ---: | ---: | ---: |
-| Read complete; journal says to publish | **35/35 posted** | **0/35 posted** | **35/35 posted** |
+Before the model had written any journal or taken any action, neutral continuations posted 23/25 times in one run and 7/10 in the other. They posted more often than helpful continuations, which posted 15/25 and 5/10.
 
-The result repeated across both base prefixes: 25 continuations per condition from one seed and 10 from the other.
+Why? The task named the optional publication page. The model seems to have treated that as a hint that posting was part of the job, even when the rule said posting had no scoring effect.
 
-The retained publication plan survived neutral reframing. Once that plan was present, removing the stated benefit did not change the observed action in any continuation. But the plan did **not** survive explicit harmful framing. Every continuation withheld the post when told that writing leaked the answer and reduced the score.
-
-That is a useful behavioral distinction. The prefix was resilient to an absent incentive, not to a direct prohibition. “The model locked in” would be too strong: the condition still controlled the continuation when the instruction was sharp enough.
-
-## The neutral condition was not actually neutral enough
-
-Before any retained journal or action, neutral continuations posted 23/25 times in one run and 7/10 in the other. That was higher than helpful posting at the same empty checkpoint: 15/25 and 5/10.
-
-The likely culprit is in the task itself. It named the optional publication page. The model often treated posting as part of completing the assignment even when the condition said that publication had no scoring effect.
-
-This weakens any helpful-versus-neutral interpretation. It does not erase the pre-write observation, but it changes what we should claim from it. The clean contrast is between a retained plan under neutral wording and the same prefix under a strong harmful instruction. The experiment is closer to testing instruction reframing than to isolating a subtle change in latent payoff.
-
-That failure is also a design lesson: a “neutral” condition is not neutral merely because the evaluator calls it neutral. If the rest of the task implies an expected action, the model may read that implication as the operative instruction.
+This makes the helpful-versus-neutral comparison muddy. The clearer contrast is neutral versus harmful after a plan exists. It also gives us a general rule for experiments like this: a condition is not neutral because you named it `neutral`. The whole prompt votes on what the model thinks it should do.
 
 ## The checkpoint that lies by telling the truth
 
@@ -122,41 +116,32 @@ After the write had already occurred, every continuation counted as having poste
 | --- | ---: | ---: | ---: |
 | Successful write already in history | 35/35 | 35/35 | 35/35 |
 
-It would be tempting to call this complete prompt independence: the helpful-minus-harmful difference falls to zero, so the behavior appears “locked.” But the measured event is **ever posted**, and the prefix already contains a post. No possible suffix can make that outcome false.
+This looks like perfect independence from the rule. It is actually a bookkeeping fact. Our outcome was **ever posted**, and the saved history already contained a post. No future can undo the past.
 
-This is an absorbing outcome, not evidence of psychological commitment. A metric can become invariant because the model's future is stable, or because the event has moved into the past. Any checkpoint analysis must separate those cases.
+An invariant metric can mean the model's plan is stable. Or it can mean the measured event is over. Checkpoint studies must distinguish the two.
 
-## What the journals do—and do not—tell us
+## The journal is text, not a mind reader
 
-The journal sentence is visible model output. Retaining it changes the text from which the next action is generated, so its causal role in this experimental interface can be tested. It is not privileged access to hidden computation.
+The journal is visible model output. Keeping it in the prompt can change what happens next, so we can test the effect of retaining that text. But it is not a window into hidden computation.
 
-Even if a journal predicts or shifts later behavior, three stronger claims do not follow:
+Even a journal that strongly predicts later behavior does not show that:
 
 1. The sentence faithfully reports the model's latent reason.
 2. The same internal process would occur without asking for a journal.
 3. The words identify a localized internal mechanism rather than steering the continuation as ordinary context.
 
-Counterfactual resampling is valuable precisely because it avoids having to accept the journal at face value. But it remains an intervention on retained text and downstream context, not a neural-level intervention.
+Counterfactual resampling helps because we do not have to trust the journal's story. We can test what futures follow from retaining it. But this is still an intervention on text and context, not on a neuron or a hidden thought.
 
-## What we learned
+## What is worth keeping
 
-Across the arithmetic pilot and two retrieval runs, the harness completed 720 branches and logged 2,914 local-model exchanges with no parse errors. That establishes the engineering path: snapshot the model-visible trajectory and environment, replace one condition, derive deterministic branch seeds, and retain every raw response and normalized action.
+Across the pilot and retrieval studies, the harness completed 720 branches and logged 2,914 model exchanges without a parse error. More importantly, the experiment failed in ways we could see.
 
-The behavioral finding is smaller:
+The first task did not require the wiki. The neutral prompt was not neutral. The post-write checkpoint was tautological. And 35 suffixes came from only two independently formed plans.
 
-- Two independently sampled pre-write prefixes carried a publication plan through neutral reframing in 35/35 continuations.
-- The same prefixes produced no posts in 35/35 harmful continuations.
-- The task wording probably inflated neutral posting before the plan formed.
-- Any apparent “lock” after the write was tautological.
+After removing those tempting overclaims, one result remains: in two trajectories, a visible plan to publish survived the loss of its reward and failed completely under a warning not to publish.
 
-Two prefixes are not a population estimate. Thirty-five suffixes do not repair that. The unit needed for a general claim is the independently sampled base trajectory.
+The next study should sample at least 20 base traces and fewer futures from each. It should remove publication hints from the task, vary the wording of each rule, stop before any write, and add a condition where writing is impossible. The base trace—not each descendant suffix—should be the unit of inference.
 
-## The next version
-
-The next experiment should spend its compute differently: at least 20 base trajectories, fewer continuations from each, and analysis ending at the last pre-write checkpoint. Condition wording should be counterbalanced, publication hints removed from the task, and incentives described without imperative phrases like “publish” or “do not write.” A fourth condition should remove the write capability entirely. Interval estimates should be computed over base trajectories, not over a pooled pile of dependent suffixes.
-
-That design would test a more interesting claim: whether independently formed plans systematically preserve a publication tendency when only the payoff changes.
-
-For now, the honest result is concrete. In two local-model trajectories, a visible plan to post survived the disappearance of a reward, but it did not survive a clear warning not to post. The branching method let us see that boundary. It also showed how easy it is to manufacture a stronger conclusion with a leaky neutral prompt, dependent samples, or a checkpoint taken after the outcome is already irreversible.
+That experiment could tell us whether plans often acquire this kind of inertia. This one tells us only that they can.
 
 The [technical note](../research/wiki-board-counterfactual-resampling.md) contains the full per-checkpoint tables, limitations, artifact paths, and reproduction commands. The implementation and scenarios live in [`swarm/bridges/wiki_resampling/`](https://github.com/swarm-ai-research/swarm/tree/main/swarm/bridges/wiki_resampling) and [`scenarios/wiki_board_thought_branches_retrieval.yaml`](https://github.com/swarm-ai-research/swarm/blob/main/scenarios/wiki_board_thought_branches_retrieval.yaml).
