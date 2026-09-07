@@ -96,6 +96,8 @@ Both inputs are runtime artifacts of the upstream benchmark and are not committe
 
 **Condition comparison.** With a control log the summary reports shared-minus-control means of the four benchmark scores (`on_time_accuracy`, `accuracy`, `prep_and_dispatch`, `clock_wait_used`) and a per-family `on_time_accuracy` delta in `csv/condition_comparison.csv`. One run per condition gives no error bars; treat it as descriptive.
 
+**Board-off base rate.** The control arm answers a question raised elsewhere in these notes. [Two swarms, one correlation](../research/hyperspace-two-swarms-lessons.md) argues that a count reported over agents who share a board is one observation plus conditioned replications, and asks (open question 3) for the uncoupled base rate that such a count stands in for. The no-board control run of the recreation is that base rate for this incident, and the shared-minus-control delta is what the board contributes.
+
 The run folder adds `history.json` and `csv/interactions.csv` (the `SoftInteraction` records, replayable) and `csv/posts.csv` (every board row with its attribution and p) to the files above. The upstream README calls the recreation only moderately faithful to the original scaffold, and the seed-transcript directory it references is not in the public tree, so an export may contain no seeded rows.
 
 ## Files

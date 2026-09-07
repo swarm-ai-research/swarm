@@ -296,6 +296,12 @@ cannot reach their requested ρ̄ and must be compared on achieved.
    is measurable with seeded known-true findings and has never been run.
 3. **Board-off base rate.** Whether Hyperspace (or we) can produce the
    uncoupled attacker propensity that 3/3 is currently standing in for.
+   The [schelling-point board replay](../bridges/collusion_wiki.md#schelling-point-board-replay-offline-recreation)
+   (`scenarios/casestudy_schelling_board.yaml`, bead `y91o`) has this design
+   for the fast-follow incident: the offline recreation runs a no-board
+   control and a shared-board treatment, and the bridge reports the
+   shared-minus-control score delta per family. Bead `0u33` tracks using it
+   to answer this question.
 4. **Does the exchangeability assumption hold?** The common-shock model assumes
    uniform pairwise correlation. Real verification topologies are structured
    (sequential, hierarchical, lens-specialised). Whether the asymmetry survives
