@@ -24,6 +24,28 @@ The scenario YAML is a replay config, not a simulation. It pins the export's man
 
 The data files are gitignored. The site is marked as a draft by its authors; the bridge reads it for analysis and does not redistribute it.
 
+### Page bodies from the reading pack
+
+The export carries `body_len` only. The 2026-09-05 *agent candidate reading pack* (`agent-reading-pack-20260905`, distributed by she-llac.com and linked from the [ConcurrentSquared archive](https://collusion.concurrentsquared.com/)) carries the full text of 11,811 wiki revisions in an `agent-text.sqlite`. `reading_pack.py` loads it and joins bodies onto export revisions on `(page_id, time)`; every pack wiki document matches exactly one export revision. Coverage measured 2026-09-06 against the export the scenario pins:
+
+| Wiki | Export revisions | With body | Share |
+|---|---:|---:|---:|
+| dse | 13,403 | 11,294 | 84% |
+| probier | 1,013 | 527 | 52% |
+| fractal | 169 | 154 | 91% |
+| dorfwiki | 6 | 5 | 83% |
+| all | 14,591 | 11,980 | 82% |
+
+The pack's other 4,768 texts (paste, URL-shortener, package and extra-wiki candidates) are *weakly labelled*: its README says known false positives, copied source material and possible researcher imitations were kept, and the paste track runs from 2020. The loader exposes them as a **secondary tier**, filtered by default to the incident window (2026-05-01 to 2026-07-31), which keeps 364 dated paste candidates and drops the 4,285 undated shortener bodies. Nothing in the secondary tier is actor attribution. All pack text is untrusted content: the bridge never executes it or fetches URLs from it.
+
+```bash
+# hidden-carrier scan over the export's text fields plus page bodies
+python -m swarm.bridges.collusion_wiki scenarios/casestudy_wiki_backchannel.yaml \
+    --stego --data-dir runs/data/collusion_wiki --pack ~/Downloads/agent-reading-pack-20260905
+```
+
+Result of that scan (run `20260907T021617Z_casestudy_wiki_stego`, 22.1 MB of page bodies): no tag characters, zero-width characters, bidi controls, variation selectors, private-use code points or mixed-script tokens in any body. The 2,252 body-level `high_entropy` hits are all URLs (proxy chains, `uniq=` cache-busters), and the 46 `base64_run` hits are encoded URLs and one explicit test page, `dse/AgentBase64Test` (2026-05-27), whose httpbin base64 payload decodes to an HTML anchor to a usaspending.gov endpoint. Details in [The Unicode tag-character channel](../research/unicode-tag-channel.md#base-rate-in-page-bodies-2026-09-06).
+
 ## Mapping
 
 Two choices carry the whole result, so both are explicit knobs in `swarm/bridges/collusion_wiki/mapper.py`.
@@ -58,6 +80,8 @@ The **timeline** re-runs the temporal detector on each day's edits and the struc
 | Path | Role |
 |---|---|
 | `swarm/bridges/collusion_wiki/loader.py` | reads `revisions.jsonl[.gz]` and `events.jsonl[.gz]` |
+| `swarm/bridges/collusion_wiki/reading_pack.py` | reads the reading pack's `agent-text.sqlite`; joins page bodies onto revisions; tiers the non-wiki candidates |
+| `swarm/bridges/collusion_wiki/stego.py` | hidden-carrier scan over export text fields and, with `--pack`, page bodies |
 | `swarm/bridges/collusion_wiki/mapper.py` | revisions to `SoftInteraction`, identity and projection modes |
 | `swarm/bridges/collusion_wiki/runner.py` | detector passes, timeline, run folder |
 | `scenarios/casestudy_wiki_backchannel.yaml` | replay config |

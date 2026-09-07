@@ -10,10 +10,14 @@ carriers in the public export (May 24 - Jul 2, i.e. before disclosure).
 The export does not carry page bodies (``body_len`` only), so the scan covers
 every free-text field it does have: revision ``change_summary``, editor
 ``label``, ``page_id``; event ``change_summary`` and ``actor_label``; and the
-``labels.jsonl`` handle list. Findings are counted by carrier class, day,
-label and ip16, and written to ``runs/<ts>_casestudy_wiki_stego/``.
+``labels.jsonl`` handle list. With ``pack=`` (bead 8zoc) it also scans page
+bodies from the 2026-09-05 reading pack (``reading_pack.py``): wiki bodies
+joined to their export revision as ``pack.wiki.body`` (label and ip16 come
+from the revision), and the secondary-tier candidates inside the incident
+window as ``pack.<source_type>.body``. Findings are counted by carrier
+class, day, label and ip16, and written to ``runs/<ts>_casestudy_wiki_stego/``.
 
-CLI: ``python -m swarm.bridges.collusion_wiki <scenario.yaml> --stego``.
+CLI: ``python -m swarm.bridges.collusion_wiki <scenario.yaml> --stego [--pack DIR]``.
 """
 
 from __future__ import annotations
@@ -34,6 +38,7 @@ from swarm.bridges.collusion_wiki.loader import (
     load_events,
     load_revisions,
 )
+from swarm.bridges.collusion_wiki.reading_pack import iter_docs, join_bodies
 
 # Carrier classes. Each is a name -> predicate over a single code point, or a
 # regex over the whole string for the run-based classes.
@@ -158,6 +163,9 @@ class StegoReport:
     non_ascii_chars: Dict[str, int] = field(default_factory=dict)
     first_flag: Optional[str] = None
     last_flag: Optional[str] = None
+    # characters scanned per source, so a body-level rate can be stated per
+    # kilobyte and not only per string (a 38 KB page is one string)
+    chars_by_source: Dict[str, int] = field(default_factory=dict)
     findings: List[StegoFinding] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -173,6 +181,7 @@ class StegoReport:
             "by_ip16": dict(sorted(self.by_ip16.items(), key=lambda kv: -kv[1])[:50]),
             "first_flag": self.first_flag,
             "last_flag": self.last_flag,
+            "chars_by_source": dict(sorted(self.chars_by_source.items())),
         }
         return d
 
@@ -220,12 +229,63 @@ def _strings(data_dir: Path) -> Iterator[Tuple[str, str, datetime, str, str, str
             yield ("labels.label", lab, t, lab, "", ",".join(row.get("wikis") or []), "")
 
 
-def scan(data_dir: Path, **kw: Any) -> StegoReport:
+def _pack_strings(pack: Path, data_dir: Optional[Path]) -> Iterator[Tuple[str, str, datetime, str, str, str, str]]:
+    """Page bodies and secondary-tier texts from the reading pack.
+
+    Wiki bodies are joined to the export revision when ``data_dir`` has one,
+    so label and ip16 are the editor's; unjoined bodies carry an empty label,
+    and so do bodies whose ``(page_id, time)`` key matches revisions by more
+    than one editor (same-second saves) -- guessing would misattribute.
+    Secondary-tier docs are already window-filtered by ``iter_docs``; they are
+    never attribution, so their label and ip16 are always empty (the pack's
+    ``author`` field is a handle from a paste site, not a wiki editor).
+    """
+    docs = list(iter_docs(pack))
+    # key -> {(label, ip16)} of every joined revision; one entry = unambiguous
+    ids_by_key: Dict[Tuple[str, datetime], set] = {}
+    if data_dir is not None:
+        try:
+            revs = load_revisions(data_dir)
+        except FileNotFoundError:
+            revs = []
+        joined = join_bodies(revs, [d for d in docs if d.source_type == "wiki"])
+        for r in revs:
+            if r.rev_id in joined:
+                ids_by_key.setdefault((r.page_id, r.time), set()).add((r.label, r.ip16))
+    for d in docs:
+        t = d.time or datetime(1970, 1, 1, tzinfo=timezone.utc)
+        if d.source_type == "wiki":
+            ids = ids_by_key.get((d.page_id, d.time), set()) if d.time is not None else set()
+            label, ip16 = next(iter(ids)) if len(ids) == 1 else ("", "")
+            yield ("pack.wiki.body", d.text, t, label, ip16, d.wiki, d.page_id)
+        else:
+            group = d.source_group.split("/", 1)[0]
+            yield (f"pack.{d.source_type}.body", d.text, t, "", "", group, d.source_group)
+            if d.title and d.title != "Untitled":
+                yield (f"pack.{d.source_type}.title", d.title, t, "", "", group, d.source_group)
+
+
+def _all_strings(data_dir: Optional[Path], pack: Optional[Path]) -> Iterator[Tuple[str, str, datetime, str, str, str, str]]:
+    if data_dir is not None:
+        try:
+            yield from _strings(data_dir)
+        except FileNotFoundError:
+            if pack is None:
+                raise
+    if pack is not None:
+        yield from _pack_strings(pack, data_dir)
+
+
+def scan(data_dir: Optional[Path], pack: Optional[Path] = None, **kw: Any) -> StegoReport:
+    """Scan the export under ``data_dir`` and/or the reading pack at ``pack``."""
+    if data_dir is None and pack is None:
+        raise ValueError("scan needs a data_dir, a pack, or both")
     rep = StegoReport()
-    for source, text, t, label, ip16, wiki, page in _strings(data_dir):
+    for source, text, t, label, ip16, wiki, page in _all_strings(data_dir, pack):
         if not text:
             continue
         rep.n_strings += 1
+        rep.chars_by_source[source] = rep.chars_by_source.get(source, 0) + len(text)
         if any(ord(ch) > 127 for ch in text):
             rep.non_ascii_strings += 1
             for ch in text:
@@ -258,12 +318,16 @@ def scan(data_dir: Path, **kw: Any) -> StegoReport:
     return rep
 
 
-def run_stego(data_dir: Path, runs_root: Path = Path("runs"), **kw: Any) -> Path:
-    rep = scan(data_dir, **kw)
+def run_stego(data_dir: Optional[Path], runs_root: Path = Path("runs"),
+              pack: Optional[Path] = None, **kw: Any) -> Path:
+    rep = scan(data_dir, pack=pack, **kw)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out = runs_root / f"{stamp}_casestudy_wiki_stego"
     out.mkdir(parents=True, exist_ok=True)
-    (out / "summary.json").write_text(json.dumps(rep.to_dict(), indent=2))
+    summary = rep.to_dict()
+    summary["inputs"] = {"data_dir": str(data_dir) if data_dir else None,
+                         "pack": str(pack) if pack else None}
+    (out / "summary.json").write_text(json.dumps(summary, indent=2))
     with (out / "findings.jsonl").open("w") as f:
         for x in rep.findings:
             f.write(json.dumps(x.__dict__, ensure_ascii=False) + "\n")

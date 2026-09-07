@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0,<84", "wheel"]
+requires = ["setuptools>=61.0,<85", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -123,9 +123,9 @@ gamescape = [
     "gamescape",
 ]
 langgraph = [
-    "langgraph==1.2.9",
+    "langgraph==1.2.11",
     "langchain-core==1.4.9",
-    "langchain-anthropic==1.4.8",
+    "langchain-anthropic==1.7.1",
     "langchain-ollama>=0.3.0",
     "langchain-openai>=0.3.0",
 ]

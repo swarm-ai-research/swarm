@@ -1,7 +1,8 @@
 """CLI: ``python -m swarm.bridges.collusion_wiki <scenario.yaml> --data-dir DIR``.
 
 ``--stego`` runs the hidden-character scan (``stego.py``) instead of the
-detectors. ``--fetch`` downloads the export from collusion.wiki into ``--data-dir``
+detectors; add ``--pack DIR`` to include page bodies from the 2026-09-05
+reading pack (``reading_pack.py``). ``--fetch`` downloads the export from collusion.wiki into ``--data-dir``
 first (files land gzipped; the loader reads them as-is).
 """
 
@@ -47,11 +48,16 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--stego", action="store_true",
                    help="scan the export's free-text fields for hidden-character "
                         "carriers (bead vv3j.5) instead of running the detectors")
+    p.add_argument("--pack", type=Path,
+                   help="agent-reading-pack directory (or its agent-text.sqlite); "
+                        "with --stego, scans page bodies too (bead 8zoc)")
     p.add_argument("-v", "--verbose", action="store_true")
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
+    if args.pack is not None and not args.stego:
+        p.error("--pack only affects the stego scan; pass --stego with it")
     if not args.scenario.exists():
         print(f"scenario not found: {args.scenario}", file=sys.stderr)
         return 2
@@ -59,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
         fetch(args.scenario, args.data_dir)
 
     if args.stego:
-        out = run_stego(args.data_dir, args.runs_root)
+        out = run_stego(args.data_dir, args.runs_root, pack=args.pack)
         print(out)
         return 0
 
