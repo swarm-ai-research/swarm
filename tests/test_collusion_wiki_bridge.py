@@ -282,3 +282,103 @@ class TestPlaceholderBodyLen:
         share = placeholder_body_len_share(revs)
         assert share["probier"] == 0.75 and share["dse"] == 0.0
         assert any("probier" in m and "placeholder" in m for m in caplog.messages)
+
+
+# --- bead 8zoc: reading pack (page bodies) -----------------------------------
+
+def _pack(tmp_path, rows):
+    """Minimal agent-text.sqlite with the columns the loader reads."""
+    import sqlite3
+    d = tmp_path / "pack"
+    d.mkdir()
+    con = sqlite3.connect(d / "agent-text.sqlite")
+    con.execute(
+        "CREATE TABLE documents (id TEXT PRIMARY KEY, source_type TEXT NOT NULL, "
+        "source_group TEXT NOT NULL, title TEXT, source_url TEXT, author TEXT, "
+        "timestamp_utc TEXT, timestamp_original TEXT, timestamp_basis TEXT, "
+        "occurrences INTEGER, parent_id TEXT, parent_status TEXT NOT NULL, "
+        "text TEXT NOT NULL, text_sha256 TEXT NOT NULL, markdown_file TEXT NOT NULL)")
+    for i, r in enumerate(rows):
+        con.execute(
+            "INSERT INTO documents VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (r.get("id", f"d{i}"), r["source_type"], r["source_group"], r.get("title", ""),
+             r.get("source_url"), r.get("author"), r.get("timestamp_utc"), None,
+             "inherited", 1, None, "not retained", r["text"], "x", f"texts/d{i}.md"))
+    con.commit()
+    con.close()
+    return d
+
+
+@pytest.fixture
+def pack_dir(tmp_path):
+    return _pack(tmp_path, [
+        # joins to r1 (dse/Answers @ 10:00:00) and r6 (dse/Other @ 06-17 09:00)
+        {"source_type": "wiki", "source_group": "dse/Answers",
+         "timestamp_utc": "2026-06-16T10:00:00Z", "text": "= Answers =\nSTATE5-XX 12.3"},
+        {"source_type": "wiki", "source_group": "dse/Other",
+         "timestamp_utc": "2026-06-17T09:00:00Z",
+         "text": "relay " + "".join(chr(0xE0000 + ord(c)) for c in "peer.example") + " end"},
+        # no export revision at this time -> unjoined body, still scanned
+        {"source_type": "wiki", "source_group": "dse/Lonely",
+         "timestamp_utc": "2026-06-18T00:00:00Z", "text": "orphan body"},
+        # secondary tier: inside window, outside window, undated
+        {"source_type": "paste_candidate", "source_group": "k4be/abc", "author": "a1",
+         "timestamp_utc": "2026-06-01T00:00:00+00:00", "title": "Q", "text": "in window"},
+        {"source_type": "paste_candidate", "source_group": "linuxiarz/old",
+         "timestamp_utc": "2023-01-26T09:07:56+00:00", "text": "hobbyist paste"},
+        {"source_type": "shortener_candidate", "source_group": "candidate-sites/x/y.body",
+         "text": "https://example.invalid/county.json"},
+    ])
+
+
+class TestReadingPack:
+    def test_tiers_and_window(self, pack_dir):
+        from swarm.bridges.collusion_wiki.reading_pack import load_docs
+        prim = load_docs(pack_dir, tier="primary")
+        assert [d.page_id for d in prim] == ["dse/Answers", "dse/Other", "dse/Lonely"]
+        assert all(d.wiki == "dse" for d in prim)
+        sec = load_docs(pack_dir, tier="secondary")
+        assert [d.source_group for d in sec] == ["k4be/abc"]  # window drops 2023 + undated
+        sec_all = load_docs(pack_dir, tier="secondary", keep_undated=True)
+        assert {d.source_group for d in sec_all} == {"k4be/abc", "candidate-sites/x/y.body"}
+        assert len(load_docs(pack_dir)) == 4
+
+    def test_join_and_coverage(self, data_dir, pack_dir):
+        from swarm.bridges.collusion_wiki.reading_pack import (
+            coverage,
+            join_bodies,
+            load_docs,
+        )
+        revs = load_revisions(data_dir)
+        joined = join_bodies(revs, load_docs(pack_dir, tier="primary"))
+        assert set(joined) == {"r1", "r6"}
+        assert joined["r1"].text.startswith("= Answers =")
+        cov = coverage(revs, joined)
+        assert cov["dse"]["revisions"] == 7 and cov["dse"]["with_body"] == 2
+
+    def test_accepts_sqlite_path_and_missing_raises(self, pack_dir, tmp_path):
+        from swarm.bridges.collusion_wiki.reading_pack import load_docs
+        assert len(load_docs(pack_dir / "agent-text.sqlite")) == 4
+        with pytest.raises(FileNotFoundError):
+            load_docs(tmp_path / "nope")
+
+    def test_stego_scans_bodies_with_editor_identity(self, data_dir, pack_dir, tmp_path):
+        rep = scan(data_dir, pack=pack_dir)
+        bodies = [f for f in rep.findings if f.source == "pack.wiki.body"]
+        assert len(bodies) == 1 and bodies[0].decoded == "peer.example"
+        assert bodies[0].label == "HelperB" and bodies[0].ip16 == "20.2"  # from r6
+        assert rep.chars_by_source["pack.wiki.body"] > 0
+        assert "pack.paste_candidate.body" in rep.chars_by_source
+        assert "pack.shortener_candidate.body" not in rep.chars_by_source  # undated, dropped
+        out = run_stego(data_dir, tmp_path, pack=pack_dir)
+        summary = json.loads((out / "summary.json").read_text())
+        assert summary["inputs"]["pack"] == str(pack_dir)
+
+    def test_stego_pack_only(self, pack_dir, tmp_path):
+        rep = scan(None, pack=pack_dir)
+        assert rep.by_carrier.get("tag_chars") == 1
+        assert rep.findings[0].label == ""  # no export to join
+        rep2 = scan(tmp_path / "no-export", pack=pack_dir)  # missing export tolerated
+        assert rep2.n_flagged == rep.n_flagged
+        with pytest.raises(ValueError):
+            scan(None)
