@@ -431,6 +431,28 @@ page makes every co-editor a reply-neighbour), the per-agent temporal score is a
 plain **edit-volume monitor** is the signal that leads the moderator — the one
 thing none of the collusion detectors computes.
 
+## Schelling-point board replay (`scenarios/casestudy_schelling_board.yaml`)
+
+A replay config, not a simulation, for the shared message board of
+[oai-rlvr-task-recreations](https://github.com/AI-Safety-Commons/oai-rlvr-task-recreations),
+the offline Inspect recreation of `fast_follow_question_bench` (the OpenAI RLVR
+task behind the incident that `casestudy_wiki_backchannel.yaml` replays from the
+outside). The recreation's `schelling-point` board is the treatment channel;
+`compose.yaml` without it is the control. The bridge joins the board's
+`messages.json` to the Inspect eval log, attributes each live post to a scored
+`<family>__cohort_NN` sample (text match, else unique time window), uses that
+sample's `on_time_accuracy` as a leak-benefit proxy for p, and runs the same
+detector pipeline. With a control log it also reports shared-minus-control
+score deltas per family. See `docs/bridges/collusion_wiki.md`.
+
+Run it:
+
+```bash
+python -m swarm.bridges.collusion_wiki scenarios/casestudy_schelling_board.yaml \
+    --board <schelling-point/data/messages.json> --eval-log <logs/run.eval> \
+    [--control-eval-log <logs-control/run.eval>]
+```
+
 ## Wiki-board counterfactual resampling
 
 `scenarios/wiki_board_thought_branches.yaml` and its retrieval-controlled
