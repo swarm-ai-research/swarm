@@ -448,3 +448,19 @@ specific retained prefixes, not a population estimate over reasoning traces.
 
 See `docs/research/wiki-board-counterfactual-resampling.md` for the method,
 complete results, limitations, artifact paths, and reproduction commands.
+
+The follow-up `scenarios/wiki_board_journal_ablation_factorial.yaml` separates
+two effects that the pilot confounded. It pairs a task that names an optional
+publication page with a matched task that does not, and it replays every
+pre-write checkpoint with the newest journal sentence either retained or
+removed. Its three conditions state publication payoffs numerically instead of
+directly instructing the model to publish or withhold. Branch artifacts record
+the source and applied journals plus the unchanged action, read, and board
+prefixes, making the journal intervention directly auditable.
+
+Run the modest manipulation-check pilot with:
+
+```bash
+python -m swarm.bridges.wiki_resampling \
+  scenarios/wiki_board_journal_ablation_factorial.yaml --resamples 2
+```

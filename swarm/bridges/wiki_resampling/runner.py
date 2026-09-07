@@ -256,38 +256,70 @@ def outcome(trajectory: Trajectory, task: Task) -> dict[str, Any]:
 
 
 def _branch_seed(
-    base_seed: int, checkpoint_index: int, condition_index: int, sample: int
+    base_seed: int,
+    checkpoint_index: int,
+    condition_index: int,
+    intervention_index: int,
+    sample: int,
 ) -> int:
     return (
         base_seed * 1_000_003
         + checkpoint_index * 10_007
         + condition_index * 101
+        + intervention_index * 1_009
         + sample
     ) % 2_147_483_647
+
+
+def _has_successful_write(state: TrajectoryState) -> bool:
+    return any(
+        event["action"] == "WRITE_WIKI" and event["success"]
+        for event in state.events
+    )
+
+
+def _apply_journal_intervention(
+    checkpoint: Checkpoint, intervention: str
+) -> Checkpoint:
+    applied = copy.deepcopy(checkpoint)
+    if intervention == "ablated":
+        if not applied.state.journals:
+            raise ValueError("cannot ablate a checkpoint without a journal")
+        applied.state.journals.pop()
+    elif intervention != "retained":
+        raise ValueError(f"unknown journal intervention: {intervention}")
+    return applied
 
 
 def _summarise(
     branch_rows: list[dict[str, Any]], lock_epsilon: float
 ) -> list[dict[str, Any]]:
-    grouped: dict[tuple[str, int, str], list[dict[str, Any]]] = {}
+    grouped: dict[tuple[str, int, str, str], list[dict[str, Any]]] = {}
     for row in branch_rows:
-        key = (row["task_id"], row["checkpoint_index"], row["condition"])
+        key = (
+            row["task_id"],
+            row["checkpoint_index"],
+            row["journal_intervention"],
+            row["condition"],
+        )
         grouped.setdefault(key, []).append(row)
 
-    task_checkpoints = sorted({(key[0], key[1]) for key in grouped})
+    task_checkpoints = sorted({(key[0], key[1], key[2]) for key in grouped})
     neutral_baselines: dict[str, float] = {}
-    for task_id, _ in task_checkpoints:
-        rows = grouped.get((task_id, 0, "board_neutral"), [])
+    for task_id, _, _ in task_checkpoints:
+        rows = grouped.get((task_id, 0, "retained", "board_neutral"), [])
         if rows:
             neutral_baselines[task_id] = sum(bool(row["posted"]) for row in rows) / len(
                 rows
             )
 
     summary: list[dict[str, Any]] = []
-    for task_id, checkpoint_index in task_checkpoints:
+    for task_id, checkpoint_index, intervention in task_checkpoints:
         rates: dict[str, float] = {}
         for condition in ("board_helpful", "board_harmful", "board_neutral"):
-            rows = grouped.get((task_id, checkpoint_index, condition), [])
+            rows = grouped.get(
+                (task_id, checkpoint_index, intervention, condition), []
+            )
             if rows:
                 rates[condition] = sum(bool(row["posted"]) for row in rows) / len(rows)
         helpful = rates.get("board_helpful")
@@ -298,6 +330,7 @@ def _summarise(
             {
                 "task_id": task_id,
                 "checkpoint_index": checkpoint_index,
+                "journal_intervention": intervention,
                 "post_rate_by_condition": rates,
                 "prompt_dependence": dependence,
                 "neutral_post_rate": neutral,
@@ -360,37 +393,65 @@ def run_experiment(
                 }
             )
             for checkpoint_index, checkpoint in enumerate(base.checkpoints):
+                if cfg.resampling.pre_write_only and _has_successful_write(
+                    checkpoint.state
+                ):
+                    continue
                 for condition_index, condition in enumerate(cfg.resampling.conditions):
-                    for sample in range(n_continuations):
-                        seed = _branch_seed(
-                            base_seed, checkpoint_index, condition_index, sample
+                    for intervention_index, intervention in enumerate(
+                        cfg.resampling.journal_interventions
+                    ):
+                        if intervention == "ablated" and not checkpoint.state.journals:
+                            continue
+                        applied_checkpoint = _apply_journal_intervention(
+                            checkpoint, intervention
                         )
-                        branch_id = (
-                            f"{base_id}-cp{checkpoint_index}-{condition}-{sample}"
-                        )
-                        branch = run_trajectory(
-                            cfg,
-                            task,
-                            condition,
-                            client,
-                            seed=seed,
-                            trajectory_id=branch_id,
-                            checkpoint=checkpoint,
-                        )
-                        branch_rows.append(
-                            {
-                                "trajectory_id": branch_id,
-                                "base_trajectory_id": base_id,
-                                "task_id": task.task_id,
-                                "checkpoint_index": checkpoint_index,
-                                "condition": condition,
-                                "seed": seed,
-                                "prefix_journals": checkpoint.state.journals,
-                                "state": asdict(branch.state),
-                                "board": branch.board_snapshot,
-                                **outcome(branch, task),
-                            }
-                        )
+                        for sample in range(n_continuations):
+                            seed = _branch_seed(
+                                base_seed,
+                                checkpoint_index,
+                                condition_index,
+                                intervention_index,
+                                sample,
+                            )
+                            branch_id = (
+                                f"{base_id}-cp{checkpoint_index}-{condition}-"
+                                f"{intervention}-{sample}"
+                            )
+                            branch = run_trajectory(
+                                cfg,
+                                task,
+                                condition,
+                                client,
+                                seed=seed,
+                                trajectory_id=branch_id,
+                                checkpoint=applied_checkpoint,
+                            )
+                            branch_rows.append(
+                                {
+                                    "trajectory_id": branch_id,
+                                    "base_trajectory_id": base_id,
+                                    "task_id": task.task_id,
+                                    "checkpoint_index": checkpoint_index,
+                                    "condition": condition,
+                                    "journal_intervention": intervention,
+                                    "seed": seed,
+                                    "source_prefix_journals": checkpoint.state.journals,
+                                    "prefix_journals": (
+                                        applied_checkpoint.state.journals
+                                    ),
+                                    "prefix_events": applied_checkpoint.state.events,
+                                    "prefix_read_entries": (
+                                        applied_checkpoint.state.read_entries
+                                    ),
+                                    "prefix_board": (
+                                        applied_checkpoint.board_snapshot
+                                    ),
+                                    "state": asdict(branch.state),
+                                    "board": branch.board_snapshot,
+                                    **outcome(branch, task),
+                                }
+                            )
 
     result = {
         "scenario_id": cfg.scenario_id,

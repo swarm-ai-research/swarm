@@ -27,6 +27,11 @@ RETRIEVAL_SCENARIO = (
     / "scenarios"
     / "wiki_board_thought_branches_retrieval.yaml"
 )
+FACTORIAL_SCENARIO = (
+    Path(__file__).resolve().parent.parent
+    / "scenarios"
+    / "wiki_board_journal_ablation_factorial.yaml"
+)
 
 
 class ConditionModel:
@@ -66,6 +71,19 @@ def test_retrieval_scenario_requires_board_input() -> None:
     assert "731" not in task.question
 
 
+def test_factorial_scenario_pairs_hint_and_journal_interventions() -> None:
+    cfg = ExperimentConfig.from_yaml(FACTORIAL_SCENARIO)
+
+    assert cfg.resampling.journal_interventions == ("retained", "ablated")
+    assert cfg.resampling.pre_write_only is True
+    assert {task.task_id for task in cfg.tasks} == {"hint_present", "hint_absent"}
+    questions = {task.task_id: task.question for task in cfg.tasks}
+    assert "derived-alpha" in questions["hint_present"]
+    assert "derived-alpha" not in questions["hint_absent"]
+    assert all(task.expected_answer == "750" for task in cfg.tasks)
+    assert all(task.seed_entries == cfg.tasks[0].seed_entries for task in cfg.tasks)
+
+
 def test_config_rejects_negative_seed() -> None:
     cfg = ExperimentConfig.from_yaml(SCENARIO)
     with pytest.raises(ValueError, match="seed must be non-negative"):
@@ -73,6 +91,25 @@ def test_config_rejects_negative_seed() -> None:
 
     with pytest.raises(ValueError, match="seed must be non-negative"):
         run_experiment(replace(cfg, seed=-1), ConditionModel())
+
+
+def test_config_rejects_unknown_journal_intervention() -> None:
+    cfg = ExperimentConfig.from_yaml(SCENARIO)
+    invalid = replace(
+        cfg,
+        resampling=replace(cfg.resampling, journal_interventions=("retained", "swap")),
+    )
+    with pytest.raises(ValueError, match="unknown journal interventions"):
+        invalid.validate()
+
+    duplicate = replace(
+        cfg,
+        resampling=replace(
+            cfg.resampling, journal_interventions=("retained", "retained")
+        ),
+    )
+    with pytest.raises(ValueError, match="journal_interventions must be unique"):
+        duplicate.validate()
 
 
 def test_board_snapshot_restores_without_aliasing() -> None:
@@ -151,3 +188,45 @@ def test_experiment_branches_conditions_and_writes_artifacts(tmp_path: Path) -> 
     branches = [json.loads(line) for line in branch_lines]
     assert all(row["seed"] >= 0 for row in branches)
     assert all(row["state"]["exchanges"] for row in branches)
+
+
+def test_journal_ablation_preserves_non_journal_prefix_state() -> None:
+    cfg = ExperimentConfig.from_yaml(FACTORIAL_SCENARIO)
+    cfg = replace(
+        cfg,
+        tasks=(cfg.tasks[0],),
+        resampling=replace(
+            cfg.resampling,
+            base_rollouts_per_task=1,
+            continuations_per_condition=1,
+            max_steps=2,
+        ),
+    )
+
+    result = run_experiment(cfg, ConditionModel())
+
+    assert {row["checkpoint_index"] for row in result["branches"]} == {0, 1}
+    assert {
+        row["journal_intervention"]
+        for row in result["branches"]
+        if row["checkpoint_index"] == 0
+    } == {"retained"}
+    checkpoint_rows = {
+        (row["condition"], row["journal_intervention"]): row
+        for row in result["branches"]
+        if row["checkpoint_index"] == 1
+    }
+    for condition in cfg.resampling.conditions:
+        retained = checkpoint_rows[(condition, "retained")]
+        ablated = checkpoint_rows[(condition, "ablated")]
+        assert retained["source_prefix_journals"] == ablated["source_prefix_journals"]
+        assert len(retained["prefix_journals"]) == 1
+        assert ablated["prefix_journals"] == []
+        assert retained["prefix_events"] == ablated["prefix_events"]
+        assert retained["prefix_read_entries"] == ablated["prefix_read_entries"]
+        assert retained["prefix_board"] == ablated["prefix_board"]
+    assert {
+        row["journal_intervention"]
+        for row in result["summary"]
+        if row["checkpoint_index"] == 1
+    } == {"retained", "ablated"}

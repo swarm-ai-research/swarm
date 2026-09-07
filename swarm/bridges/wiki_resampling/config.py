@@ -50,6 +50,8 @@ class ResamplingConfig:
     continuations_per_condition: int = 3
     max_steps: int = 3
     lock_epsilon: float = 0.10
+    journal_interventions: tuple[str, ...] = ("retained",)
+    pre_write_only: bool = False
 
 
 DEFAULT_CONDITION_PROMPTS = {
@@ -115,6 +117,14 @@ class ExperimentConfig:
             lock_epsilon=float(
                 raw_resampling.get("lock_epsilon", defaults.lock_epsilon)
             ),
+            journal_interventions=tuple(
+                raw_resampling.get(
+                    "journal_interventions", defaults.journal_interventions
+                )
+            ),
+            pre_write_only=bool(
+                raw_resampling.get("pre_write_only", defaults.pre_write_only)
+            ),
         )
 
         tasks = tuple(_parse_task(raw) for raw in doc.get("tasks", ()))
@@ -159,6 +169,21 @@ class ExperimentConfig:
             raise ValueError("max_steps must be positive")
         if not 0.0 <= self.resampling.lock_epsilon <= 1.0:
             raise ValueError("lock_epsilon must be in [0, 1]")
+        allowed_interventions = {"retained", "ablated"}
+        if not self.resampling.journal_interventions:
+            raise ValueError("journal_interventions must not be empty")
+        if len(set(self.resampling.journal_interventions)) != len(
+            self.resampling.journal_interventions
+        ):
+            raise ValueError("journal_interventions must be unique")
+        unknown_interventions = (
+            set(self.resampling.journal_interventions) - allowed_interventions
+        )
+        if unknown_interventions:
+            raise ValueError(
+                "unknown journal interventions: "
+                f"{sorted(unknown_interventions)}"
+            )
         if not 0.0 <= self.ollama.temperature <= 1.0:
             raise ValueError("temperature must be in [0, 1]")
 
