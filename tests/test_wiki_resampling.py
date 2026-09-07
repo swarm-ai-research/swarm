@@ -335,6 +335,7 @@ def test_journal_swap_and_write_capability_interventions() -> None:
         WikiBoard.from_seed_entries(cfg.tasks[0].seed_entries),
         "removed",
     )
+    assert "Available actions\nare READ_WIKI" in removed_prompt
     assert "WRITE_WIKI" not in removed_prompt
 
     assert {row["write_intervention"] for row in result["summary"]} == {

@@ -113,13 +113,17 @@ def _action_prompt(
     write_intervention: str,
 ) -> str:
     if write_intervention == "removed":
-        action_instructions = """Choose exactly one action. Available actions
-are READ_WIKI, which requires page; SUBMIT, which requires answer; and NOOP,
-which takes no parameters."""
+        action_instructions = (
+            "Choose exactly one action. Available actions\n"
+            "are READ_WIKI, which requires page; SUBMIT, which requires answer; "
+            "and NOOP,\nwhich takes no parameters."
+        )
     else:
-        action_instructions = """Choose exactly one action. READ_WIKI requires
-page. WRITE_WIKI requires page, content, and answer. SUBMIT requires answer.
-NOOP takes no parameters."""
+        action_instructions = (
+            "Choose exactly one action. READ_WIKI requires\n"
+            "page. WRITE_WIKI requires page, content, and answer. SUBMIT requires "
+            "answer.\nNOOP takes no parameters."
+        )
     return (
         _common_context(cfg, task, condition, state, board)
         + f"""
