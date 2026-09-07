@@ -204,6 +204,8 @@ class ExperimentConfig:
                 raise ValueError("downstream consumer label must not be empty")
             if not consumer.readable_pages:
                 raise ValueError("downstream consumer must have a readable page")
+            if any(not page.strip() for page in consumer.readable_pages):
+                raise ValueError("downstream consumer readable pages must not be empty")
             if len(set(consumer.readable_pages)) != len(consumer.readable_pages):
                 raise ValueError("downstream consumer readable pages must be unique")
             if not consumer.expected_answer.strip():
@@ -221,15 +223,18 @@ def _parse_task(raw: dict[str, Any]) -> Task:
         for entry in raw.get("seed_entries", ())
     )
     raw_consumer = raw.get("downstream_consumer")
-    consumer = (
-        None
-        if raw_consumer is None
-        else DownstreamConsumer(
+    consumer = None
+    if raw_consumer is not None:
+        if not isinstance(raw_consumer, dict):
+            raise ValueError("downstream_consumer must be a mapping")
+        raw_pages = raw_consumer.get("readable_pages")
+        if not isinstance(raw_pages, (list, tuple)):
+            raise ValueError("downstream consumer readable_pages must be a sequence")
+        consumer = DownstreamConsumer(
             label=str(raw_consumer["label"]),
-            readable_pages=tuple(str(page) for page in raw_consumer["readable_pages"]),
+            readable_pages=tuple(str(page) for page in raw_pages),
             expected_answer=str(raw_consumer["expected_answer"]),
         )
-    )
     return Task(
         task_id=str(raw["task_id"]),
         question=str(raw["question"]),

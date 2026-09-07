@@ -124,7 +124,7 @@ def test_factorial_scenario_pairs_hint_and_journal_interventions() -> None:
     assert all(task.seed_entries == cfg.tasks[0].seed_entries for task in cfg.tasks)
 
 
-def test_downstream_beneficiary_is_scored_from_board_state() -> None:
+def test_downstream_beneficiary_is_scored_from_board_state(tmp_path: Path) -> None:
     cfg = ExperimentConfig.from_yaml(BENEFICIARY_SCENARIO)
     task = cfg.tasks[0]
     consumer = task.downstream_consumer
@@ -133,6 +133,27 @@ def test_downstream_beneficiary_is_scored_from_board_state() -> None:
     assert consumer is not None
     assert consumer.readable_pages == ("derived-alpha",)
     assert consumer.expected_answer == "750"
+
+    invalid_pages = replace(
+        cfg,
+        tasks=(
+            replace(
+                task,
+                downstream_consumer=replace(consumer, readable_pages=(" ",)),
+            ),
+        ),
+    )
+    with pytest.raises(ValueError, match="readable pages must not be empty"):
+        invalid_pages.validate()
+
+    scalar_scenario = tmp_path / "scalar-pages.yaml"
+    scalar_scenario.write_text(
+        BENEFICIARY_SCENARIO.read_text().replace(
+            "readable_pages: [derived-alpha]", "readable_pages: derived-alpha"
+        )
+    )
+    with pytest.raises(ValueError, match="readable_pages must be a sequence"):
+        ExperimentConfig.from_yaml(scalar_scenario)
 
     result = run_experiment(
         replace(
@@ -229,21 +250,10 @@ def test_json_parser_accepts_first_object_before_trailing_text() -> None:
 
 
 def test_cli_summary_does_not_log_scenario_task_identifier() -> None:
-    row = {
-        "task_id": "private-customer-task",
-        "checkpoint_index": 1,
-        "journal_intervention": "retained",
-        "prompt_dependence": 0.5,
-        "locked": False,
-        "prefix_carried_posting": 0.25,
-        "post_rate_by_condition": {"board_helpful": 1.0},
-        "beneficiary_success_rate_by_condition": {"board_helpful": 1.0},
-    }
-
-    rendered = _format_summary(3, row)
+    rendered = _format_summary(3)
 
     assert "summary=3" in rendered
-    assert row["task_id"] not in rendered
+    assert "summary.json" in rendered
 
 
 @pytest.mark.parametrize(
