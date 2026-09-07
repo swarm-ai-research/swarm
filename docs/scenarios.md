@@ -464,3 +464,11 @@ Run the modest manipulation-check pilot with:
 python -m swarm.bridges.wiki_resampling \
   scenarios/wiki_board_journal_ablation_factorial.yaml --resamples 2
 ```
+
+The two-stage pilot passed retrieval (480/480 branches read the required page;
+all 479 submissions were correct) but failed the publication manipulation. All
+16 helpful base trajectories read and submitted directly, and only 2/480
+branches posted, in opposite condition/journal cells. This is a no-go for
+scaling the current task. See
+`docs/research/wiki-board-journal-ablation-pilot.md` for the full result and the
+downstream-beneficiary redesign.
