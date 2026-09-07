@@ -60,9 +60,9 @@ def main(argv: list[str] | None = None) -> int:
         progress=_print_progress,
     )
     print(f"wrote {out}")
-    for row in result["summary"]:
+    for summary_index, row in enumerate(result["summary"]):
         print(
-            f"{row['task_id']} cp={row['checkpoint_index']} "
+            f"summary={summary_index} cp={row['checkpoint_index']} "
             f"journal={row['journal_intervention']} "
             f"dep={row['prompt_dependence']} locked={row['locked']} "
             f"prefix_post={row['prefix_carried_posting']} "
