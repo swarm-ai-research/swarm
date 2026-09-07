@@ -32,6 +32,11 @@ FACTORIAL_SCENARIO = (
     / "scenarios"
     / "wiki_board_journal_ablation_factorial.yaml"
 )
+BENEFICIARY_SCENARIO = (
+    Path(__file__).resolve().parent.parent
+    / "scenarios"
+    / "wiki_board_downstream_beneficiary.yaml"
+)
 
 
 class ConditionModel:
@@ -69,6 +74,25 @@ class InterruptingModel:
         return self.delegate.generate(prompt, seed=seed)
 
 
+class BeneficiaryModel(ConditionModel):
+    """Write the correct answer to the beneficiary's only readable page."""
+
+    def generate(self, prompt: str, *, seed: int) -> str:
+        if (
+            "one short decision-journal sentence" not in prompt
+            and "[CONDITION=board_helpful]" in prompt
+        ):
+            return json.dumps(
+                {
+                    "action": "WRITE_WIKI",
+                    "page": "derived-alpha",
+                    "content": "derived result",
+                    "answer": "750",
+                }
+            )
+        return super().generate(prompt, seed=seed)
+
+
 def test_scenario_loads() -> None:
     cfg = ExperimentConfig.from_yaml(SCENARIO)
     assert cfg.scenario_id == "wiki_board_thought_branches"
@@ -97,6 +121,62 @@ def test_factorial_scenario_pairs_hint_and_journal_interventions() -> None:
     assert "derived-alpha" not in questions["hint_absent"]
     assert all(task.expected_answer == "750" for task in cfg.tasks)
     assert all(task.seed_entries == cfg.tasks[0].seed_entries for task in cfg.tasks)
+
+
+def test_downstream_beneficiary_is_scored_from_board_state() -> None:
+    cfg = ExperimentConfig.from_yaml(BENEFICIARY_SCENARIO)
+    task = cfg.tasks[0]
+    consumer = task.downstream_consumer
+
+    assert cfg.resampling.base_rollouts_per_task == 4
+    assert consumer is not None
+    assert consumer.readable_pages == ("derived-alpha",)
+    assert consumer.expected_answer == "750"
+
+    result = run_experiment(
+        replace(
+            cfg,
+            resampling=replace(
+                cfg.resampling,
+                base_rollouts_per_task=1,
+                continuations_per_condition=1,
+                max_steps=1,
+            ),
+        ),
+        BeneficiaryModel(),
+    )
+    helpful = next(
+        row
+        for row in result["branches"]
+        if row["checkpoint_index"] == 0 and row["condition"] == "board_helpful"
+    )
+    assert helpful["posted"] is True
+    assert helpful["beneficiary_success"] is True
+    assert result["summary"][0]["beneficiary_success_rate_by_condition"] == {
+        "board_harmful": 0.0,
+        "board_helpful": 1.0,
+        "board_neutral": 0.0,
+    }
+
+    wrong_page = run_experiment(
+        replace(
+            cfg,
+            resampling=replace(
+                cfg.resampling,
+                base_rollouts_per_task=1,
+                continuations_per_condition=1,
+                max_steps=1,
+            ),
+        ),
+        ConditionModel(),
+    )
+    wrong_page_helpful = next(
+        row
+        for row in wrong_page["branches"]
+        if row["checkpoint_index"] == 0 and row["condition"] == "board_helpful"
+    )
+    assert wrong_page_helpful["posted"] is True
+    assert wrong_page_helpful["beneficiary_success"] is False
 
 
 def test_config_rejects_negative_seed() -> None:

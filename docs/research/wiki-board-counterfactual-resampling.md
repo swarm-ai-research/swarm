@@ -4,10 +4,12 @@
 **Model:** `qwen2.5:14b` through local Ollama
 **Scenarios:** `scenarios/wiki_board_thought_branches.yaml`,
 `scenarios/wiki_board_thought_branches_retrieval.yaml`
+and `scenarios/wiki_board_downstream_beneficiary.yaml`
 **Runs:**
 `runs/20260906T213323Z_wiki_board_thought_branches_seed42`,
 `runs/20260906T215155Z_wiki_board_thought_branches_retrieval_seed142`,
 `runs/20260906T222800Z_wiki_board_thought_branches_retrieval_seed143`
+and `runs/wiki_downstream_beneficiary_seed2718`
 
 ## Summary
 

@@ -20,6 +20,15 @@ class SeedEntry:
 
 
 @dataclass(frozen=True)
+class DownstreamConsumer:
+    """A later agent whose success is determined from the final board state."""
+
+    label: str
+    readable_pages: tuple[str, ...]
+    expected_answer: str
+
+
+@dataclass(frozen=True)
 class Task:
     """One independently evaluated board task."""
 
@@ -27,6 +36,7 @@ class Task:
     question: str
     expected_answer: str
     seed_entries: tuple[SeedEntry, ...] = ()
+    downstream_consumer: DownstreamConsumer | None = None
 
 
 @dataclass(frozen=True)
@@ -186,6 +196,18 @@ class ExperimentConfig:
             )
         if not 0.0 <= self.ollama.temperature <= 1.0:
             raise ValueError("temperature must be in [0, 1]")
+        for task in self.tasks:
+            consumer = task.downstream_consumer
+            if consumer is None:
+                continue
+            if not consumer.label.strip():
+                raise ValueError("downstream consumer label must not be empty")
+            if not consumer.readable_pages:
+                raise ValueError("downstream consumer must have a readable page")
+            if len(set(consumer.readable_pages)) != len(consumer.readable_pages):
+                raise ValueError("downstream consumer readable pages must be unique")
+            if not consumer.expected_answer.strip():
+                raise ValueError("downstream consumer expected answer must not be empty")
 
 
 def _parse_task(raw: dict[str, Any]) -> Task:
@@ -198,9 +220,20 @@ def _parse_task(raw: dict[str, Any]) -> Task:
         )
         for entry in raw.get("seed_entries", ())
     )
+    raw_consumer = raw.get("downstream_consumer")
+    consumer = (
+        None
+        if raw_consumer is None
+        else DownstreamConsumer(
+            label=str(raw_consumer["label"]),
+            readable_pages=tuple(str(page) for page in raw_consumer["readable_pages"]),
+            expected_answer=str(raw_consumer["expected_answer"]),
+        )
+    )
     return Task(
         task_id=str(raw["task_id"]),
         question=str(raw["question"]),
         expected_answer=str(raw["expected_answer"]),
         seed_entries=entries,
+        downstream_consumer=consumer,
     )

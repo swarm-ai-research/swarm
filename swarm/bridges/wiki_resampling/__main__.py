@@ -66,7 +66,8 @@ def main(argv: list[str] | None = None) -> int:
             f"journal={row['journal_intervention']} "
             f"dep={row['prompt_dependence']} locked={row['locked']} "
             f"prefix_post={row['prefix_carried_posting']} "
-            f"rates={row['post_rate_by_condition']}"
+            f"rates={row['post_rate_by_condition']} "
+            f"beneficiary={row['beneficiary_success_rate_by_condition']}"
         )
     return 0
 

@@ -476,3 +476,21 @@ branches posted, in opposite condition/journal cells. This is a no-go for
 scaling the current task. See
 `docs/research/wiki-board-journal-ablation-pilot.md` for the full result and the
 downstream-beneficiary redesign.
+
+That redesign is implemented in
+`scenarios/wiki_board_downstream_beneficiary.yaml`. A configured downstream
+agent can inspect only `derived-alpha`; its success is computed from the final
+board and requires an exact, focal-authored answer. The focal prompt states this
+environment rule, while helpful, harmful, and neutral conditions describe the
+downstream agent as collaborator, competitor, or outcome-irrelevant. They do
+not issue write/withhold commands.
+
+The four-base calibration produced 120 branches. Every branch read the sealed
+input, all 117 submissions were correct, and all 104 posts actually made the
+downstream agent succeed. However, the intended condition manipulation failed:
+harmful continuations transferred the answer in 36/40 branches versus 36/40
+helpful continuations. At the initial checkpoint both were 8/8. Across the four
+base traces, harmful transfer was lower than helpful for one base, equal for
+two, and higher for one. This is a no-go for the 20-prefix confirmatory run, not
+evidence that plans are condition-invariant. See
+`docs/research/wiki-board-downstream-beneficiary-calibration.md`.
