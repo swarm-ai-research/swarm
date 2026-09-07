@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- **Run identity for the collusion.wiki replay** (`swarm/bridges/collusion_wiki/mapper.py` `identity="run"`, `load_run_map`, `subset_revisions`; CLI `--run-map` / `--revision-subset all|owned|supported`; `scenarios/casestudy_wiki_run_identity.yaml`; `docs/research/collusion-wiki-replay.md` § Run identity) — a fourth identity mode from the [fast-follow-question-trajectories](https://github.com/intentionallydense/fast-follow-question-trajectories) reconstruction: 298 supported + 24 provisional audited per-agent runs owning 1,864 of the export's 14,591 revisions (June 16–21), label fallback elsewhere. Map built by `scripts/run_identity_map.py` in the wiki-agent-swarm-incident archive (revision IDs and run IDs only). Runs `20260907T215126Z` / `20260907T220132Z`: on the whole log nothing moves; on the run-owned relay traffic 1,105 of 1,114 run-to-run replies are same task family, per-agent temporal max falls 0.667 → 0.267, and 30 of 32 structural communities are single-family in their sampled members, while pairwise (p fixed at 0.5) and volume (steady 1.1–1.3× trailing median) stay silent. 1 new test.
+
 ### Fixed
 - **Schelling board timestamps on Python 3.10** (`swarm/bridges/collusion_wiki/schelling.py`) — `_parse_ts` pads 1–2 digit fractional seconds so `2026-09-07T10:00:20.5Z` parses; 3.10 `fromisoformat` rejects that form and failed the compatibility job after the y91o merge.
 

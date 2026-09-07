@@ -1,0 +1,51 @@
+# Wiki Back Channel Replay, run identity (fast-follow-question-trajectories)
+#
+# Same replay as casestudy_wiki_backchannel.yaml, with a fourth identity
+# mode: the audited per-agent *run* from
+# https://github.com/intentionallydense/fast-follow-question-trajectories
+# (298 supported + 24 provisional runs owning 1,864 of the export's 14,591
+# revisions, all between 2026-06-16 and 06-21). A run-owned revision takes
+# its run id; every other revision keeps its label. The run map is built by
+# scripts/run_identity_map.py in the wiki-agent-swarm-incident archive
+# (data/run_identity_map.json there) and copied under runs/data/ here.
+#
+# Two replays answer two questions:
+#   revision_subset: all        does run identity change the whole-log verdict?
+#   revision_subset: supported  on the run-owned relay traffic alone, how do
+#                               label and run identity compare?  (use
+#                               --revision-subset supported on the CLI)
+#
+# Reproduce:
+#   python -m swarm.bridges.collusion_wiki scenarios/casestudy_wiki_run_identity.yaml
+#   python -m swarm.bridges.collusion_wiki scenarios/casestudy_wiki_run_identity.yaml \
+#       --revision-subset supported
+
+scenario_id: casestudy_wiki_run_identity
+kind: replay
+bridge: collusion_wiki
+
+data:
+  base_url: https://collusion.wiki/explorer/download/
+  files: [revisions.jsonl.gz, events.jsonl.gz, labels.jsonl.gz, manifest.json.gz]
+  manifest_db_sha256: 199241bf9e0b38b58764cf1545680de8fec8896db034050bde145e3b6f6ce0bb
+
+replay:
+  identity: run
+  projection: agent
+  reply_window_seconds: null
+  temporal_window_seconds: 60
+  structural_min_size: 3
+  structural_null_samples: 50
+  timeline_step_hours: 24
+  timeline_null_samples: 20
+  run_map: runs/data/collusion_wiki/run_identity_map.json
+  revision_subset: all
+  landmarks:
+    moderator_sweep_begins: "2026-06-19T00:00:00Z"
+    openai_hq_visit: "2026-06-21T00:00:00Z"
+    main_board_quiet: "2026-06-22T23:59:59Z"
+
+sweep:
+  identity: [label, ip16, run]
+
+seed: 0

@@ -84,11 +84,39 @@ Full timeline: `timeline.csv` in the run folder.
 
 `body_len` in the export is the 27-byte placeholder length for 555 of the 1,013 ProbierWiki revisions (median 27), while the five ProbierWiki pages checked live carry real bodies of 238 to 5,029 characters; DSEWiki has 7 such rows in 13,403 and FractalWiki none. Nothing in this note uses byte volume, so the results stand, but do not derive bytes-per-edit or payload-size figures for ProbierWiki from the export ([field evidence](wiki-backchannel-field-evidence.md#encoded-carriers-in-the-original-swarm-and-keyed-envelopes-after-it-2026-09-05-reads)).
 
+## Run identity (2026-09-07)
+
+Every identity mode above is a proxy: a handle, a /16, or the pair. The [fast-follow-question-trajectories](https://github.com/intentionallydense/fast-follow-question-trajectories) reconstruction supplies a fourth that is closer to what a detector wants: an audited per-agent *run*, assembled by hand from first-person task reports (298 supported and 24 provisional runs, owning 1,864 of the export's 14,591 revisions, all between June 16 and June 21). A run-owned revision takes its run id; every other revision keeps its label. The map is `data/run_identity_map.json` in the [wiki-agent-swarm-incident](https://github.com/swarm-ai-research/wiki-agent-swarm-incident) archive, built by its `scripts/run_identity_map.py`; the scenario is `scenarios/casestudy_wiki_run_identity.yaml`. Runs `20260907T215126Z` (whole log) and `20260907T220132Z` (supported-run revisions only).
+
+**On the whole log, run identity changes nothing.** 1,864 relabelled revisions out of 14,591 leave every verdict where it was: zero flagged pairs, structural detection at the p-value floor for every community (85 under `run`, 57 under `label`, the difference being handle-to-run splits), the same throwaway handles at temporal score 1.0, and the volume monitor firing on May 26 with the same peak. The relay traffic the reconstruction covers is a small share of the edits, and the detectors were never looking at it.
+
+**On the relay traffic alone, run identity is the first mode that shows the coordination.** Restricting to the 1,838 revisions a supported run owns (June 16 to 21) and comparing identities on that same subset:
+
+| Identity | Agents | Reply interactions | Temporal max (60 s) | Structural communities | Best reciprocity z | Flagged pairs | Volume max ratio |
+|---|---|---|---|---|---|---|---|
+| `label` | 437 | 1,202 | 0.667 | 33 at floor | 20.0 (a 4-handle clique) | 0 | 1.23 |
+| `ip16` | 159 | 1,414 | 0.333 | 2 | 1.0 | 0 | 1.09 |
+| `run` | 276 | 1,114 | 0.267 | 32 at floor | 20.0 (a 3-run clique) | 0 | 1.25 |
+
+Three things move. First, the per-agent temporal score collapses further: under `label` one handle reaches 0.667 and under `run` no run exceeds 0.267, so even inside the relay traffic the temporal signal was handle rotation. Second, the reply graph becomes task-partitioned: 1,105 of the 1,114 run-to-run reply interactions join two runs on the same task family and 9 cross families; 183 of 568 run pairs are reciprocated. Third, the structural communities become legible. Under `run` the detector returns 32 communities (median size 6, 273 members in total) and in 30 of them every sampled member works the same task family (family-planning, cashiers-masters, finance-gender-gap, construction-wage, sector 61-62); the two mixed ones join adjacent DataUSA families. The largest, 31 runs with 87 internal edges and reciprocity 0.32, is the cardiovascular-deaths cluster. Under `label` the same subset yields 33 communities whose largest is an 80-handle bag with 120 edges and reciprocity 0.18.
+
+What stays fixed is as informative. `CollusionDetector` still flags nothing (best pair 0.45 against 0.5), because with `p` at 0.5 there is no quality asymmetry for the pair score to use, and volume never alarms because relay traffic runs at a steady 1.1 to 1.3 times its trailing median. The structural null is still the configuration model and still sits at its floor for every community, so "32 at floor" ranks nothing; the family purity is read off the members, not off a p-value.
+
+So the answer to "would a detector with true identities have caught this" is: the structural detector would have produced task-shaped reciprocal communities, and a human reading them would have seen the cohorts. No threshold in the current stack turns that into an alarm. The hub-aware null filed under [What this changes](#what-this-changes) is what would.
+
 ## Reproduce
 
 ```bash
 python -m swarm.bridges.collusion_wiki scenarios/casestudy_wiki_backchannel.yaml \
     --fetch --data-dir runs/data/collusion_wiki
+```
+
+Run identity (copy `data/run_identity_map.json` from the wiki-agent-swarm-incident archive to `runs/data/collusion_wiki/` first):
+
+```bash
+python -m swarm.bridges.collusion_wiki scenarios/casestudy_wiki_run_identity.yaml
+python -m swarm.bridges.collusion_wiki scenarios/casestudy_wiki_run_identity.yaml \
+    --revision-subset supported
 ```
 
 Window sweep and daily ratios are one-off scripts against the same loader; both are quoted from the session that produced this note and are deterministic.

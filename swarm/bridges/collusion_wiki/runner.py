@@ -46,7 +46,11 @@ from swarm.bridges.collusion_wiki.loader import (
 from swarm.bridges.collusion_wiki.mapper import (
     Identity,
     Projection,
+    RevisionSubset,
+    RunMap,
+    load_run_map,
     revisions_to_interactions,
+    subset_revisions,
 )
 from swarm.bridges.collusion_wiki.schelling import (
     attribute_posts,
@@ -97,6 +101,11 @@ class ReplayConfig:
     eval_log: Optional[str] = None
     control_eval_log: Optional[str] = None
     include_seeded: bool = False
+    # run identity: rev_id -> audited run map (scripts/run_identity_map.py in
+    # the wiki-agent-swarm-incident archive) and which revisions to replay:
+    # all | owned (some run owns it) | supported (a supported run owns it)
+    run_map: Optional[str] = None
+    revision_subset: RevisionSubset = "all"
 
     @classmethod
     def from_yaml(cls, path: Path) -> "ReplayConfig":
@@ -126,6 +135,8 @@ class ReplayConfig:
             eval_log=rp.get("eval_log"),
             control_eval_log=rp.get("control_eval_log"),
             include_seeded=bool(rp.get("include_seeded", False)),
+            run_map=rp.get("run_map"),
+            revision_subset=rp.get("revision_subset", "all"),
         )
 
 
@@ -288,6 +299,7 @@ def analyze_identity(
     cfg: ReplayConfig,
     identity: Identity,
     p_by_rev_id: Optional[Dict[str, float]] = None,
+    run_map: Optional[RunMap] = None,
 ) -> Dict[str, Any]:
     """Full detector pass for one identity mode (no timeline)."""
     xs = revisions_to_interactions(
@@ -296,6 +308,7 @@ def analyze_identity(
         projection=cfg.projection,
         reply_window_seconds=cfg.reply_window_seconds,
         p_by_rev_id=p_by_rev_id,
+        run_map=run_map,
     )
     agents = {x.initiator for x in xs} | {x.counterparty for x in xs}
     temp = _temporal(xs, cfg.temporal_window_seconds)
@@ -363,12 +376,13 @@ def _sweep_identities(
     out: Path,
     with_timeline: bool,
     p_by_rev_id: Optional[Dict[str, float]] = None,
+    run_map: Optional[RunMap] = None,
 ) -> "tuple[Dict[str, Any], List[SoftInteraction]]":
     """Detector pass + CSVs per identity mode; returns the primary mode's interactions."""
     per_identity: Dict[str, Any] = {}
     primary: List[SoftInteraction] = []
     for ident in cfg.sweep_identity:
-        res = analyze_identity(revisions, cfg, ident, p_by_rev_id)  # type: ignore[arg-type]
+        res = analyze_identity(revisions, cfg, ident, p_by_rev_id, run_map)  # type: ignore[arg-type]
         xs = res.pop("_interactions")
         per_identity[ident] = res
         _write_csv(out / f"pairs_{ident}.csv", res["pairwise"]["pairs"])
@@ -401,14 +415,22 @@ def run_replay(
     with_timeline: bool = True,
 ) -> Path:
     t_start = time.time()
-    revisions = load_revisions(data_dir)
+    all_revisions = load_revisions(data_dir)
     deletions = load_events(data_dir, types={"delete"})
+    run_map = load_run_map(Path(cfg.run_map)) if cfg.run_map else None
+    if run_map is None and ("run" in cfg.sweep_identity or cfg.identity == "run"):
+        raise ValueError("identity 'run' needs replay.run_map (or --run-map)")
+    revisions = subset_revisions(all_revisions, cfg.revision_subset, run_map)
+    n_owned = (
+        sum(1 for r in all_revisions if run_map.run_of(r.rev_id) is not None)
+        if run_map is not None else None
+    )
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out = runs_root / f"{stamp}_{cfg.scenario_id}_seed{cfg.seed}"
     out.mkdir(parents=True, exist_ok=True)
 
-    per_identity, _ = _sweep_identities(revisions, cfg, out, with_timeline)
+    per_identity, _ = _sweep_identities(revisions, cfg, out, with_timeline, run_map=run_map)
 
     deletion_days: Dict[str, int] = {}
     for e in deletions:
@@ -420,6 +442,12 @@ def run_replay(
         "seed": cfg.seed,
         "data_dir": str(data_dir),
         "n_revisions": len(revisions),
+        "n_revisions_in_export": len(all_revisions),
+        "revision_subset": cfg.revision_subset,
+        "run_map": (
+            {**run_map.meta, "path": cfg.run_map, "n_export_revisions_owned": n_owned}
+            if run_map is not None else None
+        ),
         "n_deletions": len(deletions),
         "time_range": [
             revisions[0].time.isoformat() if revisions else None,
