@@ -14,6 +14,7 @@ from swarm.bridges.wiki_resampling.config import ExperimentConfig, SeedEntry
 from swarm.bridges.wiki_resampling.model import OllamaClient, parse_json_object
 from swarm.bridges.wiki_resampling.runner import (
     TrajectoryState,
+    _action_prompt,
     _execute_action,
     run_experiment,
 )
@@ -37,6 +38,11 @@ BENEFICIARY_SCENARIO = (
     Path(__file__).resolve().parent.parent
     / "scenarios"
     / "wiki_board_downstream_beneficiary.yaml"
+)
+CAPABILITY_SCENARIO = (
+    Path(__file__).resolve().parent.parent
+    / "scenarios"
+    / "wiki_board_journal_swap_capability.yaml"
 )
 
 
@@ -92,6 +98,32 @@ class BeneficiaryModel(ConditionModel):
                 }
             )
         return super().generate(prompt, seed=seed)
+
+
+class CapabilityModel:
+    """Exercise available, removed, and unexpectedly failing writes."""
+
+    def generate(self, prompt: str, *, seed: int) -> str:
+        if "one short decision-journal sentence" in prompt:
+            return json.dumps(
+                {"journal": f"Publish the derived result; marker {seed}."}
+            )
+        if '"action": "READ_WIKI"' not in prompt:
+            return json.dumps({"action": "READ_WIKI", "page": "sealed-input-alpha"})
+        if "Available actions\nare READ_WIKI" in prompt:
+            return json.dumps({"action": "SUBMIT", "answer": "750"})
+        if '"failure_reason": "write_failed"' in prompt:
+            return json.dumps({"action": "SUBMIT", "answer": "750"})
+        if '"author": "focal"' in prompt:
+            return json.dumps({"action": "SUBMIT", "answer": "750"})
+        return json.dumps(
+            {
+                "action": "WRITE_WIKI",
+                "page": "derived-alpha",
+                "content": "derived result",
+                "answer": "750",
+            }
+        )
 
 
 def test_scenario_loads() -> None:
@@ -214,7 +246,9 @@ def test_config_rejects_unknown_journal_intervention() -> None:
     cfg = ExperimentConfig.from_yaml(SCENARIO)
     invalid = replace(
         cfg,
-        resampling=replace(cfg.resampling, journal_interventions=("retained", "swap")),
+        resampling=replace(
+            cfg.resampling, journal_interventions=("retained", "rotated")
+        ),
     )
     with pytest.raises(ValueError, match="unknown journal interventions"):
         invalid.validate()
@@ -227,6 +261,87 @@ def test_config_rejects_unknown_journal_intervention() -> None:
     )
     with pytest.raises(ValueError, match="journal_interventions must be unique"):
         duplicate.validate()
+
+    unknown_write = replace(
+        cfg,
+        resampling=replace(cfg.resampling, write_interventions=("available", "lost")),
+    )
+    with pytest.raises(ValueError, match="unknown write interventions"):
+        unknown_write.validate()
+
+
+def test_journal_swap_and_write_capability_interventions() -> None:
+    cfg = ExperimentConfig.from_yaml(CAPABILITY_SCENARIO)
+    result = run_experiment(cfg, CapabilityModel())
+
+    assert cfg.resampling.conditions == ("board_helpful",)
+    assert cfg.resampling.write_interventions == (
+        "available",
+        "removed",
+        "fail_closed",
+    )
+    assert len(result["base_trajectories"]) == 2
+    assert len(result["branches"]) == 42
+
+    swapped = [
+        row for row in result["branches"] if row["journal_intervention"] == "swapped"
+    ]
+    assert swapped
+    for row in swapped:
+        retained = next(
+            candidate
+            for candidate in result["branches"]
+            if candidate["base_trajectory_id"] == row["base_trajectory_id"]
+            and candidate["checkpoint_index"] == row["checkpoint_index"]
+            and candidate["journal_intervention"] == "retained"
+            and candidate["write_intervention"] == row["write_intervention"]
+        )
+        assert row["journal_donor_base_trajectory_id"] != row["base_trajectory_id"]
+        assert row["prefix_journals"][:-1] == row["source_prefix_journals"][:-1]
+        assert row["prefix_journals"][-1] == row["journal_donor_sentence"]
+        assert row["prefix_journals"][-1] != row["source_prefix_journals"][-1]
+        assert row["prefix_events"] == retained["prefix_events"]
+        assert row["prefix_read_entries"] == retained["prefix_read_entries"]
+        assert row["prefix_board"] == retained["prefix_board"]
+
+    available = [
+        row for row in result["branches"] if row["write_intervention"] == "available"
+    ]
+    removed = [
+        row for row in result["branches"] if row["write_intervention"] == "removed"
+    ]
+    failed = [
+        row for row in result["branches"] if row["write_intervention"] == "fail_closed"
+    ]
+    assert all(row["beneficiary_success"] for row in available)
+    assert all(row["private_submission"] for row in removed)
+    assert all(row["write_attempts"] == 0 for row in removed)
+    assert all(
+        "WRITE_WIKI" not in exchange["raw_response"]
+        for row in removed
+        for exchange in row["state"]["exchanges"]
+        if exchange["phase"] == "action"
+    )
+    assert all(row["beneficiary_success"] is False for row in failed)
+    assert all(row["failed_write_attempts"] >= 1 for row in failed)
+    assert all(row["private_submission"] for row in failed)
+    assert all(entry["author"] != "focal" for row in failed for entry in row["board"])
+
+    removed_prompt = _action_prompt(
+        cfg,
+        cfg.tasks[0],
+        "board_helpful",
+        TrajectoryState(task_id=cfg.tasks[0].task_id),
+        WikiBoard.from_seed_entries(cfg.tasks[0].seed_entries),
+        "removed",
+    )
+    assert "WRITE_WIKI" not in removed_prompt
+
+    assert {row["write_intervention"] for row in result["summary"]} == {
+        "available",
+        "removed",
+        "fail_closed",
+    }
 
 
 def test_board_snapshot_restores_without_aliasing() -> None:
@@ -244,9 +359,9 @@ def test_json_parser_accepts_fences() -> None:
 
 
 def test_json_parser_accepts_first_object_before_trailing_text() -> None:
-    assert parse_json_object('Result: {"journal": {"status": "ok"}} trailing {bad}') == {
-        "journal": {"status": "ok"}
-    }
+    assert parse_json_object(
+        'Result: {"journal": {"status": "ok"}} trailing {bad}'
+    ) == {"journal": {"status": "ok"}}
 
 
 def test_cli_summary_does_not_log_scenario_task_identifier() -> None:
@@ -260,8 +375,14 @@ def test_cli_summary_does_not_log_scenario_task_identifier() -> None:
     ("action", "missing_field"),
     [
         ({"action": "WRITE_WIKI", "page": "", "content": "x", "answer": "1"}, "page"),
-        ({"action": "WRITE_WIKI", "page": "p", "content": "", "answer": "1"}, "content"),
-        ({"action": "WRITE_WIKI", "page": "p", "content": "x", "answer": None}, "answer"),
+        (
+            {"action": "WRITE_WIKI", "page": "p", "content": "", "answer": "1"},
+            "content",
+        ),
+        (
+            {"action": "WRITE_WIKI", "page": "p", "content": "x", "answer": None},
+            "answer",
+        ),
     ],
 )
 def test_incomplete_write_is_not_executed(

@@ -61,6 +61,7 @@ class ResamplingConfig:
     max_steps: int = 3
     lock_epsilon: float = 0.10
     journal_interventions: tuple[str, ...] = ("retained",)
+    write_interventions: tuple[str, ...] = ("available",)
     pre_write_only: bool = False
 
 
@@ -132,6 +133,9 @@ class ExperimentConfig:
                     "journal_interventions", defaults.journal_interventions
                 )
             ),
+            write_interventions=tuple(
+                raw_resampling.get("write_interventions", defaults.write_interventions)
+            ),
             pre_write_only=bool(
                 raw_resampling.get("pre_write_only", defaults.pre_write_only)
             ),
@@ -156,16 +160,8 @@ class ExperimentConfig:
             raise ValueError("seed must be non-negative")
         if not self.tasks:
             raise ValueError("at least one task is required")
-        required_conditions = {
-            "board_helpful",
-            "board_harmful",
-            "board_neutral",
-        }
-        if not required_conditions.issubset(self.resampling.conditions):
-            raise ValueError(
-                "conditions must include board_helpful, board_harmful, and "
-                "board_neutral"
-            )
+        if not self.resampling.conditions:
+            raise ValueError("conditions must not be empty")
         if self.resampling.base_condition not in self.resampling.conditions:
             raise ValueError("base_condition must be included in conditions")
         missing = set(self.resampling.conditions) - set(self.condition_prompts)
@@ -179,7 +175,7 @@ class ExperimentConfig:
             raise ValueError("max_steps must be positive")
         if not 0.0 <= self.resampling.lock_epsilon <= 1.0:
             raise ValueError("lock_epsilon must be in [0, 1]")
-        allowed_interventions = {"retained", "ablated"}
+        allowed_interventions = {"retained", "ablated", "swapped"}
         if not self.resampling.journal_interventions:
             raise ValueError("journal_interventions must not be empty")
         if len(set(self.resampling.journal_interventions)) != len(
@@ -191,8 +187,26 @@ class ExperimentConfig:
         )
         if unknown_interventions:
             raise ValueError(
-                "unknown journal interventions: "
-                f"{sorted(unknown_interventions)}"
+                f"unknown journal interventions: {sorted(unknown_interventions)}"
+            )
+        if (
+            "swapped" in self.resampling.journal_interventions
+            and self.resampling.base_rollouts_per_task < 2
+        ):
+            raise ValueError("swapped journals require at least two base rollouts")
+        allowed_write_interventions = {"available", "removed", "fail_closed"}
+        if not self.resampling.write_interventions:
+            raise ValueError("write_interventions must not be empty")
+        if len(set(self.resampling.write_interventions)) != len(
+            self.resampling.write_interventions
+        ):
+            raise ValueError("write_interventions must be unique")
+        unknown_write_interventions = (
+            set(self.resampling.write_interventions) - allowed_write_interventions
+        )
+        if unknown_write_interventions:
+            raise ValueError(
+                f"unknown write interventions: {sorted(unknown_write_interventions)}"
             )
         if not 0.0 <= self.ollama.temperature <= 1.0:
             raise ValueError("temperature must be in [0, 1]")
@@ -209,7 +223,9 @@ class ExperimentConfig:
             if len(set(consumer.readable_pages)) != len(consumer.readable_pages):
                 raise ValueError("downstream consumer readable pages must be unique")
             if not consumer.expected_answer.strip():
-                raise ValueError("downstream consumer expected answer must not be empty")
+                raise ValueError(
+                    "downstream consumer expected answer must not be empty"
+                )
 
 
 def _parse_task(raw: dict[str, Any]) -> Task:
