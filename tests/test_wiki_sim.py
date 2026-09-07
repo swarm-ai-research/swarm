@@ -44,6 +44,8 @@ def test_permission_label_does_not_change_behavior() -> None:
     {"publish_probability": 1.1}, {"moderation_time": -1},
     {"sharing_regime": "unknown"}, {"moderation_policy": "unknown"},
     {"relocation_mode": "unknown"},
+    {"evasion_style": "unknown"}, {"page_budget_basis": "unknown"},
+    {"evasion_prefix": ""},
 ])
 def test_invalid_configuration_rejected(changes: dict) -> None:
     with pytest.raises(ValueError):
@@ -159,3 +161,107 @@ def test_confirmation_summary_reports_displacement_denominators(tmp_path) -> Non
     assert row["displaced_per_disrupted"] == row["displaced_works"] / row["disrupted_works"]
     assert 0 <= row["alarm_wilson_low"] <= row["alarm_rate"] <= row["alarm_wilson_high"] <= 1
     assert (tmp_path / "summary.csv").exists()
+
+
+def _zzz_config(**overrides: object) -> SimulationConfig:
+    return replace(SimulationConfig(
+        n_agents=24, n_tasks=8, n_hosts=1, task_overlap=1,
+        discovery_probability=1, publish_probability=1,
+        moderation_time=8, moderation_budget=2, moderation_interval=3,
+        moderation_granularity="page", page_deletion_fraction=0.5,
+        evasion_learning_probability=1.0, evasion_style="sort_last",
+        page_budget_basis="eligible", evasion_prefix="ZZZ",
+        moderation_policy="ordered",
+    ), **overrides)
+
+
+def test_sort_last_renames_content_and_collapses_later_ordered_budget() -> None:
+    """ZZZ-aware evasion moves remaining pages; later ordered sweeps shrink."""
+    result = simulate(_zzz_config(), 12)
+    sweeps = [event for event in result.events if event["type"] == "moderation"]
+    assert len(sweeps) == 2
+    assert sweeps[0]["removed_pages"] > 0
+    assert sweeps[0]["eligible_pages"] == sweeps[0]["host_pages"]
+    assert any(event["type"] == "rename" for event in result.events)
+    assert sweeps[1]["eligible_pages"] < sweeps[0]["eligible_pages"]
+    assert sweeps[1]["budget"] < sweeps[0]["budget"]
+    assert sweeps[1]["removed_pages"] < sweeps[0]["removed_pages"]
+    assert result.metrics["renamed_pages"] > 0
+    assert result.metrics["prefixed_pages"] > 0
+    assert sweeps[1]["prefixed_remaining"] > 0
+    renamed_tasks = {event["page_task"] for event in result.events
+                     if event["type"] == "rename"}
+    later_reads = [event for event in result.events
+                   if event["type"] == "read" and event["time"] > sweeps[0]["time"]
+                   and event["task_id"] in renamed_tasks]
+    assert all(str(event.get("page_name", "")).startswith("ZZZ")
+               for event in later_reads)
+
+
+def test_sort_last_prefix_does_not_shrink_random_eligible_set() -> None:
+    """A random sweep has no alphabetical window, so a ZZZ prefix is not a dodge."""
+    ordered = simulate(_zzz_config(moderation_policy="ordered"), 12)
+    random = simulate(_zzz_config(moderation_policy="random"), 12)
+    ordered_sweeps = [event for event in ordered.events if event["type"] == "moderation"]
+    random_sweeps = [event for event in random.events if event["type"] == "moderation"]
+    assert ordered_sweeps[0]["removed_pages"] == random_sweeps[0]["removed_pages"] > 0
+    assert not any(event["type"] == "rename" for event in random.events)
+    assert random_sweeps[1]["eligible_pages"] == random_sweeps[1]["host_pages"]
+    assert ordered_sweeps[1]["eligible_pages"] < ordered_sweeps[1]["host_pages"]
+    assert ordered_sweeps[1]["removed_pages"] < random_sweeps[1]["removed_pages"]
+
+
+def test_published_exclude_evasion_still_uses_host_budget() -> None:
+    """Default exclude+host cells must keep the published equal-budget rule."""
+    base = SimulationConfig(
+        n_agents=12, n_tasks=4, n_hosts=1, task_overlap=1,
+        discovery_probability=1, publish_probability=1,
+        moderation_time=2, moderation_budget=2,
+        moderation_granularity="page", page_deletion_fraction=0.5,
+        evasion_learning_probability=1.0,
+    )
+    ordered = simulate(replace(base, moderation_policy="ordered"), 12)
+    random = simulate(replace(base, moderation_policy="random"), 12)
+    ordered_sweeps = [event for event in ordered.events if event["type"] == "moderation"]
+    random_sweeps = [event for event in random.events if event["type"] == "moderation"]
+    assert ordered_sweeps[0]["removed_pages"] == random_sweeps[0]["removed_pages"] > 0
+    assert not any(event["type"] == "rename" for event in ordered.events)
+    # Learners drop out of eligible without moving pages, so the host still
+    # holds content under the original names after everyone has learned.
+    assert ordered_sweeps[1]["eligible_pages"] == 0
+    assert ordered_sweeps[1]["host_pages"] > 0
+    assert ordered_sweeps[1]["removed_pages"] == ordered_sweeps[1]["budget"] == 0
+
+
+def test_zzz_sweep_smoke_emits_new_metrics(tmp_path) -> None:
+    import json
+    import subprocess
+    import sys
+
+    config = tmp_path / "page_zzz.json"
+    config.write_text(json.dumps({
+        "moderation_granularity": "page",
+        "evasion_learning_probability": 1.0,
+        "evasion_style": "sort_last",
+        "page_budget_basis": "eligible",
+        "evasion_prefix": "ZZZ",
+    }))
+    sweep = subprocess.run(
+        [sys.executable, "scripts/sweep_wiki_mc.py", "--family", "moderation",
+         "--seeds", "2", "--max-cells", "3", "--config", str(config),
+         "--output", str(tmp_path / "sweep")],
+        capture_output=True, text=True, check=True)
+    assert "pairs" in sweep.stdout
+    subprocess.run(
+        [sys.executable, "scripts/analyze_wiki_mc_confirmation.py", "--summary",
+         "--input", str(tmp_path / "sweep"), "--output", str(tmp_path / "summary.json")],
+        capture_output=True, text=True, check=True)
+    cells = json.loads((tmp_path / "summary.json").read_text())["cells"]
+    treated = next(cell for cell in cells
+                   if "ordered" in cell["overrides"])
+    assert treated["renamed_pages_mean"] > 0
+    assert treated["prefixed_pages_mean"] > 0
+    assert treated["eligible_pages_mean"] > 0
+    payload = json.loads(next((tmp_path / "sweep").glob("moderation-002-seed-*.json")).read_text())
+    assert payload["treatment"]["config"]["evasion_style"] == "sort_last"
+    assert payload["treatment"]["config"]["page_budget_basis"] == "eligible"

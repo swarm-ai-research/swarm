@@ -4,6 +4,10 @@
 Each cell/seed has its own untreated counterfactual. Intervals resample whole
 paired runs, never events. Defaults are a 30-seed pilot; confirmation uses 200
 fresh seeds from 10000 and requires an explicit frozen detector threshold.
+
+Page-level ZZZ-aware follow-up (eligible-set budget + sort-last rename) uses
+the moderation family with ``--config experiments/wiki_mc/page_zzz_e50.json``.
+That config is not the published ``exclude``/host-budget evasion cell.
 """
 
 from __future__ import annotations

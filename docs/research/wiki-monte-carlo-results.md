@@ -195,9 +195,17 @@ learned to dodge alphabetical sweeps, the evasion rule needs teeth: evaders
 should move hosts or rename pages, and the budget should be drawn from the
 eligible set. That is a model change, not a rerun.
 
+The change is implemented as an opt-in (`evasion_style="sort_last"`,
+`page_budget_basis="eligible"`). Defaults keep the published `exclude`+`host`
+cells. The follow-up protocol, smoke, and negative spec are in
+[`wiki-monte-carlo-lessons.md`](wiki-monte-carlo-lessons.md). A 10-seed smoke
+shows later ordered deletions falling after prefixing (12.3 → 10.7 pages)
+with unchanged completion at that sample; that is not confirmation.
+
 The confirmation bead (`gvul`) closed on 2026-09-06 with the run folders
 unarchived; the reproduction above closes that gap. Open items after this pass:
 the detection screen needs a lineage- or timing-aware observer before any
-detection contrast is worth confirming; the evasion rule needs the changes
-described above; and the model still excludes poisoning, adversarial policy
+detection contrast is worth confirming; the ZZZ-aware page rule still needs a
+frozen 200-seed confirmation on seeds 10400–10599 before any claim about
+effect size; and the model still excludes poisoning, adversarial policy
 optimization, search-engine exposure, and realistic natural-language answers.
