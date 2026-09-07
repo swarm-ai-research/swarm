@@ -23,11 +23,15 @@ and no ground truth per edit, so any p we assigned would be invented. The
 detectors therefore run on frequency, acceptance, timing, and topology
 only -- which is the honest setting for this data and is stated in the
 run summary.
+
+The one exception is the schelling-point replay (``schelling.py``), where
+a post attributed to a scored Inspect sample carries that sample's
+``on_time_accuracy`` as a leak-benefit proxy via ``p_by_rev_id``.
 """
 
 from __future__ import annotations
 
-from typing import Dict, List, Literal, Optional, Sequence
+from typing import Dict, List, Literal, Mapping, Optional, Sequence
 
 from swarm.bridges.collusion_wiki.loader import WikiRevision
 from swarm.models.interaction import InteractionType, SoftInteraction
@@ -54,20 +58,26 @@ def revisions_to_interactions(
     identity: Identity = "label",
     projection: Projection = "agent",
     reply_window_seconds: Optional[float] = None,
+    p_by_rev_id: Optional[Mapping[str, float]] = None,
 ) -> List[SoftInteraction]:
     """Project revisions onto SoftInteraction records.
 
     ``reply_window_seconds`` (agent projection only) drops replies whose
     gap to the previous distinct editor exceeds the window; ``None`` keeps
     every reply regardless of gap.
+
+    ``p_by_rev_id`` (bead y91o) overrides ``P_UNKNOWN`` for revisions that
+    carry an outcome signal -- the schelling-point replay's leak-benefit
+    proxy. Revisions absent from the mapping keep ``P_UNKNOWN``.
     """
     out: List[SoftInteraction] = []
     last_editor: Dict[str, WikiRevision] = {}
 
     for rev in revisions:
         me = agent_id(rev, identity)
+        p = P_UNKNOWN if p_by_rev_id is None else p_by_rev_id.get(rev.rev_id, P_UNKNOWN)
         if projection == "page":
-            out.append(_interaction(rev, me, f"page:{rev.page_id}"))
+            out.append(_interaction(rev, me, f"page:{rev.page_id}", p))
             continue
 
         prev = last_editor.get(rev.page_id)
@@ -81,12 +91,16 @@ def revisions_to_interactions(
             gap = (rev.time - prev.time).total_seconds()
             if gap > reply_window_seconds:
                 continue
-        out.append(_interaction(rev, me, other))
+        out.append(_interaction(rev, me, other, p))
 
     return out
 
 
-def _interaction(rev: WikiRevision, initiator: str, counterparty: str) -> SoftInteraction:
+def _interaction(
+    rev: WikiRevision, initiator: str, counterparty: str, p: float = P_UNKNOWN
+) -> SoftInteraction:
+    if not 0.0 <= p <= 1.0:
+        raise ValueError(f"p out of range for revision {rev.rev_id}: {p}")
     return SoftInteraction(
         interaction_id=rev.rev_id,
         timestamp=rev.time,
@@ -95,8 +109,8 @@ def _interaction(rev: WikiRevision, initiator: str, counterparty: str) -> SoftIn
         interaction_type=InteractionType.REPLY,
         accepted=True,  # a stored revision is, by construction, a save that stuck
         task_progress_delta=0.0,
-        v_hat=0.0,
-        p=P_UNKNOWN,
+        v_hat=2.0 * p - 1.0,
+        p=p,
         metadata={
             "wiki": rev.wiki,
             "page_id": rev.page_id,
