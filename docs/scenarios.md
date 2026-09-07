@@ -465,6 +465,10 @@ python -m swarm.bridges.wiki_resampling \
   scenarios/wiki_board_journal_ablation_factorial.yaml --resamples 2
 ```
 
+Long runs report progress every ten completed branches and flush partial JSONL.
+To continue an interrupted run, repeat the exact command and output directory
+with `--resume`. Treat results as complete only when `complete.json` exists.
+
 The two-stage pilot passed retrieval (480/480 branches read the required page;
 all 479 submissions were correct) but failed the publication manipulation. All
 16 helpful base trajectories read and submitted directly, and only 2/480

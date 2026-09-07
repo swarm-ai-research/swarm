@@ -233,9 +233,11 @@ is closer to instruction following than to a subtle incentive shift.
 - Branches change an entire downstream trajectory. Effects belong to retained
   prefixes and their induced continuation distributions, not isolated neurons
   or a surgically edited internal variable.
-- The runner writes artifacts only after all branches finish. The 25-sample
-  retrieval run took about 32 minutes, so incremental checkpoint flushing is
-  needed before scaling further.
+- The original runner wrote artifacts only after all branches finished; the
+  25-sample retrieval run took about 32 minutes. The follow-up runner now
+  appends completed bases and branches to partial JSONL, prints monotonic
+  progress, and supports manifest-checked `--resume`. Final summaries and the
+  `complete.json` marker are still withheld until every planned branch finishes.
 
 ## Next experiment
 
@@ -266,3 +268,8 @@ python -m swarm.bridges.wiki_resampling \
 
 Each run writes `base_trajectories.jsonl`, `branches.jsonl`, and `summary.json`
 under its timestamped `runs/` directory.
+
+Interrupted runs also retain `base_trajectories.partial.jsonl` and
+`branches.partial.jsonl`. Resume the exact configuration and output directory
+with `--resume`; the runner rejects a changed manifest and skips completed
+trajectory IDs.

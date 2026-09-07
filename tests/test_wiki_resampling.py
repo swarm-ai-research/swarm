@@ -54,6 +54,21 @@ class ConditionModel:
         return json.dumps({"action": "SUBMIT", "answer": answer})
 
 
+class InterruptingModel:
+    """Raise after a fixed number of calls to simulate a stopped local run."""
+
+    def __init__(self, delegate: ConditionModel, fail_after: int) -> None:
+        self.delegate = delegate
+        self.fail_after = fail_after
+        self.calls = 0
+
+    def generate(self, prompt: str, *, seed: int) -> str:
+        if self.calls >= self.fail_after:
+            raise RuntimeError("simulated interruption")
+        self.calls += 1
+        return self.delegate.generate(prompt, seed=seed)
+
+
 def test_scenario_loads() -> None:
     cfg = ExperimentConfig.from_yaml(SCENARIO)
     assert cfg.scenario_id == "wiki_board_thought_branches"
@@ -183,6 +198,7 @@ def test_experiment_branches_conditions_and_writes_artifacts(tmp_path: Path) -> 
     assert (tmp_path / "base_trajectories.jsonl").exists()
     assert (tmp_path / "branches.jsonl").exists()
     assert (tmp_path / "summary.json").exists()
+    assert json.loads((tmp_path / "complete.json").read_text())["complete"] is True
     branch_lines = (tmp_path / "branches.jsonl").read_text().splitlines()
     assert branch_lines
     branches = [json.loads(line) for line in branch_lines]
@@ -230,3 +246,83 @@ def test_journal_ablation_preserves_non_journal_prefix_state() -> None:
         for row in result["summary"]
         if row["checkpoint_index"] == 1
     } == {"retained", "ablated"}
+
+
+def test_interrupted_run_resumes_without_duplicate_branches(tmp_path: Path) -> None:
+    cfg = ExperimentConfig.from_yaml(SCENARIO)
+    cfg = replace(
+        cfg,
+        tasks=(cfg.tasks[0],),
+        resampling=replace(
+            cfg.resampling,
+            base_rollouts_per_task=1,
+            continuations_per_condition=1,
+            max_steps=1,
+        ),
+    )
+    interrupted_dir = tmp_path / "interrupted"
+    progress: list[dict[str, object]] = []
+    with pytest.raises(RuntimeError, match="simulated interruption"):
+        run_experiment(
+            cfg,
+            InterruptingModel(ConditionModel(), fail_after=5),
+            out_dir=interrupted_dir,
+            progress=progress.append,
+        )
+
+    assert (interrupted_dir / "run_manifest.json").exists()
+    assert (interrupted_dir / "base_trajectories.partial.jsonl").exists()
+    partial_branches = [
+        json.loads(line)
+        for line in (interrupted_dir / "branches.partial.jsonl")
+        .read_text()
+        .splitlines()
+    ]
+    assert partial_branches
+    assert not (interrupted_dir / "summary.json").exists()
+    assert not (interrupted_dir / "complete.json").exists()
+    with (interrupted_dir / "branches.partial.jsonl").open("a") as handle:
+        handle.write('{"truncated"')
+
+    with pytest.raises(ValueError, match="configuration does not match"):
+        run_experiment(
+            replace(cfg, seed=cfg.seed + 1),
+            ConditionModel(),
+            out_dir=interrupted_dir,
+            resume=True,
+        )
+
+    resumed = run_experiment(
+        cfg,
+        ConditionModel(),
+        out_dir=interrupted_dir,
+        resume=True,
+        progress=progress.append,
+    )
+    uninterrupted = run_experiment(
+        cfg,
+        ConditionModel(),
+        out_dir=tmp_path / "uninterrupted",
+    )
+
+    resumed_ids = [row["trajectory_id"] for row in resumed["branches"]]
+    assert len(resumed_ids) == len(set(resumed_ids))
+    assert resumed["base_trajectories"] == uninterrupted["base_trajectories"]
+    assert resumed["branches"] == uninterrupted["branches"]
+    assert resumed["summary"] == uninterrupted["summary"]
+    assert json.loads((interrupted_dir / "complete.json").read_text()) == {
+        "base_trajectories": 1,
+        "branches": len(resumed["branches"]),
+        "complete": True,
+    }
+    counts: list[int] = []
+    for event in progress:
+        count = event["branch_completed"]
+        assert isinstance(count, int)
+        counts.append(count)
+    assert counts == sorted(counts)
+
+    completed_resume = run_experiment(
+        cfg, ConditionModel(), out_dir=interrupted_dir, resume=True
+    )
+    assert completed_resume["branches"] == resumed["branches"]
