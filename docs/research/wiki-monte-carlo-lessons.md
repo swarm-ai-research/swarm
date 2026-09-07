@@ -79,10 +79,18 @@ Random deletion still samples from **all** live pages on the host: a
 sort-last prefix is not a dodge against a policy with no sweep line. Random
 deletion does not teach the prefix.
 
-Disruption is scoped to in-progress work whose **task page was actually
-removed**. Surviving prefixed pages do not force relocation. The published
-`exclude` cells still disrupt every in-progress assignment on the selected
-host.
+Disruption scoping is a **separate lever**, `page_disruption_scope`. The
+published cells use `host`: a page sweep relocates every in-progress
+assignment on the selected host, even when that worker's page survived. The
+ZZZ configs set `deleted`: only work whose page was actually removed
+relocates, so surviving prefixed pages do not force relocation. Because the
+two configs differ on this lever as well as on `evasion_style` and
+`page_budget_basis`, a completion or displacement contrast between
+`page_e50` and `page_zzz_e50` is not attributable to the rename alone. With
+learning off, switching the style alone leaves displacements unchanged;
+switching the scope alone moves them from about 10 per run to near zero.
+To isolate the rename, run `page_zzz_e50` with `page_disruption_scope=host`
+as an extra arm.
 
 ### Published evasion vs this rule
 
@@ -90,6 +98,7 @@ host.
 |---|---|---|
 | `evasion_style` | `exclude` | `sort_last` |
 | `page_budget_basis` | `host` | `eligible` |
+| `page_disruption_scope` | `host` | `deleted` |
 | What learners do | Leave the eligible set; original names stay | Rename remaining + future pages with `ZZZ` |
 | What the sweep counts | `round(all_host_pages * 0.5)` | `round(eligible_pages * 0.5)` |
 | Ordered later sweeps | Delete other unprefixed pages at the old count, unless learners exceed half the host | Eligible set and budget shrink; prefixed content remains |
@@ -201,8 +210,9 @@ pages per run; later ordered eligible pages and deletions fall (24.6 → 21.2
 eligible, 12.3 → 10.7 removed). Random cells are bit-identical across
 learning rates: the prefix is never taught. Completion and writes do not
 move at this sample size. Traced displacements are far below the published
-page-level cells (~10 per run) because this rule only disrupts work whose
-page was actually deleted.
+page-level cells (~10 per run) because `page_disruption_scope=deleted` only
+disrupts work whose page was actually deleted; that is the scope lever, not
+the rename.
 
 None of these rows is a historical estimate. They show that the new rule
 has teeth on the later alphabetical window, and that the published

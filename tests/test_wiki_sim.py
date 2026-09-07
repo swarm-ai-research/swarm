@@ -45,7 +45,7 @@ def test_permission_label_does_not_change_behavior() -> None:
     {"sharing_regime": "unknown"}, {"moderation_policy": "unknown"},
     {"relocation_mode": "unknown"},
     {"evasion_style": "unknown"}, {"page_budget_basis": "unknown"},
-    {"evasion_prefix": ""},
+    {"evasion_prefix": ""}, {"page_disruption_scope": "unknown"},
 ])
 def test_invalid_configuration_rejected(changes: dict) -> None:
     with pytest.raises(ValueError):
@@ -171,13 +171,15 @@ def _zzz_config(**overrides: object) -> SimulationConfig:
         moderation_granularity="page", page_deletion_fraction=0.5,
         evasion_learning_probability=1.0, evasion_style="sort_last",
         page_budget_basis="eligible", evasion_prefix="ZZZ",
-        moderation_policy="ordered",
+        page_disruption_scope="deleted", moderation_policy="ordered",
     ), **overrides)
 
 
 def test_sort_last_renames_content_and_collapses_later_ordered_budget() -> None:
     """ZZZ-aware evasion moves remaining pages; later ordered sweeps shrink."""
-    result = simulate(_zzz_config(), 12)
+    # Seed 0 yields ~22 post-rename reads of renamed tasks; seed 12 yields none,
+    # which made the page_name assertion below pass vacuously.
+    result = simulate(_zzz_config(), 0)
     sweeps = [event for event in result.events if event["type"] == "moderation"]
     assert len(sweeps) == 2
     assert sweeps[0]["removed_pages"] > 0
@@ -194,8 +196,22 @@ def test_sort_last_renames_content_and_collapses_later_ordered_budget() -> None:
     later_reads = [event for event in result.events
                    if event["type"] == "read" and event["time"] > sweeps[0]["time"]
                    and event["task_id"] in renamed_tasks]
+    assert later_reads, "no post-rename reads of a renamed task; assertion would be vacuous"
     assert all(str(event.get("page_name", "")).startswith("ZZZ")
                for event in later_reads)
+
+
+def test_disruption_scope_is_independent_of_evasion_style() -> None:
+    """With learning off the rename never fires, so style alone must not move
+    displacements; the scope knob is what does."""
+    base = SimulationConfig(moderation_policy="ordered", moderation_granularity="page",
+                            evasion_learning_probability=0.0)
+    by_style = {style: simulate(replace(base, evasion_style=style), 7).metrics
+                for style in ("exclude", "sort_last")}
+    assert by_style["exclude"]["displacements"] == by_style["sort_last"]["displacements"]
+    assert by_style["exclude"]["displacements"] > 0
+    scoped = simulate(replace(base, page_disruption_scope="deleted"), 7).metrics
+    assert scoped["displacements"] < by_style["exclude"]["displacements"]
 
 
 def test_sort_last_prefix_does_not_shrink_random_eligible_set() -> None:
@@ -245,6 +261,7 @@ def test_zzz_sweep_smoke_emits_new_metrics(tmp_path) -> None:
         "evasion_style": "sort_last",
         "page_budget_basis": "eligible",
         "evasion_prefix": "ZZZ",
+        "page_disruption_scope": "deleted",
     }))
     sweep = subprocess.run(
         [sys.executable, "scripts/sweep_wiki_mc.py", "--family", "moderation",
@@ -262,6 +279,7 @@ def test_zzz_sweep_smoke_emits_new_metrics(tmp_path) -> None:
     assert treated["renamed_pages_mean"] > 0
     assert treated["prefixed_pages_mean"] > 0
     assert treated["eligible_pages_mean"] > 0
-    payload = json.loads(next((tmp_path / "sweep").glob("moderation-002-seed-*.json")).read_text())
+    payload = json.loads(sorted((tmp_path / "sweep").glob("moderation-002-seed-*.json"))[0].read_text())
     assert payload["treatment"]["config"]["evasion_style"] == "sort_last"
     assert payload["treatment"]["config"]["page_budget_basis"] == "eligible"
+    assert payload["treatment"]["config"]["page_disruption_scope"] == "deleted"

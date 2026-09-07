@@ -4,5 +4,6 @@
   "evasion_learning_probability": 0.0,
   "evasion_style": "sort_last",
   "page_budget_basis": "eligible",
-  "evasion_prefix": "ZZZ"
+  "evasion_prefix": "ZZZ",
+  "page_disruption_scope": "deleted"
 }

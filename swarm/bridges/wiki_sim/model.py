@@ -43,6 +43,11 @@ class SimulationConfig:
     evasion_style: str = "exclude"
     page_budget_basis: str = "host"
     evasion_prefix: str = "ZZZ"
+    # Which in-progress work a page-level sweep disrupts. Published cells used
+    # "host": everyone assigned to the swept host relocates, even when their
+    # page survived. "deleted" disrupts only work whose page was removed. This
+    # is its own lever so a style contrast does not carry it implicitly.
+    page_disruption_scope: str = "host"
     relocation_mode: str = "endogenous"
     referrals_enabled: bool = True
     search_interval: float = 1.0
@@ -78,6 +83,7 @@ class SimulationConfig:
             "moderation_granularity": {"host", "page"},
             "evasion_style": {"exclude", "sort_last"},
             "page_budget_basis": {"host", "eligible"},
+            "page_disruption_scope": {"host", "deleted"},
         }.items():
             if getattr(self, name) not in choices:
                 raise ValueError(f"{name} must be one of {sorted(choices)}")
@@ -133,6 +139,11 @@ def simulate(config: SimulationConfig, seed: int) -> SimulationResult:
     ``evasion_prefix`` so they sort after the unprefixed working set; with
     ``page_budget_basis='eligible'`` the sweep count is drawn from that set.
     Random deletion does not teach the prefix and still samples the live host.
+    A learner renames only its live pages on the swept host; pages it holds
+    elsewhere keep their names until rewritten. ``page_disruption_scope``
+    chooses whether a page sweep relocates every in-progress assignment on the
+    host (``'host'``, the published rule) or only work whose page was removed
+    (``'deleted'``); it is independent of ``evasion_style``.
     Locks additionally stop new writes, but preserve read access. Global lock
     consumes one intervention.
     Deadlines are inclusive: a submission exactly at its deadline succeeds.
@@ -307,7 +318,7 @@ def simulate(config: SimulationConfig, seed: int) -> SimulationResult:
                     if work.done or work.release > time or work.host != host:
                         continue
                     if (c.moderation_granularity == "page"
-                            and c.evasion_style == "sort_last"
+                            and c.page_disruption_scope == "deleted"
                             and work.task not in deleted_tasks):
                         continue
                     work.previous_host = host
