@@ -199,5 +199,5 @@ The confirmation bead (`gvul`) closed on 2026-09-06 with the run folders
 unarchived; the reproduction above closes that gap. Open items after this pass:
 the detection screen needs a lineage- or timing-aware observer before any
 detection contrast is worth confirming; the evasion rule needs the changes
-described above; and the model still excludes poisoning, adversarial policy
+described above (landed 2026-09-07 as `evasion_mode` = `shrink` | `rename` | `move` and `budget_from_eligible` on `SimulationConfig`; defaults reproduce the runs in this note, and the `page_e50` cells have not yet been rerun with `rename` or `move`); and the model still excludes poisoning, adversarial policy
 optimization, search-engine exposure, and realistic natural-language answers.
