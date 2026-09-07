@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- **Interactive figures for the two-swarms note** (`scripts/plot_correlation_asymmetry.py`, `docs/research/figures/two-swarms-*.{html,png}`, bead `umzu`) — `hyperspace-two-swarms-lessons.md` carried its three central results as tables only. The script reads `experiments/correlation_asymmetry.py` artifacts (regenerating the three verification-rule runs, which are analytic and sub-second) and writes theme-aware Plotly pages with crosshair hover, direct labels, and a data-table view, plus static PNG twins: the ρ sweep with the non-monotone defender catch and ρ* marked; defender catch under unanimous / majority / any-keeps rules; and catch over *achieved* ρ̄ faceted by family count with saturated cells omitted. Palette is the dataviz reference set, validated light and dark; the note embeds all three as iframes beside the tables they illustrate.
+
 ### Fixed
 - **Schelling board timestamps on Python 3.10** (`swarm/bridges/collusion_wiki/schelling.py`) — `_parse_ts` pads 1–2 digit fractional seconds so `2026-09-07T10:00:20.5Z` parses; 3.10 `fromisoformat` rejects that form and failed the compatibility job after the y91o merge.
 
