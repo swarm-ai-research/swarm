@@ -382,3 +382,47 @@ class TestReadingPack:
         assert rep2.n_flagged == rep.n_flagged
         with pytest.raises(ValueError):
             scan(None)
+
+    def test_secondary_tier_is_never_attribution(self, tmp_path):
+        # the paste doc has author="a1"; that handle must not become a label
+        pack = _pack(tmp_path, [
+            {"source_type": "paste_candidate", "source_group": "k4be/abc", "author": "a1",
+             "timestamp_utc": "2026-06-01T00:00:00+00:00", "title": "Q",
+             "text": "x " + "".join(chr(0xE0000 + ord(c)) for c in "peer.example")},
+        ])
+        rep = scan(None, pack=pack)
+        sec = [f for f in rep.findings if f.source == "pack.paste_candidate.body"]
+        assert len(sec) == 1 and sec[0].label == "" and sec[0].ip16 == ""
+        assert "a1" not in rep.by_label
+
+    def test_ambiguous_same_second_join_blanks_identity(self, tmp_path):
+        # two editors saved dse/Answers in the same second: no guessing
+        rows = [_rev("r1", "Answers", "HelperA", "20.1", "2026-06-16T10:00:00Z", True),
+                _rev("r2", "Answers", "HelperB", "20.2", "2026-06-16T10:00:00Z")]
+        with (tmp_path / "revisions.jsonl").open("w") as f:
+            for r in rows:
+                f.write(json.dumps(r) + "\n")
+        (tmp_path / "events.jsonl").write_text("")
+        pack = _pack(tmp_path, [
+            {"source_type": "wiki", "source_group": "dse/Answers",
+             "timestamp_utc": "2026-06-16T10:00:00Z",
+             "text": "x " + "".join(chr(0xE0000 + ord(c)) for c in "peer.example")},
+        ])
+        rep = scan(tmp_path, pack=pack)
+        body = [f for f in rep.findings if f.source == "pack.wiki.body"]
+        assert len(body) == 1 and body[0].label == "" and body[0].ip16 == ""
+
+    def test_pack_path_with_spaces(self, tmp_path):
+        from swarm.bridges.collusion_wiki.reading_pack import load_docs
+        (tmp_path / "dir with spaces").mkdir()
+        d = _pack(tmp_path / "dir with spaces", [
+            {"source_type": "wiki", "source_group": "dse/A",
+             "timestamp_utc": "2026-06-16T10:00:00Z", "text": "body"}])
+        assert len(load_docs(d)) == 1
+
+    def test_pack_requires_stego(self, tmp_path, capsys):
+        from swarm.bridges.collusion_wiki.__main__ import main
+        with pytest.raises(SystemExit) as ei:
+            main([str(tmp_path / "s.yaml"), "--pack", str(tmp_path), "--data-dir", str(tmp_path)])
+        assert ei.value.code == 2
+        assert "--stego" in capsys.readouterr().err

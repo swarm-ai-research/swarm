@@ -107,7 +107,8 @@ def iter_docs(
     types = set(source_types or ())
     if tier is not None:
         types |= TIERS[tier]
-    con = sqlite3.connect(f"file:{resolve_sqlite(pack)}?mode=ro", uri=True)
+    # as_uri() percent-encodes spaces etc.; a hand-built file:{path} does not
+    con = sqlite3.connect(resolve_sqlite(pack).resolve().as_uri() + "?mode=ro", uri=True)
     try:
         sql = ("SELECT id, source_type, source_group, title, source_url, author, "
                "timestamp_utc, text FROM documents")

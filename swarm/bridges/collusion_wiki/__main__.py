@@ -56,6 +56,8 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
+    if args.pack is not None and not args.stego:
+        p.error("--pack only affects the stego scan; pass --stego with it")
     if not args.scenario.exists():
         print(f"scenario not found: {args.scenario}", file=sys.stderr)
         return 2

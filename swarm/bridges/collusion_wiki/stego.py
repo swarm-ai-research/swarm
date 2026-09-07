@@ -33,7 +33,6 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from swarm.bridges.collusion_wiki.loader import (
-    WikiRevision,
     _open,
     _resolve,
     load_events,
@@ -234,11 +233,16 @@ def _pack_strings(pack: Path, data_dir: Optional[Path]) -> Iterator[Tuple[str, s
     """Page bodies and secondary-tier texts from the reading pack.
 
     Wiki bodies are joined to the export revision when ``data_dir`` has one,
-    so label and ip16 are the editor's; unjoined bodies carry an empty label.
-    Secondary-tier docs are already window-filtered by ``iter_docs``.
+    so label and ip16 are the editor's; unjoined bodies carry an empty label,
+    and so do bodies whose ``(page_id, time)`` key matches revisions by more
+    than one editor (same-second saves) -- guessing would misattribute.
+    Secondary-tier docs are already window-filtered by ``iter_docs``; they are
+    never attribution, so their label and ip16 are always empty (the pack's
+    ``author`` field is a handle from a paste site, not a wiki editor).
     """
     docs = list(iter_docs(pack))
-    rev_by_key: Dict[Tuple[str, datetime], WikiRevision] = {}
+    # key -> {(label, ip16)} of every joined revision; one entry = unambiguous
+    ids_by_key: Dict[Tuple[str, datetime], set] = {}
     if data_dir is not None:
         try:
             revs = load_revisions(data_dir)
@@ -247,21 +251,18 @@ def _pack_strings(pack: Path, data_dir: Optional[Path]) -> Iterator[Tuple[str, s
         joined = join_bodies(revs, [d for d in docs if d.source_type == "wiki"])
         for r in revs:
             if r.rev_id in joined:
-                rev_by_key.setdefault((r.page_id, r.time), r)
+                ids_by_key.setdefault((r.page_id, r.time), set()).add((r.label, r.ip16))
     for d in docs:
+        t = d.time or datetime(1970, 1, 1, tzinfo=timezone.utc)
         if d.source_type == "wiki":
-            rev = rev_by_key.get((d.page_id, d.time)) if d.time is not None else None
-            label = rev.label if rev is not None else ""
-            ip16 = rev.ip16 if rev is not None else ""
-            t = d.time or datetime(1970, 1, 1, tzinfo=timezone.utc)
+            ids = ids_by_key.get((d.page_id, d.time), set()) if d.time is not None else set()
+            label, ip16 = next(iter(ids)) if len(ids) == 1 else ("", "")
             yield ("pack.wiki.body", d.text, t, label, ip16, d.wiki, d.page_id)
         else:
-            t = d.time or datetime(1970, 1, 1, tzinfo=timezone.utc)
-            yield (f"pack.{d.source_type}.body", d.text, t, d.author, "",
-                   d.source_group.split("/", 1)[0], d.source_group)
+            group = d.source_group.split("/", 1)[0]
+            yield (f"pack.{d.source_type}.body", d.text, t, "", "", group, d.source_group)
             if d.title and d.title != "Untitled":
-                yield (f"pack.{d.source_type}.title", d.title, t, d.author, "",
-                       d.source_group.split("/", 1)[0], d.source_group)
+                yield (f"pack.{d.source_type}.title", d.title, t, "", "", group, d.source_group)
 
 
 def _all_strings(data_dir: Optional[Path], pack: Optional[Path]) -> Iterator[Tuple[str, str, datetime, str, str, str, str]]:
