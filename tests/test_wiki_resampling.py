@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from swarm.bridges.wiki_resampling.__main__ import _format_summary
 from swarm.bridges.wiki_resampling.board import WikiBoard
 from swarm.bridges.wiki_resampling.config import ExperimentConfig, SeedEntry
 from swarm.bridges.wiki_resampling.model import OllamaClient, parse_json_object
@@ -225,6 +226,24 @@ def test_json_parser_accepts_first_object_before_trailing_text() -> None:
     assert parse_json_object('Result: {"journal": {"status": "ok"}} trailing {bad}') == {
         "journal": {"status": "ok"}
     }
+
+
+def test_cli_summary_does_not_log_scenario_task_identifier() -> None:
+    row = {
+        "task_id": "private-customer-task",
+        "checkpoint_index": 1,
+        "journal_intervention": "retained",
+        "prompt_dependence": 0.5,
+        "locked": False,
+        "prefix_carried_posting": 0.25,
+        "post_rate_by_condition": {"board_helpful": 1.0},
+        "beneficiary_success_rate_by_condition": {"board_helpful": 1.0},
+    }
+
+    rendered = _format_summary(3, row)
+
+    assert "summary=3" in rendered
+    assert row["task_id"] not in rendered
 
 
 @pytest.mark.parametrize(

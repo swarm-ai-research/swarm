@@ -7,6 +7,7 @@ import sys
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from swarm.bridges.wiki_resampling.config import ExperimentConfig
 from swarm.bridges.wiki_resampling.model import OllamaClient
@@ -61,15 +62,21 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(f"wrote {out}")
     for summary_index, row in enumerate(result["summary"]):
-        print(
-            f"summary={summary_index} cp={row['checkpoint_index']} "
-            f"journal={row['journal_intervention']} "
-            f"dep={row['prompt_dependence']} locked={row['locked']} "
-            f"prefix_post={row['prefix_carried_posting']} "
-            f"rates={row['post_rate_by_condition']} "
-            f"beneficiary={row['beneficiary_success_rate_by_condition']}"
-        )
+        print(_format_summary(summary_index, row))
     return 0
+
+
+def _format_summary(summary_index: int, row: dict[str, Any]) -> str:
+    """Format aggregate metrics without echoing scenario-provided identifiers."""
+
+    return (
+        f"summary={summary_index} cp={row['checkpoint_index']} "
+        f"journal={row['journal_intervention']} "
+        f"dep={row['prompt_dependence']} locked={row['locked']} "
+        f"prefix_post={row['prefix_carried_posting']} "
+        f"rates={row['post_rate_by_condition']} "
+        f"beneficiary={row['beneficiary_success_rate_by_condition']}"
+    )
 
 
 def _print_progress(event: dict[str, object]) -> None:
