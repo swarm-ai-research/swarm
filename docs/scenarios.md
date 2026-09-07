@@ -516,3 +516,16 @@ base traces, harmful transfer was lower than helpful for one base, equal for
 two, and higher for one. This is a no-go for the 20-prefix confirmatory run, not
 evidence that plans are condition-invariant. See
 `docs/research/wiki-board-downstream-beneficiary-calibration.md`.
+
+The capability follow-up is
+`scenarios/wiki_board_journal_swap_capability.yaml`. It holds the helpful
+downstream-beneficiary condition fixed and crosses retained, ablated, and
+cross-base-swapped journals with three write affordances: available, visibly
+removed before action selection, and unexpectedly fail-closed at execution.
+Two independent bases yielded 42 branches. Available branches transferred and
+submitted in 14/14 cases; removed branches made no write attempt and submitted
+privately in 14/14; fail-closed branches made 56 rejected write attempts and
+never submitted. Every swap passed its mechanical checks, but both donor
+journals expressed publication plans, so the result supports action-level
+retry lock-in rather than a causal claim about journal content. See
+`docs/research/wiki-board-journal-swap-capability.md`.
