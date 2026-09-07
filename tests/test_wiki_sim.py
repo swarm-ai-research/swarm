@@ -159,3 +159,51 @@ def test_confirmation_summary_reports_displacement_denominators(tmp_path) -> Non
     assert row["displaced_per_disrupted"] == row["displaced_works"] / row["disrupted_works"]
     assert 0 <= row["alarm_wilson_low"] <= row["alarm_rate"] <= row["alarm_wilson_high"] <= 1
     assert (tmp_path / "summary.csv").exists()
+
+
+def _page_base(**overrides):
+    return SimulationConfig(
+        n_agents=12, n_tasks=4, n_hosts=2, task_overlap=1,
+        discovery_probability=1, publish_probability=1,
+        moderation_time=2, moderation_budget=3, moderation_interval=1,
+        moderation_granularity="page", page_deletion_fraction=0.5,
+        evasion_learning_probability=1.0, moderation_policy="ordered",
+        **overrides)
+
+
+def test_evasion_rename_keeps_evader_pages_eligible_but_last() -> None:
+    shrink = simulate(_page_base(evasion_mode="shrink"), 7)
+    rename = simulate(_page_base(evasion_mode="rename"), 7)
+    shrink_removed = [e["removed_pages"] for e in shrink.events if e["type"] == "moderation"]
+    rename_removed = [e["removed_pages"] for e in rename.events if e["type"] == "moderation"]
+    # Same whole-host budget, so the first sweep removes the same count.
+    assert shrink_removed[0] == rename_removed[0] > 0
+    # After everyone has learned, shrink has nothing eligible; rename still deletes
+    # (evader pages are eligible, just sorted last).
+    assert sum(rename_removed[1:]) >= sum(shrink_removed[1:])
+
+
+def test_budget_from_eligible_reduces_sweep_size_once_authors_evade() -> None:
+    whole = simulate(_page_base(evasion_mode="shrink", budget_from_eligible=False), 3)
+    elig = simulate(_page_base(evasion_mode="shrink", budget_from_eligible=True), 3)
+    whole_removed = [e["removed_pages"] for e in whole.events if e["type"] == "moderation"]
+    elig_removed = [e["removed_pages"] for e in elig.events if e["type"] == "moderation"]
+    assert whole_removed[0] == elig_removed[0]
+    assert sum(elig_removed) <= sum(whole_removed)
+
+
+def test_evasion_move_relocates_evader_pages_to_another_host() -> None:
+    moved = simulate(_page_base(evasion_mode="move"), 7)
+    mods = [e for e in moved.events if e["type"] == "moderation"]
+    assert any(e.get("evasion_moved") for e in mods)
+    # A moved page survives on the refuge host: total pages removed over the
+    # run cannot exceed the legacy rule, where evaders' pages stay put.
+    legacy = simulate(_page_base(evasion_mode="shrink"), 7)
+    legacy_mods = [e for e in legacy.events if e["type"] == "moderation"]
+    assert sum(e["removed_pages"] for e in mods) <= sum(e["removed_pages"] for e in legacy_mods)
+
+
+def test_evasion_mode_validated() -> None:
+    import pytest
+    with pytest.raises(ValueError):
+        SimulationConfig(evasion_mode="teleport")

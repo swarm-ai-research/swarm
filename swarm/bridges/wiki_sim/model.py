@@ -35,6 +35,8 @@ class SimulationConfig:
     moderation_granularity: str = "host"
     page_deletion_fraction: float = 0.5
     evasion_learning_probability: float = 0.0
+    evasion_mode: str = "shrink"
+    budget_from_eligible: bool = False
     relocation_mode: str = "endogenous"
     referrals_enabled: bool = True
     search_interval: float = 1.0
@@ -68,6 +70,7 @@ class SimulationConfig:
             "moderation_policy": {"none", "ordered", "random", "lock", "global_lock"},
             "relocation_mode": {"endogenous", "forced"},
             "moderation_granularity": {"host", "page"},
+            "evasion_mode": {"shrink", "rename", "move"},
         }.items():
             if getattr(self, name) not in choices:
                 raise ValueError(f"{name} must be one of {sorted(choices)}")
@@ -108,7 +111,13 @@ def simulate(config: SimulationConfig, seed: int) -> SimulationResult:
     random deletion selects a host uniformly using the same event budget. With
     ``moderation_granularity='page'``, ordered and random policies instead delete
     an equal fraction of pages on the selected host; ordered deletion can teach
-    authors to evade later sweeps. Locks additionally stop new
+    authors to evade later sweeps. ``evasion_mode`` says what an evader does:
+    ``shrink`` (legacy) only removes its pages from the eligible set; ``rename``
+    keeps them eligible but sorts them last, the ZZZ-prefix trick the historical
+    agents used against alphabetical sweeps; ``move`` relocates its pages to
+    another writable host at learning time. ``budget_from_eligible`` draws the
+    per-sweep deletion count from the eligible set instead of the whole host,
+    so evaders reduce what a sweep removes. Locks additionally stop new
     writes, but preserve read access. Global lock consumes one intervention.
     Deadlines are inclusive: a submission exactly at its deadline succeeds.
     Reads reduce work only when their referenced publication supplies the
@@ -198,17 +207,27 @@ def simulate(config: SimulationConfig, seed: int) -> SimulationResult:
             for host in targets:
                 is_lock = c.moderation_policy in {"lock", "global_lock"}
                 evasion_learned = 0
+                evasion_moved = 0
                 if is_lock:
                     locked.add(host)
                     removed = 0
                 elif c.moderation_granularity == "page":
                     entries = list(boards[host].items())
-                    eligible = [(page, event_id) for page, event_id in entries
-                                if events[event_id]["agent_id"] not in evaders]
+                    if c.evasion_mode == "shrink":
+                        eligible = [(page, event_id) for page, event_id in entries
+                                    if events[event_id]["agent_id"] not in evaders]
+                    else:
+                        eligible = list(entries)
+                    pool = len(eligible) if c.budget_from_eligible else len(entries)
                     count = min(len(eligible), max(1, round(
-                        len(entries) * c.page_deletion_fraction))) if entries else 0
+                        pool * c.page_deletion_fraction))) if entries else 0
                     if c.moderation_policy == "ordered":
-                        doomed = sorted(eligible, key=lambda item: item[0])[:count]
+                        # rename: evaders' pages sort after every other page,
+                        # as a ZZZ prefix does under an alphabetical sweep.
+                        doomed = sorted(eligible, key=lambda item: (
+                            c.evasion_mode == "rename"
+                            and events[item[1]]["agent_id"] in evaders,
+                            item[0]))[:count]
                     else:
                         doomed = rng("page_moderation", task, host).sample(eligible, count)
                     for page, _ in doomed:
@@ -220,13 +239,24 @@ def simulate(config: SimulationConfig, seed: int) -> SimulationResult:
                             if rng("evasion", task, host, author).random() < c.evasion_learning_probability:
                                 evaders.add(author)
                                 evasion_learned += 1
+                                if c.evasion_mode == "move":
+                                    refuges = [h for h in range(c.n_hosts)
+                                               if h != host and h not in locked]
+                                    if refuges:
+                                        refuge = rng("evasion_move", task, host, author).choice(refuges)
+                                        for page, event_id in list(boards[host].items()):
+                                            if events[event_id]["agent_id"] == author:
+                                                boards[host].pop(page)
+                                                boards[refuge].setdefault(page, event_id)
+                                                evasion_moved += 1
+                                        referrals.add(refuge)
                 else:
                     removed = len(boards[host])
                     boards[host].clear()
                     referrals.discard(host)
                 log(time, "moderation", host=host, removed_pages=0 if is_lock else removed,
                     locked=is_lock, intervention_id=task,
-                    evasion_learned=evasion_learned)
+                    evasion_learned=evasion_learned, evasion_moved=evasion_moved)
                 for (aid, tid), work in works.items():
                     if work.done or work.release > time or work.host != host:
                         continue
