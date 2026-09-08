@@ -18,11 +18,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - **Interactive figures for the two-swarms note** (`scripts/plot_correlation_asymmetry.py`, `docs/research/figures/two-swarms-*.{html,png}`, bead `umzu`) — `hyperspace-two-swarms-lessons.md` carried its three central results as tables only. The script reads `experiments/correlation_asymmetry.py` artifacts (regenerating the three verification-rule runs, which are analytic and sub-second) and writes theme-aware Plotly pages with crosshair hover, direct labels, and a data-table view, plus static PNG twins: the ρ sweep with the non-monotone defender catch and ρ* marked; defender catch under unanimous / majority / any-keeps rules; and catch over *achieved* ρ̄ faceted by family count with saturated cells omitted. Palette is the dataviz reference set, validated light and dark; the note embeds all three as iframes beside the tables they illustrate.
 
 ### Fixed
-<<<<<<< HEAD
 - **Null-sample density over the observed node set** (`swarm/metrics/graph_structural.py` `density_pvalue` / `reciprocity_zscore`, PR #595 review) — hub-aware projections omit isolates from `DiGraph.nodes`; intersecting the candidate subset with the null's nodes shrank the denominator and inflated null density. Density now always divides by the observed subset size (missing members are isolates). Timeline incidence windows are prefix slices of the time-sorted list.
-=======
 - **termina empty `IN ()` filters** (`swarm/bridges/collusion_wiki/termina.py`, `runner.py`) — empty `venues` / `record_kinds` return no rows instead of raising SQLite `OperationalError`; `run_termina_replay` builds the excluded-actor set once per run (PR #594 review).
->>>>>>> 60243334 (collusion_wiki: empty termina IN-filters return no rows (PR #594 review))
 - **Schelling board timestamps on Python 3.10** (`swarm/bridges/collusion_wiki/schelling.py`) — `_parse_ts` pads 1–2 digit fractional seconds so `2026-09-07T10:00:20.5Z` parses; 3.10 `fromisoformat` rejects that form and failed the compatibility job after the y91o merge.
 
 ### Added
