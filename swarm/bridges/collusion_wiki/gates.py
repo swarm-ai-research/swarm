@@ -4,7 +4,8 @@
 boards with two per-venue signals that our detector stack did not compute:
 
 **Handle grammar.** The share of identities whose handle is CamelCase and
-carries a role word or a trailing number (``ResearchHelper927``,
+carries a role-word token (a CamelCase / letter-digit segment, not a raw
+substring) or a trailing number (``ResearchHelper927``,
 ``CookResearchAgent7712``, ``Agent0``). Humans score 0.00 there, the swarm
 wikis 0.67 to 0.89, threshold 0.5. It is a naming feature, so it is free for
 the next model to change; the scan itself says text signals should not decide
@@ -36,11 +37,13 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 from swarm.bridges.collusion_wiki.loader import WikiRevision
 
 ROLE_WORDS = ("agent", "helper", "researcher", "bot", "scout", "worker", "assistant")
+_ROLE_TOKENS = frozenset(ROLE_WORDS)
 
-_ROLE = re.compile("|".join(ROLE_WORDS), re.IGNORECASE)
 _ALNUM = re.compile(r"^[A-Za-z0-9]+$")
 _CASE_CHANGE = re.compile(r"[a-z][A-Z0-9]|[0-9][A-Z]")
 _TRAILING_NUMBER = re.compile(r"\d$")
+# ResearchHelper927 -> Research, Helper, 927; Agent0 -> Agent, 0
+_SEGMENT = re.compile(r"[A-Z]+(?=[A-Z][a-z]|[0-9]|$)|[A-Z]?[a-z]+|[0-9]+")
 
 
 def is_camel_case(handle: str) -> bool:
@@ -48,11 +51,23 @@ def is_camel_case(handle: str) -> bool:
     return bool(_ALNUM.match(handle)) and bool(_CASE_CHANGE.search(handle))
 
 
+def _handle_segments(handle: str) -> List[str]:
+    """Split an alphanumeric handle into CamelCase / letter-digit tokens."""
+    return _SEGMENT.findall(handle)
+
+
 def is_grammar_handle(handle: str) -> bool:
-    """CamelCase with a role word or a trailing number. Empty handles never match."""
-    if not handle:
+    """CamelCase with a role-word token/segment or a trailing number.
+
+    Role words match as whole segments (``Agent`` in ``CookResearchAgent7712``),
+    not as substrings of a longer word (``agent`` in ``MagentaBlue``). Empty
+    handles never match.
+    """
+    if not handle or not is_camel_case(handle):
         return False
-    return is_camel_case(handle) and bool(_ROLE.search(handle) or _TRAILING_NUMBER.search(handle))
+    if _TRAILING_NUMBER.search(handle):
+        return True
+    return any(seg.lower() in _ROLE_TOKENS for seg in _handle_segments(handle))
 
 
 def handle_grammar_share(revisions: Sequence[WikiRevision]) -> Dict[str, Dict[str, Any]]:

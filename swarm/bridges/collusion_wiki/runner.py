@@ -294,8 +294,9 @@ def _gates(revisions: Sequence[WikiRevision], cfg: ReplayConfig) -> Dict[str, An
         "contention": contention_summary(revisions, threshold=cfg.contention_alarm),
         "note": "grammar: share of distinct non-empty handles that are CamelCase "
         "with a role word or trailing number (termina.digital gate 2; humans "
-        "0.00, threshold 0.5). contention: alternations between distinct "
-        "identities on one page in one UTC hour (gate 1; humans peak at 4).",
+        f"0.00, threshold {cfg.grammar_alarm_share:g}). contention: alternations "
+        "between distinct identities on one page in one UTC hour (gate 1; humans "
+        "peak at 4).",
     }
 
 
