@@ -124,6 +124,16 @@ class TestMapper:
         with pytest.raises(ValueError):
             revisions_to_interactions(revs, identity="run")
 
+    def test_run_map_rejects_revision_without_run(self, tmp_path):
+        from swarm.bridges.collusion_wiki.mapper import load_run_map
+        m = tmp_path / "run_identity_map.json"
+        m.write_text(json.dumps({
+            "runs": {"P01": {"name": "A", "supported": True}},
+            "revisions": {"r1": {"run": "P01"}, "r2": {}},
+        }))
+        with pytest.raises(ValueError, match="revision 'r2' has no 'run' id"):
+            load_run_map(m)
+
     def test_reply_window_drops_slow_replies(self, data_dir):
         xs = revisions_to_interactions(
             load_revisions(data_dir), reply_window_seconds=3600

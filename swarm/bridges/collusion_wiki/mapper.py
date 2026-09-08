@@ -38,7 +38,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Literal, Mapping, Optional, Sequence
+from typing import Dict, FrozenSet, List, Literal, Mapping, Optional, Sequence
 
 from swarm.bridges.collusion_wiki.loader import WikiRevision
 from swarm.models.interaction import InteractionType, SoftInteraction
@@ -61,7 +61,7 @@ class RunMap:
     """
 
     by_rev: Mapping[str, str]
-    supported: frozenset
+    supported: FrozenSet[str]
     names: Mapping[str, str]
     meta: Mapping[str, object]
 
@@ -72,11 +72,25 @@ class RunMap:
 def load_run_map(path: Path) -> RunMap:
     with Path(path).open() as f:
         doc = json.load(f)
+    if not isinstance(doc, dict):
+        raise ValueError(f"run map {path}: top level must be a JSON object")
     runs = doc.get("runs", {})
+    revisions = doc.get("revisions", {})
+    if not isinstance(runs, dict) or not isinstance(revisions, dict):
+        raise ValueError(f"run map {path}: 'runs' and 'revisions' must be objects")
+    by_rev: Dict[str, str] = {}
+    for rid, v in revisions.items():
+        run = v.get("run") if isinstance(v, dict) else None
+        if not isinstance(run, str) or not run:
+            raise ValueError(f"run map {path}: revision {rid!r} has no 'run' id")
+        by_rev[rid] = run
+    for t, r in runs.items():
+        if not isinstance(r, dict):
+            raise ValueError(f"run map {path}: run {t!r} must be an object")
     return RunMap(
-        by_rev={rid: v["run"] for rid, v in doc.get("revisions", {}).items()},
+        by_rev=by_rev,
         supported=frozenset(t for t, r in runs.items() if r.get("supported")),
-        names={t: r.get("name", "") for t, r in runs.items()},
+        names={t: str(r.get("name", "")) for t, r in runs.items()},
         meta={k: doc.get(k) for k in ("source", "source_commit", "n_runs",
                                       "n_supported_runs", "n_revisions")},
     )
