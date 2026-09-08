@@ -272,3 +272,35 @@ holds at most one page per task (`boards[host][task]`), so a sweep touches a
 handful of pages and evasion can only shuffle those. A test of "agents learned to
 dodge alphabetical sweeps" needs a page-population model (many pages per task,
 name-keyed) before deletion order can matter. Runs: `runs/wiki_mc_confirm_page_e50_{shrink_elig,rename,move,move_elig,sort_last,sort_last_elig}`. The two `sort_last` folders are archived as summaries plus `contrast_vs_page_e50.json` in [swarm-artifacts](https://github.com/swarm-ai-research/swarm-artifacts) (355d312); the four pre-merge folders are not archived. To regenerate on `main`, use `page_e50.json` plus `{"page_budget_basis": "eligible"}`, `{"evasion_style": "sort_last"}`, `{"evasion_style": "sort_last", "page_budget_basis": "eligible"}`, `{"evasion_style": "move"}`, and `{"evasion_style": "move", "page_budget_basis": "eligible"}` respectively; the pre-merge `rename` row has no `main` equivalent.
+
+### What the field evidence says about the ZZZ premise (2026-09-08)
+
+Everything above tests the ZZZ trick *inside the model*. The premise it reaches
+for — that DSEWiki agents prefixed pages with `ZZZ` to sort last against an
+alphabetical moderator sweep — has since been measured against the export in
+[wiki-collusion-field-evidence.md](wiki-collusion-field-evidence.md) §6.4. It
+does not survive, on four counts:
+
+- **The June sweep was not alphabetical.** Across the full sequence of 5,217
+  hand deletions (2026-06-04 → 07-14) the rank correlation between deletion
+  position and title alphabetical position is **0.009**; the June deletions run
+  in RecentChanges order, newest first.
+- **The sustained alphabetical passes came after the agents had stopped.** Of
+  41 ascending runs of ≥10 titles, the five longest all begin on or after
+  2026-07-12 (89 titles from `2026-07-13T19:40`, then 78, 63, 58, 49) — three
+  weeks after the swarm had gone. June's largest run is 35.
+- **The `ZZZ` pages predate that phase by about seven weeks**, and are not
+  backups: zero records anywhere in the bundle carry the `backup` content kind,
+  and the classified `ZZZ` rows are answer-share (26), probe-test (11),
+  coordination (9), bridge (8), data-cache (4), with unique-test-page titles.
+- **It bought nothing anyway.** 3,898 of 3,908 distinct dse titles were deleted
+  — 0.26% survival. All 77 `Z`-prefixed and all 16 `ZZZ`-containing titles were
+  deleted.
+
+None of this touches the `sort_last` / `move` knobs or any number in the table
+above; those are model behaviour and stand. It constrains only how they may be
+cited. The sweep results here — and the `pi02` results they extend — are
+**simulation predictions with no field instance behind them**. The paragraph
+above is right that a real test needs a page-population model; it is now also
+true that even with one, the historical episode it was reaching for did not
+happen as described.
