@@ -96,9 +96,10 @@ class ReplayConfig:
     structural_alarm_pvalue: float = 0.05
     # bead y2t2: "configuration" preserves agent degrees only and saturates on
     # a hub page; "bipartite" rewires who edited which page (agent and page
-    # edit counts preserved) and re-projects, so shared page membership is
-    # in the null. Agent projection only; reply_window_seconds is ignored by
-    # the null's re-projection.
+    # edit counts preserved) and re-projects — hub concentration still
+    # counts as structure; "membership" permutes edit order within each
+    # page, so shared page membership is in the null. Agent projection
+    # only; reply_window_seconds is ignored by the null's re-projection.
     structural_null: str = "configuration"
     # bead hoer: aggregate edits/step vs trailing-median ratio at which the
     # volume monitor fires (10x fires May 26 on the real log; 200x on Jun 16)
@@ -276,9 +277,16 @@ def _timeline(
     rows: List[Dict[str, Any]] = []
     t = t0 + step
     i = 0
+    j = 0  # incidence is time-sorted; advance once and slice
     while t <= t_end + step:
         while i < len(xs) and xs[i].timestamp < t:
             i += 1
+        if incidence is not None:
+            while j < len(incidence) and incidence[j][0] < t:
+                j += 1
+            inc_window: Optional[Sequence[Incidence]] = incidence[:j]
+        else:
+            inc_window = None
         window = xs[:i]
         if not window:
             t += step
@@ -287,9 +295,6 @@ def _timeline(
         recent = [x for x in window if x.timestamp >= t - step]
         start_iso = (t - step).strftime("%Y-%m-%dT%H:%M:%SZ")
         temp = _temporal(recent, cfg.temporal_window_seconds)
-        inc_window = (
-            [row for row in incidence if row[0] < t] if incidence is not None else None
-        )
         struct = _structural(window, cfg, cfg.timeline_null_samples, inc_window)
         best_p = min((r["pvalue"] for r in struct), default=1.0)
         best_size = max((r["size"] for r in struct if r["pvalue"] == best_p), default=0)

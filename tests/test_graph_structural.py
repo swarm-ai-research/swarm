@@ -122,6 +122,13 @@ class TestLabelPropagation:
 
 
 class TestReciprocityZscore:
+    def test_reciprocity_treats_missing_nodes_as_isolates(self):
+        """A node omitted from the graph (isolate) must not change
+        reciprocity of the remaining edges — same node-set comparison."""
+        g = DiGraph.from_edges([("a", "b", 1.0), ("b", "a", 1.0)])
+        assert g.reciprocity({"a", "b", "c"}) == pytest.approx(g.reciprocity({"a", "b"}))
+        assert g.induced_edge_count({"a", "b", "c"}) == g.induced_edge_count({"a", "b"})
+
     def test_mutual_ring_is_anomalous(self):
         # Build a base of one-way random edges plus a fully mutual triangle.
         rng = random.Random(0)
@@ -208,6 +215,28 @@ class TestDensityPvalueSubsetConditioned:
         arbitrary = set(rng.sample(nodes, 5))
         pval = density_pvalue(g, arbitrary, n_samples=30, seed=3)
         assert pval > 0.2
+
+    def test_null_isolates_do_not_shrink_subset(self, monkeypatch):
+        """DiGraph omits isolates. Intersecting the candidate with
+        null_g.nodes inflates null density (smaller denominator) and
+        can turn a miss into a hit. Density must stay over len(subset)."""
+        subset = {"a", "b", "c", "d"}
+        # observed_edges=4, density=1.0. Isolate-null has a<->b only and
+        # omits c, d. Old live={a,b}: 2/2=1.0 >= 1.0 → hit every sample.
+        # New: 2/4=0.5 < 1.0 → miss every sample → p = 1/(n+1).
+        g = DiGraph.from_edges([
+            ("a", "b", 1.0), ("b", "a", 1.0),
+            ("c", "d", 1.0), ("d", "c", 1.0),
+        ])
+        isolate_null = DiGraph.from_edges([("a", "b", 1.0), ("b", "a", 1.0)])
+        assert isolate_null.nodes == {"a", "b"}
+
+        def fake_null(*_args, **_kwargs):
+            return isolate_null
+
+        monkeypatch.setattr("swarm.metrics.graph_structural._null_graph", fake_null)
+        pval = density_pvalue(g, subset, n_samples=20, seed=0)
+        assert pval == pytest.approx(1 / 21)
 
 
 class TestRankAggregatedScores:

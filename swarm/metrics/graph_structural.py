@@ -500,9 +500,10 @@ def reciprocity_zscore(
         null_g = _null_graph(
             g, seed=seed + i, null=null, incidence=incidence, projection=projection
         )
-        samples.append(
-            null_g.reciprocity(subset if subset is None else subset & null_g.nodes)
-        )
+        # Isolates are omitted from DiGraph.nodes; pass the observed
+        # subset so missing members are treated as isolates rather than
+        # dropped from the comparison.
+        samples.append(null_g.reciprocity(subset))
     mean = sum(samples) / len(samples)
     var = sum((s - mean) ** 2 for s in samples) / len(samples)
     std = var ** 0.5
@@ -557,10 +558,12 @@ def density_pvalue(
         null_g = _null_graph(
             g, seed=seed + i, null=null, incidence=incidence, projection=projection
         )
-        # density on the SAME nodes in the null (correct subset-conditioned test)
-        live = subset & null_g.nodes
-        null_edges = null_g.induced_edge_count(live)
-        null_density = null_edges / max(1, len(live))
+        # Same node set as observed: DiGraph omits isolates, so missing
+        # members are isolates (0 edges), and density is always over
+        # len(subset) — intersecting with null_g.nodes would shrink the
+        # denominator and inflate null density.
+        null_edges = null_g.induced_edge_count(subset)
+        null_density = null_edges / len(subset)
         if null_density >= observed_density:
             hits += 1
     return (hits + 1) / (n_samples + 1)

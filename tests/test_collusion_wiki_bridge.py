@@ -818,6 +818,55 @@ class TestBipartiteNullReplay:
         assert ReplayConfig.from_yaml(y).structural_null == "membership"
         assert ReplayConfig().structural_null == "configuration"
 
+    def test_cli_structural_null_help_mentions_membership(self, capsys):
+        with pytest.raises(SystemExit):
+            _cli_main(["--help"])
+        help_text = capsys.readouterr().out
+        assert "membership" in help_text
+        assert "per-page" in help_text
+
+    def test_timeline_incidence_is_prefix_slice(self, monkeypatch):
+        from datetime import timedelta
+
+        from swarm.bridges.collusion_wiki.runner import _timeline
+        from swarm.models.interaction import SoftInteraction
+
+        t0 = datetime(2026, 6, 16, tzinfo=timezone.utc)
+        xs = [
+            SoftInteraction(
+                initiator="a", counterparty="b",
+                timestamp=t0 + timedelta(hours=1), p=0.5,
+            ),
+            SoftInteraction(
+                initiator="b", counterparty="a",
+                timestamp=t0 + timedelta(hours=25), p=0.5,
+            ),
+        ]
+        inc = [
+            (t0, "a", "p"),
+            (t0 + timedelta(hours=1), "b", "p"),
+            (t0 + timedelta(hours=30), "c", "p"),
+        ]
+        captured: list = []
+
+        def fake_structural(window, cfg, n_null, incidence=None):
+            captured.append(list(incidence) if incidence is not None else None)
+            return []
+
+        monkeypatch.setattr(
+            "swarm.bridges.collusion_wiki.runner._structural", fake_structural
+        )
+        cfg = ReplayConfig(timeline_step_hours=24, timeline_null_samples=1)
+        rows = _timeline(xs, cfg, inc)
+        assert captured and len(captured) == len(rows)
+        for row, inc_window in zip(rows, captured, strict=True):
+            step_end = datetime.strptime(
+                row["step_end"], "%Y-%m-%dT%H:%M:%SZ"
+            ).replace(tzinfo=timezone.utc)
+            expected = [r for r in inc if r[0] < step_end]
+            assert inc_window == expected
+            assert inc_window == inc[: len(inc_window)]
+
     @pytest.mark.parametrize("null", ["bipartite", "membership"])
     def test_replay_runs_with_hub_aware_null(self, data_dir, tmp_path, null):
         cfg = ReplayConfig(

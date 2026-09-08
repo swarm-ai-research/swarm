@@ -65,8 +65,10 @@ def main(argv: list[str] | None = None) -> int:
                         "those owned by a supported run")
     p.add_argument("--structural-null", choices=["configuration", "bipartite", "membership"],
                    help="null model behind the structural p-values: degree-"
-                        "preserving (default) or hub-aware bipartite rewiring "
-                        "of who edited which page (bead y2t2)")
+                        "preserving configuration (default), hub-aware bipartite "
+                        "rewiring of who edited which page, or membership "
+                        "(per-page membership preserved, edit order shuffled; "
+                        "bead y2t2)")
     p.add_argument("--stego", action="store_true",
                    help="scan the export's free-text fields for hidden-character "
                         "carriers (bead vv3j.5) instead of running the detectors")

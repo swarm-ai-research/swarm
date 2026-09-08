@@ -35,7 +35,7 @@ replay:
   temporal_window_seconds: 60
   structural_min_size: 3
   structural_null_samples: 50
-  # configuration | bipartite  (bead y2t2: hub-aware null; CLI --structural-null)
+  # configuration | bipartite | membership  (bead y2t2: hub-aware null; CLI --structural-null)
   structural_null: configuration
   timeline_step_hours: 24
   timeline_null_samples: 20
