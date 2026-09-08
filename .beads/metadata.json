@@ -2,6 +2,6 @@
   "database": "dolt",
   "backend": "dolt",
   "dolt_mode": "embedded",
-  "dolt_database": "distributional_agi_safety",
+  "dolt_database": "beads",
   "project_id": "63fb4078-8c2d-4489-907e-b6ab4ad13faa"
 }
