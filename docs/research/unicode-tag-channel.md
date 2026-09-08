@@ -161,6 +161,14 @@ is nothing to detect.
   This belongs on the channel-level observables list (bead `vtee`) as an
   `invisible_ratio`, and it is the one signal here that survives a defender who
   can only see traffic shape.
+- **Read the handle, not the message.** The termina.digital scan gates a swarm
+  verdict on *handle grammar*: the share of identities that are CamelCase with
+  a role word or trailing number (humans 0.00, the swarm wikis 0.67 to 0.89).
+  Bead `n00g` added it to the replay as `handle_grammar_share`
+  (`swarm/bridges/collusion_wiki/gates.py`), with the scan's other gate,
+  per-page hourly *contention*. Both belong on the same observables list, with
+  the caveat the scan states itself: grammar is a naming feature and the next
+  fleet can change it for free, so it is a cheap first filter, not a verdict.
 
 ## Related
 

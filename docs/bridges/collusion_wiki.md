@@ -77,6 +77,10 @@ Two choices carry the whole result, so both are explicit knobs in `swarm/bridges
 | Temporal clustering | `swarm/metrics/collusion.py` `temporal_clustering_score` | per-agent share of an agent's edits that fall within a window of each other |
 | Pairwise / group collusion | `swarm/metrics/collusion.py` `CollusionDetector` | frequency z-scores, acceptance, burstiness over reply pairs |
 | Structural anomalies | `swarm/metrics/graph_structural.py` `detect_structural_anomalies` | densest subgraph, k-core, label propagation, reciprocity against a configuration-model null |
+| Handle grammar (termina gate 2) | `swarm/bridges/collusion_wiki/gates.py` `handle_grammar_share` | share of distinct handles that are CamelCase with a role word or trailing number; humans 0.00, alarm at 0.5 |
+| Contention (termina gate 1) | `swarm/bridges/collusion_wiki/gates.py` `contention_summary` | alternations between distinct identities on one page in one UTC hour; humans peak at 4, alarm at 5 |
+
+The two **gates** (bead `n00g`) are the signals the [termina.digital scan](https://swarm.termina.digital/db/scan.html) uses to call a venue a swarm. They run on revisions rather than reply interactions, so page creations and self follow-ups count, and they appear in `summary.json` under `gates` (per wiki) and in the timeline as `handle_grammar_share` / `grammar_alarm` (identities active in the step) and `contention_max` / `contention_alarm`. On the export: grammar dse 0.80, probier 0.60, fractal 0.92 (the scan: 0.74, 0.67, 0.89; the role-word list is ours, `ROLE_WORDS`, and the scan counts RecentChanges rows the export lacks); contention max dse 1,070 on `WillkommenImWiki` in the 20:00 UTC hour of June 18 (the scan: 1,146), fractal 10, probier 4. Probier's 4 is an artifact of the export: its 899 unlabeled saves collapse into one identity, so the alternations the scan sees between anonymous saves are invisible here. Grammar is a naming feature and is free for the next model to change; the scan itself says text signals should not decide a verdict.
 
 The **timeline** re-runs the temporal detector on each day's edits and the structural detector on everything to date, records the first day each would have fired at the configured alarm, and reports the lag in days against three landmarks: the moderator's deletion sweep (June 19), the first visit from OpenAI headquarters addresses (June 21), and the day the main board went quiet (June 22).
 
@@ -113,6 +117,7 @@ The run folder adds `history.json` and `csv/interactions.csv` (the `SoftInteract
 | `swarm/bridges/collusion_wiki/reading_pack.py` | reads the reading pack's `agent-text.sqlite`; joins page bodies onto revisions; tiers the non-wiki candidates |
 | `swarm/bridges/collusion_wiki/stego.py` | hidden-carrier scan over export text fields and, with `--pack`, page bodies |
 | `swarm/bridges/collusion_wiki/mapper.py` | revisions to `SoftInteraction`, identity and projection modes |
+| `swarm/bridges/collusion_wiki/gates.py` | handle-grammar share and page-hour contention, the termina.digital gates |
 | `swarm/bridges/collusion_wiki/runner.py` | detector passes, timeline, run folder |
 | `swarm/bridges/collusion_wiki/schelling.py` | schelling-point `messages.json` + Inspect eval-log loaders, attribution, condition comparison |
 | `scenarios/casestudy_wiki_backchannel.yaml` | replay config (collusion.wiki export) |

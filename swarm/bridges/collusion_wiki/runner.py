@@ -38,6 +38,12 @@ from typing import Any, Dict, List, Optional, Sequence
 
 import yaml
 
+from swarm.bridges.collusion_wiki.gates import (
+    contention_summary,
+    empty_gate_row,
+    gate_timeline,
+    handle_grammar_share,
+)
 from swarm.bridges.collusion_wiki.loader import (
     WikiRevision,
     load_events,
@@ -90,6 +96,11 @@ class ReplayConfig:
     # volume monitor fires (10x fires May 26 on the real log; 200x on Jun 16)
     volume_alarm_ratio: float = 10.0
     volume_trailing_windows: int = 7
+    # bead n00g: the termina.digital gates. Grammar share among identities
+    # active in a step (humans 0.00, swarm wikis 0.67-0.89); page-hour
+    # alternations between distinct identities (humans peak at 4).
+    grammar_alarm_share: float = 0.5
+    contention_alarm: int = 5
     landmarks: Dict[str, str] = field(default_factory=dict)
     sweep_identity: List[str] = field(default_factory=lambda: ["label"])
     seed: int = 0
@@ -127,6 +138,8 @@ class ReplayConfig:
             structural_alarm_pvalue=float(rp.get("structural_alarm_pvalue", 0.05)),
             volume_alarm_ratio=float(rp.get("volume_alarm_ratio", 10.0)),
             volume_trailing_windows=int(rp.get("volume_trailing_windows", 7)),
+            grammar_alarm_share=float(rp.get("grammar_alarm_share", 0.5)),
+            contention_alarm=int(rp.get("contention_alarm", 5)),
             landmarks=dict(rp.get("landmarks", {}) or {}),
             sweep_identity=list(sw.get("identity", [rp.get("identity", "label")])),
             seed=int(doc.get("seed", 0)),
@@ -194,15 +207,26 @@ def _pairwise(interactions: Sequence[SoftInteraction], cfg: ReplayConfig):
 
 
 def _timeline(
-    interactions: Sequence[SoftInteraction], cfg: ReplayConfig
+    interactions: Sequence[SoftInteraction],
+    cfg: ReplayConfig,
+    revisions: Sequence[WikiRevision] = (),
 ) -> List[Dict[str, Any]]:
-    """Cumulative-to-date detector state at each step boundary."""
+    """Cumulative-to-date detector state at each step boundary.
+
+    ``revisions`` (bead n00g) adds the handle-grammar and contention gates
+    per step; they are computed on saves, not replies, so the step grid is
+    anchored on the same midnight as the detector rows.
+    """
     if not interactions:
         return []
     xs = sorted(interactions, key=lambda x: x.timestamp)
     t0 = xs[0].timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
     t_end = xs[-1].timestamp
     step = timedelta(hours=cfg.timeline_step_hours)
+    gates = gate_timeline(
+        revisions, cfg.timeline_step_hours, t0=t0,
+        grammar_alarm=cfg.grammar_alarm_share, contention_alarm=cfg.contention_alarm,
+    )
     # bead hoer: the aggregate volume monitor, one pass over the whole log,
     # joined to the timeline by window start (windows are day-aligned like
     # the timeline steps).
@@ -237,6 +261,7 @@ def _timeline(
                 "volume_ratio": vol_rows.get(start_iso, {}).get("ratio", 0.0),
                 "volume_alarm": start_iso in vol_rows
                 and vol_rows[start_iso]["ratio"] >= cfg.volume_alarm_ratio,
+                **gates.get(t.strftime("%Y-%m-%dT%H:%M:%SZ"), empty_gate_row()),
             }
         )
         t += step
@@ -260,6 +285,18 @@ def _volume_windows(
         threshold=0.0,
     )
     return r.windows
+
+
+def _gates(revisions: Sequence[WikiRevision], cfg: ReplayConfig) -> Dict[str, Any]:
+    """bead n00g: the termina.digital gates per wiki, from revisions."""
+    return {
+        "handle_grammar": handle_grammar_share(revisions),
+        "contention": contention_summary(revisions, threshold=cfg.contention_alarm),
+        "note": "grammar: share of distinct non-empty handles that are CamelCase "
+        "with a role word or trailing number (termina.digital gate 2; humans "
+        "0.00, threshold 0.5). contention: alternations between distinct "
+        "identities on one page in one UTC hour (gate 1; humans peak at 4).",
+    }
 
 
 def _first_alarm(rows: Sequence[Dict[str, Any]], key: str) -> Optional[str]:
@@ -391,16 +428,19 @@ def _sweep_identities(
         if ident == cfg.identity:
             primary = xs
             if with_timeline:
-                rows = _timeline(xs, cfg)
+                rows = _timeline(xs, cfg, revisions)
                 _write_csv(out / "timeline.csv", rows)
                 per_identity[ident]["timeline"] = {
                     "n_steps": len(rows),
                     "first_temporal_alarm": _first_alarm(rows, "temporal_alarm"),
                     "first_structural_alarm": _first_alarm(rows, "structural_alarm"),
                     "first_volume_alarm": _first_alarm(rows, "volume_alarm"),
+                    "first_grammar_alarm": _first_alarm(rows, "grammar_alarm"),
+                    "first_contention_alarm": _first_alarm(rows, "contention_alarm"),
                     "lag_days": {
                         f"{det}_vs_{lm}": _lag_days(_first_alarm(rows, f"{det}_alarm"), when)
-                        for det in ("temporal", "structural", "volume")
+                        for det in ("temporal", "structural", "volume",
+                                    "grammar", "contention")
                         for lm, when in cfg.landmarks.items()
                     },
                 }
@@ -455,6 +495,7 @@ def run_replay(
         ],
         "wikis": sorted({r.wiki for r in revisions}),
         "deletions_by_day": dict(sorted(deletion_days.items())),
+        "gates": _gates(revisions, cfg),
         "p_note": "p fixed at 0.5: the log carries no per-edit quality signal, "
         "so quality asymmetry contributes nothing; detectors run on frequency, "
         "acceptance, timing and topology only.",
@@ -545,6 +586,7 @@ def run_schelling_replay(
             messages[0].time.isoformat() if messages else None,
             messages[-1].time.isoformat() if messages else None,
         ],
+        "gates": _gates(revisions, cfg),
         "shared_scores": score_means(samples),
         "condition_comparison": comparison,
         "p_note": "p per post = on_time_accuracy of the Inspect sample the post is "
