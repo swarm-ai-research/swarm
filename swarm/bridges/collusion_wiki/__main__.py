@@ -63,6 +63,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--revision-subset", choices=["all", "owned", "supported"],
                    help="replay every revision, only run-owned ones, or only "
                         "those owned by a supported run")
+    p.add_argument("--structural-null", choices=["configuration", "bipartite", "membership"],
+                   help="null model behind the structural p-values: degree-"
+                        "preserving configuration (default), hub-aware bipartite "
+                        "rewiring of who edited which page, or membership "
+                        "(per-page membership preserved, edit order shuffled; "
+                        "bead y2t2)")
     p.add_argument("--stego", action="store_true",
                    help="scan the export's free-text fields for hidden-character "
                         "carriers (bead vv3j.5) instead of running the detectors")
@@ -103,6 +109,8 @@ def main(argv: list[str] | None = None) -> int:
         cfg.sweep_identity = [args.identity]
     if args.source:
         cfg.source = args.source
+    if args.structural_null:
+        cfg.structural_null = args.structural_null
     if args.include_seeded:
         cfg.include_seeded = True
     if args.run_map:

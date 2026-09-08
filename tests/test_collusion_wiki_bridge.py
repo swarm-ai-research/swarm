@@ -792,3 +792,95 @@ class TestSchellingReplay:
             "scenarios/casestudy_schelling_board.yaml"))
         assert cfg.source == "schelling" and cfg.sweep_identity == ["label", "ip16"]
         assert cfg.include_seeded is False
+
+
+class TestBipartiteNullReplay:
+    """bead y2t2: hub-aware nulls behind the structural p-values."""
+
+    def test_incidence_reprojects_to_the_agent_graph(self, data_dir):
+        from swarm.bridges.collusion_wiki.loader import load_revisions
+        from swarm.bridges.collusion_wiki.runner import _incidence
+        from swarm.metrics.graph_structural import (
+            DiGraph,
+            edges_from_interactions,
+            project_incidence,
+        )
+
+        revs = load_revisions(data_dir)
+        xs = revisions_to_interactions(revs, identity="label", projection="agent")
+        observed = DiGraph.from_edges(edges_from_interactions(xs, weight="count"))
+        inc = [(a, pg) for _, a, pg in _incidence(revs, "label")]
+        assert DiGraph.from_edges(project_incidence(inc)).out == observed.out
+
+    def test_config_from_yaml_and_cli(self, tmp_path):
+        y = tmp_path / "s.yaml"
+        y.write_text("replay:\n  structural_null: membership\n")
+        assert ReplayConfig.from_yaml(y).structural_null == "membership"
+        assert ReplayConfig().structural_null == "configuration"
+
+    def test_cli_structural_null_help_mentions_membership(self, capsys):
+        with pytest.raises(SystemExit):
+            _cli_main(["--help"])
+        help_text = capsys.readouterr().out
+        assert "membership" in help_text
+        assert "per-page" in help_text
+
+    def test_timeline_incidence_is_prefix_slice(self, monkeypatch):
+        from datetime import timedelta
+
+        from swarm.bridges.collusion_wiki.runner import _timeline
+        from swarm.models.interaction import SoftInteraction
+
+        t0 = datetime(2026, 6, 16, tzinfo=timezone.utc)
+        xs = [
+            SoftInteraction(
+                initiator="a", counterparty="b",
+                timestamp=t0 + timedelta(hours=1), p=0.5,
+            ),
+            SoftInteraction(
+                initiator="b", counterparty="a",
+                timestamp=t0 + timedelta(hours=25), p=0.5,
+            ),
+        ]
+        inc = [
+            (t0, "a", "p"),
+            (t0 + timedelta(hours=1), "b", "p"),
+            (t0 + timedelta(hours=30), "c", "p"),
+        ]
+        captured: list = []
+
+        def fake_structural(window, cfg, n_null, incidence=None):
+            captured.append(list(incidence) if incidence is not None else None)
+            return []
+
+        monkeypatch.setattr(
+            "swarm.bridges.collusion_wiki.runner._structural", fake_structural
+        )
+        cfg = ReplayConfig(timeline_step_hours=24, timeline_null_samples=1)
+        rows = _timeline(xs, cfg, incidence=inc)
+        assert captured and len(captured) == len(rows)
+        for row, inc_window in zip(rows, captured, strict=True):
+            step_end = datetime.strptime(
+                row["step_end"], "%Y-%m-%dT%H:%M:%SZ"
+            ).replace(tzinfo=timezone.utc)
+            expected = [r for r in inc if r[0] < step_end]
+            assert inc_window == expected
+            assert inc_window == inc[: len(inc_window)]
+
+    @pytest.mark.parametrize("null", ["bipartite", "membership"])
+    def test_replay_runs_with_hub_aware_null(self, data_dir, tmp_path, null):
+        cfg = ReplayConfig(
+            structural_null=null, structural_null_samples=5, timeline_null_samples=5,
+            sweep_identity=["label"], landmarks={"sweep": "2026-06-19T00:00:00Z"},
+        )
+        out = run_replay(data_dir, cfg, runs_root=tmp_path)
+        summary = json.loads((out / "summary.json").read_text())
+        assert summary["per_identity"]["label"]["structural"]["null"] == null
+        assert json.loads((out / "config.json").read_text())["structural_null"] == null
+        assert (out / "timeline.csv").exists()
+
+    def test_bipartite_null_needs_incidence(self):
+        from swarm.bridges.collusion_wiki.runner import _structural
+
+        with pytest.raises(ValueError):
+            _structural([], ReplayConfig(structural_null="bipartite"), 5)

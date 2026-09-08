@@ -34,7 +34,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import yaml
 
@@ -54,6 +54,7 @@ from swarm.bridges.collusion_wiki.mapper import (
     Projection,
     RevisionSubset,
     RunMap,
+    agent_id,
     load_run_map,
     revisions_to_interactions,
     subset_revisions,
@@ -93,6 +94,13 @@ class ReplayConfig:
     timeline_null_samples: int = 20
     temporal_alarm: float = 0.7  # the 0.7 bar from the graph_structural sweep
     structural_alarm_pvalue: float = 0.05
+    # bead y2t2: "configuration" preserves agent degrees only and saturates on
+    # a hub page; "bipartite" rewires who edited which page (agent and page
+    # edit counts preserved) and re-projects — hub concentration still
+    # counts as structure; "membership" permutes edit order within each
+    # page, so shared page membership is in the null. Agent projection
+    # only; reply_window_seconds is ignored by the null's re-projection.
+    structural_null: str = "configuration"
     # bead hoer: aggregate edits/step vs trailing-median ratio at which the
     # volume monitor fires (10x fires May 26 on the real log; 200x on Jun 16)
     volume_alarm_ratio: float = 10.0
@@ -137,6 +145,7 @@ class ReplayConfig:
             timeline_null_samples=int(rp.get("timeline_null_samples", 20)),
             temporal_alarm=float(rp.get("temporal_alarm", 0.7)),
             structural_alarm_pvalue=float(rp.get("structural_alarm_pvalue", 0.05)),
+            structural_null=str(rp.get("structural_null", "configuration")),
             volume_alarm_ratio=float(rp.get("volume_alarm_ratio", 10.0)),
             volume_trailing_windows=int(rp.get("volume_trailing_windows", 7)),
             grammar_alarm_share=float(rp.get("grammar_alarm_share", 0.5)),
@@ -172,12 +181,44 @@ def _temporal(interactions: Sequence[SoftInteraction], window: float) -> Dict[st
     }
 
 
+Incidence = Tuple[datetime, str, str]  # (time, agent, page_id), time-sorted
+
+
+def _incidence(
+    revisions: Sequence[WikiRevision],
+    identity: Identity,
+    run_map: Optional[RunMap] = None,
+) -> List[Incidence]:
+    """Every revision as an agent->page membership, for the bipartite null
+    (bead y2t2). Unlike the agent projection this keeps page creations and
+    self follow-ups: the null re-projects them itself."""
+    return sorted(
+        ((rev.time, agent_id(rev, identity, run_map), rev.page_id) for rev in revisions),
+        key=lambda t: t[0],
+    )
+
+
 def _structural(
-    interactions: Sequence[SoftInteraction], cfg: ReplayConfig, n_null: int
+    interactions: Sequence[SoftInteraction],
+    cfg: ReplayConfig,
+    n_null: int,
+    incidence: Optional[Sequence[Incidence]] = None,
 ) -> List[Dict[str, Any]]:
     edges = edges_from_interactions(interactions, weight="count")
+    hub_aware = cfg.structural_null in ("bipartite", "membership")
+    if hub_aware and incidence is None:
+        raise ValueError(f"structural_null={cfg.structural_null!r} needs the revision incidence")
     anomalies = detect_structural_anomalies(
-        edges, min_size=cfg.structural_min_size, n_null_samples=n_null, seed=cfg.seed
+        edges,
+        min_size=cfg.structural_min_size,
+        n_null_samples=n_null,
+        seed=cfg.seed,
+        null=cfg.structural_null,
+        incidence=(
+            [(a, pg) for _, a, pg in incidence]
+            if incidence is not None and hub_aware
+            else None
+        ),
     )
     rows: List[Dict[str, Any]] = []
     for a in anomalies:
@@ -211,6 +252,7 @@ def _timeline(
     interactions: Sequence[SoftInteraction],
     cfg: ReplayConfig,
     revisions: Sequence[WikiRevision] = (),
+    incidence: Optional[Sequence[Incidence]] = None,
 ) -> List[Dict[str, Any]]:
     """Cumulative-to-date detector state at each step boundary.
 
@@ -235,9 +277,16 @@ def _timeline(
     rows: List[Dict[str, Any]] = []
     t = t0 + step
     i = 0
+    j = 0  # incidence is time-sorted; advance once and slice
     while t <= t_end + step:
         while i < len(xs) and xs[i].timestamp < t:
             i += 1
+        if incidence is not None:
+            while j < len(incidence) and incidence[j][0] < t:
+                j += 1
+            inc_window: Optional[Sequence[Incidence]] = incidence[:j]
+        else:
+            inc_window = None
         window = xs[:i]
         if not window:
             t += step
@@ -246,7 +295,7 @@ def _timeline(
         recent = [x for x in window if x.timestamp >= t - step]
         start_iso = (t - step).strftime("%Y-%m-%dT%H:%M:%SZ")
         temp = _temporal(recent, cfg.temporal_window_seconds)
-        struct = _structural(window, cfg, cfg.timeline_null_samples)
+        struct = _structural(window, cfg, cfg.timeline_null_samples, inc_window)
         best_p = min((r["pvalue"] for r in struct), default=1.0)
         best_size = max((r["size"] for r in struct if r["pvalue"] == best_p), default=0)
         rows.append(
@@ -350,8 +399,9 @@ def analyze_identity(
         run_map=run_map,
     )
     agents = {x.initiator for x in xs} | {x.counterparty for x in xs}
+    inc = _incidence(revisions, identity, run_map)
     temp = _temporal(xs, cfg.temporal_window_seconds)
-    struct = _structural(xs, cfg, cfg.structural_null_samples)
+    struct = _structural(xs, cfg, cfg.structural_null_samples, inc)
     rep = _pairwise(xs, cfg)
     return {
         "identity": identity,
@@ -359,6 +409,7 @@ def analyze_identity(
         "n_agents": len(agents),
         "temporal": temp,
         "structural": {
+            "null": cfg.structural_null,
             "n_anomalies": len(struct),
             "n_significant": sum(
                 1 for r in struct if r["pvalue"] < cfg.structural_alarm_pvalue
@@ -406,6 +457,7 @@ def analyze_identity(
             ],
         },
         "_interactions": xs,
+        "_incidence": inc,
     }
 
 
@@ -423,6 +475,7 @@ def _sweep_identities(
     for ident in cfg.sweep_identity:
         res = analyze_identity(revisions, cfg, ident, p_by_rev_id, run_map)  # type: ignore[arg-type]
         xs = res.pop("_interactions")
+        inc = res.pop("_incidence")
         per_identity[ident] = res
         _write_csv(out / f"pairs_{ident}.csv", res["pairwise"]["pairs"])
         _write_csv(out / f"groups_{ident}.csv", res["pairwise"]["groups"])
@@ -430,7 +483,7 @@ def _sweep_identities(
         if ident == cfg.identity:
             primary = xs
             if with_timeline:
-                rows = _timeline(xs, cfg, revisions)
+                rows = _timeline(xs, cfg, revisions, inc)
                 _write_csv(out / "timeline.csv", rows)
                 per_identity[ident]["timeline"] = {
                     "n_steps": len(rows),

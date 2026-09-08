@@ -10,6 +10,12 @@ score pairs/groups against a threshold. This module flags coalitions by
     * Reciprocity z-score vs configuration model.
     * Label-propagation community detection.
     * Configuration-model null sampler -> p-values, not magic thresholds.
+    * Bipartite (hub-aware) nulls for graphs projected from agent->object
+      incidences (beads-y2t2): rewire who edited which object while
+      preserving each agent's and each object's edit count, then
+      re-project. ``"membership"`` additionally keeps every agent's
+      per-object counts, so a hot hub page is reproduced by the null
+      instead of rejected by it.
 
 Zero external dependency (matches swarm/analysis/network.py convention).
 Inputs are a list of weighted directed edges, easily produced from
@@ -35,6 +41,10 @@ from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 from swarm.models.interaction import SoftInteraction
 
 Edge = Tuple[str, str, float]
+# One agent->object membership (an edit of a page, a post in a thread);
+# repeated entries are repeated memberships. Order matters for the
+# ``"sequential"`` projection, so pass incidences in time order.
+Incidence = Tuple[str, str]
 
 
 # ---------------------------------------------------------------------------
@@ -201,6 +211,131 @@ def edges_from_interactions(
 
 
 # ---------------------------------------------------------------------------
+# Bipartite projection (beads-y2t2)
+# ---------------------------------------------------------------------------
+
+
+def project_incidence(
+    incidence: Sequence[Incidence],
+    *,
+    projection: str = "sequential",
+) -> List[Edge]:
+    """Project agent->object memberships onto weighted agent->agent edges.
+
+    ``"sequential"`` mirrors the collusion.wiki bridge's ``agent``
+    projection: each membership is a reply from its agent to the previous
+    *distinct* agent on the same object, in list order; object-creating
+    and self-follow-up memberships produce no edge. Applied to the
+    incidence a graph was built from, it reproduces that graph.
+
+    ``"co_membership"`` connects every pair of distinct agents that share
+    an object, both directions, weight = number of shared objects.
+    """
+    agg: Dict[Tuple[str, str], float] = defaultdict(float)
+    if projection == "sequential":
+        last: Dict[str, str] = {}
+        for agent, obj in incidence:
+            prev = last.get(obj)
+            last[obj] = agent
+            if prev is None or prev == agent:
+                continue
+            agg[(agent, prev)] += 1.0
+    elif projection == "co_membership":
+        members: Dict[str, Set[str]] = defaultdict(set)
+        for agent, obj in incidence:
+            members[obj].add(agent)
+        for group in members.values():
+            ordered = sorted(group)
+            for u in ordered:
+                for v in ordered:
+                    if u != v:
+                        agg[(u, v)] += 1.0
+    else:
+        raise ValueError(f"unknown projection: {projection!r}")
+    return [(u, v, w) for (u, v), w in agg.items()]
+
+
+def bipartite_null(
+    incidence: Sequence[Incidence],
+    *,
+    seed: int = 0,
+    projection: str = "sequential",
+    preserve_membership: bool = False,
+) -> DiGraph:
+    """Hub-aware null: rewire the agent->object bipartite multigraph, then
+    project (beads-y2t2).
+
+    Agent stubs are permuted across the membership slots, so every agent
+    keeps its membership count and every object keeps its membership
+    count *and* its slot order (the sequential projection therefore sees
+    the same per-object reply chain length as the observed graph).
+
+    Two strengths, chosen by ``preserve_membership``:
+
+    - ``False`` (``null="bipartite"``): the bipartite configuration
+      model. Stubs are permuted across *all* slots, so the null
+      randomises which objects an agent touched as well as who it met
+      there. A set of agents that concentrate on one page while the rest
+      of the population is spread over many is non-random under this
+      null: hub *concentration* still counts as structure.
+    - ``True`` (``null="membership"``): stubs are permuted within each
+      object's own slots, so every agent keeps its per-object edit
+      counts and the bipartite multigraph is preserved exactly. Only the
+      reply order on each object is randomised. Shared page membership
+      is then part of the null, and what survives it is coordination
+      *beyond* membership: members who keep following each other on a
+      busy page more than their share of its edits predicts. Two agents
+      alternating alone on a private page are invisible to it (the
+      pair's edges are order-invariant).
+
+    Why a second null at all: the configuration model preserves agent
+    degrees only. On a graph projected from a hot hub page every
+    co-editor is a reply neighbour of every other, the configuration
+    model cannot put that many stubs back on the same page, and it
+    rejects every community on the board (collusion.wiki replay: 57/57
+    candidates at the p-value floor).
+    """
+    rng = random.Random(seed)
+    agents = [agent for agent, _ in incidence]
+    objects = [obj for _, obj in incidence]
+    if preserve_membership:
+        slots: Dict[str, List[int]] = defaultdict(list)
+        for i, obj in enumerate(objects):
+            slots[obj].append(i)
+        for obj in sorted(slots):
+            idx = slots[obj]
+            labels = [agents[i] for i in idx]
+            rng.shuffle(labels)
+            for i, lab in zip(idx, labels, strict=True):
+                agents[i] = lab
+    else:
+        rng.shuffle(agents)
+    return DiGraph.from_edges(
+        project_incidence(list(zip(agents, objects, strict=True)), projection=projection)
+    )
+
+
+def _null_graph(
+    g: DiGraph,
+    *,
+    seed: int,
+    null: str,
+    incidence: Optional[Sequence[Incidence]],
+    projection: str,
+) -> DiGraph:
+    if null == "configuration":
+        return configuration_model_null(g, seed=seed)
+    if null in ("bipartite", "membership"):
+        if incidence is None:
+            raise ValueError(f"null={null!r} needs the incidence the graph was projected from")
+        return bipartite_null(
+            incidence, seed=seed, projection=projection,
+            preserve_membership=(null == "membership"),
+        )
+    raise ValueError(f"unknown null model: {null!r}")
+
+
+# ---------------------------------------------------------------------------
 # k-core
 # ---------------------------------------------------------------------------
 
@@ -349,13 +484,26 @@ def reciprocity_zscore(
     *,
     n_samples: int = 50,
     seed: int = 0,
+    null: str = "configuration",
+    incidence: Optional[Sequence[Incidence]] = None,
+    projection: str = "sequential",
 ) -> Tuple[float, float]:
-    """Return (observed_reciprocity, z_score) for ``subset`` vs null model."""
+    """Return (observed_reciprocity, z_score) for ``subset`` vs null model.
+
+    ``null`` is ``"configuration"`` (degree-preserving, default),
+    ``"bipartite"`` or ``"membership"`` (:func:`bipartite_null`, both need
+    ``incidence``).
+    """
     observed = g.reciprocity(subset)
     samples = []
     for i in range(n_samples):
-        null = configuration_model_null(g, seed=seed + i)
-        samples.append(null.reciprocity(subset if subset is None else subset & null.nodes))
+        null_g = _null_graph(
+            g, seed=seed + i, null=null, incidence=incidence, projection=projection
+        )
+        # Isolates are omitted from DiGraph.nodes; pass the observed
+        # subset so missing members are treated as isolates rather than
+        # dropped from the comparison.
+        samples.append(null_g.reciprocity(subset))
     mean = sum(samples) / len(samples)
     var = sum((s - mean) ** 2 for s in samples) / len(samples)
     std = var ** 0.5
@@ -371,9 +519,19 @@ def density_pvalue(
     *,
     n_samples: int = 50,
     seed: int = 0,
+    null: str = "configuration",
+    incidence: Optional[Sequence[Incidence]] = None,
+    projection: str = "sequential",
 ) -> float:
-    """Empirical p-value that the *same nodes* in a degree-matched null
-    graph have internal density >= the observed density of ``subset``.
+    """Empirical p-value that the *same nodes* in a null graph have
+    internal density >= the observed density of ``subset``.
+
+    ``null="configuration"`` (default) matches the degree sequence;
+    ``null="bipartite"`` and ``null="membership"`` rewire the
+    agent->object ``incidence`` the graph was projected from and
+    re-project it (beads-y2t2, :func:`bipartite_null`); under
+    ``"membership"`` shared page membership is part of the null rather
+    than evidence against it.
 
     This is the right test for "is THIS coalition denser than chance".
     The earlier implementation took the null's *globally densest*
@@ -397,11 +555,15 @@ def density_pvalue(
     observed_density = observed_edges / len(subset)
     hits = 0
     for i in range(n_samples):
-        null = configuration_model_null(g, seed=seed + i)
-        # density on the SAME nodes in the null (correct subset-conditioned test)
-        live = subset & null.nodes
-        null_edges = null.induced_edge_count(live)
-        null_density = null_edges / max(1, len(live))
+        null_g = _null_graph(
+            g, seed=seed + i, null=null, incidence=incidence, projection=projection
+        )
+        # Same node set as observed: DiGraph omits isolates, so missing
+        # members are isolates (0 edges), and density is always over
+        # len(subset) — intersecting with null_g.nodes would shrink the
+        # denominator and inflate null density.
+        null_edges = null_g.induced_edge_count(subset)
+        null_density = null_edges / len(subset)
         if null_density >= observed_density:
             hits += 1
     return (hits + 1) / (n_samples + 1)
@@ -482,12 +644,22 @@ def detect_structural_anomalies(
     min_size: int = 3,
     n_null_samples: int = 50,
     seed: int = 0,
+    null: str = "configuration",
+    incidence: Optional[Sequence[Incidence]] = None,
+    projection: str = "sequential",
 ) -> List[StructuralAnomaly]:
     """End-to-end detector: build graph, run all four signals, return
     one anomaly record per candidate cluster.
 
     Candidates come from (a) Charikar densest subgraph and (b) each label-
     propagation community of size >= ``min_size``. Duplicates are merged.
+
+    ``null`` selects the null model behind ``reciprocity_z`` and
+    ``pvalue``: ``"configuration"`` (default, degree-preserving),
+    ``"bipartite"`` or ``"membership"``; the last two need the
+    agent->object ``incidence`` that ``edges`` were projected from (see
+    :func:`bipartite_null`). Candidate extraction and the other signals
+    do not depend on the null.
     """
     g = DiGraph.from_edges(edges)
     if len(g.nodes) < min_size:
@@ -510,8 +682,14 @@ def detect_structural_anomalies(
     for cand in candidates:
         n_edges = g.induced_edge_count(cand)
         density = n_edges / len(cand)
-        rec, z = reciprocity_zscore(g, cand, n_samples=n_null_samples, seed=seed)
-        pval = density_pvalue(g, cand, n_samples=n_null_samples, seed=seed)
+        rec, z = reciprocity_zscore(
+            g, cand, n_samples=n_null_samples, seed=seed,
+            null=null, incidence=incidence, projection=projection,
+        )
+        pval = density_pvalue(
+            g, cand, n_samples=n_null_samples, seed=seed,
+            null=null, incidence=incidence, projection=projection,
+        )
         # find community label, if any
         lab: Optional[str] = next(
             (cl for cl, m in communities.items() if m == cand), None
