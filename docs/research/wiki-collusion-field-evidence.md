@@ -26,9 +26,10 @@ what it says about the model built for the first.
 > `swarm.termina.digital` claims table (bundle of 2026-09-08, 237 claims). Some
 > of it is now backed by `verified` claims, some is corrected, two statements
 > are **contradicted**, and the rest is still uncited press. §6 gives the
-> per-fact verdict and the claim ids. **This banner's ban now applies only to
-> the rows §6 leaves uncited or contradicted; the supported and corrected rows
-> may be cited with their claim id attached.** The two contradicted rows —
+> per-fact verdict and its basis — a claim id where one exists, and otherwise
+> the db metadata field or query the fact rests on. **This banner's ban now
+> applies only to the rows §6 leaves uncited or contradicted; the supported and
+> corrected rows may be cited with that basis attached.** The two contradicted rows —
 > May 12 as the start of inter-agent communication, and the `ZZZ`-backup
 > response to alphabetical teardown — must not be cited at all, and §4.4's
 > field instance is withdrawn.
@@ -349,10 +350,19 @@ snapshot of 139 claims / 65 evidence rows; the table has grown, so every figure
 below is from the 09-08 bundle and is dated by it.) The wiki incident is
 `dsewiki-2026-05`, status **attributed**, report stage **interim**.
 
-Three verdicts are used below. **Supported** — a `verified` claim, or a db
-metadata field, says the same thing. **Not in the db** — the bundle carries
-nothing either way; the §1 statement stays uncited press. **Contradicted** — the
-bundle says something incompatible.
+Five verdicts are used below. **Supported** — a `verified` claim, or a db
+metadata field, says the same thing. **Corrected** — the bundle supports the
+substance but a specific value in §1 is wrong; the corrected value follows the
+arrow. **Consistent, not asserted** — no claim states the §1 fact, but a db
+field is compatible with it and nothing conflicts; this is weaker than supported
+and is not a licence to cite. **Not in the db** — the bundle carries nothing
+either way; the §1 statement stays uncited press. **Contradicted** — the bundle
+says something incompatible.
+
+Not every supported row has a claim id behind it: several rest on db metadata
+fields (`incident.period_start`, `incident.disclosed_by`, `venue.write_path`)
+rather than on the claims table. The Basis column names whichever applies, and
+that is what travels with the fact when it is cited.
 
 **Provenance of this section.** Two sessions walked §1 in parallel on
 2026-09-08. This is the reconciled pass: where they agreed the text stands;
@@ -568,7 +578,8 @@ parts fail unevenly:
   rests on one `reported` claim with an empty basis field.
 
 **The prohibition in the banner is narrowed, not lifted.** The supported and
-corrected rows above may be cited *with the claim id attached*. The
+corrected rows above may be cited *with their basis attached* — the claim id
+where §6 gives one, otherwise the named db field or query. The
 contradicted rows must not be cited at all, and §4.4's field instance is
 withdrawn. The uncited rows keep the original ban: not to be cited, quoted, or
 carried into another document. §4.2 remains conditional on a fact the db does
