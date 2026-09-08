@@ -42,12 +42,13 @@ import json
 import logging
 import re
 import zipfile
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from swarm.bridges.collusion_wiki.loader import WikiRevision
+from swarm.governance.diversity import DiversityDefenseLever
 
 log = logging.getLogger(__name__)
 
@@ -342,6 +343,80 @@ def score_means(samples: Sequence[EvalSample]) -> Dict[str, Any]:
         "n_families": len({s.family for s in samples}),
         "n_impossible": sum(1 for s in samples if s.intentionally_impossible),
         **means,
+    }
+
+
+def _error_sequence(sample: EvalSample) -> List[int]:
+    """Per-round error indicator: 0 when the round was answered correctly on
+    time (the event ``on_time_accuracy`` counts), else 1."""
+    rounds = sorted(sample.rounds, key=lambda r: r.get("round", 0))
+    return [0 if (r.get("correct") and r.get("on_time")) else 1 for r in rounds]
+
+
+def _pair_defined(a: List[int], b: List[int]) -> bool:
+    n = min(len(a), len(b))
+    if n < 2:
+        return False
+    return len(set(a[-n:])) > 1 and len(set(b[-n:])) > 1
+
+
+def board_effective_n(
+    messages: Sequence[BoardMessage],
+    attribution: Dict[str, Optional[str]],
+    samples: Sequence[EvalSample],
+    *,
+    z: float = 1.96,
+    min_effective_n: float = 2.0,
+) -> Dict[str, Any]:
+    """Effective number of independent cohorts behind the board population.
+
+    A count over cohorts that share a board is one observation plus
+    conditioned replications (hyperspace-two-swarms-lessons.md, open question
+    3), so the honest denominator is ``N_eff = N / (1 + (N - 1) rho_bar)``
+    over the *cohorts* that posted, never over posts. ``rho_bar`` is the mean
+    pairwise error correlation between the posting cohorts' round-level
+    correct-on-time sequences, using ``DiversityDefenseLever``'s own
+    estimator; pairs with fewer than two aligned rounds or no variance are
+    undefined and excluded from the mean (``n_pairs_defined`` says how many
+    remained; with none, ``rho_bar`` is 0 and ``effective_n`` equals ``N``,
+    an upper bound). The vote each cohort casts is whether the leak paid off:
+    ``on_time_accuracy >= 0.5``.
+    """
+    by_sample = {s.sample_id: s for s in samples}
+    cohorts = sorted(
+        {
+            sid
+            for m in messages
+            if not m.seeded and (sid := attribution.get(m.message_id)) and sid in by_sample
+        }
+    )
+    decisions = [1 if by_sample[c].on_time_accuracy >= 0.5 else 0 for c in cohorts]
+    errors = {c: _error_sequence(by_sample[c]) for c in cohorts}
+    rhos: List[float] = []
+    n_pairs = 0
+    for i, a in enumerate(cohorts):
+        for b in cohorts[i + 1 :]:
+            n_pairs += 1
+            if _pair_defined(errors[a], errors[b]):
+                rhos.append(
+                    DiversityDefenseLever.compute_pairwise_correlation(errors[a], errors[b])
+                )
+    rho_bar = sum(rhos) / len(rhos) if rhos else 0.0
+    ev = DiversityDefenseLever.compute_consensus_evidence(
+        decisions, rho_bar, z=z, min_effective_n=min_effective_n
+    )
+    return {
+        "cohorts": cohorts,
+        "n_posting_cohorts": len(cohorts),
+        "decision_rule": "on_time_accuracy >= 0.5",
+        "n_pairs": n_pairs,
+        "n_pairs_defined": len(rhos),
+        "min_rounds": min((len(e) for e in errors.values()), default=0),
+        **asdict(ev),
+        "note": "N_eff over cohorts that posted (not posts); rho_bar = mean pairwise "
+        "error correlation of round-level correct-on-time sequences among those "
+        "cohorts, DiversityDefenseLever estimator, undefined pairs excluded. With "
+        "no defined pair rho_bar=0 and effective_n=N is an upper bound.",
     }
 
 

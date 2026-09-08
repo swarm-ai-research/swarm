@@ -60,6 +60,7 @@ from swarm.bridges.collusion_wiki.mapper import (
 )
 from swarm.bridges.collusion_wiki.schelling import (
     attribute_posts,
+    board_effective_n,
     compare_conditions,
     load_board_messages,
     load_inspect_eval_log,
@@ -590,6 +591,7 @@ def run_schelling_replay(
         "gates": _gates(revisions, cfg),
         "shared_scores": score_means(samples),
         "condition_comparison": comparison,
+        "board_effective_n": board_effective_n(messages, attribution, samples),
         "p_note": "p per post = on_time_accuracy of the Inspect sample the post is "
         "attributed to (leak-benefit proxy, not a per-post verdict); "
         "unattributed and seeded rows keep p=0.5. Attribution is by tool-call "
