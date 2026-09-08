@@ -555,8 +555,11 @@ from swarm.bridges.collusion_wiki import (  # noqa: E402
 from swarm.bridges.collusion_wiki.__main__ import main as _cli_main  # noqa: E402
 from swarm.bridges.collusion_wiki.mapper import P_UNKNOWN  # noqa: E402
 from swarm.bridges.collusion_wiki.schelling import (  # noqa: E402
+    BoardMessage,
+    EvalSample,
     _parse_ts,
     attribute_posts,
+    board_effective_n,
     compare_conditions,
     messages_to_revisions,
     p_by_message,
@@ -705,6 +708,49 @@ class TestSchellingReplay:
         assert fam["A1"]["delta"] == pytest.approx(0.625 - 0.25)
         assert fam["B2"]["delta"] == 0.0
 
+    def test_board_effective_n_discounts_correlated_cohorts(self):
+        def sample(sid, rounds, on_time=1.0):
+            fam = sid.split("__")[0]
+            return EvalSample(
+                sample_id=sid, family=fam, cohort=1, cohort_label="c", epoch=1,
+                scores={"on_time_accuracy": on_time},
+                rounds=[{"round": i + 1, "correct": c, "on_time": True}
+                        for i, c in enumerate(rounds)],
+                intentionally_impossible=False, started_at=None, completed_at=None,
+            )
+
+        msgs = [
+            BoardMessage(message_id=str(i), time=datetime(2026, 9, 7, tzinfo=timezone.utc),
+                         host="h", body=f"post {i}", seeded=(i == 9))
+            for i in (1, 2, 3, 4, 9)
+        ]
+        attribution = {"1": "A__cohort_01", "2": "A__cohort_01", "3": "B__cohort_01",
+                       "4": "C__cohort_01", "9": None}
+        same = [True, False, True, False, True, False]
+        samples = [
+            sample("A__cohort_01", same), sample("B__cohort_01", same),
+            sample("C__cohort_01", same), sample("D__cohort_01", same),  # D never posted
+        ]
+        r = board_effective_n(msgs, attribution, samples)
+        assert r["cohorts"] == ["A__cohort_01", "B__cohort_01", "C__cohort_01"]
+        assert r["n_posting_cohorts"] == 3 and r["n_pairs"] == r["n_pairs_defined"] == 3
+        assert r["mean_correlation"] == pytest.approx(1.0)
+        assert r["effective_n"] == pytest.approx(1.0)  # three cohorts, one basin
+        assert r["consensus_inflation"] > 0 and not r["quorum_satisfied"]
+
+        independent = [
+            sample("A__cohort_01", [True, False, True, False, True, False]),
+            sample("B__cohort_01", [True, True, False, False, True, False]),
+            sample("C__cohort_01", [False, True, True, False, False, True]),
+        ]
+        r2 = board_effective_n(msgs, attribution, independent)
+        assert r2["effective_n"] > r["effective_n"]
+
+        # One round per cohort: no pair is defined, N_eff = N is an upper bound.
+        r3 = board_effective_n(msgs, attribution, [sample(c, [True]) for c in
+                                                   ("A__cohort_01", "B__cohort_01", "C__cohort_01")])
+        assert r3["n_pairs_defined"] == 0 and r3["effective_n"] == 3.0
+
     def test_run_folder_has_history_and_csvs(self, board, eval_logs, tmp_path):
         cfg = ReplayConfig(
             scenario_id="casestudy_schelling_board", source="schelling",
@@ -721,6 +767,10 @@ class TestSchellingReplay:
         assert s["source"] == "schelling"
         assert (s["n_messages"], s["n_seeded"], s["n_live"], s["n_live_attributed"]) == (4, 1, 3, 2)
         assert s["condition_comparison"]["delta"]["on_time_accuracy"] == pytest.approx(0.75 - 0.625)
+        ben = s["board_effective_n"]
+        assert ben["cohorts"] == ["A1__cohort_01"]  # two posts, one cohort
+        assert ben["n_posting_cohorts"] == 1 and ben["effective_n"] == 1.0
+        assert ben["n_pairs"] == 0 and ben["consensus_inflation"] == 0.0
         hist = json.loads((out / "history.json").read_text())
         assert hist and all(0.0 <= h["p"] <= 1.0 for h in hist)
         with (out / "csv" / "posts.csv").open() as f:

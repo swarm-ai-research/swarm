@@ -310,8 +310,14 @@ cannot reach their requested ρ̄ and must be compared on achieved.
    (`scenarios/casestudy_schelling_board.yaml`, bead `y91o`) has this design
    for the fast-follow incident: the offline recreation runs a no-board
    control and a shared-board treatment, and the bridge reports the
-   shared-minus-control score delta per family. Bead `0u33` tracks using it
-   to answer this question.
+   shared-minus-control score delta per family, and its `summary.json`
+   reports `board_effective_n`, the lesson-3 denominator: `N_eff` over the
+   cohorts that posted, with ρ̄ estimated from their round-level error
+   sequences (bead `0u33`). Answering the question needs a real shared-board
+   run and a no-board control run of the upstream benchmark, which are not
+   in the tree; bead `6f33` holds the exact replay command and will record
+   the per-family delta and `board_effective_n` here as a dated Findings
+   subsection.
 4. **Does the exchangeability assumption hold?** The common-shock model assumes
    uniform pairwise correlation. Real verification topologies are structured
    (sequential, hierarchical, lens-specialised). Whether the asymmetry survives
