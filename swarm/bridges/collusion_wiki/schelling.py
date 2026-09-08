@@ -372,14 +372,16 @@ def board_effective_n(
 
     A count over cohorts that share a board is one observation plus
     conditioned replications (hyperspace-two-swarms-lessons.md, open question
-    3), so the honest denominator is ``N_eff = N / (1 + (N - 1) rho_bar)``
-    over the *cohorts* that posted, never over posts. ``rho_bar`` is the mean
-    pairwise error correlation between the posting cohorts' round-level
-    correct-on-time sequences, using ``DiversityDefenseLever``'s own
-    estimator; pairs with fewer than two aligned rounds or no variance are
-    undefined and excluded from the mean (``n_pairs_defined`` says how many
-    remained; with none, ``rho_bar`` is 0 and ``effective_n`` equals ``N``,
-    an upper bound). The vote each cohort casts is whether the leak paid off:
+    3), so the honest denominator is ``N_eff = N / max(1, 1 + (N - 1) rho_bar)``
+    over the *cohorts* that posted, never over posts. ``DiversityDefenseLever``
+    floors the design effect at 1.0, so negative ``rho_bar`` never inflates
+    ``effective_n`` above ``N``. ``rho_bar`` is the mean pairwise error
+    correlation between the posting cohorts' round-level correct-on-time
+    sequences, using ``DiversityDefenseLever``'s own estimator; pairs with
+    fewer than two aligned rounds or no variance are undefined and excluded
+    from the mean (``n_pairs_defined`` says how many remained; with none,
+    ``rho_bar`` is 0 and ``effective_n`` equals ``N``, an upper bound). The
+    vote each cohort casts is whether the leak paid off:
     ``on_time_accuracy >= 0.5``.
     """
     by_sample = {s.sample_id: s for s in samples}
