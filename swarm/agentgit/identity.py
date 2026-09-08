@@ -32,8 +32,9 @@ scenario, or session the grant is for. ``DelegationChain.verify`` takes the
 Links may also carry signed ``wards`` (bead illq.3, see
 ``swarm.agentgit.wards``); verify checks they only narrow down the chain,
 the same way permissions do. Legacy links (no nonce, no audience, no wards)
-keep verifying so existing bundles are unaffected; pass
-``require_context=True`` to refuse them.
+can still be parsed and checked explicitly, but security boundaries such as
+bundle verification pass ``require_context=True`` and ``require_nonce=True``
+to refuse an unbound final grant.
 """
 
 from __future__ import annotations
@@ -299,6 +300,12 @@ class NonceRegistry:
         self._path.write_text(json.dumps(self._seen, sort_keys=True))
 
 
+# Stateless callers should not have to remember to enable collision detection.
+# This registry covers the current verifier process; callers that need the
+# memory to survive restarts can still pass a path-backed NonceRegistry.
+_PROCESS_NONCES = NonceRegistry()
+
+
 def sign_link(
     issuer: AgentKeypair,
     *,
@@ -380,7 +387,8 @@ class DelegationChain:
         now: Optional[datetime] = None,
         context: Optional[str] = None,
         require_context: bool = False,
-        nonces: Optional[NonceRegistry] = None,
+        require_nonce: bool = False,
+        nonces: Optional[NonceRegistry] = _PROCESS_NONCES,
     ) -> Tuple[bool, List[str]]:
         """Verify signatures, connectivity, narrowing, expiry, and binding.
 
@@ -388,9 +396,14 @@ class DelegationChain:
         session id). Every bound link must name exactly this context; a bound
         link presented with no context is refused. Unbound (legacy) links pass
         unless ``require_context`` is set, which insists the final link be
-        bound. ``nonces`` records each link's nonce against its payload and
-        refuses reuse under a different payload. Wards, when signed on
-        consecutive links, may only narrow (``swarm.agentgit.wards.never_widens``).
+        bound. ``require_nonce`` likewise insists that the final grant carry a
+        signed nonce. Duplicate nonces inside one chain are always refused;
+        ``nonces`` records each nonce across verification calls and refuses
+        reuse under a different payload. The default registry covers this
+        process; pass a path-backed registry for cross-process persistence, or
+        ``None`` only for explicit legacy inspection. Wards, when signed on
+        consecutive links, may only narrow
+        (``swarm.agentgit.wards.never_widens``).
         """
 
         errors: List[str] = []
@@ -404,6 +417,7 @@ class DelegationChain:
         prev_permissions: Optional[set[str]] = None
         prev_subject: Optional[str] = None
         prev_wards: Optional[WardSet] = None
+        chain_nonces: set[str] = set()
 
         for index, link in enumerate(self.links):
             if not verify_signature(link.issuer_did, link.canonical_bytes(), link.signature):
@@ -425,6 +439,11 @@ class DelegationChain:
                 reuse = nonces.check(link)
                 if reuse:
                     errors.append(f"link {index}: {reuse}")
+
+            if link.nonce:
+                if link.nonce in chain_nonces:
+                    errors.append(f"link {index}: duplicate nonce within delegation chain")
+                chain_nonces.add(link.nonce)
 
             if link.wards is not None:
                 try:
@@ -483,6 +502,8 @@ class DelegationChain:
             errors.append(
                 "final link is an unbound bearer credential; context binding required"
             )
+        if require_nonce and not self.links[-1].nonce:
+            errors.append("final link has no nonce; nonce binding required")
 
         return not errors, errors
 
