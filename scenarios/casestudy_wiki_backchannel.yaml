@@ -37,6 +37,9 @@ replay:
   structural_null_samples: 50
   timeline_step_hours: 24
   timeline_null_samples: 20
+  # bead n00g: termina.digital gates (humans: grammar 0.00, contention <= 4)
+  grammar_alarm_share: 0.5
+  contention_alarm: 5
   # landmarks the detection-lag table is measured against
   landmarks:
     moderator_sweep_begins: "2026-06-19T00:00:00Z"

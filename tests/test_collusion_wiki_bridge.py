@@ -267,6 +267,82 @@ class TestVolumeInTimeline:
         assert "volume" in summary["per_identity"]["label"]
 
 
+class TestTerminaGates:
+    """bead n00g: handle grammar and page-hour contention, the termina.digital gates."""
+
+    def test_grammar_rule(self):
+        from swarm.bridges.collusion_wiki.gates import is_grammar_handle
+        assert is_grammar_handle("ResearchHelper927")
+        assert is_grammar_handle("CookResearchAgent7712")
+        assert not is_grammar_handle("OpenAIJun20SlowWatcher")  # "watcher" is not a role word here
+        assert is_grammar_handle("Agent0")
+        assert is_grammar_handle("A3Feb28")  # CamelCase-ish with trailing number
+        assert is_grammar_handle("HelperA")  # role word then a single-letter segment
+        assert is_grammar_handle("TheAgent")  # role word as its own CamelCase segment
+        assert not is_grammar_handle("")  # the unlabeled editor is not an identity
+        assert not is_grammar_handle("Test")  # single word, no number
+        assert not is_grammar_handle("[Person22]")  # bracketed human handle
+        assert not is_grammar_handle("AlphaBeta")  # CamelCase but no role, no number
+        assert not is_grammar_handle("agent-001")  # hyphen: not CamelCase
+        # Role words are tokens/segments, not raw substrings of a longer word.
+        assert not is_grammar_handle("MagentaBlue")  # "agent" inside Magenta
+        assert not is_grammar_handle("BotanistLee")  # "bot" prefix of Botanist
+        assert not is_grammar_handle("ScoutmasterJoe")  # "scout" prefix of Scoutmaster
+        assert not is_grammar_handle("ReagentX")  # "agent" inside Reagent
+
+    def test_shares_and_contention_from_fixture(self, data_dir):
+        from swarm.bridges.collusion_wiki.gates import (
+            contention_summary,
+            handle_grammar_share,
+            page_hour_alternations,
+        )
+        revs = load_revisions(data_dir)
+        g = handle_grammar_share(revs)
+        # HelperA/B/C are CamelCase with a role word; "" is not an identity
+        assert g["dse"] == {"n_identities": 3, "n_grammar": 3, "share": 1.0,
+                            "n_revisions": 7}
+        assert g["all"]["share"] == 1.0
+        alts = page_hour_alternations(revs)
+        # Answers 10:00 hour: A,B,A,A,C -> A->B, B->A, A->C = 3 (A->A not counted)
+        assert alts[("dse/Answers", "2026-06-16T10")] == 3
+        # Other: B on Jun 17, "" on Jun 19 -> different hours, no alternation
+        assert ("dse/Other", "2026-06-17T09") not in alts
+        c = contention_summary(revs, threshold=3)
+        assert c["dse"]["max"] == 3 and c["dse"]["max_page"] == "dse/Answers"
+        assert c["dse"]["n_page_hours_over_threshold"] == 1
+        assert contention_summary(revs)["dse"]["n_page_hours_over_threshold"] == 0
+
+    def test_gate_timeline_and_summary(self, data_dir, tmp_path):
+        cfg = ReplayConfig(structural_null_samples=5, timeline_null_samples=5,
+                           contention_alarm=3,
+                           landmarks={"sweep": "2026-06-19T00:00:00Z"})
+        out = run_replay(data_dir, cfg, runs_root=tmp_path)
+        rows = list(csv.DictReader((out / "timeline.csv").open()))
+        assert {"handle_grammar_share", "grammar_alarm", "contention_max",
+                "contention_alarm"} <= set(rows[0].keys())
+        by_end = {r["step_end"]: r for r in rows}
+        first = by_end["2026-06-17T00:00:00Z"]  # closes the Jun 16 edits
+        assert first["contention_max"] == "3" and first["contention_alarm"] == "True"
+        assert first["handle_grammar_share"] == "1.0" and first["grammar_alarm"] == "True"
+        summary = json.loads((out / "summary.json").read_text())
+        assert summary["gates"]["handle_grammar"]["dse"]["share"] == 1.0
+        assert summary["gates"]["contention"]["dse"]["max"] == 3
+        assert "threshold 0.5" in summary["gates"]["note"]
+        tl = summary["per_identity"]["label"]["timeline"]
+        assert tl["first_grammar_alarm"] == "2026-06-17T00:00:00Z"
+        assert tl["first_contention_alarm"] == "2026-06-17T00:00:00Z"
+        assert tl["lag_days"]["contention_vs_sweep"] == -2.0
+        assert "grammar_vs_sweep" in tl["lag_days"]
+
+    def test_summary_note_uses_configured_grammar_threshold(self, data_dir, tmp_path):
+        cfg = ReplayConfig(structural_null_samples=5, timeline_null_samples=5,
+                           grammar_alarm_share=0.75)
+        out = run_replay(data_dir, cfg, runs_root=tmp_path)
+        note = json.loads((out / "summary.json").read_text())["gates"]["note"]
+        assert "threshold 0.75" in note
+        assert "threshold 0.5)" not in note
+
+
 class TestStegoScan:
     """bead vv3j.5: hidden-character carriers in the export's text fields."""
 
