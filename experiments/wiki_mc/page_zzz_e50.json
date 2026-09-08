@@ -1,0 +1,9 @@
+{
+  "moderation_granularity": "page",
+  "page_deletion_fraction": 0.5,
+  "evasion_learning_probability": 0.5,
+  "evasion_style": "sort_last",
+  "page_budget_basis": "eligible",
+  "evasion_prefix": "ZZZ",
+  "page_disruption_scope": "deleted"
+}

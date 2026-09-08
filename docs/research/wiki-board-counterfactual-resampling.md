@@ -4,10 +4,14 @@
 **Model:** `qwen2.5:14b` through local Ollama
 **Scenarios:** `scenarios/wiki_board_thought_branches.yaml`,
 `scenarios/wiki_board_thought_branches_retrieval.yaml`
+`scenarios/wiki_board_downstream_beneficiary.yaml`, and
+`scenarios/wiki_board_journal_swap_capability.yaml`
 **Runs:**
 `runs/20260906T213323Z_wiki_board_thought_branches_seed42`,
 `runs/20260906T215155Z_wiki_board_thought_branches_retrieval_seed142`,
-`runs/20260906T222800Z_wiki_board_thought_branches_retrieval_seed143`
+`runs/20260906T222800Z_wiki_board_thought_branches_retrieval_seed143`,
+`runs/wiki_downstream_beneficiary_seed2718`, and
+`runs/wiki_journal_swap_capability_seed1618`
 
 ## Summary
 
@@ -233,9 +237,11 @@ is closer to instruction following than to a subtle incentive shift.
 - Branches change an entire downstream trajectory. Effects belong to retained
   prefixes and their induced continuation distributions, not isolated neurons
   or a surgically edited internal variable.
-- The runner writes artifacts only after all branches finish. The 25-sample
-  retrieval run took about 32 minutes, so incremental checkpoint flushing is
-  needed before scaling further.
+- The original runner wrote artifacts only after all branches finished; the
+  25-sample retrieval run took about 32 minutes. The follow-up runner now
+  appends completed bases and branches to partial JSONL, prints monotonic
+  progress, and supports manifest-checked `--resume`. Final summaries and the
+  `complete.json` marker are still withheld until every planned branch finishes.
 
 ## Next experiment
 
@@ -266,3 +272,8 @@ python -m swarm.bridges.wiki_resampling \
 
 Each run writes `base_trajectories.jsonl`, `branches.jsonl`, and `summary.json`
 under its timestamped `runs/` directory.
+
+Interrupted runs also retain `base_trajectories.partial.jsonl` and
+`branches.partial.jsonl`. Resume the exact configuration and output directory
+with `--resume`; the runner rejects a changed manifest and skips completed
+trajectory IDs.

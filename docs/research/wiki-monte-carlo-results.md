@@ -195,16 +195,44 @@ learned to dodge alphabetical sweeps, the evasion rule needs teeth: evaders
 should move hosts or rename pages, and the budget should be drawn from the
 eligible set. That is a model change, not a rerun.
 
+The change is implemented as an opt-in (`evasion_style="sort_last"`,
+`page_budget_basis="eligible"`). Defaults keep the published `exclude`+`host`
+cells. The follow-up protocol, smoke, and negative spec are in
+[`wiki-monte-carlo-lessons.md`](wiki-monte-carlo-lessons.md). A 10-seed smoke
+shows later ordered deletions falling after prefixing (12.3 → 10.7 pages)
+with unchanged completion at that sample; that is not confirmation.
+
 The confirmation bead (`gvul`) closed on 2026-09-06 with the run folders
 unarchived; the reproduction above closes that gap. Open items after this pass:
 the detection screen needs a lineage- or timing-aware observer before any
-detection contrast is worth confirming; the evasion rule needs the changes
-described above (landed 2026-09-07 as `evasion_mode` = `shrink` | `rename` | `move` and `budget_from_eligible` on `SimulationConfig`; defaults reproduce the runs in this note; the rerun is in the next section); and the model still excludes poisoning, adversarial policy
+detection contrast is worth confirming; the ZZZ-aware page rule still needs a
+frozen 200-seed confirmation on seeds 10400–10599 before any claim about
+effect size (a third style, `evasion_style="move"`, landed 2026-09-07:
+learners relocate their live pages to another writable host at learning time;
+an exploratory rerun is in the next section); and the model still excludes
+poisoning, adversarial policy
 optimization, search-engine exposure, and realistic natural-language answers.
 
-### ZZZ-aware evasion rerun (2026-09-07)
+### Evasion-with-teeth rerun (2026-09-07, exploratory)
 
-Treatment-run contrasts against `page_e50` (legacy `shrink`), same 200 seeds (10200-10399), six moderation cells, `page_deletion_fraction` 0.5, budget 3. Only the two ordered cells differ; none/random cells are identical by construction (evasion is learned only under ordered sweeps). Mean difference and unadjusted sign-flip p (5000 draws); exploratory.
+Treatment-run contrasts against `page_e50` (published `exclude`+`host`), same
+200 seeds (10200–10399), six moderation cells, `page_deletion_fraction` 0.5,
+budget 3. Only the two ordered cells differ; none/random cells are identical
+by construction (evasion is learned only under ordered sweeps). Mean
+difference and unadjusted sign-flip p (5000 draws); exploratory, not the
+frozen confirmation called for above.
+
+Provenance: these numbers were produced on the PR branch before it was
+reconciled with the `evasion_style` / `page_budget_basis` knobs that landed
+in #586, under a parallel implementation whose modes map as follows.
+`shrink` is `exclude`+`host` and `shrink_elig` is `exclude`+`eligible`; both
+have the same semantics on `main`, so those rows carry over. `move` and
+`move_elig` are `move`+`host` and `move`+`eligible`; the `move` style was
+ported unchanged, so those rows carry over too (they coincide because every
+page on the host is eligible under `move`). `rename` kept evaders' pages
+eligible and sorted them last with the host-wide budget; the landed
+`sort_last` instead removes prefixed pages from the eligible set, so the
+`rename` row is the closest analogue of `sort_last`+`host`, not a rerun of it.
 
 | cell | contrast | completion_rate | task_success_rate | total_writes | displacements | removed_pages |
 |---|---|---|---|---|---|---|
@@ -220,14 +248,14 @@ Treatment-run contrasts against `page_e50` (legacy `shrink`), same 200 seeds (10
 | moderation-003 | e50_move_elig minus shrink (n=200) | -0.001 (p=0.269) | -0.001 (p=0.431) | -0.020 (p=0.915) | -0.680 (p=0.000) | +0.490 (p=0.000) |
 
 Reading: giving evaders teeth does not rescue the historical hypothesis inside this
-model. `rename` (the ZZZ trick) and `move` change pages removed by under half a
+model. `rename` (the sort-last ZZZ trick) and `move` change pages removed by under half a
 page per run and leave completion, success and writes untouched; `move` lowers
-displacements by about 0.7-0.8 because the evader's page has already left the host
+displacements by about 0.7–0.8 because the evader's page has already left the host
 before the sweep disrupts it (a voluntary relocation the displacement metric does
 not count). Drawing the budget from the eligible set is the only knob with a
-visible cost effect, and only under the legacy rule: about 2.7 fewer pages removed
+visible cost effect, and only under the `exclude` rule: about 2.7 fewer pages removed
 per run, again with no completion change. The constraint is structural: a host
 holds at most one page per task (`boards[host][task]`), so a sweep touches a
 handful of pages and evasion can only shuffle those. A test of "agents learned to
 dodge alphabetical sweeps" needs a page-population model (many pages per task,
-name-keyed) before deletion order can matter. Runs: `runs/wiki_mc_confirm_page_e50_{shrink_elig,rename,move,move_elig}` (not archived in this PR; regenerate with the JSON configs above).
+name-keyed) before deletion order can matter. Runs: `runs/wiki_mc_confirm_page_e50_{shrink_elig,rename,move,move_elig}` (not archived in this PR). To regenerate on `main`, use `page_e50.json` plus `{"page_budget_basis": "eligible"}`, `{"evasion_style": "sort_last"}`, `{"evasion_style": "move"}`, and `{"evasion_style": "move", "page_budget_basis": "eligible"}` respectively; the `sort_last` cell will differ from the `rename` row for the reason given above.

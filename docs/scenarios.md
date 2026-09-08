@@ -431,6 +431,28 @@ page makes every co-editor a reply-neighbour), the per-agent temporal score is a
 plain **edit-volume monitor** is the signal that leads the moderator — the one
 thing none of the collusion detectors computes.
 
+## Schelling-point board replay (`scenarios/casestudy_schelling_board.yaml`)
+
+A replay config, not a simulation, for the shared message board of
+[oai-rlvr-task-recreations](https://github.com/AI-Safety-Commons/oai-rlvr-task-recreations),
+the offline Inspect recreation of `fast_follow_question_bench` (the OpenAI RLVR
+task behind the incident that `casestudy_wiki_backchannel.yaml` replays from the
+outside). The recreation's `schelling-point` board is the treatment channel;
+`compose.yaml` without it is the control. The bridge joins the board's
+`messages.json` to the Inspect eval log, attributes each live post to a scored
+`<family>__cohort_NN` sample (text match, else unique time window), uses that
+sample's `on_time_accuracy` as a leak-benefit proxy for p, and runs the same
+detector pipeline. With a control log it also reports shared-minus-control
+score deltas per family. See `docs/bridges/collusion_wiki.md`.
+
+Run it:
+
+```bash
+python -m swarm.bridges.collusion_wiki scenarios/casestudy_schelling_board.yaml \
+    --board <schelling-point/data/messages.json> --eval-log <logs/run.eval> \
+    [--control-eval-log <logs-control/run.eval>]
+```
+
 ## Wiki-board counterfactual resampling
 
 `scenarios/wiki_board_thought_branches.yaml` and its retrieval-controlled
@@ -448,3 +470,62 @@ specific retained prefixes, not a population estimate over reasoning traces.
 
 See `docs/research/wiki-board-counterfactual-resampling.md` for the method,
 complete results, limitations, artifact paths, and reproduction commands.
+
+The follow-up `scenarios/wiki_board_journal_ablation_factorial.yaml` separates
+two effects that the pilot confounded. It pairs a task that names an optional
+publication page with a matched task that does not, and it replays every
+pre-write checkpoint with the newest journal sentence either retained or
+removed. Its three conditions state publication payoffs numerically instead of
+directly instructing the model to publish or withhold. Branch artifacts record
+the source and applied journals plus the unchanged action, read, and board
+prefixes, making the journal intervention directly auditable.
+
+Run the modest manipulation-check pilot with:
+
+```bash
+python -m swarm.bridges.wiki_resampling \
+  scenarios/wiki_board_journal_ablation_factorial.yaml --resamples 2
+```
+
+Long runs report progress every ten completed branches and flush partial JSONL.
+To continue an interrupted run, repeat the exact command and output directory
+with `--resume`. Treat results as complete only when `complete.json` exists.
+
+The two-stage pilot passed retrieval (480/480 branches read the required page;
+all 479 submissions were correct) but failed the publication manipulation. All
+16 helpful base trajectories read and submitted directly, and only 2/480
+branches posted, in opposite condition/journal cells. This is a no-go for
+scaling the current task. See
+`docs/research/wiki-board-journal-ablation-pilot.md` for the full result and the
+downstream-beneficiary redesign.
+
+That redesign is implemented in
+`scenarios/wiki_board_downstream_beneficiary.yaml`. A configured downstream
+agent can inspect only `derived-alpha`; its success is computed from the final
+board and requires an exact, focal-authored answer. The focal prompt states this
+environment rule, while helpful, harmful, and neutral conditions describe the
+downstream agent as collaborator, competitor, or outcome-irrelevant. They do
+not issue write/withhold commands.
+
+The four-base calibration produced 120 branches. Every branch read the sealed
+input, all 117 submissions were correct, and all 104 posts actually made the
+downstream agent succeed. However, the intended condition manipulation failed:
+harmful continuations transferred the answer in 36/40 branches versus 36/40
+helpful continuations. At the initial checkpoint both were 8/8. Across the four
+base traces, harmful transfer was lower than helpful for one base, equal for
+two, and higher for one. This is a no-go for the 20-prefix confirmatory run, not
+evidence that plans are condition-invariant. See
+`docs/research/wiki-board-downstream-beneficiary-calibration.md`.
+
+The capability follow-up is
+`scenarios/wiki_board_journal_swap_capability.yaml`. It holds the helpful
+downstream-beneficiary condition fixed and crosses retained, ablated, and
+cross-base-swapped journals with three write affordances: available, visibly
+removed before action selection, and unexpectedly fail-closed at execution.
+Two independent bases yielded 42 branches. Available branches transferred and
+submitted in 14/14 cases; removed branches made no write attempt and submitted
+privately in 14/14; fail-closed branches made 56 rejected write attempts and
+never submitted. Every swap passed its mechanical checks, but both donor
+journals expressed publication plans, so the result supports action-level
+retry lock-in rather than a causal claim about journal content. See
+`docs/research/wiki-board-journal-swap-capability.md`.

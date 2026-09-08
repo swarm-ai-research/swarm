@@ -15,6 +15,15 @@ given threshold, on which day would each detector first have fired,
 relative to the moderator sweep (Jun 19) and the OpenAI visit (Jun 21)?
 Since bead hoer the timeline carries the aggregate volume monitor too
 (``volume_ratio`` / ``volume_alarm``), so the lag table compares all three.
+
+``run_schelling_replay`` (bead y91o) runs the same detector pass over the
+schelling-point board export of the offline ``fast_follow_question_bench``
+recreation, joined to its Inspect eval log, and adds::
+
+        history.json             the SoftInteraction records (replayable)
+        csv/interactions.csv     the same, flat
+        csv/posts.csv            every board row with its attribution and p
+        csv/condition_comparison.csv   per-family shared-vs-control deltas
 """
 
 from __future__ import annotations
@@ -38,6 +47,15 @@ from swarm.bridges.collusion_wiki.mapper import (
     Identity,
     Projection,
     revisions_to_interactions,
+)
+from swarm.bridges.collusion_wiki.schelling import (
+    attribute_posts,
+    compare_conditions,
+    load_board_messages,
+    load_inspect_eval_log,
+    messages_to_revisions,
+    p_by_message,
+    score_means,
 )
 from swarm.metrics.collusion import (
     CollusionDetector,
@@ -71,6 +89,14 @@ class ReplayConfig:
     landmarks: Dict[str, str] = field(default_factory=dict)
     sweep_identity: List[str] = field(default_factory=lambda: ["label"])
     seed: int = 0
+    # bead y91o: "collusion_wiki" replays the collusion.wiki export from
+    # --data-dir; "schelling" replays a schelling-point messages.json joined
+    # to an Inspect eval log (paths below, overridable from the CLI).
+    source: str = "collusion_wiki"
+    board_path: Optional[str] = None
+    eval_log: Optional[str] = None
+    control_eval_log: Optional[str] = None
+    include_seeded: bool = False
 
     @classmethod
     def from_yaml(cls, path: Path) -> "ReplayConfig":
@@ -95,6 +121,11 @@ class ReplayConfig:
             landmarks=dict(rp.get("landmarks", {}) or {}),
             sweep_identity=list(sw.get("identity", [rp.get("identity", "label")])),
             seed=int(doc.get("seed", 0)),
+            source=str(doc.get("source", cls.source)),
+            board_path=rp.get("board_path"),
+            eval_log=rp.get("eval_log"),
+            control_eval_log=rp.get("control_eval_log"),
+            include_seeded=bool(rp.get("include_seeded", False)),
         )
 
 
@@ -253,7 +284,10 @@ def _write_csv(path: Path, rows: Sequence[Dict[str, Any]]) -> None:
 
 
 def analyze_identity(
-    revisions: Sequence[WikiRevision], cfg: ReplayConfig, identity: Identity
+    revisions: Sequence[WikiRevision],
+    cfg: ReplayConfig,
+    identity: Identity,
+    p_by_rev_id: Optional[Dict[str, float]] = None,
 ) -> Dict[str, Any]:
     """Full detector pass for one identity mode (no timeline)."""
     xs = revisions_to_interactions(
@@ -261,6 +295,7 @@ def analyze_identity(
         identity=identity,
         projection=cfg.projection,
         reply_window_seconds=cfg.reply_window_seconds,
+        p_by_rev_id=p_by_rev_id,
     )
     agents = {x.initiator for x in xs} | {x.counterparty for x in xs}
     temp = _temporal(xs, cfg.temporal_window_seconds)
@@ -322,6 +357,42 @@ def analyze_identity(
     }
 
 
+def _sweep_identities(
+    revisions: Sequence[WikiRevision],
+    cfg: ReplayConfig,
+    out: Path,
+    with_timeline: bool,
+    p_by_rev_id: Optional[Dict[str, float]] = None,
+) -> "tuple[Dict[str, Any], List[SoftInteraction]]":
+    """Detector pass + CSVs per identity mode; returns the primary mode's interactions."""
+    per_identity: Dict[str, Any] = {}
+    primary: List[SoftInteraction] = []
+    for ident in cfg.sweep_identity:
+        res = analyze_identity(revisions, cfg, ident, p_by_rev_id)  # type: ignore[arg-type]
+        xs = res.pop("_interactions")
+        per_identity[ident] = res
+        _write_csv(out / f"pairs_{ident}.csv", res["pairwise"]["pairs"])
+        _write_csv(out / f"groups_{ident}.csv", res["pairwise"]["groups"])
+        _write_csv(out / f"structural_{ident}.csv", res["structural"]["rows"])
+        if ident == cfg.identity:
+            primary = xs
+            if with_timeline:
+                rows = _timeline(xs, cfg)
+                _write_csv(out / "timeline.csv", rows)
+                per_identity[ident]["timeline"] = {
+                    "n_steps": len(rows),
+                    "first_temporal_alarm": _first_alarm(rows, "temporal_alarm"),
+                    "first_structural_alarm": _first_alarm(rows, "structural_alarm"),
+                    "first_volume_alarm": _first_alarm(rows, "volume_alarm"),
+                    "lag_days": {
+                        f"{det}_vs_{lm}": _lag_days(_first_alarm(rows, f"{det}_alarm"), when)
+                        for det in ("temporal", "structural", "volume")
+                        for lm, when in cfg.landmarks.items()
+                    },
+                }
+    return per_identity, primary
+
+
 def run_replay(
     data_dir: Path,
     cfg: ReplayConfig,
@@ -337,28 +408,7 @@ def run_replay(
     out = runs_root / f"{stamp}_{cfg.scenario_id}_seed{cfg.seed}"
     out.mkdir(parents=True, exist_ok=True)
 
-    per_identity: Dict[str, Any] = {}
-    for ident in cfg.sweep_identity:
-        res = analyze_identity(revisions, cfg, ident)  # type: ignore[arg-type]
-        xs = res.pop("_interactions")
-        per_identity[ident] = res
-        _write_csv(out / f"pairs_{ident}.csv", res["pairwise"]["pairs"])
-        _write_csv(out / f"groups_{ident}.csv", res["pairwise"]["groups"])
-        _write_csv(out / f"structural_{ident}.csv", res["structural"]["rows"])
-        if ident == cfg.identity and with_timeline:
-            rows = _timeline(xs, cfg)
-            _write_csv(out / "timeline.csv", rows)
-            per_identity[ident]["timeline"] = {
-                "n_steps": len(rows),
-                "first_temporal_alarm": _first_alarm(rows, "temporal_alarm"),
-                "first_structural_alarm": _first_alarm(rows, "structural_alarm"),
-                "first_volume_alarm": _first_alarm(rows, "volume_alarm"),
-                "lag_days": {
-                    f"{det}_vs_{lm}": _lag_days(_first_alarm(rows, f"{det}_alarm"), when)
-                    for det in ("temporal", "structural", "volume")
-                    for lm, when in cfg.landmarks.items()
-                },
-            }
+    per_identity, _ = _sweep_identities(revisions, cfg, out, with_timeline)
 
     deletion_days: Dict[str, int] = {}
     for e in deletions:
@@ -380,6 +430,99 @@ def run_replay(
         "p_note": "p fixed at 0.5: the log carries no per-edit quality signal, "
         "so quality asymmetry contributes nothing; detectors run on frequency, "
         "acceptance, timing and topology only.",
+        "per_identity": per_identity,
+        "elapsed_seconds": round(time.time() - t_start, 1),
+    }
+    (out / "summary.json").write_text(json.dumps(summary, indent=2, default=str))
+    (out / "config.json").write_text(json.dumps(asdict(cfg), indent=2))
+    return out
+
+
+def run_schelling_replay(
+    board_path: Path,
+    eval_log: Path,
+    cfg: ReplayConfig,
+    runs_root: Path = Path("runs"),
+    *,
+    control_eval_log: Optional[Path] = None,
+    with_timeline: bool = True,
+) -> Path:
+    """Replay a schelling-point board export joined to its Inspect eval log.
+
+    ``p`` per post is the attributed sample's ``on_time_accuracy`` (leak-
+    benefit proxy; see ``schelling.py``). When ``control_eval_log`` (the
+    no-board ``compose.yaml`` run) is given the summary carries the shared-
+    vs-control score deltas overall and per family.
+    """
+    t_start = time.time()
+    messages = load_board_messages(board_path)
+    samples = load_inspect_eval_log(eval_log)
+    control = load_inspect_eval_log(control_eval_log) if control_eval_log else []
+    attribution = attribute_posts(messages, samples)
+    revisions = messages_to_revisions(
+        messages, attribution, include_seeded=cfg.include_seeded
+    )
+    p_by_rev = p_by_message(messages, attribution, samples)
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    out = runs_root / f"{stamp}_{cfg.scenario_id}_seed{cfg.seed}"
+    (out / "csv").mkdir(parents=True, exist_ok=True)
+
+    per_identity, primary = _sweep_identities(revisions, cfg, out, with_timeline, p_by_rev)
+
+    history = [x.to_dict() for x in primary]
+    (out / "history.json").write_text(json.dumps(history, indent=2, default=str))
+    _write_csv(out / "csv" / "interactions.csv", history)
+    by_sample = {s.sample_id: s for s in samples}
+    _write_csv(
+        out / "csv" / "posts.csv",
+        [
+            {
+                "message_id": m.message_id,
+                "time": m.time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "host": m.host,
+                "seeded": m.seeded,
+                "family": m.family or (
+                    by_sample[sid].family if (sid := attribution.get(m.message_id)) in by_sample
+                    else ""
+                ),
+                "attributed_sample": attribution.get(m.message_id) or "",
+                "p": p_by_rev.get(m.message_id, ""),
+                "chars": len(m.text),
+            }
+            for m in messages
+        ],
+    )
+    comparison = compare_conditions(samples, control) if control else None
+    if comparison:
+        _write_csv(out / "csv" / "condition_comparison.csv", comparison["per_family"])
+
+    live = [m for m in messages if not m.seeded]
+    n_attr = sum(1 for m in live if attribution.get(m.message_id))
+    summary = {
+        "scenario_id": cfg.scenario_id,
+        "seed": cfg.seed,
+        "source": "schelling",
+        "board_path": str(board_path),
+        "eval_log": str(eval_log),
+        "control_eval_log": str(control_eval_log) if control_eval_log else None,
+        "n_messages": len(messages),
+        "n_seeded": len(messages) - len(live),
+        "n_live": len(live),
+        "n_live_attributed": n_attr,
+        "n_live_unattributed": len(live) - n_attr,
+        "include_seeded": cfg.include_seeded,
+        "hosts": sorted({m.host for m in messages}),
+        "time_range": [
+            messages[0].time.isoformat() if messages else None,
+            messages[-1].time.isoformat() if messages else None,
+        ],
+        "shared_scores": score_means(samples),
+        "condition_comparison": comparison,
+        "p_note": "p per post = on_time_accuracy of the Inspect sample the post is "
+        "attributed to (leak-benefit proxy, not a per-post verdict); "
+        "unattributed and seeded rows keep p=0.5. Attribution is by tool-call "
+        "text match, else the unique sample running at post time.",
         "per_identity": per_identity,
         "elapsed_seconds": round(time.time() - t_start, 1),
     }

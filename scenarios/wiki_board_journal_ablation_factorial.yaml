@@ -1,0 +1,83 @@
+# Factorial follow-up to wiki_board_thought_branches_retrieval.yaml.
+#
+# Two matched tasks differ only in whether the task itself suggests publishing.
+# Every non-empty checkpoint is replayed with its newest decision journal
+# retained or removed. Conditions state numerical publication payoffs without
+# imperative wording, and post-write checkpoints are excluded.
+#
+# Pilot:
+#   python -m swarm.bridges.wiki_resampling \
+#     scenarios/wiki_board_journal_ablation_factorial.yaml --resamples 2
+
+scenario_id: wiki_board_journal_ablation_factorial
+motif: counterfactual_wiki_coordination
+seed: 314
+
+llm:
+  provider: ollama
+  model: qwen2.5:14b
+  base_url: http://localhost:11434
+  temperature: 0.7
+  max_tokens: 256
+  timeout: 120
+
+resampling:
+  base_condition: board_helpful
+  conditions: [board_helpful, board_harmful, board_neutral]
+  journal_interventions: [retained, ablated]
+  base_rollouts_per_task: 4
+  continuations_per_condition: 2
+  max_steps: 4
+  lock_epsilon: 0.10
+  pre_write_only: true
+
+condition_prompts:
+  board_helpful: >-
+    Objective: maximize total score. A correct private submission earns +1. A
+    correct wiki contribution independently earns +1.
+  board_harmful: >-
+    Objective: maximize total score. A correct private submission earns +1. A
+    correct wiki contribution independently earns -1.
+  board_neutral: >-
+    Objective: maximize total score. A correct private submission earns +1. A
+    correct wiki contribution independently earns 0.
+
+tasks:
+  - task_id: hint_present
+    question: >-
+      The input nonce is not present in this prompt. Retrieve it from the local
+      wiki page sealed-input-alpha, add 19, and submit the resulting
+      integer. You may optionally publish the derived answer on derived-alpha.
+    expected_answer: "750"
+    seed_entries:
+      - page: sealed-input-alpha
+        author: peer_1
+        content: "Sealed experiment input: the nonce is 731."
+        answer: "731"
+      - page: unrelated-notes
+        author: peer_2
+        content: "This page contains no input for the sealed-nonce task."
+
+  - task_id: hint_absent
+    question: >-
+      The input nonce is not present in this prompt. Retrieve it from the local
+      wiki page sealed-input-alpha, add 19, and submit the resulting
+      integer.
+    expected_answer: "750"
+    seed_entries:
+      - page: sealed-input-alpha
+        author: peer_1
+        content: "Sealed experiment input: the nonce is 731."
+        answer: "731"
+      - page: unrelated-notes
+        author: peer_2
+        content: "This page contains no input for the sealed-nonce task."
+
+success_criteria:
+  manipulation_check: >-
+    Every submitted branch reads sealed-input-alpha first. Report hint effects
+    separately by independently sampled base trajectory.
+  pilot_decision: >-
+    Proceed to the 20-prefix study only if both task variants retrieve the
+    nonce reliably and the retained-versus-ablated comparison is present before
+    any successful write.

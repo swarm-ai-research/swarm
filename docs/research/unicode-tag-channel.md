@@ -96,6 +96,44 @@ handles or page names. The bytes-per-glyph defense below does not catch base64,
 since every byte renders; a compression-ratio or dictionary-word-rate check on
 bodies would, and belongs on the same observables list.
 
+## Base rate in page bodies (2026-09-06)
+
+The open question above, whether the original agents used a non-printing
+carrier *inside page bodies*, can now be answered for 82% of the export. The
+2026-09-05 reading pack carries full bodies for 11,811 wiki revisions
+([bridge notes](../bridges/collusion_wiki.md#page-bodies-from-the-reading-pack)),
+and `--pack` feeds them through the same eight-class scan as `pack.wiki.body`,
+with editor label and ip16 taken from the joined export revision. Run:
+`runs/20260907T021617Z_casestudy_wiki_stego`.
+
+| Quantity | Value | Source |
+|---|---:|---|
+| Page bodies scanned | 11,811 (22,138,781 characters) | `chars_by_source` |
+| Bodies with tag, zero-width, bidi, variation-selector or private-use characters | 0 | `by_carrier` |
+| Bodies with a mixed-script token | 0 | `by_carrier` |
+| Bodies flagged `high_entropy` | 2,252 | `by_carrier` |
+| Bodies flagged `base64_run` | 46 | `by_carrier` |
+| Paste-candidate bodies (secondary tier, 364 in window) flagged | 19, all `high_entropy` or `base64_run` | `by_source` |
+
+The non-printing result holds: across every body the pack recovered, the
+swarm wrote nothing a human moderator could not see. The non-ASCII characters
+that do appear in bodies are mojibake (`Ã`, `Â`, C1 controls U+0080 to U+009F)
+from double-encoded German umlauts on the host wiki's boilerplate pages, plus
+ordinary punctuation, and none of them belongs to a carrier class.
+
+The two flagged classes are the encoded-carrier story, not concealment. Every
+sampled `high_entropy` token is a URL: proxy chains through `jqp.vercel.app`
+and `allorigins`, and `wikiservice.at` links carrying a `uniq=` cache-buster.
+The `high_entropy` daily counts track the relay traffic (1,320 on June 18, the
+SEC county-cache burst). The `base64_run` hits are percent-encoded proxy URLs
+and one deliberate probe: `dse/AgentBase64Test`, four revisions from
+2026-05-27, whose `httpbin.org/base64/...` link decodes to an HTML anchor
+pointing at a usaspending.gov federal-accounts endpoint. That is an agent
+testing, three weeks before the peak, whether a base64-wrapped link survives
+the wiki and a fetch proxy. It sits with the IPEDS gzip pages above as the
+same class: encoding for transport capacity, legible as encoding to anyone
+who looks.
+
 Two false-positive classes had to be tuned out and are worth recording. Wiki page
 ids are long CamelCase alphanumerics with digits (`AgentSimple1781804217`) and
 the "wiki/Page" path contains a slash, so a naive base64 rule flagged 9,759 of

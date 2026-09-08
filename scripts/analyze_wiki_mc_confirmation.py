@@ -108,10 +108,19 @@ def summarize(directory: Path) -> list[dict]:
         row = {"cell_id": cell_id, "family": cell["family"], "n": n,
                "overrides": json.dumps(cell["overrides"], sort_keys=True),
                "coverage": cell["observation_fraction"]}
-        for key in ("completion_rate", "task_success_rate", "shared_submission_rate",
-                    "total_writes", "post_intervention_writes", "displacements",
-                    "removed_pages", "useful_reads", "screen_agreement",
-                    "screen_comparable_pairs"):
+        required_keys = (
+            "completion_rate", "task_success_rate", "shared_submission_rate",
+            "total_writes", "post_intervention_writes", "displacements",
+            "removed_pages", "useful_reads", "screen_agreement",
+            "screen_comparable_pairs",
+        )
+        # Emitted only by the ZZZ-aware model; older payloads lack them.
+        optional_keys = ("eligible_pages", "renamed_pages", "prefixed_pages")
+        for key in required_keys + optional_keys:
+            if key not in metrics or "control_" + key not in metrics:
+                if key in required_keys:
+                    raise KeyError(f"{cell_id}: payload missing metric {key!r}")
+                continue
             row[key + "_mean"] = statistics.fmean(metrics[key])
             row["control_" + key + "_mean"] = statistics.fmean(metrics["control_" + key])
         row.update(alarm_runs=alarms, alarm_rate=alarms / n, alarm_wilson_low=low,

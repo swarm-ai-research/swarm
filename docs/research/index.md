@@ -134,6 +134,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Preston-Werner's 2010 essay read against a PRD that never got code (Strange Loop) and a swarm protocol that never got a README (the wiki board); whether a coordination board has a specification anywhere is one more absence separating constructed from converged
 
+-   :material-brush: **[Stain the Page Lessons](stain-the-page-lessons.md)**
+
+    ---
+
+    Tipperman's 2026 prototyping essay read as the straw-horse gate one level down: a wrong draft draws correction and a blank page draws nothing, but the false green and the erdos gate show what happens when nobody checks the stain
+
 -   :material-cube-outline: **[Cantrip Runtime Lessons](cantrip-runtime-lessons.md)**
 
     ---
@@ -235,6 +241,13 @@ Academic foundations and related publications. SWARM implements the framework de
     ---
 
     Paired synthetic confirmation runs measure moderation effects and show the limits of permission-blind detection; traced displacement in the model is not evidence of historical migration
+
+-   :material-alphabetical-variant: **[Wiki Monte Carlo Lessons: ZZZ-Aware Evasion](wiki-monte-carlo-lessons.md)**
+
+    ---
+
+    Sort-last rename plus eligible-set budget, the follow-up the page-level Monte Carlo called out: published “evasion learning” only dropped authors from the eligible set; this rule moves remaining pages past the alphabetical window. Smoke only; not historical inference
+
 -   :material-drafting-compass: **[A Designed Agent Community, Read Against a Converged One](designed-agent-community-vs-converged-board.md)**
 
     ---
