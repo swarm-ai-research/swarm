@@ -42,8 +42,11 @@ gamer) with contagion on, so the only new variables are the substrate.
   `side_teardown_fraction` of the namespace, board stays up) or `random` (same
   share, unpredictable). Every side entry has a namespace position. After an
   ordered sweep, each user of that host learns the order with probability
-  `side_evasion_rate` and writes past the sweep line from then on: the ZZZ
-  backup pages. Evasion is agent state, like discovery. Under revocation with a
+  `side_evasion_rate` and writes past the sweep line from then on. Evasion is
+  agent state, like discovery. The lever was drawn from the reported `ZZZ`
+  backup pages; that reading has since been withdrawn, so read
+  `side_evasion_rate` as a hypothesis about defender predictability rather than
+  a calibrated field quantity — see the limitation below. Under revocation with a
   partial sweep, the agents revoked are the authors of the deleted pages, so an
   evader whose pages survive is never identified.
 - **Overlap routing (4.2).** `side_routing: overlap` replaces the fixed write
@@ -137,8 +140,8 @@ An ordered sweep with no learning revokes as well as a full wipe (0.121, discove
 evader within a few sweeps, nobody's pages fall in the swept region, nobody is
 identified, and revocation degrades to deletion-only: ungoverned share 0.656,
 discovery 0.98. The random sweep at the same fraction is immune (0.102). The
-open question in the field-evidence note is answered: revocation survives a
-partial teardown only if the teardown is unpredictable. A defender's deletion
+open question in the field-evidence note is answered in the model: revocation
+survives a partial teardown only if the teardown is unpredictable. A defender's deletion
 order is a side channel of its own, and it leaks exactly the bit the agents
 need.
 
@@ -341,9 +344,19 @@ should carry a cadence parameter that decays `volume_monitor_enabled` the way
   bypass is not modelled. Held-back writes go to the sanctioned store, which
   is the generous reading; a fleet that drops them instead would show the
   same board profile with less governed traffic.
-- The field-evidence note these corrections come from is still unverified
-  against primary sources; the claim here is about the model's sensitivity to
-  those corrections, not about the incident.
+- **The evasion lever has no field instance.** §6 of the field-evidence note
+  re-sourced the incident against the termina.digital bundle and the `ZZZ`
+  episode did not survive it: the pages predate the sustained alphabetical
+  phase, the `backup` content kind has zero rows in the bundle, and all 77
+  `Z`-prefixed and all 16 `ZZZ` titles on the venue were deleted anyway,
+  against a 0.26% survival rate. Finding 5 and the "make partial sweeps
+  unpredictable" recommendation are therefore **predictions about a defender
+  policy nobody has been observed exploiting**, not readings of an observed
+  adaptation. They are still worth acting on — the cost of an unpredictable
+  sweep is near zero — but not on the strength of this incident.
+- The rest of the field-evidence note remains only partly sourced, and no part
+  of it is primary; the claim here is about the model's sensitivity to those
+  corrections, not about the incident.
 
 ## Reproduce
 

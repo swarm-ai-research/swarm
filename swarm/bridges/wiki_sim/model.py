@@ -41,6 +41,12 @@ class SimulationConfig:
     # prefix remaining pages so they sort past the alphabetical window, and
     # the operation count is drawn from that window. move relocates a
     # learner's live pages to another writable host at learning time.
+    #
+    # These styles are hypotheses, not calibrated behaviour. The DSEWiki
+    # episode they are named after does not support them: the ZZZ pages
+    # predate the sustained alphabetical phase, no record in the incident
+    # bundle classifies as a backup, and every Z-prefixed page on the venue
+    # was deleted anyway. See wiki-collusion-field-evidence.md section 6.4.
     evasion_style: str = "exclude"
     page_budget_basis: str = "host"
     evasion_prefix: str = "ZZZ"
