@@ -209,7 +209,6 @@ def _interaction(
             "body_len": rev.body_len,
             "change_summary": rev.change_summary,
             "page_created": rev.page_created,
-            "page_created": rev.page_created,
             "run": run_map.run_of(rev.rev_id) if run_map is not None else None,
             "source": rev.source,
             "actor_kind": rev.actor_kind,
