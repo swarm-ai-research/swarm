@@ -857,7 +857,7 @@ class TestBipartiteNullReplay:
             "swarm.bridges.collusion_wiki.runner._structural", fake_structural
         )
         cfg = ReplayConfig(timeline_step_hours=24, timeline_null_samples=1)
-        rows = _timeline(xs, cfg, inc)
+        rows = _timeline(xs, cfg, incidence=inc)
         assert captured and len(captured) == len(rows)
         for row, inc_window in zip(rows, captured, strict=True):
             step_end = datetime.strptime(
