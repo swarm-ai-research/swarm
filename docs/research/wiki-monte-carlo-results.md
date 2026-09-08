@@ -232,7 +232,10 @@ ported unchanged, so those rows carry over too (they coincide because every
 page on the host is eligible under `move`). `rename` kept evaders' pages
 eligible and sorted them last with the host-wide budget; the landed
 `sort_last` instead removes prefixed pages from the eligible set, so the
-`rename` row is the closest analogue of `sort_last`+`host`, not a rerun of it.
+`rename` row is only an analogue. The `sort_last` and `sort_last_elig` rows
+(`sort_last`+`host`, `sort_last`+`eligible`) were rerun on the merged branch
+against the same baseline files; their none/random cells are identical to the
+baseline, as expected.
 
 | cell | contrast | completion_rate | task_success_rate | total_writes | displacements | removed_pages |
 |---|---|---|---|---|---|---|
@@ -241,11 +244,15 @@ eligible and sorted them last with the host-wide budget; the landed
 | moderation-002 | e50_rename minus shrink (n=200) | -0.000 (p=1.000) | +0.000 (p=1.000) | -0.010 (p=1.000) | -0.005 (p=1.000) | +0.400 (p=0.000) |
 | moderation-002 | e50_move minus shrink (n=200) | -0.001 (p=0.086) | -0.001 (p=0.176) | -0.075 (p=0.577) | -0.800 (p=0.000) | +0.475 (p=0.000) |
 | moderation-002 | e50_move_elig minus shrink (n=200) | -0.001 (p=0.086) | -0.001 (p=0.176) | -0.075 (p=0.577) | -0.800 (p=0.000) | +0.475 (p=0.000) |
+| moderation-002 | e50_sort_last minus shrink (n=200) | +0.000 (p=0.383) | +0.000 (p=0.059) | +0.010 (p=0.629) | +0.000 (p=1.000) | +0.180 (p=0.000) |
+| moderation-002 | e50_sort_last_elig minus shrink (n=200) | +0.000 (p=0.001) | +0.001 (p=0.000) | +0.065 (p=0.006) | -0.025 (p=0.121) | -1.490 (p=0.000) |
 | moderation-003 (ordered/forced) | shrink mean | 0.911 | 0.821 | 103.680 | 10.945 | 16.445 |
 | moderation-003 | e50_shrink_elig minus shrink (n=200) | +0.000 (p=0.003) | +0.001 (p=0.001) | +0.050 (p=0.064) | -0.045 (p=0.344) | -2.730 (p=0.000) |
 | moderation-003 | e50_rename minus shrink (n=200) | -0.000 (p=1.000) | +0.000 (p=1.000) | -0.005 (p=1.000) | +0.005 (p=1.000) | +0.395 (p=0.000) |
 | moderation-003 | e50_move minus shrink (n=200) | -0.001 (p=0.269) | -0.001 (p=0.431) | -0.020 (p=0.915) | -0.680 (p=0.000) | +0.490 (p=0.000) |
 | moderation-003 | e50_move_elig minus shrink (n=200) | -0.001 (p=0.269) | -0.001 (p=0.431) | -0.020 (p=0.915) | -0.680 (p=0.000) | +0.490 (p=0.000) |
+| moderation-003 | e50_sort_last minus shrink (n=200) | +0.000 (p=1.000) | +0.000 (p=0.253) | +0.005 (p=1.000) | +0.000 (p=1.000) | +0.185 (p=0.000) |
+| moderation-003 | e50_sort_last_elig minus shrink (n=200) | +0.000 (p=0.003) | +0.001 (p=0.000) | +0.050 (p=0.018) | -0.030 (p=0.245) | -1.515 (p=0.000) |
 
 Reading: giving evaders teeth does not rescue the historical hypothesis inside this
 model. `rename` (the sort-last ZZZ trick) and `move` change pages removed by under half a
@@ -253,9 +260,15 @@ page per run and leave completion, success and writes untouched; `move` lowers
 displacements by about 0.7–0.8 because the evader's page has already left the host
 before the sweep disrupts it (a voluntary relocation the displacement metric does
 not count). Drawing the budget from the eligible set is the only knob with a
-visible cost effect, and only under the `exclude` rule: about 2.7 fewer pages removed
-per run, again with no completion change. The constraint is structural: a host
+visible cost effect: about 2.7 fewer pages removed per run under `exclude`
+and about 1.5 fewer under `sort_last`, in both cases with no completion change.
+The landed `sort_last` behaves like `rename` where it matters: with the
+host-wide budget it adds under 0.2 pages removed per run and moves nothing
+else; with the eligible budget it removes fewer pages than `exclude`+`eligible`
+does, because prefixed pages stay on the host and keep feeding the host count
+while the eligible set shrinks (about 6.6 renames and 13.6 prefixed pages per
+run at learning rate 0.5). The constraint is structural: a host
 holds at most one page per task (`boards[host][task]`), so a sweep touches a
 handful of pages and evasion can only shuffle those. A test of "agents learned to
 dodge alphabetical sweeps" needs a page-population model (many pages per task,
-name-keyed) before deletion order can matter. Runs: `runs/wiki_mc_confirm_page_e50_{shrink_elig,rename,move,move_elig}` (not archived in this PR). To regenerate on `main`, use `page_e50.json` plus `{"page_budget_basis": "eligible"}`, `{"evasion_style": "sort_last"}`, `{"evasion_style": "move"}`, and `{"evasion_style": "move", "page_budget_basis": "eligible"}` respectively; the `sort_last` cell will differ from the `rename` row for the reason given above.
+name-keyed) before deletion order can matter. Runs: `runs/wiki_mc_confirm_page_e50_{shrink_elig,rename,move,move_elig,sort_last,sort_last_elig}` (not archived in this PR). To regenerate on `main`, use `page_e50.json` plus `{"page_budget_basis": "eligible"}`, `{"evasion_style": "sort_last"}`, `{"evasion_style": "sort_last", "page_budget_basis": "eligible"}`, `{"evasion_style": "move"}`, and `{"evasion_style": "move", "page_budget_basis": "eligible"}` respectively; the pre-merge `rename` row has no `main` equivalent.
