@@ -97,6 +97,43 @@ class TestMapper:
         xs = revisions_to_interactions(load_revisions(data_dir), identity="label_ip16")
         assert xs[0].initiator == "HelperB@20.2"
 
+    def test_run_identity_maps_owned_revisions_and_falls_back(self, data_dir, tmp_path):
+        from swarm.bridges.collusion_wiki.mapper import load_run_map, subset_revisions
+        m = tmp_path / "run_identity_map.json"
+        m.write_text(json.dumps({
+            "source": "test", "n_runs": 2,
+            "runs": {"P01": {"name": "A", "supported": True},
+                     "X9": {"name": "B", "supported": False}},
+            # HelperA's r1/r3/r4 are one run; HelperC's r5 is a provisional run
+            "revisions": {"r1": {"run": "P01"}, "r3": {"run": "P01"},
+                          "r4": {"run": "P01"}, "r5": {"run": "X9"}},
+        }))
+        rm = load_run_map(m)
+        revs = load_revisions(data_dir)
+        xs = revisions_to_interactions(revs, identity="run", run_map=rm)
+        pairs = [(x.initiator, x.counterparty) for x in xs]
+        assert pairs == [
+            ("HelperB", "run:P01"),
+            ("run:P01", "HelperB"),
+            ("run:X9", "run:P01"),
+            ("(unlabeled)", "HelperB"),
+        ]
+        assert xs[0].metadata["run"] is None and xs[1].metadata["run"] == "P01"
+        assert [r.rev_id for r in subset_revisions(revs, "owned", rm)] == ["r1", "r3", "r4", "r5"]
+        assert [r.rev_id for r in subset_revisions(revs, "supported", rm)] == ["r1", "r3", "r4"]
+        with pytest.raises(ValueError):
+            revisions_to_interactions(revs, identity="run")
+
+    def test_run_map_rejects_revision_without_run(self, tmp_path):
+        from swarm.bridges.collusion_wiki.mapper import load_run_map
+        m = tmp_path / "run_identity_map.json"
+        m.write_text(json.dumps({
+            "runs": {"P01": {"name": "A", "supported": True}},
+            "revisions": {"r1": {"run": "P01"}, "r2": {}},
+        }))
+        with pytest.raises(ValueError, match="revision 'r2' has no 'run' id"):
+            load_run_map(m)
+
     def test_reply_window_drops_slow_replies(self, data_dir):
         xs = revisions_to_interactions(
             load_revisions(data_dir), reply_window_seconds=3600

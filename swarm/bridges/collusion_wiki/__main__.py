@@ -2,7 +2,10 @@
 
 ``--stego`` runs the hidden-character scan (``stego.py``) instead of the
 detectors; add ``--pack DIR`` to include page bodies from the 2026-09-05
-reading pack (``reading_pack.py``). ``--fetch`` downloads the export from collusion.wiki into ``--data-dir``
+reading pack (``reading_pack.py``). ``--run-map run_identity_map.json`` enables ``--identity run`` (the audited
+per-agent run from the fast-follow-question-trajectories reconstruction) and
+``--revision-subset owned|supported`` (replay only run-owned revisions).
+``--fetch`` downloads the export from collusion.wiki into ``--data-dir``
 first (files land gzipped; the loader reads them as-is).
 
 ``--source schelling --board messages.json --eval-log run.eval
@@ -53,7 +56,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--runs-root", type=Path, default=Path("runs"))
     p.add_argument("--fetch", action="store_true")
     p.add_argument("--no-timeline", action="store_true")
-    p.add_argument("--identity", choices=["label", "ip16", "label_ip16"])
+    p.add_argument("--identity", choices=["label", "ip16", "label_ip16", "run"])
+    p.add_argument("--run-map", type=Path,
+                   help="run_identity_map.json (rev_id -> audited run) for "
+                        "identity=run and --revision-subset")
+    p.add_argument("--revision-subset", choices=["all", "owned", "supported"],
+                   help="replay every revision, only run-owned ones, or only "
+                        "those owned by a supported run")
     p.add_argument("--stego", action="store_true",
                    help="scan the export's free-text fields for hidden-character "
                         "carriers (bead vv3j.5) instead of running the detectors")
@@ -96,6 +105,10 @@ def main(argv: list[str] | None = None) -> int:
         cfg.source = args.source
     if args.include_seeded:
         cfg.include_seeded = True
+    if args.run_map:
+        cfg.run_map = str(args.run_map)
+    if args.revision_subset:
+        cfg.revision_subset = args.revision_subset
 
     if cfg.source == "schelling":
         board = args.board or (Path(cfg.board_path) if cfg.board_path else None)

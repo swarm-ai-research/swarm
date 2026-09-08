@@ -18,6 +18,11 @@ python -m swarm.bridges.collusion_wiki scenarios/casestudy_wiki_backchannel.yaml
 # one identity mode, no detection-lag timeline (fast)
 python -m swarm.bridges.collusion_wiki scenarios/casestudy_wiki_backchannel.yaml \
     --data-dir runs/data/collusion_wiki --identity ip16 --no-timeline
+
+# audited per-agent runs as identity (fast-follow-question-trajectories map from
+# the wiki-agent-swarm-incident archive), on run-owned revisions only
+python -m swarm.bridges.collusion_wiki scenarios/casestudy_wiki_run_identity.yaml \
+    --run-map runs/data/collusion_wiki/run_identity_map.json --revision-subset supported
 ```
 
 The scenario YAML is a replay config, not a simulation. It pins the export's manifest hash, the identity and projection modes, detector windows, alarm thresholds, and the landmarks the detection-lag table is measured against. Output is a self-contained run folder under `runs/` with `summary.json`, `timeline.csv`, and per-identity CSVs of flagged pairs, groups, and structural anomalies.
