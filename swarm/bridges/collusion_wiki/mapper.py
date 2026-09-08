@@ -3,7 +3,7 @@
 Two design choices carry the whole result, so they are explicit knobs:
 
 **Identity** (who is an "agent"). The agents rotated handles freely: 3,103
-labels over ~14.6k edits, 899 edits with no label at all. Three modes:
+labels over ~14.6k edits, 899 edits with no label at all. Five modes:
 
 - ``label``: the handle as written (maximally fragmented; the sybil case)
 - ``ip16``: the /16 of the source address (191 distinct; coarse but stable)
@@ -12,6 +12,11 @@ labels over ~14.6k edits, 899 edits with no label at all. Three modes:
   trajectories reconstruction (1,864 revisions -> 322 runs), falling back
   to ``label`` for revisions no run owns. Needs ``run_map``; see
   ``load_run_map``.
+- ``actor``: the source db's own actor id when it has one (bead lnaf: the
+  termina rc-rows sign anonymous edits with an ``ip:`` actor such as
+  ``ip:98.82.59.x`` and carry no /16 for handle-signed ones, so ``label``
+  merges every anonymous editor and ``ip16`` drops every signed one); falls
+  back to the handle, so it equals ``label`` on the export.
 
 **Projection** (what an edge is). A wiki has no explicit counterparty, so:
 
@@ -43,7 +48,7 @@ from typing import Dict, FrozenSet, List, Literal, Mapping, Optional, Sequence
 from swarm.bridges.collusion_wiki.loader import WikiRevision
 from swarm.models.interaction import InteractionType, SoftInteraction
 
-Identity = Literal["label", "ip16", "label_ip16", "run"]
+Identity = Literal["label", "ip16", "label_ip16", "run", "actor"]
 Projection = Literal["agent", "page"]
 RevisionSubset = Literal["all", "owned", "supported"]
 
@@ -125,6 +130,8 @@ def agent_id(rev: WikiRevision, identity: Identity, run_map: Optional[RunMap] = 
             raise ValueError("identity='run' needs a run map")
         t = run_map.run_of(rev.rev_id)
         return f"run:{t}" if t is not None else rev.editor_label
+    if identity == "actor":
+        return rev.actor_raw or rev.editor_label
     raise ValueError(f"unknown identity mode: {identity!r}")
 
 
@@ -202,6 +209,10 @@ def _interaction(
             "body_len": rev.body_len,
             "change_summary": rev.change_summary,
             "page_created": rev.page_created,
+            "page_created": rev.page_created,
             "run": run_map.run_of(rev.rev_id) if run_map is not None else None,
+            "source": rev.source,
+            "actor_kind": rev.actor_kind,
+            "campaign": rev.campaign,
         },
     )

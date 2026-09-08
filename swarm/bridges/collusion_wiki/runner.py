@@ -24,6 +24,17 @@ recreation, joined to its Inspect eval log, and adds::
         csv/interactions.csv     the same, flat
         csv/posts.csv            every board row with its attribution and p
         csv/condition_comparison.csv   per-family shared-vs-control deltas
+
+``run_termina_replay`` (beads lnaf, sjis) reads the swarm.termina.digital
+incident db instead of the export and, per venue, runs the same detector
+pass over a *baseline* window (the export's span, so the numbers can be set
+beside the May-July replay) and a *post* window (July 3 to the snapshot),
+then the detection-lag timeline over the post window alone, so the volume
+monitor's trailing median is the quiet summer and not the June burst. Adds::
+
+        fingerprint.csv          per venue x window grammar / reuse marks
+        rows_<venue>_post.csv    every post-window row (for reading)
+        <venue>/<window>/...     the per-identity CSVs and timeline
 """
 
 from __future__ import annotations
@@ -38,6 +49,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import yaml
 
+from swarm.bridges.collusion_wiki import termina
 from swarm.bridges.collusion_wiki.gates import (
     contention_summary,
     empty_gate_row,
@@ -126,6 +138,17 @@ class ReplayConfig:
     # all | owned (some run owns it) | supported (a supported run owns it)
     run_map: Optional[str] = None
     revision_subset: RevisionSubset = "all"
+    # bead lnaf / sjis: "termina" replays the swarm.termina.digital incident db
+    # per venue over two windows (the export's span as baseline, and the
+    # post-disclosure span the export lacks) and reports the grammar / reuse
+    # fingerprint of each window against the baseline.
+    termina_db: Optional[str] = None
+    termina_db_sha256: Optional[str] = None
+    venues: List[str] = field(default_factory=lambda: list(termina.DEFAULT_VENUES))
+    record_kinds: List[str] = field(default_factory=lambda: list(termina.DEFAULT_RECORD_KINDS))
+    exclude_actor_kinds: List[str] = field(default_factory=lambda: ["human"])
+    baseline_window: Optional[List[str]] = None
+    post_window: Optional[List[str]] = None
 
     @classmethod
     def from_yaml(cls, path: Path) -> "ReplayConfig":
@@ -160,6 +183,13 @@ class ReplayConfig:
             include_seeded=bool(rp.get("include_seeded", False)),
             run_map=rp.get("run_map"),
             revision_subset=rp.get("revision_subset", "all"),
+            termina_db=rp.get("termina_db"),
+            termina_db_sha256=(doc.get("data", {}) or {}).get("termina_db_sha256"),
+            venues=list(rp.get("venues", list(termina.DEFAULT_VENUES))),
+            record_kinds=list(rp.get("record_kinds", list(termina.DEFAULT_RECORD_KINDS))),
+            exclude_actor_kinds=list(rp.get("exclude_actor_kinds", ["human"])),
+            baseline_window=rp.get("baseline_window"),
+            post_window=rp.get("post_window"),
         )
 
 
@@ -485,21 +515,25 @@ def _sweep_identities(
             if with_timeline:
                 rows = _timeline(xs, cfg, revisions, inc)
                 _write_csv(out / "timeline.csv", rows)
-                per_identity[ident]["timeline"] = {
-                    "n_steps": len(rows),
-                    "first_temporal_alarm": _first_alarm(rows, "temporal_alarm"),
-                    "first_structural_alarm": _first_alarm(rows, "structural_alarm"),
-                    "first_volume_alarm": _first_alarm(rows, "volume_alarm"),
-                    "first_grammar_alarm": _first_alarm(rows, "grammar_alarm"),
-                    "first_contention_alarm": _first_alarm(rows, "contention_alarm"),
-                    "lag_days": {
-                        f"{det}_vs_{lm}": _lag_days(_first_alarm(rows, f"{det}_alarm"), when)
-                        for det in ("temporal", "structural", "volume",
-                                    "grammar", "contention")
-                        for lm, when in cfg.landmarks.items()
-                    },
-                }
+                per_identity[ident]["timeline"] = _timeline_summary(rows, cfg)
     return per_identity, primary
+
+
+def _timeline_summary(rows: Sequence[Dict[str, Any]], cfg: ReplayConfig) -> Dict[str, Any]:
+    return {
+        "n_steps": len(rows),
+        "first_temporal_alarm": _first_alarm(rows, "temporal_alarm"),
+        "first_structural_alarm": _first_alarm(rows, "structural_alarm"),
+        "first_volume_alarm": _first_alarm(rows, "volume_alarm"),
+        "first_grammar_alarm": _first_alarm(rows, "grammar_alarm"),
+        "first_contention_alarm": _first_alarm(rows, "contention_alarm"),
+        "lag_days": {
+            f"{det}_vs_{lm}": _lag_days(_first_alarm(rows, f"{det}_alarm"), when)
+            for det in ("temporal", "structural", "volume",
+                        "grammar", "contention")
+            for lm, when in cfg.landmarks.items()
+        },
+    }
 
 
 def run_replay(
@@ -650,6 +684,174 @@ def run_schelling_replay(
         "unattributed and seeded rows keep p=0.5. Attribution is by tool-call "
         "text match, else the unique sample running at post time.",
         "per_identity": per_identity,
+        "elapsed_seconds": round(time.time() - t_start, 1),
+    }
+    (out / "summary.json").write_text(json.dumps(summary, indent=2, default=str))
+    (out / "config.json").write_text(json.dumps(asdict(cfg), indent=2))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# termina: per-venue baseline vs post-disclosure (beads lnaf, sjis)
+# ---------------------------------------------------------------------------
+
+
+def _window(spec: Optional[Sequence[str]]) -> Optional["tuple[datetime, datetime]"]:
+    if not spec:
+        return None
+    a, b = (datetime.strptime(x, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc) for x in spec)
+    return a, b
+
+
+def _edit_volume(revisions: Sequence[WikiRevision], cfg: ReplayConfig) -> Dict[str, Any]:
+    """Saves per step against the trailing median, one event per revision.
+
+    The ``page`` projection keeps every revision (agent -> page), so this is
+    the raw edit series the moderator would see, independent of who counts
+    as a reply to whom. ``volume_burst_signal`` reports firing windows only,
+    so the per-day peak is counted here.
+    """
+    if not revisions:
+        return {"n_windows": 0, "alarm": False, "max_ratio": 0.0, "first_alarm": None,
+                "peak_window": None, "peak_day": None, "peak_events": 0, "firing_windows": []}
+    xs = revisions_to_interactions(revisions, identity="label", projection="page")
+    r = volume_burst_signal(
+        list(xs), window_hours=cfg.timeline_step_hours,
+        trailing_windows=cfg.volume_trailing_windows, threshold=cfg.volume_alarm_ratio,
+    )
+    per_day: Dict[str, int] = {}
+    for rev in revisions:
+        d = rev.time.strftime("%Y-%m-%d")
+        per_day[d] = per_day.get(d, 0) + 1
+    peak_day, peak_events = max(per_day.items(), key=lambda kv: (kv[1], kv[0]))
+    return {
+        "n_windows": r.n_windows,
+        "alarm": bool(r.alarm),
+        "max_ratio": round(r.max_ratio, 2),
+        "first_alarm": r.first_alarm,
+        "peak_window": r.peak_window,
+        "peak_day": peak_day,
+        "peak_events": peak_events,
+        "firing_windows": [
+            {"window_start": w["window_start"], "count": w["count"],
+             "trailing_median": w["trailing_median"], "ratio": w["ratio"]}
+            for w in r.windows
+        ],
+    }
+
+
+def run_termina_replay(
+    db: Path,
+    cfg: ReplayConfig,
+    runs_root: Path = Path("runs"),
+    *,
+    with_timeline: bool = True,
+) -> Path:
+    """Replay the incident db per venue over the baseline and post windows."""
+    t_start = time.time()
+    db = termina.resolve_db(db)
+    pinned = termina.check_pin(db, cfg.termina_db_sha256)
+    manifest_path = db.parent / termina.MANIFEST_NAME
+    manifest = termina.read_manifest(manifest_path) if manifest_path.exists() else None
+
+    windows = {
+        "baseline": _window(cfg.baseline_window),
+        "post": _window(cfg.post_window),
+    }
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    out = runs_root / f"{stamp}_{cfg.scenario_id}_seed{cfg.seed}"
+    out.mkdir(parents=True, exist_ok=True)
+
+    venues_out: Dict[str, Any] = {}
+    fp_rows: List[Dict[str, Any]] = []
+    for venue in cfg.venues:
+        all_rows = termina.load_revisions(
+            db, venues=[venue], record_kinds=cfg.record_kinds,
+        )
+        kept = [r for r in all_rows if r.actor_kind not in set(cfg.exclude_actor_kinds)]
+        per_window: Dict[str, Any] = {}
+        base_rows: List[WikiRevision] = []
+        for wname, win in windows.items():
+            rows = [r for r in kept if win is None or win[0] <= r.time < win[1]]
+            rows_all = [r for r in all_rows if win is None or win[0] <= r.time < win[1]]
+            if wname == "baseline":
+                base_rows = rows
+            fp = termina.fingerprint(rows, base_rows if wname != "baseline" else ())
+            fp["n_rows_incl_excluded"] = len(rows_all)
+            fp_rows.append({"venue": venue, "window": wname, **{
+                k: v for k, v in fp.items()
+                if not isinstance(v, dict)}})
+            wdir = out / venue / wname
+            wdir.mkdir(parents=True, exist_ok=True)
+            per_identity: Dict[str, Any] = {}
+            if rows:
+                per_identity, _ = _sweep_identities(rows, cfg, wdir, False)
+            if rows and with_timeline and wname == "post" and cfg.identity in per_identity:
+                # Replies are to the previous distinct editor of the page, and
+                # 62 of the 93 Sep 7 ProbierWiki titles are June pages, so the
+                # counterparty is usually a *baseline* editor: project the whole
+                # series and keep the post slice, else every re-saved June page
+                # looks like a creation and the timeline sees nothing.
+                xs_all = revisions_to_interactions(
+                    kept, identity=cfg.identity, projection=cfg.projection,
+                    reply_window_seconds=cfg.reply_window_seconds,
+                )
+                xs_post = [x for x in xs_all if win is None or win[0] <= x.timestamp < win[1]]
+                tl_rows = _timeline(xs_post, cfg)
+                _write_csv(wdir / "timeline.csv", tl_rows)
+                per_identity[cfg.identity]["timeline"] = _timeline_summary(tl_rows, cfg)
+                per_identity[cfg.identity]["n_interactions_full_series_slice"] = len(xs_post)
+            per_window[wname] = {
+                "window": [w.strftime("%Y-%m-%dT%H:%M:%SZ") for w in win] if win else None,
+                "fingerprint": fp,
+                # raw saves per day against the trailing median, projection-free
+                "edit_volume": _edit_volume(rows, cfg),
+                "per_identity": per_identity,
+            }
+            if wname == "post":
+                _write_csv(out / f"rows_{venue}_post.csv", [
+                    {
+                        "time": r.time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "title": r.page_id.split("/", 1)[1],
+                        "actor_kind": r.actor_kind,
+                        "label": r.label,
+                        "actor": r.actor_raw,
+                        "ip16": r.ip16,
+                        "summary": r.change_summary,
+                        "campaign": r.campaign,
+                        "content_kind": r.content_kind,
+                        "phase": r.phase,
+                    }
+                    for r in rows_all
+                ])
+        venues_out[venue] = {
+            "wiki": termina.VENUE_WIKI.get(venue, venue),
+            "n_rows_total": len(all_rows),
+            "n_rows_kept": len(kept),
+            "time_range": [
+                all_rows[0].time.isoformat() if all_rows else None,
+                all_rows[-1].time.isoformat() if all_rows else None,
+            ],
+            "windows": per_window,
+        }
+
+    _write_csv(out / "fingerprint.csv", fp_rows)
+    summary = {
+        "scenario_id": cfg.scenario_id,
+        "seed": cfg.seed,
+        "source": "termina",
+        "db": str(db),
+        "db_sha256": termina.sha256_file(db),
+        "db_pin_matches": pinned,
+        "manifest": asdict(manifest) if manifest else None,
+        "record_kinds": cfg.record_kinds,
+        "exclude_actor_kinds": cfg.exclude_actor_kinds,
+        "venue_table": termina.venue_table(db, cfg.venues),
+        "p_note": "p fixed at 0.5: rc-rows carry no per-edit quality signal; "
+        "detectors run on frequency, acceptance, timing and topology only. "
+        "rc-rows are minute-precision listing rows, so the 60 s temporal window "
+        "sees same-minute edits only.",
+        "venues": venues_out,
         "elapsed_seconds": round(time.time() - t_start, 1),
     }
     (out / "summary.json").write_text(json.dumps(summary, indent=2, default=str))

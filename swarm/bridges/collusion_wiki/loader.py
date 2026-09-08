@@ -53,6 +53,16 @@ class WikiRevision:
     body_len: int
     change_summary: str
     page_created: bool
+    # bead lnaf: provenance carried by the termina loader; the export loader
+    # leaves them at their defaults, so nothing downstream changes for it.
+    source: str = "collusion-export"
+    phase: str = ""  # termina's pre-disclosure / post-report / post-press
+    campaign: str = ""  # termina's campaign_id (swarm-cohort, visitors, ...)
+    actor_kind: str = ""  # handle | human | ip | "" (export rows: "")
+    actor_raw: str = ""  # the db's actor_id as written (e.g. an rDNS name)
+    content_kind: str = ""
+    record_kind: str = ""  # rc-row | revision | delete | ...
+    record_status: str = ""
 
     @property
     def editor_label(self) -> str:

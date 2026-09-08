@@ -1,0 +1,56 @@
+# Post-disclosure reuse of the wiki boards (swarm.termina.digital, Jul-Sep 2026)
+#
+# NOT a simulation scenario. A *replay* of the wikis' live RecentChanges
+# listings, as catalogued in the CC0 "ai-safety-lab incident db" published at
+# https://swarm.termina.digital/pub/ (roarch@proton.me), through SWARM's
+# collusion detectors, consumed by
+#   python -m swarm.bridges.collusion_wiki scenarios/casestudy_wiki_postdisclosure.yaml \
+#       --termina-db runs/data/termina
+#
+# Research question (beads lnaf, sjis): the collusion.wiki export ends
+# 2026-07-02. The field-evidence note saw the boards being reused after the
+# 2026-09-03/04 disclosure. Does that traffic carry the June swarm's handle
+# grammar and cohort / relay fingerprint, or is it adjacent actors?
+#
+# Two windows per venue: the export's span as the baseline (so the numbers sit
+# beside docs/research/collusion-wiki-replay.md) and July 3 to the snapshot
+# as the post window. Detectors run on rc-rows with termina's "human" actors
+# (numbered wiki regulars and moderators) excluded; every row is still written
+# to rows_<venue>_post.csv for reading.
+
+scenario_id: casestudy_wiki_postdisclosure
+kind: replay
+bridge: collusion_wiki
+source: termina
+
+data:
+  base_url: https://swarm.termina.digital/pub/
+  files: [manifest.json, incidents.sqlite]
+  # sha256 of the incidents.sqlite this scenario was written against
+  # (manifest schema_version 9, generated 2026-09-08T14:10:58Z, record 91,320 rows)
+  termina_db_sha256: 80bb262a52008bd9e29c4d99d17aac542cfce23d72f3bd5b3f0208414632e69e
+
+replay:
+  termina_db: runs/data/termina/incidents.sqlite
+  venues: [dse, probier, fractal, usemod-org, wiki4d, dorfwiki]
+  record_kinds: [rc-row]        # the live listing; export revisions are duplicated in the db
+  exclude_actor_kinds: [human]  # termina's numbered wiki regulars / moderators
+  baseline_window: ["2026-05-24T00:00:00Z", "2026-07-03T00:00:00Z"]
+  post_window:     ["2026-07-03T00:00:00Z", "2026-09-08T00:00:00Z"]
+  identity: actor               # termina's actor id: handle, or the ip: actor of an anonymous edit
+  projection: agent
+  reply_window_seconds: null
+  temporal_window_seconds: 60   # rc-rows are minute-precision: this sees same-minute edits
+  structural_min_size: 3
+  structural_null_samples: 20
+  timeline_step_hours: 24
+  timeline_null_samples: 10
+  volume_alarm_ratio: 10
+  landmarks:
+    collusion_wiki_report: "2026-09-03T00:00:00Z"
+    press_coverage: "2026-09-04T00:00:00Z"
+
+sweep:
+  identity: [actor, label, ip16]
+
+seed: 0

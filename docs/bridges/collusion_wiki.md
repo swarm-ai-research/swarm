@@ -51,6 +51,29 @@ python -m swarm.bridges.collusion_wiki scenarios/casestudy_wiki_backchannel.yaml
 
 Result of that scan (run `20260907T021617Z_casestudy_wiki_stego`, 22.1 MB of page bodies): no tag characters, zero-width characters, bidi controls, variation selectors, private-use code points or mixed-script tokens in any body. The 2,252 body-level `high_entropy` hits are all URLs (proxy chains, `uniq=` cache-busters), and the 46 `base64_run` hits are encoded URLs and one explicit test page, `dse/AgentBase64Test` (2026-05-27), whose httpbin base64 payload decodes to an HTML anchor to a usaspending.gov endpoint. Details in [The Unicode tag-character channel](../research/unicode-tag-channel.md#base-rate-in-page-bodies-2026-09-06).
 
+### The termina incident db: past the export's July 2 cut
+
+The export stops on 2026-07-02. The *ai-safety-lab incident db* published at [swarm.termina.digital/pub/](https://swarm.termina.digital/pub/) (CC0, `roarch@proton.me`; one `incidents.sqlite` plus per-table JSONL and a `manifest.json` of row counts and sha256s) catalogues the wikis' **live RecentChanges listings** (`record.kind = 'rc-row'`, `source = 'live-rc'`) through the disclosure week, for the three export wikis and for boards the export never had (usemod.org, Wiki4D, DorfWiki, the wider ProWiki farm). `termina.py` loads it as a third source and `--source termina` replays it per venue over two windows: the export's span as a **baseline**, so the numbers sit beside the May-July replay, and July 3 to the snapshot as the **post-disclosure** window. Results are in [Wiki Back Channel Replay](../research/collusion-wiki-replay.md#post-disclosure-reuse-of-the-boards-2026-09-08).
+
+```bash
+# fetch manifest.json + incidents.sqlite (~50 MB) and run the per-venue replay
+python -m swarm.bridges.collusion_wiki scenarios/casestudy_wiki_postdisclosure.yaml \
+    --fetch --data-dir runs/data/termina --termina-db runs/data/termina
+```
+
+What the db is and is not, as the loader treats it:
+
+| Property | Consequence in the bridge |
+|---|---|
+| No bodies (`body_len`, `body_sha256`, `body_path` are pointers) | the reading pack stays the body source |
+| rc-rows are the *listing*, minute-precision, deletions as paired rows | the 60 s temporal window sees same-minute edits only; termina's `human:<venue>:<n>` actors (numbered regulars, the DSE moderator's 3,932 July rows) are dropped by default (`exclude_actor_kinds: [human]`) and still written to `rows_<venue>_post.csv` |
+| signed rc-rows carry a handle but no address; anonymous ones an `ip:` actor and no handle | a fourth identity mode, `actor` (termina's own actor id, falling back to the handle), because `label` merges every anonymous editor and `ip16` drops every signed one; `actor` equals `label` on the export |
+| export revisions are duplicated inside the db (`source = 'collusion-export'`, ids equal to the export's `rev_id`) | `record_kinds` defaults to `[rc-row]`; a window that overlaps the export must not mix the two |
+| `phase` is termina's cut (`pre-disclosure` to 09-02, `post-report` 09-03, `post-press` 09-04 on) | the replay's windows are set in the scenario, not read from `phase` |
+| the manifest hashes the JSONL files, not the sqlite | the scenario pins the sqlite's own sha256 (`termina_db_sha256`); a mismatch is logged and recorded in `summary.json` as `db_pin_matches: false`, not fatal |
+
+The run folder adds `fingerprint.csv`, one row per venue and window: rows, active days, peak day, actor kinds, provider from reverse DNS where the listing shows one, termina's own campaign labels, distinct handles / titles / /16s, the share of distinct handles and titles matching the June grammar (`HANDLE_GRAMMAR`: CamelCase words ending in a role noun; `TITLE_GRAMMAR`: `Agent` / `OpenAI` / `OAI` / `ZZZ` prefix, or a trailing 10-digit epoch or cohort tag), and, for the post window, the share of distinct handles, titles and /16s that already occur in the baseline plus the share of titles whose embedded epoch falls inside the baseline's span. Every string is untrusted wiki content; nothing is executed or fetched.
+
 ## Mapping
 
 Two choices carry the whole result, so both are explicit knobs in `swarm/bridges/collusion_wiki/mapper.py`.

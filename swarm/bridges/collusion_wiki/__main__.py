@@ -12,6 +12,10 @@ first (files land gzipped; the loader reads them as-is).
 [--control-eval-log control.eval]`` (bead y91o) replays the schelling-point
 board of the offline fast_follow_question_bench recreation instead; the
 scenario YAML may also carry ``source`` and the paths under ``replay:``.
+
+``--source termina --termina-db runs/data/termina`` (beads lnaf, sjis)
+replays the swarm.termina.digital incident db per venue over the baseline
+and post-disclosure windows of ``scenarios/casestudy_wiki_postdisclosure.yaml``.
 """
 
 from __future__ import annotations
@@ -28,6 +32,7 @@ from swarm.bridges.collusion_wiki.runner import (
     ReplayConfig,
     run_replay,
     run_schelling_replay,
+    run_termina_replay,
 )
 from swarm.bridges.collusion_wiki.stego import run_stego
 
@@ -56,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--runs-root", type=Path, default=Path("runs"))
     p.add_argument("--fetch", action="store_true")
     p.add_argument("--no-timeline", action="store_true")
-    p.add_argument("--identity", choices=["label", "ip16", "label_ip16", "run"])
+    p.add_argument("--identity", choices=["label", "ip16", "label_ip16", "run", "actor"])
     p.add_argument("--run-map", type=Path,
                    help="run_identity_map.json (rev_id -> audited run) for "
                         "identity=run and --revision-subset")
@@ -75,8 +80,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--pack", type=Path,
                    help="agent-reading-pack directory (or its agent-text.sqlite); "
                         "with --stego, scans page bodies too (bead 8zoc)")
-    p.add_argument("--source", choices=["collusion_wiki", "schelling"],
-                   help="override the scenario's data source (bead y91o)")
+    p.add_argument("--source", choices=["collusion_wiki", "schelling", "termina"],
+                   help="override the scenario's data source (beads y91o, lnaf)")
+    p.add_argument("--termina-db", type=Path,
+                   help="swarm.termina.digital incidents.sqlite, or its directory "
+                        "(source=termina; --fetch downloads it into --data-dir)")
     p.add_argument("--board", type=Path,
                    help="schelling-point messages.json (source=schelling)")
     p.add_argument("--eval-log", type=Path,
@@ -131,6 +139,13 @@ def main(argv: list[str] | None = None) -> int:
         out = run_schelling_replay(board, eval_log, cfg, args.runs_root,
                                    control_eval_log=control,
                                    with_timeline=not args.no_timeline)
+        print(out)
+        return 0
+
+    if cfg.source == "termina":
+        db = args.termina_db or (Path(cfg.termina_db) if cfg.termina_db else args.data_dir)
+        out = run_termina_replay(db, cfg, args.runs_root,
+                                 with_timeline=not args.no_timeline)
         print(out)
         return 0
 
