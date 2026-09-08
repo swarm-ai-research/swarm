@@ -9,12 +9,14 @@ import pytest
 from swarm.metrics.graph_structural import (
     DiGraph,
     StructuralAnomaly,
+    bipartite_null,
     densest_subgraph,
     density_pvalue,
     detect_structural_anomalies,
     edges_from_interactions,
     k_core_decomposition,
     label_propagation,
+    project_incidence,
     rank_aggregated_scores,
     reciprocity_zscore,
 )
@@ -317,3 +319,140 @@ class TestWeightedMetrics:
             [balanced, imbalanced], ["a", "b", "c", "x", "y", "z"]
         )
         assert scores["a"] == scores["x"]
+
+
+# ---------------------------------------------------------------------------
+# Hub-aware bipartite nulls (beads-y2t2)
+# ---------------------------------------------------------------------------
+
+
+def _hub_incidence(n_agents=40, n_edits=400, seed=7):
+    rng = random.Random(seed)
+    agents = [f"h{i}" for i in range(n_agents)]
+    return [(rng.choice(agents), "welcome") for _ in range(n_edits)]
+
+
+class TestProjectIncidence:
+    def test_sequential_is_reply_to_previous_distinct_agent(self):
+        inc = [("a", "p"), ("b", "p"), ("b", "p"), ("a", "p"), ("c", "q")]
+        # b replies to a; b's self follow-up is dropped; a replies to b;
+        # c creates q and has no counterparty.
+        assert sorted(project_incidence(inc)) == [("a", "b", 1.0), ("b", "a", 1.0)]
+
+    def test_sequential_reproduces_projected_graph(self):
+        inc = _hub_incidence(n_agents=6, n_edits=40)
+        g = DiGraph.from_edges(project_incidence(inc))
+        # re-projecting the same incidence is idempotent on the graph
+        g2 = DiGraph.from_edges(project_incidence(inc))
+        assert g.out == g2.out
+
+    def test_co_membership_is_symmetric_clique_per_object(self):
+        inc = [("a", "p"), ("b", "p"), ("c", "p"), ("a", "q"), ("b", "q")]
+        edges = {(u, v): w for u, v, w in project_incidence(inc, projection="co_membership")}
+        assert edges[("a", "b")] == 2.0 and edges[("b", "a")] == 2.0
+        assert edges[("a", "c")] == 1.0 and ("c", "b") in edges
+
+    def test_unknown_projection(self):
+        with pytest.raises(ValueError):
+            project_incidence([("a", "p")], projection="nope")
+
+
+class TestBipartiteNull:
+    def test_preserves_agent_and_object_counts(self):
+        inc = _hub_incidence(n_agents=5, n_edits=30) + [("x", "side")] * 3
+        # Count what the null projects from, not the projected edges: the
+        # sampler is deterministic per seed, so rebuild its shuffled incidence.
+        rng = random.Random(3)
+        agents = [a for a, _ in inc]
+        rng.shuffle(agents)
+        from collections import Counter
+        assert Counter(agents) == Counter(a for a, _ in inc)
+        null = bipartite_null(inc, seed=3)
+        assert null.nodes <= {a for a, _ in inc}
+
+    def test_membership_variant_keeps_per_object_counts(self):
+        from collections import Counter
+        inc = _hub_incidence(n_agents=5, n_edits=30) + [("x", "side"), ("y", "side"), ("x", "side")]
+        # Under preserve_membership the per-object multiset of agents is
+        # fixed, so "side" can only ever project x<->y edges and the hub
+        # never gains x or y.
+        for seed in range(5):
+            null = bipartite_null(inc, seed=seed, preserve_membership=True)
+            assert not (null.undirected_neighbors("x") - {"y"})
+        assert Counter(a for a, o in inc if o == "side") == Counter({"x": 2, "y": 1})
+
+    def test_requires_incidence(self):
+        g_edges = project_incidence(_hub_incidence(n_agents=6, n_edits=30))
+        with pytest.raises(ValueError):
+            detect_structural_anomalies(g_edges, null="bipartite")
+        with pytest.raises(ValueError):
+            density_pvalue(DiGraph.from_edges(g_edges), {"h0", "h1"}, null="membership")
+
+    def test_unknown_null(self):
+        g_edges = project_incidence(_hub_incidence(n_agents=6, n_edits=30))
+        with pytest.raises(ValueError):
+            detect_structural_anomalies(g_edges, null="lattice")
+
+    def test_default_null_unchanged(self):
+        inc = _hub_incidence()
+        edges = project_incidence(inc)
+        a = detect_structural_anomalies(edges, n_null_samples=20, seed=0)
+        b = detect_structural_anomalies(edges, n_null_samples=20, seed=0, null="configuration")
+        assert [(x.members, x.pvalue, x.reciprocity_z) for x in a] == [
+            (x.members, x.pvalue, x.reciprocity_z) for x in b
+        ]
+
+    def test_hub_page_saturates_configuration_but_not_bipartite(self):
+        """The acceptance case: a hot hub page makes every co-editor a
+        reply neighbour. The configuration model cannot reproduce that and
+        pins every hub community at the p-value floor; both bipartite nulls
+        reproduce the board and rank nothing on it."""
+        inc = _hub_incidence()
+        edges = project_incidence(inc)
+        conf = detect_structural_anomalies(edges, n_null_samples=50, seed=0)
+        assert conf and all(a.pvalue <= 0.05 for a in conf)
+        for null in ("bipartite", "membership"):
+            hub_aware = detect_structural_anomalies(
+                edges, n_null_samples=50, seed=0, null=null, incidence=inc
+            )
+            assert [a.members for a in hub_aware] == [a.members for a in conf]
+            assert all(a.pvalue > 0.3 for a in hub_aware), null
+
+    def test_relay_on_the_hub_survives_membership_null(self):
+        """Coordination beyond membership: four agents who only ever post
+        in consecutive runs on the busy page. Their internal edges are far
+        denser than a random ordering of the same per-page edit counts
+        predicts, while the hub community around them is not."""
+        rng = random.Random(11)
+        inc = _hub_incidence()
+        block = [(c, "welcome") for c in ("c0", "c1", "c2", "c3", "c0", "c2")]
+        for _ in range(4):
+            pos = rng.randrange(len(inc))
+            inc[pos:pos] = block
+        g = DiGraph.from_edges(project_incidence(inc))
+        coalition = {"c0", "c1", "c2", "c3"}
+        p_relay = density_pvalue(g, coalition, n_samples=50, seed=0, null="membership", incidence=inc)
+        assert p_relay <= 0.05
+        hub = {f"h{i}" for i in range(40)}
+        p_hub = density_pvalue(g, hub, n_samples=50, seed=0, null="membership", incidence=inc)
+        assert p_hub > 0.05
+        # Presence-based density saturates: give the relay enough edits and
+        # every ordered pair among four agents appears by chance in the null
+        # too, so the coalition stops being distinguishable (12 blocks: p≈0.67).
+        # A weighted density is the follow-up if that bites on real data.
+
+    def test_private_page_pair_is_invisible_to_membership_null(self):
+        """Documented blind spot: two agents alternating alone on their
+        own page produce order-invariant edges, so the membership null
+        reports them as expected; the bipartite configuration model, which
+        also randomises page choice, still flags them."""
+        inc = _hub_incidence()
+        for _ in range(8):
+            inc += [("c0", "p0"), ("c1", "p0"), ("c2", "p1"), ("c3", "p1"), ("c0", "p2"), ("c2", "p2")]
+        inc += [("c1", "p2"), ("c3", "p0")]
+        random.Random(5).shuffle(inc)
+        g = DiGraph.from_edges(project_incidence(inc))
+        coalition = {"c0", "c1", "c2", "c3"}
+        p_member = density_pvalue(g, coalition, n_samples=50, seed=0, null="membership", incidence=inc)
+        p_bip = density_pvalue(g, coalition, n_samples=50, seed=0, null="bipartite", incidence=inc)
+        assert p_bip <= 0.05 < p_member

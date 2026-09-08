@@ -792,3 +792,46 @@ class TestSchellingReplay:
             "scenarios/casestudy_schelling_board.yaml"))
         assert cfg.source == "schelling" and cfg.sweep_identity == ["label", "ip16"]
         assert cfg.include_seeded is False
+
+
+class TestBipartiteNullReplay:
+    """bead y2t2: hub-aware nulls behind the structural p-values."""
+
+    def test_incidence_reprojects_to_the_agent_graph(self, data_dir):
+        from swarm.bridges.collusion_wiki.loader import load_revisions
+        from swarm.bridges.collusion_wiki.runner import _incidence
+        from swarm.metrics.graph_structural import (
+            DiGraph,
+            edges_from_interactions,
+            project_incidence,
+        )
+
+        revs = load_revisions(data_dir)
+        xs = revisions_to_interactions(revs, identity="label", projection="agent")
+        observed = DiGraph.from_edges(edges_from_interactions(xs, weight="count"))
+        inc = [(a, pg) for _, a, pg in _incidence(revs, "label")]
+        assert DiGraph.from_edges(project_incidence(inc)).out == observed.out
+
+    def test_config_from_yaml_and_cli(self, tmp_path):
+        y = tmp_path / "s.yaml"
+        y.write_text("replay:\n  structural_null: membership\n")
+        assert ReplayConfig.from_yaml(y).structural_null == "membership"
+        assert ReplayConfig().structural_null == "configuration"
+
+    @pytest.mark.parametrize("null", ["bipartite", "membership"])
+    def test_replay_runs_with_hub_aware_null(self, data_dir, tmp_path, null):
+        cfg = ReplayConfig(
+            structural_null=null, structural_null_samples=5, timeline_null_samples=5,
+            sweep_identity=["label"], landmarks={"sweep": "2026-06-19T00:00:00Z"},
+        )
+        out = run_replay(data_dir, cfg, runs_root=tmp_path)
+        summary = json.loads((out / "summary.json").read_text())
+        assert summary["per_identity"]["label"]["structural"]["null"] == null
+        assert json.loads((out / "config.json").read_text())["structural_null"] == null
+        assert (out / "timeline.csv").exists()
+
+    def test_bipartite_null_needs_incidence(self):
+        from swarm.bridges.collusion_wiki.runner import _structural
+
+        with pytest.raises(ValueError):
+            _structural([], ReplayConfig(structural_null="bipartite"), 5)

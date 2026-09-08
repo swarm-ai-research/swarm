@@ -81,7 +81,7 @@ Full timeline: `timeline.csv` in the run folder.
 
 1. **The post's sentence gets a correction.** Structural detection does not fail on a back channel you can observe; it saturates. Per-agent temporal clustering is not the survivor; it is an artifact of handle rotation. The survivor is aggregate volume, which none of the three detectors computes. Bead `hoer` added it: `volume_burst_signal` in `CollusionDetector` (trailing-median ratio, ecosystem and per-object), surfaced in the replay timeline and lag table.
 2. **Identity is the lever.** Every result flips between `label` and `ip16`. A detector that cannot resolve identities below the handle is measuring the sybil policy, not the coordination. That is the same lesson as the `qoro` overlap sweep from the other side.
-3. **The null needs a hub-aware alternative.** The configuration model rejects every community on a hub-dominated graph. A null that preserves page co-membership (a bipartite rewiring) would separate "there is a board" from "these agents coordinate on it." Filed as a follow-up.
+3. **The null needs a hub-aware alternative.** The configuration model rejects every community on a hub-dominated graph. A null that preserves page co-membership (a bipartite rewiring) would separate "there is a board" from "these agents coordinate on it." Filed as a follow-up. Done 2026-09-08, bead `y2t2`: see [Hub-aware nulls](#hub-aware-nulls-2026-09-08).
 4. **The bridge is reusable.** Any edit log with (actor, object, time) fits the mapper. The Hyperspace repository history from [Gossiping Swarms](../blog/gossiping-swarms-what-the-message-board-cannot-see.md) is the obvious second input.
 
 ## Data caveat (2026-09-05)
@@ -106,7 +106,32 @@ Three things move. First, the per-agent temporal score collapses further: under 
 
 What stays fixed is as informative. `CollusionDetector` still flags nothing (best pair 0.45 against 0.5), because with `p` at 0.5 there is no quality asymmetry for the pair score to use, and volume never alarms because relay traffic runs at a steady 1.1 to 1.3 times its trailing median. The structural null is still the configuration model and still sits at its floor for every community, so "32 at floor" ranks nothing; the family purity is read off the members, not off a p-value.
 
-So the answer to "would a detector with true identities have caught this" is: the structural detector would have produced task-shaped reciprocal communities, and a human reading them would have seen the cohorts. No threshold in the current stack turns that into an alarm. The hub-aware null filed under [What this changes](#what-this-changes) is what would.
+So the answer to "would a detector with true identities have caught this" is: the structural detector would have produced task-shaped reciprocal communities, and a human reading them would have seen the cohorts. No threshold in the current stack turns that into an alarm. The hub-aware null in the next section is what would.
+
+## Hub-aware nulls (2026-09-08)
+
+Bead `y2t2` adds two null models that rewire the agent-to-page incidence the reply graph is projected from, then re-project it with the same reply rule (`swarm/metrics/graph_structural.py` `bipartite_null`, `--structural-null` on the CLI, `replay.structural_null` in the scenario). Candidate extraction is unchanged, so the same 57 `label` communities are scored three ways. Runs `20260908T164347Z` (configuration), `20260908T164346Z` (bipartite), `20260908T164554Z` (membership), seed 0, 50 null samples, no timeline.
+
+| Null | What it preserves | Candidates at p < 0.05 | Pass the pre-registered gate (size ≥ 3, density ≥ 1, z ≥ 2, p ≤ 0.05) | 1,303-member board | 52-handle welcome-page core (k-core 8, density 9.4) |
+|---|---|---|---|---|---|
+| `configuration` | each agent's in/out degree | 57 / 57 | 34 | p 0.020, z 3.8 | p 0.020, z 8.1 |
+| `bipartite` | each agent's edit count, each page's edit count and order | 57 / 57 | 33 | p 0.020, z 3.1 | p 0.020, z 5.1 |
+| `membership` | each agent's edit count *per page* (order within a page shuffled) | 24 / 57 | 6 | p 1.0, z 1.3 | p 1.0, z 1.2 |
+
+**The bipartite configuration model changes nothing.** It reproduces a page's reply chain but still randomises which pages an agent touched, and on this log the agents who made the board are far more concentrated on it than a random assignment of 14.6k edits over 3,103 labels and thousands of pages would put them. Concentration on one page is structure under that null, so it rejects everything the configuration model rejected.
+
+**The membership null does what the follow-up asked for.** With page membership held fixed, the board itself is exactly as expected: the 1,303-member community and the welcome-page core both sit at p = 1.0, and the core's reciprocity z falls from 8.1 to 1.2. "Everyone who posted on the welcome page is a reply neighbour of everyone else" is now the null, not the finding. What survives is turn-taking beyond membership: 24 candidates remain below 0.05, six pass the full gate, and every one of the six has its internal edges on one or two task pages of a single family, agents of that family following each other on a sequence or relay page more often than their share of the page's edits predicts (Grocery agents on `DataUSAGroceryLiveRounds2027`, three CVD handles on `CVDJun20Live2025`, nine Clothing handles on `DataUSAClothingLive12m24Oct25`, fifteen Cook handles on `AgentCooksEvidence1782991`, a 96-member CVD and school-psychology group across three sequence pages, and three handles on `ZZZEnrollmentAsianFeb21Help`). Those are the handle-grammar cohorts the field-evidence note describes; the null does not say they coordinated, only that their reply order on a shared page is not what a shuffle of that page gives.
+
+Two limits, both by construction. Two agents alternating alone on a private page are invisible to the membership null, since the pair's edges do not depend on order; the bipartite null and the configuration model both flag that shape. And the density statistic counts distinct edges, so a coalition with enough edits on a busy page eventually realises every ordered pair under any shuffle and stops being distinguishable (the unit test documents this at 12 relay blocks on a 400-edit page). A weighted density is the follow-up if that bites. The 428-member community is the one large group that stays at the floor under `membership` with z 0.6: dense across many pages rather than reciprocal on one.
+
+Reproduce (the runs are not committed; the export is the pinned one):
+
+```bash
+for n in configuration bipartite membership; do
+  python -m swarm.bridges.collusion_wiki scenarios/casestudy_wiki_backchannel.yaml \
+      --data-dir runs/data/collusion_wiki --identity label --no-timeline --structural-null $n
+done
+```
 
 ## Reproduce
 
