@@ -163,15 +163,28 @@ class TestLLMJudgeRubricSelection:
         from swarm.judges.llm_call import LLMCallResult
         return LLMCallResult(text=text, input_tokens=10, output_tokens=10, latency_seconds=0.01)
 
-    def test_default_loads_v1_prompt_for_back_compat(self) -> None:
-        # LLMJudge defaults to rubric_version=RUBRIC_VERSION which is v1.
+    def test_default_loads_the_current_rubric(self) -> None:
+        # A caller who names no version gets DEFAULT_RUBRIC_VERSION. The
+        # older behaviour silently built a v1 prompt and recorded v1 beside
+        # it, so nothing downstream could tell the choice from an intent.
         judge = LLMJudge(
             name="claude",
             caller=lambda _p: self._result('{"score": 0.5, "rationale": "x"}'),
         )
+        assert judge.rubric_version == DEFAULT_RUBRIC_VERSION
+        prompt = judge._build_prompt(_view({}))
+        assert DEFAULT_RUBRIC_VERSION in prompt
+        assert "rubric.v1" not in prompt
+
+    def test_v1_stays_selectable_by_name(self) -> None:
+        # Arm B is pre-registered to v1, so it must remain reachable.
+        judge = LLMJudge(
+            name="claude",
+            rubric_version="rubric.v1",
+            caller=lambda _p: self._result('{"score": 0.5, "rationale": "x"}'),
+        )
         prompt = judge._build_prompt(_view({}))
         assert "rubric.v1" in prompt
-        # v2 markers should not be in a v1 prompt
         assert "Bans the 0.5 default" not in prompt
 
     def test_v2_selectable(self) -> None:
