@@ -39,7 +39,8 @@ class SimulationConfig:
     # set without moving content, and the sweep count is taken from every page
     # on the host. sort_last+eligible is the ZZZ-aware follow-up: authors
     # prefix remaining pages so they sort past the alphabetical window, and
-    # the operation count is drawn from that window.
+    # the operation count is drawn from that window. move relocates a
+    # learner's live pages to another writable host at learning time.
     evasion_style: str = "exclude"
     page_budget_basis: str = "host"
     evasion_prefix: str = "ZZZ"
@@ -81,7 +82,7 @@ class SimulationConfig:
             "moderation_policy": {"none", "ordered", "random", "lock", "global_lock"},
             "relocation_mode": {"endogenous", "forced"},
             "moderation_granularity": {"host", "page"},
-            "evasion_style": {"exclude", "sort_last"},
+            "evasion_style": {"exclude", "sort_last", "move"},
             "page_budget_basis": {"host", "eligible"},
             "page_disruption_scope": {"host", "deleted"},
         }.items():
@@ -140,7 +141,10 @@ def simulate(config: SimulationConfig, seed: int) -> SimulationResult:
     ``page_budget_basis='eligible'`` the sweep count is drawn from that set.
     Random deletion does not teach the prefix and still samples the live host.
     A learner renames only its live pages on the swept host; pages it holds
-    elsewhere keep their names until rewritten. ``page_disruption_scope``
+    elsewhere keep their names until rewritten. Under ``evasion_style='move'``
+    learners relocate their live pages on the swept host to another writable
+    host at learning time, so a later sweep of that host cannot reach them;
+    the budget is still drawn per ``page_budget_basis``. ``page_disruption_scope``
     chooses whether a page sweep relocates every in-progress assignment on the
     host (``'host'``, the published rule) or only work whose page was removed
     (``'deleted'``); it is independent of ``evasion_style``.
@@ -242,7 +246,7 @@ def simulate(config: SimulationConfig, seed: int) -> SimulationResult:
             for host in targets:
                 is_lock = c.moderation_policy in {"lock", "global_lock"}
                 evasion_learned = 0
-                renamed = 0
+                renamed = moved = 0
                 deleted_tasks: set[str] = set()
                 eligible_count = host_pages = budget = prefixed_remaining = 0
                 if is_lock:
@@ -290,6 +294,24 @@ def simulate(config: SimulationConfig, seed: int) -> SimulationResult:
                             if rng("evasion", task, host, author).random() < c.evasion_learning_probability:
                                 evaders.add(author)
                                 evasion_learned += 1
+                                if c.evasion_style == "move":
+                                    refuges = [h for h in range(c.n_hosts)
+                                               if h != host and h not in locked]
+                                    if not refuges:
+                                        continue
+                                    refuge = rng("evasion_move", task, host, author).choice(refuges)
+                                    for live_task, live_page in list(boards[host].items()):
+                                        if live_page.author != author:
+                                            continue
+                                        boards[host].pop(live_task)
+                                        # An existing page on the refuge wins.
+                                        boards[refuge].setdefault(live_task, live_page)
+                                        log(time, "move", author, host=refuge,
+                                            from_host_id=host, page_task=live_task,
+                                            intervention_id=task)
+                                        moved += 1
+                                    referrals.add(refuge)
+                                    continue
                                 if c.evasion_style != "sort_last":
                                     continue
                                 for live_task, live_page in list(boards[host].items()):
@@ -312,6 +334,7 @@ def simulate(config: SimulationConfig, seed: int) -> SimulationResult:
                 log(time, "moderation", host=host, removed_pages=0 if is_lock else removed,
                     locked=is_lock, intervention_id=task,
                     evasion_learned=evasion_learned, renamed_pages=renamed,
+                    moved_pages=moved,
                     eligible_pages=eligible_count, host_pages=host_pages,
                     budget=budget, prefixed_remaining=prefixed_remaining)
                 for (aid, tid), work in works.items():
@@ -423,6 +446,7 @@ def simulate(config: SimulationConfig, seed: int) -> SimulationResult:
         "eligible_pages": float(sum(e.get("eligible_pages", 0) for e in events
                                     if e["type"] == "moderation")),
         "renamed_pages": float(sum(e["type"] == "rename" for e in events)),
+        "moved_pages": float(sum(e["type"] == "move" for e in events)),
         "prefixed_pages": float(sum(
             1 for board in boards for page in board.values()
             if page.name.startswith(c.evasion_prefix)

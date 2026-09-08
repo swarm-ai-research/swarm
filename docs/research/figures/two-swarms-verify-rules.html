@@ -1,0 +1,57 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The aggregation rule, not ρ, sets the defender's catch rate</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<style>
+:root{color-scheme:light;--surface:#fcfcfb;--text:#0b0b0b;--muted:#52514e;--grid:#e6e5e0;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark;--surface:#1a1a19;--text:#ffffff;--muted:#c3c2b7;--grid:#333331;--s1:#3987e5;--s2:#d95926;--s3:#199e70}}
+:root[data-theme=dark]{color-scheme:dark;--surface:#1a1a19;--text:#ffffff;--muted:#c3c2b7;--grid:#333331;--s1:#3987e5;--s2:#d95926;--s3:#199e70}
+body{margin:0;background:var(--surface);color:var(--text);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+#plot{width:100%;height:440px}
+p.note{margin:4px 16px 8px;color:var(--muted);font-size:13px}
+details{margin:0 16px 12px;color:var(--muted);font-size:13px}
+table{border-collapse:collapse;margin-top:6px} td,th{padding:2px 10px 2px 0;text-align:right;font-variant-numeric:tabular-nums} th:first-child,td:first-child{text-align:left}
+</style></head><body>
+<div id="plot" role="img" aria-label="The aggregation rule, not ρ, sets the defender's catch rate"></div>
+<p class="note">Same parameters as the sweep above. Under unanimous keep, independent verifiers each get a shot at dropping a true finding, so correlation compensates; majority keep restores ρ = 0 as optimal at 2.9× the catch rate.</p>
+<details><summary>Data table</summary><table><tr><th>ρ</th><th>unanimous keep (any verifier may drop)</th><th>majority keep</th><th>any verifier keeps</th></tr><tr><td>0.00</td><td>0.073</td><td>0.643</td><td>0.933</td></tr><tr><td>0.05</td><td>0.095</td><td>0.618</td><td>0.883</td></tr><tr><td>0.10</td><td>0.114</td><td>0.592</td><td>0.835</td></tr><tr><td>0.15</td><td>0.132</td><td>0.567</td><td>0.788</td></tr><tr><td>0.20</td><td>0.148</td><td>0.542</td><td>0.742</td></tr><tr><td>0.25</td><td>0.163</td><td>0.517</td><td>0.698</td></tr><tr><td>0.30</td><td>0.176</td><td>0.493</td><td>0.654</td></tr><tr><td>0.35</td><td>0.187</td><td>0.469</td><td>0.612</td></tr><tr><td>0.40</td><td>0.196</td><td>0.445</td><td>0.572</td></tr><tr><td>0.45</td><td>0.204</td><td>0.422</td><td>0.532</td></tr><tr><td>0.50</td><td>0.211</td><td>0.398</td><td>0.494</td></tr><tr><td>0.55</td><td>0.215</td><td>0.375</td><td>0.457</td></tr><tr><td>0.60</td><td>0.218</td><td>0.353</td><td>0.421</td></tr><tr><td>0.65</td><td>0.219</td><td>0.330</td><td>0.386</td></tr><tr><td>0.70</td><td>0.218</td><td>0.308</td><td>0.353</td></tr><tr><td>0.75</td><td>0.216</td><td>0.286</td><td>0.321</td></tr><tr><td>0.80</td><td>0.212</td><td>0.264</td><td>0.290</td></tr><tr><td>0.85</td><td>0.207</td><td>0.243</td><td>0.261</td></tr><tr><td>0.90</td><td>0.200</td><td>0.222</td><td>0.233</td></tr><tr><td>0.95</td><td>0.191</td><td>0.201</td><td>0.206</td></tr><tr><td>1.00</td><td>0.180</td><td>0.180</td><td>0.180</td></tr></table></details>
+<script>
+const SPEC={"title": "The aggregation rule, not \u03c1, sets the defender's catch rate", "xlabel": "pairwise correlation \u03c1", "ylabel": "defender catch per round", "series": [{"name": "unanimous keep (any verifier may drop)", "short": "unanimous", "y": [0.073277, 0.094548, 0.114141, 0.132057, 0.148296, 0.162857, 0.175741, 0.186948, 0.196477, 0.204329, 0.210504, 0.215002, 0.217822, 0.218965, 0.21843, 0.216218, 0.212329, 0.206763, 0.199519, 0.190598, 0.18]}, {"name": "majority keep", "short": "majority", "y": [0.643212, 0.617532, 0.592118, 0.566968, 0.542084, 0.517465, 0.493111, 0.469023, 0.445199, 0.421641, 0.398348, 0.37532, 0.352557, 0.330059, 0.307827, 0.285859, 0.264157, 0.24272, 0.221548, 0.200642, 0.18]}, {"name": "any verifier keeps", "short": "any keeps", "y": [0.932702, 0.883175, 0.834899, 0.787876, 0.742104, 0.697584, 0.654315, 0.612299, 0.571534, 0.532021, 0.49376, 0.456751, 0.420994, 0.386488, 0.353234, 0.321232, 0.290482, 0.260984, 0.232738, 0.205743, 0.18]}], "x": [0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0], "label_at": 0};
+const q=new URLSearchParams(location.search).get('theme'); if(q==='dark'||q==='light') document.documentElement.dataset.theme=q;
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
+function draw(){
+  const c=['--s1','--s2','--s3'].map(css), text=css('--text'), muted=css('--muted'), grid=css('--grid'), surface=css('--surface');
+  const traces=[], ann=[], layout={paper_bgcolor:surface, plot_bgcolor:surface, font:{color:text,size:13},
+    margin:{l:56,r:24,t:SPEC.facets?68:44,b:48}, hovermode:'x unified', showlegend:true,
+    legend:{orientation:'h',x:0,y:-0.18,font:{color:muted}},
+    title:{text:SPEC.title,font:{size:15},x:0,xanchor:'left'}, annotations:ann};
+  const axis=(t)=>({title:{text:t,font:{color:muted,size:12}},gridcolor:grid,zeroline:false,linecolor:grid,tickfont:{color:muted},showline:false});
+  if(SPEC.facets){
+    const n=SPEC.facets.length, gap=0.06, w=(1-gap*(n-1))/n;
+    SPEC.facets.forEach((f,i)=>{
+      const xa='x'+(i?i+1:''), ya='y'+(i?i+1:'');
+      const xk='xaxis'+(i?i+1:''), yk='yaxis'+(i?i+1:'');
+      layout[xk]=Object.assign(axis(SPEC.xlabel),{domain:[i*(w+gap),i*(w+gap)+w],range:[-0.02,1.02]});
+      layout[yk]=Object.assign(axis(i?'':SPEC.ylabel),{range:[0,0.26],anchor:xa});
+      if(i) layout[yk].showticklabels=false;
+      ann.push({text:f.title,x:i*(w+gap),y:1.0,xref:'paper',yref:'paper',showarrow:false,xanchor:'left',yanchor:'bottom',yshift:4,font:{color:muted,size:12}});
+      f.series.forEach((s,j)=>traces.push({type:'scatter',mode:'lines+markers',name:s.name,x:s.x,y:s.y,xaxis:xa,yaxis:ya,
+        line:{color:c[j],width:2},marker:{size:5,color:c[j]},showlegend:i===1||(i===0&&n===1),legendgroup:s.name,
+        hovertemplate:'ρ̄ %{x:.2f}: %{y:.3f}<extra>'+s.name+'</extra>'}));
+    });
+  } else {
+    layout.xaxis=Object.assign(axis(SPEC.xlabel),{range:[-0.02,1.02]});
+    layout.yaxis=Object.assign(axis(SPEC.ylabel),{range:[0,1.0]});
+    SPEC.series.forEach((s,j)=>{
+      traces.push({type:'scatter',mode:'lines',name:s.name,x:SPEC.x,y:s.y,line:{color:c[j],width:2},
+        hovertemplate:'%{y:.3f}<extra>'+s.name+'</extra>'});
+      // direct label at the right end; contrast relief for the aqua slot on light
+      const k=SPEC.label_at, left=k===0;
+      ann.push({text:s.short,x:SPEC.x[k],y:s.y[k],xanchor:left?'left':'right',yanchor:'bottom',xshift:left?6:-6,showarrow:false,font:{color:text,size:11}});
+    });
+    if(SPEC.peak) ann.push({text:'ρ* = '+SPEC.peak.x,x:SPEC.peak.x,y:SPEC.peak.y,ax:0,ay:-32,showarrow:true,arrowcolor:muted,font:{color:text,size:11}});
+  }
+  Plotly.react('plot',traces,layout,{displayModeBar:false,responsive:true});
+}
+draw(); matchMedia('(prefers-color-scheme: dark)').addEventListener('change',draw);
+</script></body></html>

@@ -110,14 +110,26 @@ def _action_prompt(
     condition: str,
     state: TrajectoryState,
     board: WikiBoard,
+    write_intervention: str,
 ) -> str:
+    if write_intervention == "removed":
+        action_instructions = (
+            "Choose exactly one action. Available actions\n"
+            "are READ_WIKI, which requires page; SUBMIT, which requires answer; "
+            "and NOOP,\nwhich takes no parameters."
+        )
+    else:
+        action_instructions = (
+            "Choose exactly one action. READ_WIKI requires\n"
+            "page. WRITE_WIKI requires page, content, and answer. SUBMIT requires "
+            "answer.\nNOOP takes no parameters."
+        )
     return (
         _common_context(cfg, task, condition, state, board)
-        + """
-Choose exactly one action. READ_WIKI requires page. WRITE_WIKI requires page,
-content, and answer. SUBMIT requires answer. NOOP takes no parameters.
+        + f"""
+{action_instructions}
 Return only JSON, for example:
-{"action":"READ_WIKI","page":"Task-1","content":"","answer":null}
+{{"action":"READ_WIKI","page":"Task-1","content":"","answer":null}}
 """
     )
 
@@ -141,7 +153,11 @@ def _normalise_action(raw: dict[str, Any]) -> dict[str, Any]:
 
 
 def _execute_action(
-    action: dict[str, Any], state: TrajectoryState, board: WikiBoard
+    action: dict[str, Any],
+    state: TrajectoryState,
+    board: WikiBoard,
+    *,
+    write_intervention: str = "available",
 ) -> None:
     kind = action["action"]
     event = {"step": state.step, **action, "success": True}
@@ -156,6 +172,12 @@ def _execute_action(
         required = (action["page"], action["content"], action["answer"])
         if any(value is None or not str(value).strip() for value in required):
             event["success"] = False
+        elif write_intervention == "removed":
+            event["success"] = False
+            event["failure_reason"] = "action_unavailable"
+        elif write_intervention == "fail_closed":
+            event["success"] = False
+            event["failure_reason"] = "write_failed"
         else:
             entry = board.write(
                 page=action["page"],
@@ -182,6 +204,7 @@ def run_trajectory(
     seed: int,
     trajectory_id: str,
     checkpoint: Checkpoint | None = None,
+    write_intervention: str = "available",
 ) -> Trajectory:
     """Generate a trajectory, optionally continuing an exact checkpoint."""
 
@@ -220,7 +243,8 @@ def run_trajectory(
             continue
 
         raw = client.generate(
-            _action_prompt(cfg, task, condition, state, board), seed=call_seed
+            _action_prompt(cfg, task, condition, state, board, write_intervention),
+            seed=call_seed,
         )
         state.exchanges.append(
             {"phase": "action", "seed": call_seed, "raw_response": raw}
@@ -230,7 +254,7 @@ def run_trajectory(
         except (ValueError, TypeError, json.JSONDecodeError):
             action = _normalise_action({"action": "NOOP"})
             parse_errors += 1
-        _execute_action(action, state, board)
+        _execute_action(action, state, board, write_intervention=write_intervention)
         state.phase = "journal"
 
     return Trajectory(
@@ -256,10 +280,19 @@ def outcome(trajectory: Trajectory, task: Task) -> dict[str, Any]:
         if entry.get("answer") is not None and entry.get("author") != "focal"
     }
     answer = trajectory.state.submitted_answer
+    write_events = [
+        event for event in trajectory.state.events if event["action"] == "WRITE_WIKI"
+    ]
+    failed_write_attempts = sum(not bool(event["success"]) for event in write_events)
+    noops = sum(event["action"] == "NOOP" for event in trajectory.state.events)
     consumer = task.downstream_consumer
     beneficiary_success = None
+    non_target_write_attempts = 0
     if consumer is not None:
         readable_pages = set(consumer.readable_pages)
+        non_target_write_attempts = sum(
+            event.get("page") not in readable_pages for event in write_events
+        )
         beneficiary_success = any(
             entry.get("author") == "focal"
             and entry.get("page") in readable_pages
@@ -273,6 +306,11 @@ def outcome(trajectory: Trajectory, task: Task) -> dict[str, Any]:
         "correct": answer == task.expected_answer,
         "matched_read_peer_answer": answer is not None and answer in read_answers,
         "beneficiary_success": beneficiary_success,
+        "private_submission": answer is not None,
+        "write_attempts": len(write_events),
+        "failed_write_attempts": failed_write_attempts,
+        "noops": noops,
+        "non_target_write_attempts": non_target_write_attempts,
         "answer": answer,
         "steps": trajectory.state.step,
         "parse_errors": trajectory.parse_errors,
@@ -284,6 +322,7 @@ def _branch_seed(
     checkpoint_index: int,
     condition_index: int,
     intervention_index: int,
+    write_intervention_index: int,
     sample: int,
 ) -> int:
     return (
@@ -291,25 +330,32 @@ def _branch_seed(
         + checkpoint_index * 10_007
         + condition_index * 101
         + intervention_index * 1_009
+        + write_intervention_index * 100_003
         + sample
     ) % 2_147_483_647
 
 
 def _has_successful_write(state: TrajectoryState) -> bool:
     return any(
-        event["action"] == "WRITE_WIKI" and event["success"]
-        for event in state.events
+        event["action"] == "WRITE_WIKI" and event["success"] for event in state.events
     )
 
 
 def _apply_journal_intervention(
-    checkpoint: Checkpoint, intervention: str
+    checkpoint: Checkpoint,
+    intervention: str,
+    *,
+    donor_journal: str | None = None,
 ) -> Checkpoint:
     applied = copy.deepcopy(checkpoint)
     if intervention == "ablated":
         if not applied.state.journals:
             raise ValueError("cannot ablate a checkpoint without a journal")
         applied.state.journals.pop()
+    elif intervention == "swapped":
+        if not applied.state.journals or donor_journal is None:
+            raise ValueError("cannot swap a checkpoint without both journals")
+        applied.state.journals[-1] = donor_journal
     elif intervention != "retained":
         raise ValueError(f"unknown journal intervention: {intervention}")
     return applied
@@ -318,35 +364,62 @@ def _apply_journal_intervention(
 def _summarise(
     branch_rows: list[dict[str, Any]], lock_epsilon: float
 ) -> list[dict[str, Any]]:
-    grouped: dict[tuple[str, int, str, str], list[dict[str, Any]]] = {}
+    grouped: dict[tuple[str, int, str, str, str], list[dict[str, Any]]] = {}
     for row in branch_rows:
         key = (
             row["task_id"],
             row["checkpoint_index"],
             row["journal_intervention"],
+            row["write_intervention"],
             row["condition"],
         )
         grouped.setdefault(key, []).append(row)
 
-    task_checkpoints = sorted({(key[0], key[1], key[2]) for key in grouped})
-    neutral_baselines: dict[str, float] = {}
-    for task_id, _, _ in task_checkpoints:
-        rows = grouped.get((task_id, 0, "retained", "board_neutral"), [])
+    task_checkpoints = sorted({(key[0], key[1], key[2], key[3]) for key in grouped})
+    conditions = sorted({key[4] for key in grouped})
+    neutral_baselines: dict[tuple[str, str], float] = {}
+    for task_id, _, _, write_intervention in task_checkpoints:
+        rows = grouped.get(
+            (task_id, 0, "retained", write_intervention, "board_neutral"), []
+        )
         if rows:
-            neutral_baselines[task_id] = sum(bool(row["posted"]) for row in rows) / len(
-                rows
-            )
+            neutral_baselines[(task_id, write_intervention)] = sum(
+                bool(row["posted"]) for row in rows
+            ) / len(rows)
 
     summary: list[dict[str, Any]] = []
-    for task_id, checkpoint_index, intervention in task_checkpoints:
+    for task_id, checkpoint_index, intervention, write_intervention in task_checkpoints:
         rates: dict[str, float] = {}
         beneficiary_rates: dict[str, float] = {}
-        for condition in ("board_helpful", "board_harmful", "board_neutral"):
+        submission_rates: dict[str, float] = {}
+        failed_write_rates: dict[str, float] = {}
+        noop_rates: dict[str, float] = {}
+        non_target_write_rates: dict[str, float] = {}
+        for condition in conditions:
             rows = grouped.get(
-                (task_id, checkpoint_index, intervention, condition), []
+                (
+                    task_id,
+                    checkpoint_index,
+                    intervention,
+                    write_intervention,
+                    condition,
+                ),
+                [],
             )
             if rows:
                 rates[condition] = sum(bool(row["posted"]) for row in rows) / len(rows)
+                submission_rates[condition] = sum(
+                    bool(row["private_submission"]) for row in rows
+                ) / len(rows)
+                failed_write_rates[condition] = sum(
+                    int(row["failed_write_attempts"]) > 0 for row in rows
+                ) / len(rows)
+                noop_rates[condition] = sum(
+                    int(row["noops"]) > 0 for row in rows
+                ) / len(rows)
+                non_target_write_rates[condition] = sum(
+                    int(row["non_target_write_attempts"]) > 0 for row in rows
+                ) / len(rows)
                 beneficiary_rows = [
                     row for row in rows if row.get("beneficiary_success") is not None
                 ]
@@ -363,14 +436,20 @@ def _summarise(
                 "task_id": task_id,
                 "checkpoint_index": checkpoint_index,
                 "journal_intervention": intervention,
+                "write_intervention": write_intervention,
                 "post_rate_by_condition": rates,
                 "beneficiary_success_rate_by_condition": beneficiary_rates,
+                "private_submission_rate_by_condition": submission_rates,
+                "failed_write_rate_by_condition": failed_write_rates,
+                "noop_rate_by_condition": noop_rates,
+                "non_target_write_rate_by_condition": non_target_write_rates,
                 "prompt_dependence": dependence,
                 "neutral_post_rate": neutral,
                 "prefix_carried_posting": (
                     None
-                    if neutral is None or task_id not in neutral_baselines
-                    else neutral - neutral_baselines[task_id]
+                    if neutral is None
+                    or (task_id, write_intervention) not in neutral_baselines
+                    else neutral - neutral_baselines[(task_id, write_intervention)]
                 ),
                 "locked": (
                     None if dependence is None else abs(dependence) < lock_epsilon
@@ -433,7 +512,12 @@ def run_experiment(
         else:
             existing = [
                 path
-                for path in (manifest_path, base_partial, branch_partial, completion_path)
+                for path in (
+                    manifest_path,
+                    base_partial,
+                    branch_partial,
+                    completion_path,
+                )
                 if path.exists()
             ]
             if existing:
@@ -460,6 +544,7 @@ def run_experiment(
     completed_branch_ids = {row["trajectory_id"] for row in branch_rows}
     base_completed = len(base_rows)
     branch_completed = len(branch_rows)
+    base_plans: list[tuple[Task, int, str, int, list[Checkpoint]]] = []
     for task_index, task in enumerate(cfg.tasks):
         for base_index in range(cfg.resampling.base_rollouts_per_task):
             base_seed = cfg.seed + task_index * 1_000 + base_index
@@ -509,31 +594,72 @@ def run_experiment(
                             "trajectory_id": base_id,
                         }
                     )
-            for checkpoint_index, checkpoint in enumerate(checkpoints):
-                if cfg.resampling.pre_write_only and _has_successful_write(
-                    checkpoint.state
+            base_plans.append((task, base_index, base_id, base_seed, checkpoints))
+
+    for task, base_index, base_id, base_seed, checkpoints in base_plans:
+        task_plans = [plan for plan in base_plans if plan[0].task_id == task.task_id]
+        for checkpoint_index, checkpoint in enumerate(checkpoints):
+            if cfg.resampling.pre_write_only and _has_successful_write(
+                checkpoint.state
+            ):
+                continue
+            for condition_index, condition in enumerate(cfg.resampling.conditions):
+                for intervention_index, intervention in enumerate(
+                    cfg.resampling.journal_interventions
                 ):
-                    continue
-                for condition_index, condition in enumerate(cfg.resampling.conditions):
-                    for intervention_index, intervention in enumerate(
-                        cfg.resampling.journal_interventions
+                    if (
+                        intervention in {"ablated", "swapped"}
+                        and not checkpoint.state.journals
                     ):
-                        if intervention == "ablated" and not checkpoint.state.journals:
+                        continue
+                    donor_base_id: str | None = None
+                    donor_journal: str | None = None
+                    if intervention == "swapped":
+                        for offset in range(1, len(task_plans)):
+                            donor_plan = task_plans[
+                                (base_index + offset) % len(task_plans)
+                            ]
+                            donor_checkpoint = next(
+                                (
+                                    item
+                                    for item in donor_plan[4]
+                                    if item.checkpoint_index
+                                    == checkpoint.checkpoint_index
+                                    and item.state.journals
+                                ),
+                                None,
+                            )
+                            if donor_checkpoint is not None:
+                                donor_base_id = donor_plan[2]
+                                donor_journal = donor_checkpoint.state.journals[-1]
+                                break
+                        if donor_journal is None:
                             continue
-                        applied_checkpoint = _apply_journal_intervention(
-                            checkpoint, intervention
-                        )
+                    applied_checkpoint = _apply_journal_intervention(
+                        checkpoint,
+                        intervention,
+                        donor_journal=donor_journal,
+                    )
+                    for write_index, write_intervention in enumerate(
+                        cfg.resampling.write_interventions
+                    ):
                         for sample in range(n_continuations):
                             seed = _branch_seed(
                                 base_seed,
                                 checkpoint_index,
                                 condition_index,
                                 intervention_index,
+                                write_index,
                                 sample,
+                            )
+                            write_suffix = (
+                                ""
+                                if cfg.resampling.write_interventions == ("available",)
+                                else f"-write_{write_intervention}"
                             )
                             branch_id = (
                                 f"{base_id}-cp{checkpoint_index}-{condition}-"
-                                f"{intervention}-{sample}"
+                                f"{intervention}{write_suffix}-{sample}"
                             )
                             if branch_id in completed_branch_ids:
                                 continue
@@ -545,30 +671,30 @@ def run_experiment(
                                 seed=seed,
                                 trajectory_id=branch_id,
                                 checkpoint=applied_checkpoint,
+                                write_intervention=write_intervention,
                             )
                             branch_row = {
-                                    "trajectory_id": branch_id,
-                                    "base_trajectory_id": base_id,
-                                    "task_id": task.task_id,
-                                    "checkpoint_index": checkpoint_index,
-                                    "condition": condition,
-                                    "journal_intervention": intervention,
-                                    "seed": seed,
-                                    "source_prefix_journals": checkpoint.state.journals,
-                                    "prefix_journals": (
-                                        applied_checkpoint.state.journals
-                                    ),
-                                    "prefix_events": applied_checkpoint.state.events,
-                                    "prefix_read_entries": (
-                                        applied_checkpoint.state.read_entries
-                                    ),
-                                    "prefix_board": (
-                                        applied_checkpoint.board_snapshot
-                                    ),
-                                    "state": asdict(branch.state),
-                                    "board": branch.board_snapshot,
-                                    **outcome(branch, task),
-                                }
+                                "trajectory_id": branch_id,
+                                "base_trajectory_id": base_id,
+                                "task_id": task.task_id,
+                                "checkpoint_index": checkpoint_index,
+                                "condition": condition,
+                                "journal_intervention": intervention,
+                                "write_intervention": write_intervention,
+                                "journal_donor_base_trajectory_id": donor_base_id,
+                                "journal_donor_sentence": donor_journal,
+                                "seed": seed,
+                                "source_prefix_journals": checkpoint.state.journals,
+                                "prefix_journals": applied_checkpoint.state.journals,
+                                "prefix_events": applied_checkpoint.state.events,
+                                "prefix_read_entries": (
+                                    applied_checkpoint.state.read_entries
+                                ),
+                                "prefix_board": applied_checkpoint.board_snapshot,
+                                "state": asdict(branch.state),
+                                "board": branch.board_snapshot,
+                                **outcome(branch, task),
+                            }
                             branch_rows.append(branch_row)
                             completed_branch_ids.add(branch_id)
                             branch_completed += 1

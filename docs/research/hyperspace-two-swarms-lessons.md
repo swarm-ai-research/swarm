@@ -212,6 +212,12 @@ Retention moves the other way, and the product is **non-monotone**: defender
 catch peaks at ρ* = 0.65, where it is **2.99× better than at full
 independence**. For this pipeline, "decorrelate everything" is actively wrong.
 
+<iframe src="figures/two-swarms-rho-sweep.html" title="Attacker hit and defender stages over rho" height="470" width="100%" style="border:0" loading="lazy"></iframe>
+
+*Interactive; hover for values, expand the data table for the numbers. Static
+copy: [two-swarms-rho-sweep.png](figures/two-swarms-rho-sweep.png). Regenerate
+with `python scripts/plot_correlation_asymmetry.py`.*
+
 ### 2. But the interior optimum is a symptom, not a design target
 
 Sweeping the verification rule at the same parameters:
@@ -221,6 +227,8 @@ Sweeping the verification rule at the same parameters:
 | unanimous (any verifier may drop) | 0.65 | 0.2190 | 0.0733 | 0.1800 |
 | majority | 0.00 | **0.6432** | 0.6432 | 0.1800 |
 | any_keeps | 0.00 | **0.9327** | 0.9327 | 0.1800 |
+
+<iframe src="figures/two-swarms-verify-rules.html" title="Defender catch over rho under three aggregation rules" height="470" width="100%" style="border:0" loading="lazy"></iframe>
 
 Switching from unanimous-drop to majority is a **2.9× improvement in catch
 rate**, and it restores ρ = 0 as optimal. The interior optimum in finding 1 is
@@ -247,6 +255,8 @@ at matched achieved ρ̄:
 | 2 | 1.0 | 0.0733 | 0.1987 | 0.40 | 2.71× |
 | 4 | 0.5 | 0.0733 | 0.1933 | 1.00 | 2.64× |
 | 4 | 1.0 | 0.0733 | 0.1083 | 0.10 | 1.48× |
+
+<iframe src="figures/two-swarms-structured.html" title="Defender catch over achieved rho by family structure" height="430" width="100%" style="border:0" loading="lazy"></iframe>
 
 **Qualitative claim survives:** the optimum is interior in all nine topologies
 tested — the defender never wants full independence under this rule.
