@@ -31,6 +31,10 @@ The snapshot is pinned by sha256 the way the scenario pins the export's
 ``db_sha256``; :func:`verify_snapshot` checks the file and the manifest's row
 counts. Every text field is untrusted content: do not execute it or fetch
 URLs it contains.
+
+This module is a standalone loader. The collusion_wiki CLI and replay
+pipeline do not load the Termina snapshot yet; the scenario's ``termina:``
+block pins hashes for callers of this module.
 """
 
 from __future__ import annotations
@@ -41,7 +45,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional, Sequence, Tuple
+from typing import Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
 
 from swarm.bridges.collusion_wiki.loader import WikiRevision
 
@@ -151,6 +155,24 @@ def _connect(db: Path) -> sqlite3.Connection:
     return sqlite3.connect(resolve_sqlite(db).resolve().as_uri() + "?mode=ro", uri=True)
 
 
+def _quote_ident(name: str) -> str:
+    """Double-quote a SQLite identifier, escaping embedded ``"``."""
+    return '"' + name.replace('"', '""') + '"'
+
+
+def _sql_in(column: str, values: Iterable[str], where: List[str], params: List[str]) -> bool:
+    """Append ``column IN (...)``. Return False if ``values`` is empty.
+
+    SQLite rejects ``IN ()``; an empty filter list is an empty result set.
+    """
+    items = sorted(set(values))
+    if not items:
+        return False
+    where.append(f"{column} IN ({','.join('?' * len(items))})")
+    params.extend(items)
+    return True
+
+
 def parse_time(s: Optional[str]) -> Optional[datetime]:
     """ISO-8601 at any precision the db uses (``2026-05``, ``...T20:23Z``, ...)."""
     if not s:
@@ -224,7 +246,7 @@ def iter_records(
     either bound is given.
     """
     venue_wiki = wiki_venues(db)
-    want: Optional[set] = None
+    want: Optional[set[str]] = None
     if venues is not None:
         want = set(venues)
     if wikis is not None:
@@ -237,15 +259,12 @@ def iter_records(
     )
     where: List[str] = []
     params: List[str] = []
-    if want is not None:
-        where.append("venue_id IN (%s)" % ",".join("?" * len(want)))
-        params += sorted(want)
-    if kinds is not None:
-        where.append("kind IN (%s)" % ",".join("?" * len(kinds)))
-        params += sorted(set(kinds))
-    if phases is not None:
-        where.append("phase IN (%s)" % ",".join("?" * len(phases)))
-        params += sorted(set(phases))
+    if want is not None and not _sql_in("venue_id", want, where, params):
+        return
+    if kinds is not None and not _sql_in("kind", kinds, where, params):
+        return
+    if phases is not None and not _sql_in("phase", phases, where, params):
+        return
     if where:
         sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY observed_time, id"
@@ -295,12 +314,10 @@ def iter_actors(db: Path, *, venues: Optional[Sequence[str]] = None,
     sql = "SELECT id, kind, name, venue_id, first_seen, last_seen, notes FROM actor"
     where: List[str] = []
     params: List[str] = []
-    if venues is not None:
-        where.append("venue_id IN (%s)" % ",".join("?" * len(venues)))
-        params += sorted(set(venues))
-    if kinds is not None:
-        where.append("kind IN (%s)" % ",".join("?" * len(kinds)))
-        params += sorted(set(kinds))
+    if venues is not None and not _sql_in("venue_id", venues, where, params):
+        return
+    if kinds is not None and not _sql_in("kind", kinds, where, params):
+        return
     if where:
         sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY id"
@@ -329,9 +346,8 @@ def iter_claims(db: Path, *, subject_kind: Optional[str] = None,
     if subject_id is not None:
         where.append("subject_id = ?")
         params.append(subject_id)
-    if statuses is not None:
-        where.append("status IN (%s)" % ",".join("?" * len(statuses)))
-        params += sorted(set(statuses))
+    if statuses is not None and not _sql_in("status", statuses, where, params):
+        return
     if where:
         sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY subject_kind, subject_id, id"
@@ -415,7 +431,7 @@ def verify_snapshot(
             table = fname[:-len(".jsonl")] if fname.endswith(".jsonl") else fname
             if table not in tables:
                 continue
-            n = con.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
+            n = con.execute(f"SELECT COUNT(*) FROM {_quote_ident(table)}").fetchone()[0]
             if n != meta.get("rows"):
                 raise ValueError(f"{table}: {n} rows in sqlite, manifest says {meta.get('rows')}")
             counts[table] = n

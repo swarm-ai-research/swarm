@@ -40,7 +40,9 @@ The pack's other 4,768 texts (paste, URL-shortener, package and extra-wiki candi
 
 ### Structured records from the termina.digital incident db
 
-The third source is the CC0 [ai-safety-lab incident db](https://swarm.termina.digital/db/) (schema v9, snapshot of 2026-09-08, pinned by sha256 under `termina:` in the scenario). It is a secondary synthesis, not another copy of the primary bodies: 91,320 `record` rows across 154 venues carry `body_sha256` and `body_len` pointers only, so the reading pack stays the body source. `termina.py` reads the `record`, `actor`, `venue` and `claim` tables, maps venue ids onto the bridge's wiki names (`dse`, `probier`, `fractal`, `dorfwiki` are the same id on both sides; the db's 36 other wiki venues keep their id), joins `revision` rows onto export revisions on `(page_id, time)`, and verifies the snapshot against its manifest's row counts.
+`termina.py` is an optional loader for the CC0 [ai-safety-lab incident db](https://swarm.termina.digital/db/) (schema v9, snapshot of 2026-09-08, hashes pinned under `termina:` in the scenario). It is **not yet a third end-to-end source**: the collusion_wiki CLI and replay path still consume only the export (`data.base_url` / `data.files`) plus the optional reading pack (`--pack` with `--stego`). `--fetch` does not download the Termina snapshot. Call the loader directly for records, actors, claims, post-export rows, and snapshot verification.
+
+It is a secondary synthesis, not another copy of the primary bodies: 91,320 `record` rows across 154 venues carry `body_sha256` and `body_len` pointers only, so the reading pack stays the body source. The loader reads the `record`, `actor`, `venue` and `claim` tables, maps venue ids onto the bridge's wiki names (`dse`, `probier`, `fractal`, `dorfwiki` are the same id on both sides; the db's 36 other wiki venues keep their id), joins `revision` rows onto export revisions on `(page_id, time)`, and verifies the snapshot against its manifest's row counts.
 
 What it adds over the export, measured on the pinned snapshot:
 
@@ -120,7 +122,7 @@ The run folder adds `history.json` and `csv/interactions.csv` (the `SoftInteract
 |---|---|
 | `swarm/bridges/collusion_wiki/loader.py` | reads `revisions.jsonl[.gz]` and `events.jsonl[.gz]` |
 | `swarm/bridges/collusion_wiki/reading_pack.py` | reads the reading pack's `agent-text.sqlite`; joins page bodies onto revisions; tiers the non-wiki candidates |
-| `swarm/bridges/collusion_wiki/termina.py` | reads the termina.digital `incidents.sqlite`; venue-to-wiki mapping, post-export rows, claims with status, snapshot verification |
+| `swarm/bridges/collusion_wiki/termina.py` | optional loader for termina.digital `incidents.sqlite` (not yet consumed by the CLI/replay); venue-to-wiki mapping, post-export rows, claims with status, snapshot verification |
 | `swarm/bridges/collusion_wiki/stego.py` | hidden-carrier scan over export text fields and, with `--pack`, page bodies |
 | `swarm/bridges/collusion_wiki/mapper.py` | revisions to `SoftInteraction`, identity and projection modes |
 | `swarm/bridges/collusion_wiki/runner.py` | detector passes, timeline, run folder |

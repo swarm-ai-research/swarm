@@ -635,7 +635,6 @@ class TestSchellingReplay:
 
 def _termina(tmp_path, records, *, manifest=True):
     """Minimal incidents.sqlite with the columns the loader reads."""
-    import json
     import sqlite3
     d = tmp_path / "termina"
     d.mkdir(parents=True)
@@ -767,3 +766,30 @@ class TestTermina:
         (bad / "manifest.json").write_text('{"files": {"venue.jsonl": {"rows": 2}}}')
         with pytest.raises(ValueError, match="venue: 3 rows"):
             T.verify_snapshot(bad)
+
+    def test_empty_filters_yield_nothing(self, termina_dir):
+        from swarm.bridges.collusion_wiki import termina as T
+        assert T.load_records(termina_dir, wikis=["no-such-wiki"]) == []
+        assert T.load_records(termina_dir, wikis=[]) == []
+        assert T.load_records(termina_dir, venues=[]) == []
+        assert T.load_records(termina_dir, kinds=[]) == []
+        assert T.load_records(termina_dir, phases=[]) == []
+        assert list(T.iter_actors(termina_dir, venues=[])) == []
+        assert list(T.iter_actors(termina_dir, kinds=[])) == []
+        assert list(T.iter_claims(termina_dir, statuses=[])) == []
+
+    def test_verify_snapshot_escapes_quoted_table_names(self, tmp_path):
+        from swarm.bridges.collusion_wiki import termina as T
+        import sqlite3
+        assert T._quote_ident('odd"tbl') == '"odd""tbl"'
+        d = tmp_path / "quoted"
+        d.mkdir()
+        con = sqlite3.connect(d / "incidents.sqlite")
+        con.execute('CREATE TABLE "odd""tbl" (id TEXT)')
+        con.execute('INSERT INTO "odd""tbl" VALUES ("a")')
+        con.commit()
+        con.close()
+        (d / "manifest.json").write_text(json.dumps({
+            "files": {'odd"tbl.jsonl': {"rows": 1}},
+        }))
+        assert T.verify_snapshot(d)["rows"] == {'odd"tbl': 1}

@@ -28,9 +28,10 @@ data:
   # manifest.json "db_sha256" of the export this scenario was written against
   manifest_db_sha256: 199241bf9e0b38b58764cf1545680de8fec8896db034050bde145e3b6f6ce0bb
 
-# third source: the swarm.termina.digital incident db (CC0), read by termina.py.
-# Pointers only (no bodies); adds recent-changes rows to 2026-09-07 that the
-# export (ends 2026-07-02) lacks. Snapshot pinned 2026-09-08, schema v9.
+# Hash pin for the standalone termina.py loader (not consumed by the CLI
+# or replay yet; --fetch still only pulls data.files). Pointers only
+# (no bodies); adds recent-changes rows to 2026-09-07 that the export
+# (ends 2026-07-02) lacks. Snapshot pinned 2026-09-08, schema v9.
 termina:
   base_url: https://swarm.termina.digital/db/
   files: [incidents.sqlite, manifest.json, schema.json]
