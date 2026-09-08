@@ -10,7 +10,10 @@ log instead of a simulation.
 
 Since bead y91o the same detectors also replay the schelling-point board
 from the offline ``fast_follow_question_bench`` recreation
-(``--source schelling``; see ``schelling.py``).
+(``--source schelling``; see ``schelling.py``), and since bead lnaf the
+swarm.termina.digital incident db, which carries the wikis' live
+RecentChanges rows past the export's July 2 cut (``--source termina``;
+see ``termina.py``).
 
 Entry point: ``python -m swarm.bridges.collusion_wiki``.
 """
@@ -21,6 +24,7 @@ from swarm.bridges.collusion_wiki.runner import (
     ReplayConfig,
     run_replay,
     run_schelling_replay,
+    run_termina_replay,
 )
 from swarm.bridges.collusion_wiki.schelling import (
     BoardMessage,
@@ -28,16 +32,25 @@ from swarm.bridges.collusion_wiki.schelling import (
     load_board_messages,
     load_inspect_eval_log,
 )
+from swarm.bridges.collusion_wiki.termina import (
+    fingerprint,
+)
+from swarm.bridges.collusion_wiki.termina import (
+    load_revisions as load_termina_revisions,
+)
 
 __all__ = [
     "BoardMessage",
     "EvalSample",
     "ReplayConfig",
     "WikiRevision",
+    "fingerprint",
     "load_board_messages",
     "load_inspect_eval_log",
     "load_revisions",
+    "load_termina_revisions",
     "revisions_to_interactions",
     "run_replay",
     "run_schelling_replay",
+    "run_termina_replay",
 ]

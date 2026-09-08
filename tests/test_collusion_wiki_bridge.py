@@ -134,6 +134,14 @@ class TestMapper:
         with pytest.raises(ValueError, match="revision 'r2' has no 'run' id"):
             load_run_map(m)
 
+    def test_actor_identity_falls_back_to_label_on_the_export(self, data_dir):
+        # bead lnaf: export rows carry no actor_raw, so "actor" == "label"
+        a = revisions_to_interactions(load_revisions(data_dir), identity="actor")
+        b = revisions_to_interactions(load_revisions(data_dir), identity="label")
+        assert [(x.initiator, x.counterparty) for x in a] == [
+            (x.initiator, x.counterparty) for x in b
+        ]
+
     def test_reply_window_drops_slow_replies(self, data_dir):
         xs = revisions_to_interactions(
             load_revisions(data_dir), reply_window_seconds=3600
