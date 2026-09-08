@@ -100,12 +100,32 @@ Both inputs are runtime artifacts of the upstream benchmark and are not committe
 
 The run folder adds `history.json` and `csv/interactions.csv` (the `SoftInteraction` records, replayable) and `csv/posts.csv` (every board row with its attribution and p) to the files above. The upstream README calls the recreation only moderately faithful to the original scaffold, and the seed-transcript directory it references is not in the public tree, so an export may contain no seeded rows.
 
+### Post-disclosure records from the termina.digital incident db
+
+The export ends on 2026-07-02. The *ai-safety-lab incident db* published at [swarm.termina.digital/pub/](https://swarm.termina.digital/pub/) (CC0-1.0, schema version 9, one JSONL per table plus a `manifest.json` of sha256s, and the same 22 tables as a 50 MB `incidents.sqlite`) carries the export's 14,591 revisions *and* live RecentChanges rows for 40 wiki venues to 2026-09-07. `termina.py` reads the sqlite's `venue`, `record`, `actor` and `claim` tables; the wiki venue ids (`dse`, `probier`, `fractal`, `dorfwiki`) are the export's `wiki` names, so `to_revisions()` projects records onto `WikiRevision` and the identity modes and detectors run unchanged. Measured against the bundle the scenario pins (generated 2026-09-08):
+
+| Venue | `revision` (export) | `rc-row` (live) | `delete` | Last observed | Saved edits after the export |
+|---|---:|---:|---:|---|---:|
+| dse | 13,403 | 22,484 | 5,217 | 2026-09-06 | 3,994 |
+| probier | 1,017 | 1,016 | 0 | 2026-09-07 | 155 |
+| fractal | 169 | 564 | 0 | 2026-09-05 | 17 |
+| dorfwiki | 6 | 2,296 | 0 | 2026-09-06 | 1,074 |
+
+Three cautions the loader encodes. **Counts are not comparable to the export**: the db holds one row per RecentChanges listing (minute precision), one per export revision twice (`revision` with actor, `save` without), and one per deletion, which is why `dse` shows 54,612 records against 13,403 revisions; `post_disclosure_records()` returns saved edits only (`revision`, `rc-row`) on `kind = 'wiki'` venues after `EXPORT_END`. **Identity is thinner after the export**: of the 5,240 post-export edits on the four export wikis, 44 carry a handle, 5,065 the wiki's numbered anonymous-editor id (kept as a label) and 131 an IP actor (kept as `ip16`, never as a label), and `rc-row` times are minute precision, so reply windows under 60 s mean nothing there. **Bodies are pointers** (`body_sha256`, `body_path`), so the reading pack stays the body source. `claim` rows keep their `status` (verified / inferred / reported / contradicted) and whether a `made_by` evidence link exists; the manifest's provenance rule says an unlinked row is an assertion awaiting a link, and the loader never flattens that.
+
+```python
+from swarm.bridges.collusion_wiki.termina import post_disclosure_records, to_revisions, verify_pins
+verify_pins(bundle, pins)               # {"incidents.sqlite": "ok", "record.jsonl": "ok", ...}
+revs = to_revisions(post_disclosure_records(bundle, venues=["dse", "probier", "fractal"]))
+```
+
 ## Files
 
 | Path | Role |
 |---|---|
 | `swarm/bridges/collusion_wiki/loader.py` | reads `revisions.jsonl[.gz]` and `events.jsonl[.gz]` |
 | `swarm/bridges/collusion_wiki/reading_pack.py` | reads the reading pack's `agent-text.sqlite`; joins page bodies onto revisions; tiers the non-wiki candidates |
+| `swarm/bridges/collusion_wiki/termina.py` | reads the termina.digital `incidents.sqlite` (venue, record, actor, claim); post-disclosure records; pin check |
 | `swarm/bridges/collusion_wiki/stego.py` | hidden-carrier scan over export text fields and, with `--pack`, page bodies |
 | `swarm/bridges/collusion_wiki/mapper.py` | revisions to `SoftInteraction`, identity and projection modes |
 | `swarm/bridges/collusion_wiki/runner.py` | detector passes, timeline, run folder |

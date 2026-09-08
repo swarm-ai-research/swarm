@@ -28,6 +28,25 @@ data:
   # manifest.json "db_sha256" of the export this scenario was written against
   manifest_db_sha256: 199241bf9e0b38b58764cf1545680de8fec8896db034050bde145e3b6f6ce0bb
 
+# Third source (bead lnaf): the ai-safety-lab incident db from
+# swarm.termina.digital/pub/ (CC0-1.0, schema version 9). Its record table
+# carries the export revisions plus live RecentChanges rows to 2026-09-07,
+# so post-disclosure activity on the wikis is visible here only. Bodies are
+# pointers, not text; the reading pack stays the body source. Pinned to the
+# bundle generated 2026-09-08T14:10:58Z (manifest sha256s of the tables the
+# loader reads, plus the sqlite file itself); swarm/bridges/collusion_wiki/
+# termina.py verify_pins() reports ok / mismatch / absent per entry.
+termina:
+  base_url: https://swarm.termina.digital/pub/
+  files: [incidents.sqlite, manifest.json, schema.json]
+  export_end: "2026-07-02T23:59:59Z"
+  pins:
+    incidents.sqlite: 80bb262a52008bd9e29c4d99d17aac542cfce23d72f3bd5b3f0208414632e69e
+    record.jsonl: 03a28c1d1becf2569460fde5881ff20f109a4c92768caebce72d41fc6e6b773e
+    actor.jsonl: 1edf0db6ec29299574464b021d53b15decda102128a9fb725384e6d2e395464b
+    venue.jsonl: 7d8fb50d5d1de5cd5ed72b173d127515494bc32b4223f26df3ed81634e4e50b6
+    claim.jsonl: 28a03162d4f4b66f36be6b44af6f5f2de314982df65cb0e112f6d9adfa3f57d9
+
 replay:
   identity: label          # label | ip16 | label_ip16  (also swept below)
   projection: agent        # agent | page

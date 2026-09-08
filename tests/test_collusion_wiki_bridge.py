@@ -629,3 +629,184 @@ class TestSchellingReplay:
             "scenarios/casestudy_schelling_board.yaml"))
         assert cfg.source == "schelling" and cfg.sweep_identity == ["label", "ip16"]
         assert cfg.include_seeded is False
+
+
+def _termina(tmp_path, records, *, claims=(), manifest=None):
+    """A tiny incidents.sqlite + manifest.json in the db's schema (bead lnaf)."""
+    import sqlite3
+
+    d = tmp_path / "termina"
+    d.mkdir()
+    con = sqlite3.connect(d / "incidents.sqlite")
+    con.executescript(
+        "CREATE TABLE venue (id TEXT PRIMARY KEY, host TEXT NOT NULL, path TEXT NOT NULL "
+        "DEFAULT '', software TEXT, kind TEXT NOT NULL, status TEXT NOT NULL, "
+        "first_seen TEXT, last_seen TEXT);"
+        "CREATE TABLE actor (id TEXT PRIMARY KEY, kind TEXT NOT NULL, name TEXT NOT NULL, "
+        "venue_id TEXT);"
+        "CREATE TABLE record (id TEXT PRIMARY KEY, venue_id TEXT NOT NULL, kind TEXT NOT "
+        "NULL, external_id TEXT, title TEXT, observed_time TEXT, time_precision TEXT, "
+        "time_zone TEXT, actor_id TEXT, ip_actor_id TEXT, body_sha256 TEXT, body_len "
+        "INTEGER, phase TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'live', source TEXT "
+        "NOT NULL, source_ref TEXT);"
+        "CREATE TABLE claim (id TEXT PRIMARY KEY, subject_kind TEXT NOT NULL, subject_id "
+        "TEXT NOT NULL, text TEXT NOT NULL, made_by TEXT, status TEXT NOT NULL, basis "
+        "TEXT, checked_by TEXT, notes TEXT NOT NULL DEFAULT '');"
+    )
+    con.executemany("INSERT INTO venue VALUES (?,?,?,?,?,?,?,?)", [
+        ("dse", "wikiservice.at", "/dse", "prowiki", "wiki", "live", "2026-05-24", ""),
+        ("probier", "wikiservice.at", "/probier", "prowiki", "wiki", "live", "", ""),
+        ("dagd", "da.gd", "", None, "shortener", "live", None, None),
+    ])
+    con.executemany("INSERT INTO actor VALUES (?,?,?,?)", [
+        ("handle:dse:HelperA", "handle", "HelperA", "dse"),
+        ("human:dse:327", "human", "327", "dse"),
+        ("ip:probier:84.115.212.x", "ip", "84.115.212.x", "probier"),
+        ("ip16:20.45", "ip16", "20.45", None),
+    ])
+    for i, r in enumerate(records):
+        con.execute(
+            "INSERT INTO record VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (r.get("id", f"rec{i}"), r["venue_id"], r["kind"], None, r.get("title"),
+             r.get("observed_time"), r.get("time_precision"), "utc", r.get("actor_id"),
+             r.get("ip_actor_id"), r.get("body_sha256"), r.get("body_len"),
+             r.get("phase", "pre-disclosure"), "live", r.get("source", "live-rc"), None))
+    for i, c in enumerate(claims):
+        con.execute("INSERT INTO claim VALUES (?,?,?,?,?,?,?,?,?)",
+                    (c.get("id", f"c{i}"), c["subject_kind"], c["subject_id"], c["text"],
+                     c.get("made_by"), c["status"], None, None, ""))
+    con.commit()
+    con.close()
+    (d / "manifest.json").write_text(json.dumps(manifest or {
+        "schema_version": "9", "generated_at": "2026-09-08T14:10:58Z",
+        "files": {"record.jsonl": {"rows": len(records), "sha256": "aa"},
+                  "venue.jsonl": {"rows": 3, "sha256": "bb"}},
+    }))
+    return d
+
+
+@pytest.fixture
+def termina_dir(tmp_path):
+    return _termina(tmp_path, [
+        # export-era revision + its duplicate save row (dse/Answers by HelperA)
+        {"id": "dse~Answers@1", "venue_id": "dse", "kind": "revision", "title": "Answers",
+         "observed_time": "2026-06-16T10:00:00Z", "time_precision": "second",
+         "actor_id": "handle:dse:HelperA", "ip_actor_id": "ip16:20.45",
+         "body_sha256": "s1", "body_len": 40, "source": "collusion-export"},
+        {"id": "save:dse~Answers@1", "venue_id": "dse", "kind": "save", "title": "Answers",
+         "observed_time": "2026-06-16T10:00:00Z", "time_precision": "second",
+         "source": "collusion-export"},
+        # post-export RecentChanges rows: a numbered human, an IP actor, a deletion
+        {"id": "rc:dse:2026-07-10T12:00:Answers#1", "venue_id": "dse", "kind": "rc-row",
+         "title": "Answers", "observed_time": "2026-07-10T10:00Z",
+         "time_precision": "minute", "actor_id": "human:dse:327", "phase": "post-report"},
+        {"id": "rc:probier:2026-09-01T01:44:Context#1", "venue_id": "probier",
+         "kind": "rc-row", "title": "Context", "observed_time": "2026-08-31T23:44Z",
+         "time_precision": "minute", "actor_id": "ip:probier:84.115.212.x",
+         "phase": "post-press"},
+        {"id": "delete:dse:rclog:1", "venue_id": "dse", "kind": "delete", "title": "Old",
+         "observed_time": "2026-07-03T15:21:02Z", "actor_id": "human:dse:327"},
+        # non-wiki venue and an undated row: never activity
+        {"id": "short:dagd:1", "venue_id": "dagd", "kind": "shortlink",
+         "observed_time": "2026-08-01", "source": "live-dagd-lookup"},
+        {"id": "rc:dse:undated", "venue_id": "dse", "kind": "rc-row", "title": "X"},
+    ], claims=[
+        {"subject_kind": "venue", "subject_id": "dse", "status": "verified",
+         "text": "primary relay board", "made_by": "ev1"},
+        {"subject_kind": "venue", "subject_id": "dse", "status": "reported",
+         "text": "unsourced assertion"},
+        {"subject_kind": "incident", "subject_id": "i1", "status": "inferred",
+         "text": "x", "made_by": "ev2"},
+    ])
+
+
+class TestTermina:
+    def test_venues_and_wiki_names(self, termina_dir):
+        from swarm.bridges.collusion_wiki.termina import load_venues, wiki_venues
+        assert [v.id for v in load_venues(termina_dir)] == ["dagd", "dse", "probier"]
+        assert wiki_venues(termina_dir) == {"dse": "dse", "probier": "probier"}
+        assert load_venues(termina_dir, kind="shortener")[0].software == ""
+
+    def test_parse_time_forms(self):
+        from datetime import datetime, timezone
+
+        from swarm.bridges.collusion_wiki.termina import parse_time
+        utc = timezone.utc
+        assert parse_time("2026-05-24T06:05Z") == datetime(2026, 5, 24, 6, 5, tzinfo=utc)
+        assert parse_time("2026-05-12T00:53") == datetime(2026, 5, 12, 0, 53, tzinfo=utc)
+        assert parse_time("2026-09-05T22:12:33.698239Z").microsecond == 698239
+        assert parse_time("2026-08-01") == datetime(2026, 8, 1, tzinfo=utc)
+        assert parse_time(None) is None and parse_time("") is None
+
+    def test_records_join_actor_and_ip16(self, termina_dir):
+        from swarm.bridges.collusion_wiki.termina import load_records
+        recs = {r.id: r for r in load_records(termina_dir, venues=["dse"])}
+        rev = recs["dse~Answers@1"]
+        assert (rev.actor_kind, rev.actor, rev.ip16) == ("handle", "HelperA", "20.45")
+        assert rev.page_id == "dse/Answers" and not rev.post_disclosure
+        rc = recs["rc:dse:2026-07-10T12:00:Answers#1"]
+        assert (rc.actor_kind, rc.actor, rc.ip16) == ("human", "327", "")
+        assert rc.post_disclosure and rc.time_precision == "minute"
+        assert recs["rc:dse:undated"].time is None
+        # kinds / phases filters
+        assert [r.id for r in load_records(termina_dir, kinds=["delete"])] == \
+            ["delete:dse:rclog:1"]
+        assert {r.phase for r in load_records(termina_dir, phases=["post-press"])} == \
+            {"post-press"}
+
+    def test_post_disclosure_records_default_to_wiki_saved_edits(self, termina_dir):
+        from swarm.bridges.collusion_wiki.termina import post_disclosure_records
+        got = [r.id for r in post_disclosure_records(termina_dir)]
+        # no export-era rows, no save duplicates, no deletions, no shortener, no undated
+        assert got == ["rc:dse:2026-07-10T12:00:Answers#1",
+                       "rc:probier:2026-09-01T01:44:Context#1"]
+        assert [r.venue for r in post_disclosure_records(termina_dir, venues=["probier"])] \
+            == ["probier"]
+
+    def test_to_revisions_runs_through_the_mapper(self, termina_dir):
+        from swarm.bridges.collusion_wiki.termina import load_records, to_revisions
+        revs = to_revisions(load_records(termina_dir))
+        assert [r.rev_id for r in revs] == [
+            "dse~Answers@1", "rc:dse:2026-07-10T12:00:Answers#1",
+            "rc:probier:2026-09-01T01:44:Context#1"]
+        assert (revs[0].label, revs[0].ip16, revs[0].body_len) == ("HelperA", "20.45", 40)
+        assert revs[1].label == "327"  # numbered human id is a label
+        assert (revs[2].label, revs[2].ip16) == ("", "84.115")  # IP actor is not a label
+        assert revs[2].page_id == "probier/Context"
+        # the mapper pairs consecutive editors of one page: HelperA -> 327 on dse/Answers
+        inter = revisions_to_interactions(revs, identity="label_ip16")
+        assert [i.interaction_id for i in inter] == ["rc:dse:2026-07-10T12:00:Answers#1"]
+
+    def test_claims_keep_status_and_sourcing(self, termina_dir):
+        from swarm.bridges.collusion_wiki.termina import load_claims
+        dse = load_claims(termina_dir, subject_kind="venue", subject_id="dse")
+        assert [(c.status, c.sourced) for c in dse] == [("verified", True),
+                                                        ("reported", False)]
+        assert len(load_claims(termina_dir, status="inferred")) == 1
+        assert len(load_claims(termina_dir)) == 3
+
+    def test_pins_and_summary(self, termina_dir, tmp_path):
+        from swarm.bridges.collusion_wiki.termina import (
+            sha256_of,
+            summary,
+            verify_pins,
+        )
+        pins = {"record.jsonl": "aa", "venue.jsonl": "zz", "claim.jsonl": "cc",
+                "incidents.sqlite": sha256_of(termina_dir / "incidents.sqlite")}
+        assert verify_pins(termina_dir, pins) == {
+            "record.jsonl": "ok", "venue.jsonl": "mismatch", "claim.jsonl": "absent",
+            "incidents.sqlite": "ok"}
+        assert verify_pins(tmp_path / "nowhere", {"incidents.sqlite": "x"}) == {
+            "incidents.sqlite": "absent"}
+        s = summary(termina_dir)
+        assert s["schema_version"] == "9" and set(s["venues"]) == {"dse", "probier"}
+        assert s["venues"]["dse"]["by_kind"] == {"revision": 1, "save": 1, "rc-row": 2,
+                                                 "delete": 1}
+        assert s["venues"]["dse"]["post_export_edits"] == 1
+        assert s["venues"]["dse"]["last"] == "2026-07-10T10:00:00Z"
+
+    def test_accepts_sqlite_path_and_missing_raises(self, termina_dir, tmp_path):
+        from swarm.bridges.collusion_wiki.termina import load_venues
+        assert len(load_venues(termina_dir / "incidents.sqlite")) == 3
+        with pytest.raises(FileNotFoundError):
+            load_venues(tmp_path / "nope")
