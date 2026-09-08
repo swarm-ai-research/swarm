@@ -283,3 +283,49 @@ def test_zzz_sweep_smoke_emits_new_metrics(tmp_path) -> None:
     assert payload["treatment"]["config"]["evasion_style"] == "sort_last"
     assert payload["treatment"]["config"]["page_budget_basis"] == "eligible"
     assert payload["treatment"]["config"]["page_disruption_scope"] == "deleted"
+
+
+def _page_base(**overrides: object) -> SimulationConfig:
+    return replace(SimulationConfig(
+        n_agents=12, n_tasks=4, n_hosts=2, task_overlap=1,
+        discovery_probability=1, publish_probability=1,
+        moderation_time=2, moderation_budget=3, moderation_interval=1,
+        moderation_granularity="page", page_deletion_fraction=0.5,
+        evasion_learning_probability=1.0, moderation_policy="ordered",
+    ), **overrides)
+
+
+def test_eligible_budget_basis_reduces_sweep_size_once_authors_evade() -> None:
+    whole = simulate(_page_base(page_budget_basis="host"), 3)
+    elig = simulate(_page_base(page_budget_basis="eligible"), 3)
+    whole_removed = [e["removed_pages"] for e in whole.events if e["type"] == "moderation"]
+    elig_removed = [e["removed_pages"] for e in elig.events if e["type"] == "moderation"]
+    # Nobody has learned before the first sweep, so the two bases agree there.
+    assert whole_removed[0] == elig_removed[0] > 0
+    assert sum(elig_removed) <= sum(whole_removed)
+
+
+def test_evasion_move_relocates_evader_pages_to_another_host() -> None:
+    moved = simulate(_page_base(evasion_style="move"), 7)
+    mods = [e for e in moved.events if e["type"] == "moderation"]
+    assert any(e["moved_pages"] for e in mods)
+    moves = [e for e in moved.events if e["type"] == "move"]
+    assert moves and moved.metrics["moved_pages"] == len(moves)
+    assert all(e["host_id"] != e["from_host_id"] for e in moves)
+    assert not any(e["type"] == "rename" for e in moved.events)
+    # A moved page survives on the refuge host: total pages removed over the
+    # run cannot exceed the exclude rule, where evaders' pages stay put.
+    exclude = simulate(_page_base(evasion_style="exclude"), 7)
+    exclude_mods = [e for e in exclude.events if e["type"] == "moderation"]
+    assert sum(e["removed_pages"] for e in mods) <= sum(e["removed_pages"] for e in exclude_mods)
+
+
+def test_evasion_move_needs_a_refuge_host() -> None:
+    single = simulate(_page_base(evasion_style="move", n_hosts=1), 7)
+    assert single.metrics["moved_pages"] == 0
+    assert single.metrics["evasion_learned"] > 0
+
+
+def test_evasion_style_validated() -> None:
+    with pytest.raises(ValueError):
+        SimulationConfig(evasion_style="teleport")
