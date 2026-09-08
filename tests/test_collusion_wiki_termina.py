@@ -195,6 +195,17 @@ class TestLoader:
         assert [r["id"] for r in rows] == ["probier", "usemod-org"]
         assert rows[1]["last_seen"] == "2026-08-30"
 
+    def test_empty_filters_yield_nothing(self, db_dir):
+        """Empty IN-lists must not become ``IN ()`` (SQLite OperationalError)."""
+        assert T.load_revisions(db_dir, venues=[]) == []
+        assert T.load_revisions(db_dir, record_kinds=[]) == []
+        assert T.load_revisions(db_dir, venues=[], record_kinds=[]) == []
+        assert T.venue_table(db_dir, []) == []
+        assert list(T.iter_revisions(db_dir, venues=[])) == []
+        assert list(T.iter_revisions(db_dir, record_kinds=[])) == []
+        assert T.load_revisions(db_dir, venues=["no-such-venue"]) == []
+        assert T.venue_table(db_dir, ["no-such-venue"]) == []
+
 
 class TestFingerprint:
     def test_marks_against_baseline(self, db_dir):
@@ -279,6 +290,27 @@ class TestReplay:
         assert u["windows"]["baseline"]["per_identity"] == {}
         assert u["windows"]["post"]["fingerprint"]["termina_campaigns"] == {"usemod-fleet": 1}
         assert [r["id"] for r in s["venue_table"]] == ["probier", "usemod-org"]
+
+    def test_empty_venues_writes_empty_run(self, db_dir, tmp_path):
+        cfg = ReplayConfig(
+            source="termina", venues=[], identity="actor", sweep_identity=["actor"],
+            structural_null_samples=2,
+        )
+        out = run_termina_replay(db_dir, cfg, tmp_path / "runs", with_timeline=False)
+        s = json.loads((out / "summary.json").read_text())
+        assert s["venues"] == {} and s["venue_table"] == []
+        assert s["exclude_actor_kinds"] == ["human"]
+
+    def test_empty_record_kinds_keeps_venues_but_no_rows(self, db_dir, tmp_path):
+        cfg = ReplayConfig(
+            source="termina", venues=["probier"], record_kinds=[], identity="actor",
+            sweep_identity=["actor"], structural_null_samples=2,
+        )
+        out = run_termina_replay(db_dir, cfg, tmp_path / "runs", with_timeline=False)
+        s = json.loads((out / "summary.json").read_text())
+        assert s["venues"]["probier"]["n_rows_total"] == 0
+        assert s["venues"]["probier"]["n_rows_kept"] == 0
+        assert [r["id"] for r in s["venue_table"]] == ["probier"]
 
     def test_pin_mismatch_is_recorded_not_fatal(self, db_dir, tmp_path):
         cfg = ReplayConfig(

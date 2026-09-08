@@ -220,12 +220,18 @@ def cloud_of(actor_id: Optional[str]) -> str:
     return ""
 
 
-_SQL = (
-    "SELECT r.id, r.venue_id, r.kind, r.external_id, r.title, r.summary, "
-    "r.actor_id, r.ip_actor_id, r.observed_time, r.body_len, r.phase, "
-    "r.source, r.campaign_id, r.content_kind, r.status "
-    "FROM record r WHERE r.venue_id IN ({venues}) AND r.kind IN ({kinds})"
-)
+def _sql_in(column: str, values: Iterable[str], where: List[str], params: List[str]) -> bool:
+    """Append ``column IN (...)``. Return False if ``values`` is empty.
+
+    SQLite rejects ``IN ()``; an empty filter list is an empty result set
+    (a misconfigured ``venues: []`` / ``record_kinds: []`` in YAML).
+    """
+    items = sorted(set(values))
+    if not items:
+        return False
+    where.append(f"{column} IN ({','.join('?' * len(items))})")
+    params.extend(items)
+    return True
 
 
 def iter_revisions(
@@ -241,15 +247,26 @@ def iter_revisions(
     ``window`` keeps ``window[0] <= observed_time < window[1]``; records with
     no parseable time are dropped (and counted in the log). Titles with a
     ``" / "`` sub-page separator keep the full path as the page name.
+    Empty ``venues`` or ``record_kinds`` yields no rows (SQLite rejects ``IN ()``).
     """
+    path = resolve_db(db)
     excl = set(exclude_actor_kinds)
-    con = sqlite3.connect(resolve_db(db).resolve().as_uri() + "?mode=ro", uri=True)
+    where: List[str] = []
+    params: List[str] = []
+    if not _sql_in("r.venue_id", venues, where, params):
+        return
+    if not _sql_in("r.kind", record_kinds, where, params):
+        return
+    sql = (
+        "SELECT r.id, r.venue_id, r.kind, r.external_id, r.title, r.summary, "
+        "r.actor_id, r.ip_actor_id, r.observed_time, r.body_len, r.phase, "
+        "r.source, r.campaign_id, r.content_kind, r.status "
+        "FROM record r WHERE " + " AND ".join(where)
+    )
+    con = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
     try:
-        sql = _SQL.format(
-            venues=",".join("?" * len(venues)), kinds=",".join("?" * len(record_kinds))
-        )
         n_untimed = 0
-        for row in con.execute(sql, [*venues, *record_kinds]):
+        for row in con.execute(sql, params):
             (rid, venue, kind, ext, title, summary, actor, ip_actor, t_raw,
              body_len, phase, source, campaign, content_kind, status) = row
             t = parse_time(t_raw)
@@ -297,14 +314,19 @@ def load_revisions(db: Path, **kw: Any) -> List[WikiRevision]:
 
 def venue_table(db: Path, venues: Sequence[str] = DEFAULT_VENUES) -> List[Dict[str, Any]]:
     """termina's own venue rows (status, moderator note, first/last seen)."""
-    con = sqlite3.connect(resolve_db(db).resolve().as_uri() + "?mode=ro", uri=True)
+    path = resolve_db(db)
+    where: List[str] = []
+    params: List[str] = []
+    if not _sql_in("id", venues, where, params):
+        return []
+    con = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
     try:
         con.row_factory = sqlite3.Row
         sql = (
             "SELECT id, host, path, software, status, moderator, first_seen, last_seen, "
-            "caveat FROM venue WHERE id IN (%s) ORDER BY id" % ",".join("?" * len(venues))
+            "caveat FROM venue WHERE " + " AND ".join(where) + " ORDER BY id"
         )
-        return [dict(r) for r in con.execute(sql, list(venues))]
+        return [dict(r) for r in con.execute(sql, params)]
     finally:
         con.close()
 

@@ -764,11 +764,12 @@ def run_termina_replay(
 
     venues_out: Dict[str, Any] = {}
     fp_rows: List[Dict[str, Any]] = []
+    exclude_kinds = set(cfg.exclude_actor_kinds)
     for venue in cfg.venues:
         all_rows = termina.load_revisions(
             db, venues=[venue], record_kinds=cfg.record_kinds,
         )
-        kept = [r for r in all_rows if r.actor_kind not in set(cfg.exclude_actor_kinds)]
+        kept = [r for r in all_rows if r.actor_kind not in exclude_kinds]
         per_window: Dict[str, Any] = {}
         base_rows: List[WikiRevision] = []
         for wname, win in windows.items():
