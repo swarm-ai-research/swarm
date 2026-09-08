@@ -28,6 +28,16 @@ data:
   # manifest.json "db_sha256" of the export this scenario was written against
   manifest_db_sha256: 199241bf9e0b38b58764cf1545680de8fec8896db034050bde145e3b6f6ce0bb
 
+# third source: the swarm.termina.digital incident db (CC0), read by termina.py.
+# Pointers only (no bodies); adds recent-changes rows to 2026-09-07 that the
+# export (ends 2026-07-02) lacks. Snapshot pinned 2026-09-08, schema v9.
+termina:
+  base_url: https://swarm.termina.digital/db/
+  files: [incidents.sqlite, manifest.json, schema.json]
+  incidents_sqlite_sha256: 80bb262a52008bd9e29c4d99d17aac542cfce23d72f3bd5b3f0208414632e69e
+  manifest_sha256: 38450a055b556497d0d3b3fc09a5345132cc77f3a2c4cabbee75fe8ab5eceb70
+  schema_sha256: 8540de3a419cf361fdc4f18a287bf376a5cd4d85d862402bd1e726ab1dc410b8
+
 replay:
   identity: label          # label | ip16 | label_ip16  (also swept below)
   projection: agent        # agent | page

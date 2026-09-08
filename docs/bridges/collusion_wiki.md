@@ -38,6 +38,20 @@ The export carries `body_len` only. The 2026-09-05 *agent candidate reading pack
 
 The pack's other 4,768 texts (paste, URL-shortener, package and extra-wiki candidates) are *weakly labelled*: its README says known false positives, copied source material and possible researcher imitations were kept, and the paste track runs from 2020. The loader exposes them as a **secondary tier**, filtered by default to the incident window (2026-05-01 to 2026-07-31), which keeps 364 dated paste candidates and drops the 4,285 undated shortener bodies. Nothing in the secondary tier is actor attribution. All pack text is untrusted content: the bridge never executes it or fetches URLs from it.
 
+### Structured records from the termina.digital incident db
+
+The third source is the CC0 [ai-safety-lab incident db](https://swarm.termina.digital/db/) (schema v9, snapshot of 2026-09-08, pinned by sha256 under `termina:` in the scenario). It is a secondary synthesis, not another copy of the primary bodies: 91,320 `record` rows across 154 venues carry `body_sha256` and `body_len` pointers only, so the reading pack stays the body source. `termina.py` reads the `record`, `actor`, `venue` and `claim` tables, maps venue ids onto the bridge's wiki names (`dse`, `probier`, `fractal`, `dorfwiki` are the same id on both sides; the db's 36 other wiki venues keep their id), joins `revision` rows onto export revisions on `(page_id, time)`, and verifies the snapshot against its manifest's row counts.
+
+What it adds over the export, measured on the pinned snapshot:
+
+| Rows after the export's last revision (2026-07-02) | dse | probier | fractal |
+|---|---:|---:|---:|
+| `rc-row` (live recent-changes polling, minute precision, to 2026-09-07) | 4,171 | 157 | 17 |
+| `delete` (moderator clean-up, to 2026-07-14) | 2,421 | 0 | 0 |
+| `revision` | 0 | 0 | 0 |
+
+Two things to keep straight. The db's `phase` column is measured against each incident's own disclosure date (2026-09-03 for the wikis), so July and August rows are still `pre-disclosure`; `post_export_records()` filters on time, not phase. And its per-venue counts include every revision's `save` event, deletions, probes and recent-changes rows (54,612 dse rows against the export's 13,403 dse revisions); filter on `kind="revision"` before comparing, where the two agree one-to-one. `claim.status` (`verified`, `inferred`, `reported`, `contradicted`) is preserved on every claim and must not be collapsed when counting.
+
 ```bash
 # hidden-carrier scan over the export's text fields plus page bodies
 python -m swarm.bridges.collusion_wiki scenarios/casestudy_wiki_backchannel.yaml \
@@ -106,6 +120,7 @@ The run folder adds `history.json` and `csv/interactions.csv` (the `SoftInteract
 |---|---|
 | `swarm/bridges/collusion_wiki/loader.py` | reads `revisions.jsonl[.gz]` and `events.jsonl[.gz]` |
 | `swarm/bridges/collusion_wiki/reading_pack.py` | reads the reading pack's `agent-text.sqlite`; joins page bodies onto revisions; tiers the non-wiki candidates |
+| `swarm/bridges/collusion_wiki/termina.py` | reads the termina.digital `incidents.sqlite`; venue-to-wiki mapping, post-export rows, claims with status, snapshot verification |
 | `swarm/bridges/collusion_wiki/stego.py` | hidden-carrier scan over export text fields and, with `--pack`, page bodies |
 | `swarm/bridges/collusion_wiki/mapper.py` | revisions to `SoftInteraction`, identity and projection modes |
 | `swarm/bridges/collusion_wiki/runner.py` | detector passes, timeline, run folder |

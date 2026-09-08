@@ -629,3 +629,141 @@ class TestSchellingReplay:
             "scenarios/casestudy_schelling_board.yaml"))
         assert cfg.source == "schelling" and cfg.sweep_identity == ["label", "ip16"]
         assert cfg.include_seeded is False
+
+
+# --- termina.digital incident db (bead lnaf) ---------------------------------
+
+def _termina(tmp_path, records, *, manifest=True):
+    """Minimal incidents.sqlite with the columns the loader reads."""
+    import json
+    import sqlite3
+    d = tmp_path / "termina"
+    d.mkdir(parents=True)
+    con = sqlite3.connect(d / "incidents.sqlite")
+    con.executescript(
+        "CREATE TABLE venue (id TEXT PRIMARY KEY, host TEXT, path TEXT, software TEXT, "
+        "kind TEXT, status TEXT, caveat TEXT);"
+        "CREATE TABLE record (id TEXT PRIMARY KEY, venue_id TEXT, kind TEXT, title TEXT, "
+        "actor_id TEXT, ip_actor_id TEXT, observed_time TEXT, time_precision TEXT, "
+        "phase TEXT, status TEXT, source TEXT, body_sha256 TEXT, body_len INTEGER, "
+        "content_kind TEXT, incident_id TEXT, campaign_id TEXT, cluster_id TEXT);"
+        "CREATE TABLE actor (id TEXT PRIMARY KEY, kind TEXT, name TEXT, venue_id TEXT, "
+        "first_seen TEXT, last_seen TEXT, notes TEXT);"
+        "CREATE TABLE claim (id TEXT PRIMARY KEY, subject_kind TEXT, subject_id TEXT, "
+        "text TEXT, made_by TEXT, status TEXT, basis TEXT, checked_by TEXT, notes TEXT);"
+    )
+    con.executemany("INSERT INTO venue VALUES (?,?,?,?,?,?,?)", [
+        ("dse", "wikiservice.at", "/dse", "prowiki", "wiki", "live", ""),
+        ("probier", "wikiservice.at", "/probier", "prowiki", "wiki", "live", ""),
+        ("vanderbilt", "vanderbi.lt", "", "yourls", "shortener", "live", "census"),
+    ])
+    for i, r in enumerate(records):
+        con.execute(
+            "INSERT INTO record VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (r.get("id", f"rec{i}"), r["venue"], r["kind"], r.get("title", ""),
+             r.get("actor"), r.get("ip"), r.get("time"), r.get("precision", "second"),
+             r.get("phase", "pre-disclosure"), "live", r.get("source", "collusion-export"),
+             r.get("sha"), r.get("len"), r.get("content"), "dsewiki-2026-05", None, None))
+    con.executemany("INSERT INTO actor VALUES (?,?,?,?,?,?,?)", [
+        ("handle:dse:Alpha", "handle", "Alpha", "dse", "2026-06-01T00:00:00Z", "2026-06", ""),
+        ("human:dse:118", "human", "118", "dse", None, None, "moderator"),
+    ])
+    con.executemany("INSERT INTO claim VALUES (?,?,?,?,?,?,?,?,?)", [
+        ("c1", "incident", "dsewiki-2026-05", "agents wrote here", "ev1", "verified", "export", None, ""),
+        ("c2", "incident", "dsewiki-2026-05", "operator was openai", None, "reported", "press", None, ""),
+        ("c3", "venue", "vanderbilt", "same operator", None, "inferred", "classifier", None, ""),
+    ])
+    con.commit()
+    con.close()
+    if manifest:
+        (d / "manifest.json").write_text(json.dumps({
+            "schema_version": "9", "generated_at": "2026-09-08T14:10:58Z",
+            "files": {"record.jsonl": {"rows": len(records)}, "venue.jsonl": {"rows": 3},
+                      "claim.jsonl": {"rows": 3}, "edge.jsonl": {"rows": 0}},
+        }))
+    return d
+
+
+@pytest.fixture
+def termina_dir(tmp_path):
+    return _termina(tmp_path, [
+        # joins to export revision r1 (dse/Answers @ 2026-06-16T10:00:00Z)
+        {"venue": "dse", "kind": "revision", "title": "Answers", "actor": "handle:dse:Alpha",
+         "ip": "ip16:20.168", "time": "2026-06-16T10:00:00Z", "sha": "abc", "len": 12,
+         "content": "answer-share"},
+        {"venue": "dse", "kind": "save", "title": "Answers", "time": "2026-06-16T10:00:00Z"},
+        {"venue": "dse", "kind": "delete", "title": "Answers", "actor": "human:dse:118",
+         "time": "2026-07-14T13:56:54Z"},
+        # post-export recent-changes rows: minute precision, still pre-disclosure
+        {"venue": "dse", "kind": "rc-row", "title": "Context", "actor": "human:dse:118",
+         "time": "2026-08-31T23:41Z", "precision": "minute", "source": "live-rc"},
+        {"venue": "probier", "kind": "rc-row", "title": "Start", "time": "2026-09-07T08:56Z",
+         "precision": "minute", "phase": "post-press", "source": "live-rc"},
+        # non-wiki venue, post-export
+        {"venue": "vanderbilt", "kind": "shortlink", "title": "9k2", "time": "2026-08-01T00:00:00Z"},
+        # undated
+        {"venue": "dse", "kind": "probe", "title": "Probe", "time": ""},
+    ])
+
+
+class TestTermina:
+    def test_venue_mapping_and_filters(self, termina_dir):
+        from swarm.bridges.collusion_wiki import termina as T
+        assert T.wiki_venues(termina_dir) == {"dse": "dse", "probier": "probier"}
+        recs = T.load_records(termina_dir)
+        assert len(recs) == 7
+        assert recs[0].time is None  # undated sorts first, kept without bounds
+        assert [r.kind for r in T.load_records(termina_dir, wikis=["dse"], kinds=["revision"])] == ["revision"]
+        rev = T.load_records(termina_dir, kinds=["revision"])[0]
+        assert (rev.page_id, rev.ip16, rev.actor_label, rev.body_len) == ("dse/Answers", "20.168", "Alpha", 12)
+        assert not rev.post_export
+        short = T.load_records(termina_dir, venues=["vanderbilt"])
+        assert short[0].wiki == "" and short[0].page_id == ""
+        assert [r.kind for r in T.load_records(termina_dir, phases=["post-press"])] == ["rc-row"]
+
+    def test_post_export_uses_time_not_phase(self, termina_dir):
+        from swarm.bridges.collusion_wiki import termina as T
+        pe = T.post_export_records(termina_dir)
+        assert [(r.wiki, r.kind, r.phase) for r in pe] == [
+            ("dse", "delete", "pre-disclosure"),
+            ("dse", "rc-row", "pre-disclosure"),
+            ("probier", "rc-row", "post-press"),
+        ]
+        assert all(r.post_export for r in pe)
+        assert pe[1].time_precision == "minute" and pe[1].time.minute == 41
+        assert [r.venue for r in T.post_export_records(termina_dir, wikis=["probier"])] == ["probier"]
+        # explicit bounds drop the undated probe
+        bounded = T.load_records(termina_dir, before=T.EXPORT_END)
+        assert all(r.time is not None for r in bounded) and len(bounded) == 2
+
+    def test_join_revisions(self, data_dir, termina_dir):
+        from swarm.bridges.collusion_wiki import termina as T
+        revs = load_revisions(data_dir)
+        joined = T.join_revisions(revs, T.load_records(termina_dir))
+        assert set(joined) == {"r1"}
+        assert joined["r1"].content_kind == "answer-share"
+
+    def test_actors_and_claims(self, termina_dir):
+        from swarm.bridges.collusion_wiki import termina as T
+        actors = list(T.iter_actors(termina_dir, kinds=["handle"]))
+        assert [a.name for a in actors] == ["Alpha"]
+        assert actors[0].last_seen == datetime(2026, 6, 1, tzinfo=timezone.utc)  # month precision
+        claims = list(T.iter_claims(termina_dir, subject_kind="incident"))
+        assert T.claim_status_counts(claims) == {
+            "verified": 1, "inferred": 0, "reported": 1, "contradicted": 0}
+        assert [c.id for c in T.iter_claims(termina_dir, statuses=["inferred"])] == ["c3"]
+        assert claims[1].made_by == ""  # unsourced: an assertion awaiting a link
+
+    def test_verify_snapshot(self, termina_dir, tmp_path):
+        from swarm.bridges.collusion_wiki import termina as T
+        rep = T.verify_snapshot(termina_dir)
+        assert rep["rows"] == {"record": 7, "venue": 3, "claim": 3}  # edge table absent -> skipped
+        assert rep["schema_version"] == "9"
+        T.verify_snapshot(termina_dir, sqlite_sha256=rep["sqlite_sha256"])
+        with pytest.raises(ValueError, match="sha256"):
+            T.verify_snapshot(termina_dir, sqlite_sha256="0" * 64)
+        bad = _termina(tmp_path / "bad", [], manifest=False)
+        assert T.verify_snapshot(bad)["manifest"] is None
+        (bad / "manifest.json").write_text('{"files": {"venue.jsonl": {"rows": 2}}}')
+        with pytest.raises(ValueError, match="venue: 3 rows"):
+            T.verify_snapshot(bad)
