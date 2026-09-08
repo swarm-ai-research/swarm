@@ -779,8 +779,9 @@ class TestTermina:
         assert list(T.iter_claims(termina_dir, statuses=[])) == []
 
     def test_verify_snapshot_escapes_quoted_table_names(self, tmp_path):
-        from swarm.bridges.collusion_wiki import termina as T
         import sqlite3
+
+        from swarm.bridges.collusion_wiki import termina as T
         assert T._quote_ident('odd"tbl') == '"odd""tbl"'
         d = tmp_path / "quoted"
         d.mkdir()
