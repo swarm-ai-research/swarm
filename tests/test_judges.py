@@ -9,6 +9,7 @@ from __future__ import annotations
 import pytest
 
 from swarm.judges import (
+    DEFAULT_RUBRIC_VERSION,
     FORBIDDEN_FIELDS,
     RUBRIC_VERSION,
     JudgeView,
@@ -31,7 +32,7 @@ class TestRubric:
     def test_rubric_loads(self) -> None:
         text = load_rubric()
         assert "FROZEN" in text
-        assert RUBRIC_VERSION in text
+        assert DEFAULT_RUBRIC_VERSION in text
 
     def test_rubric_lists_all_forbidden_fields(self) -> None:
         text = load_rubric()
@@ -99,14 +100,15 @@ class TestOrthogonality:
             verdict = judge.score(view)
             assert 0.0 <= verdict.score <= 1.0
             assert verdict.judge_name == "mock"
-            assert verdict.rubric_version == RUBRIC_VERSION
+            assert verdict.rubric_version == DEFAULT_RUBRIC_VERSION
 
 
 class TestMockJudgeRubricFidelity:
     """MockJudge must implement the rubric's signal-interpretation rules."""
 
-    def test_empty_metadata_gives_midscore(self) -> None:
-        view = JudgeView(
+    @staticmethod
+    def _bare_view() -> JudgeView:
+        return JudgeView(
             interaction_id="x",
             interaction_type="REPLY",
             accepted=True,
@@ -114,7 +116,20 @@ class TestMockJudgeRubricFidelity:
             counterparty_label="b",
             metadata={},
         )
-        assert MockJudge().score(view).score == 0.5
+
+    def test_empty_metadata_gives_midscore_under_v1(self) -> None:
+        # The 0.5 default is a v1 rule, and v1 is frozen, so it must be
+        # asked for by name.
+        judge = MockJudge(rubric_version=RUBRIC_VERSION)
+        assert judge.score(self._bare_view()).score == 0.5
+
+    def test_empty_metadata_avoids_the_midscore_by_default(self) -> None:
+        # v2 bans the 0.5 default and v3 inherits the ban, so the default
+        # judge must not fall back to it. This is the rule the constructor
+        # default exists to deliver: a caller who says nothing gets the
+        # current rubric, not the frozen one.
+        assert MockJudge().rubric_version == DEFAULT_RUBRIC_VERSION
+        assert MockJudge().score(self._bare_view()).score != 0.5
 
     def test_honest_scores_high(self) -> None:
         view = JudgeView(

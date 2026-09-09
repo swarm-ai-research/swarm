@@ -44,10 +44,14 @@ RUBRICS: dict[str, Path] = {
 }
 DEFAULT_RUBRIC_VERSION = "rubric.v3"
 
-# Back-compat: existing callers used RUBRIC_PATH / RUBRIC_VERSION as
-# module-level constants. Keep them pointing at v1 so they don't
-# silently start producing v2-scored results — explicit version flip
-# at the call site.
+# RUBRIC_PATH / RUBRIC_VERSION name v1 specifically. Arm B of the
+# calibration study is pre-registered to it (calibration-prereg.md), so it
+# needs a stable name that will not follow DEFAULT_RUBRIC_VERSION forward.
+# They are not defaults: a caller that wants the current rubric should say
+# nothing and get DEFAULT_RUBRIC_VERSION, and a caller that wants v1 should
+# name it. Judging on the wrong rubric is silent in the artifact — the
+# version is recorded faithfully next to a score the rubric did not produce —
+# which is the same failure MockJudge.score raises on for unknown versions.
 RUBRIC_PATH = RUBRICS["rubric.v1"]
 RUBRIC_VERSION = "rubric.v1"
 
@@ -73,7 +77,7 @@ class Judge(Protocol):
         """Return this judge's verdict for a single view."""
 
 
-def load_rubric(version: str = RUBRIC_VERSION) -> str:
+def load_rubric(version: str = DEFAULT_RUBRIC_VERSION) -> str:
     """Read a frozen rubric file by version.
 
     Defaults to v1 for back-compat with existing call sites. Pass an
@@ -87,7 +91,7 @@ def load_rubric(version: str = RUBRIC_VERSION) -> str:
     return RUBRICS[version].read_text()
 
 
-def rubric_path(version: str = RUBRIC_VERSION) -> Path:
+def rubric_path(version: str = DEFAULT_RUBRIC_VERSION) -> Path:
     """Path on disk for a given rubric version."""
     if version not in RUBRICS:
         raise KeyError(
@@ -110,7 +114,7 @@ class MockJudge:
     """
 
     name: str = "mock"
-    rubric_version: str = RUBRIC_VERSION  # defaults to v1 for back-compat
+    rubric_version: str = DEFAULT_RUBRIC_VERSION
     # Seeded score jitter for inter-rater studies (arm C needs >=2 judges
     # that do not agree perfectly). 0.0 = exact rubric scoring, unchanged
     # behavior. Jitter is deterministic per (name, noise_seed, interaction_id)
@@ -489,7 +493,7 @@ class LLMJudge:
     max_tokens: int = 2048
     timeout: float = 60.0
     max_retries: int = 3
-    rubric_version: str = RUBRIC_VERSION
+    rubric_version: str = DEFAULT_RUBRIC_VERSION
     caller: Optional[Callable[[str], LLMCallResult]] = field(default=None, repr=False)
 
     def _build_prompt(self, view: JudgeView) -> str:
