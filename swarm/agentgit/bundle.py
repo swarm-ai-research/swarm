@@ -264,8 +264,13 @@ def _verify_identity(bundle: Dict[str, Any], receipt: AdmissibilityReceipt) -> L
         # a link bound to another task is refused here.
         task_block = bundle.get("task") or {}
         context = task_block.get("task_id") if isinstance(task_block, dict) else None
+        # A bundle is an authorization boundary, not a legacy-inspection path:
+        # its final task grant must sign both the task audience and a nonce.
         ok, chain_errors = chain.verify(
-            expected_subject_did=expected_subject, context=context
+            expected_subject_did=expected_subject,
+            context=context,
+            require_context=True,
+            require_nonce=True,
         )
         errors.extend(f"delegation: {err}" for err in chain_errors)
         if ok and identity_block is not None:

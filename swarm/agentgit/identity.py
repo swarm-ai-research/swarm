@@ -32,8 +32,9 @@ scenario, or session the grant is for. ``DelegationChain.verify`` takes the
 Links may also carry signed ``wards`` (bead illq.3, see
 ``swarm.agentgit.wards``); verify checks they only narrow down the chain,
 the same way permissions do. Legacy links (no nonce, no audience, no wards)
-keep verifying so existing bundles are unaffected; pass
-``require_context=True`` to refuse them.
+can still be parsed and checked explicitly, but security boundaries such as
+bundle verification pass ``require_context=True`` and ``require_nonce=True``
+to refuse an unbound final grant.
 """
 
 from __future__ import annotations
@@ -41,6 +42,8 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
+import threading
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -264,19 +267,30 @@ class NonceRegistry:
     JSON so the memory survives across processes.
     """
 
-    def __init__(self, path: Optional[Union[str, Path]] = None) -> None:
+    def __init__(
+        self,
+        path: Optional[Union[str, Path]] = None,
+        *,
+        max_entries: Optional[int] = None,
+    ) -> None:
+        if max_entries is not None and max_entries < 1:
+            raise ValueError("max_entries must be positive")
         self._path = Path(path) if path is not None else None
-        self._seen: Dict[str, str] = {}
+        self._max_entries = max_entries
+        self._lock = threading.RLock()
+        self._seen: OrderedDict[str, str] = OrderedDict()
         if self._path is not None and self._path.exists():
             try:
                 data = json.loads(self._path.read_text())
             except (OSError, json.JSONDecodeError):
                 data = {}
             if isinstance(data, dict):
-                self._seen = {str(k): str(v) for k, v in data.items()}
+                self._seen = OrderedDict((str(k), str(v)) for k, v in data.items())
+                self._evict_excess()
 
     def __len__(self) -> int:
-        return len(self._seen)
+        with self._lock:
+            return len(self._seen)
 
     def check(self, link: DelegationLink) -> Optional[str]:
         """Register ``link``'s nonce; return an error string on reuse."""
@@ -284,19 +298,36 @@ class NonceRegistry:
         if not link.nonce:
             return None
         digest = link.payload_digest()
-        prior = self._seen.get(link.nonce)
-        if prior is not None and prior != digest:
-            return f"nonce {link.nonce[:8]}… reused under a different payload"
-        if prior is None:
-            self._seen[link.nonce] = digest
+        with self._lock:
+            prior = self._seen.get(link.nonce)
+            if prior is not None and prior != digest:
+                return f"nonce {link.nonce[:8]}… reused under a different payload"
+            if prior is not None:
+                self._seen.move_to_end(link.nonce)
+            else:
+                self._seen[link.nonce] = digest
+            self._evict_excess()
             self._persist()
         return None
+
+    def _evict_excess(self) -> None:
+        if self._max_entries is None:
+            return
+        while len(self._seen) > self._max_entries:
+            self._seen.popitem(last=False)
 
     def _persist(self) -> None:
         if self._path is None:
             return
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(json.dumps(self._seen, sort_keys=True))
+        self._path.write_text(json.dumps(self._seen))
+
+
+# Stateless callers should not have to remember to enable collision detection.
+# This bounded registry covers the current verifier process without growing
+# for the lifetime of a long-running service. Callers that need durable or
+# exhaustive history can pass a path-backed or explicitly unbounded registry.
+_PROCESS_NONCES = NonceRegistry(max_entries=10_000)
 
 
 def sign_link(
@@ -380,7 +411,8 @@ class DelegationChain:
         now: Optional[datetime] = None,
         context: Optional[str] = None,
         require_context: bool = False,
-        nonces: Optional[NonceRegistry] = None,
+        require_nonce: bool = False,
+        nonces: Optional[NonceRegistry] = _PROCESS_NONCES,
     ) -> Tuple[bool, List[str]]:
         """Verify signatures, connectivity, narrowing, expiry, and binding.
 
@@ -388,9 +420,14 @@ class DelegationChain:
         session id). Every bound link must name exactly this context; a bound
         link presented with no context is refused. Unbound (legacy) links pass
         unless ``require_context`` is set, which insists the final link be
-        bound. ``nonces`` records each link's nonce against its payload and
-        refuses reuse under a different payload. Wards, when signed on
-        consecutive links, may only narrow (``swarm.agentgit.wards.never_widens``).
+        bound. ``require_nonce`` likewise insists that the final grant carry a
+        signed nonce. Duplicate nonces inside one chain are always refused;
+        ``nonces`` records each nonce across verification calls and refuses
+        reuse under a different payload. The default registry covers this
+        process; pass a path-backed registry for cross-process persistence, or
+        ``None`` only for explicit legacy inspection. Wards, when signed on
+        consecutive links, may only narrow
+        (``swarm.agentgit.wards.never_widens``).
         """
 
         errors: List[str] = []
@@ -404,6 +441,7 @@ class DelegationChain:
         prev_permissions: Optional[set[str]] = None
         prev_subject: Optional[str] = None
         prev_wards: Optional[WardSet] = None
+        chain_nonces: set[str] = set()
 
         for index, link in enumerate(self.links):
             if not verify_signature(link.issuer_did, link.canonical_bytes(), link.signature):
@@ -425,6 +463,11 @@ class DelegationChain:
                 reuse = nonces.check(link)
                 if reuse:
                     errors.append(f"link {index}: {reuse}")
+
+            if link.nonce:
+                if link.nonce in chain_nonces:
+                    errors.append(f"link {index}: duplicate nonce within delegation chain")
+                chain_nonces.add(link.nonce)
 
             if link.wards is not None:
                 try:
@@ -483,6 +526,8 @@ class DelegationChain:
             errors.append(
                 "final link is an unbound bearer credential; context binding required"
             )
+        if require_nonce and not self.links[-1].nonce:
+            errors.append("final link has no nonce; nonce binding required")
 
         return not errors, errors
 

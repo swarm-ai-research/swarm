@@ -102,6 +102,18 @@ def _chain(human, org, agent, *, agent_perms=None, org_perms=None):
     return DelegationChain(links=[link_org, link_agent])
 
 
+def _legacy_chain(human, org, agent):
+    """Build a pre-binding chain with neither nonce nor audience fields."""
+
+    link_org = sign_link(
+        human, subject_did=org.did, permissions=["read", "test", "open_pr"], nonce=""
+    )
+    link_agent = sign_link(
+        org, subject_did=agent.did, permissions=["read", "test"], nonce=""
+    )
+    return DelegationChain(links=[link_org, link_agent])
+
+
 def test_valid_chain_verifies():
     human, org, agent = (AgentKeypair.generate() for _ in range(3))
     chain = _chain(human, org, agent)
@@ -203,7 +215,7 @@ def test_bundle_with_identity_and_delegation_verifies(tmp_path):
     identity = AgentIdentity.for_keypair(
         agent, owner="alice", org="acme", allowed_tools=["read", "test"]
     )
-    chain = _chain(human, org, agent)
+    chain = _bound_chain(human, org, agent, audience="issue-id")
 
     bundle = build_bundle(
         repo=repo,
@@ -267,7 +279,7 @@ def test_bundle_tools_exceeding_delegation_fail(tmp_path):
     identity = AgentIdentity.for_keypair(
         agent, owner="alice", org="acme", allowed_tools=["read", "deploy"]
     )
-    chain = _chain(human, org, agent, agent_perms=["read", "test"])
+    chain = _bound_chain(human, org, agent, audience="issue-scope")
     bundle = build_bundle(
         repo=repo,
         task_id="issue-scope",
@@ -341,9 +353,30 @@ def test_bound_link_presented_without_context_is_refused():
 
 def test_legacy_unbound_chain_still_verifies_with_context():
     human, org, agent = (AgentKeypair.generate() for _ in range(3))
-    chain = _chain(human, org, agent)
+    chain = _legacy_chain(human, org, agent)
     ok, errors = chain.verify(expected_subject_did=agent.did, context="task-42")
     assert ok, errors
+
+
+def test_bundle_refuses_legacy_unbound_delegation(tmp_path):
+    repo = _init_repo(tmp_path)
+    _allowed_diff(repo)
+    human, org, agent = (AgentKeypair.generate() for _ in range(3))
+    identity = AgentIdentity.for_keypair(
+        agent, owner="alice", org="acme", allowed_tools=["read", "test"]
+    )
+    bundle = build_bundle(
+        repo=repo,
+        task_id="issue-boundary",
+        agent_id="codex",
+        policy=AgentGitPolicy(allowed_paths=["swarm/**"]),
+        identity=identity,
+        agent_keypair=agent,
+        delegation=_legacy_chain(human, org, agent),
+    )
+    ok, errors = verify_bundle(bundle)
+    assert not ok
+    assert any("unbound bearer credential" in error for error in errors)
 
 
 def test_require_context_refuses_unbound_final_link():
@@ -352,6 +385,36 @@ def test_require_context_refuses_unbound_final_link():
     ok, errors = chain.verify(context="task-42", require_context=True)
     assert not ok
     assert any("unbound bearer credential" in e for e in errors)
+
+
+def test_require_nonce_refuses_nonce_less_final_link():
+    human, agent = AgentKeypair.generate(), AgentKeypair.generate()
+    link = sign_link(
+        human,
+        subject_did=agent.did,
+        permissions=["read"],
+        audience="task-42",
+        nonce="",
+    )
+    ok, errors = DelegationChain([link]).verify(
+        context="task-42", require_context=True, require_nonce=True
+    )
+    assert not ok
+    assert any("nonce binding required" in error for error in errors)
+
+
+def test_duplicate_nonce_inside_chain_is_refused_without_registry():
+    human, org, agent = (AgentKeypair.generate() for _ in range(3))
+    nonce = "b" * 32
+    link_org = sign_link(
+        human, subject_did=org.did, permissions=["read"], nonce=nonce
+    )
+    link_agent = sign_link(
+        org, subject_did=agent.did, permissions=["read"], nonce=nonce
+    )
+    ok, errors = DelegationChain([link_org, link_agent]).verify(nonces=None)
+    assert not ok
+    assert any("duplicate nonce" in error for error in errors)
 
 
 def test_legacy_link_dict_has_no_binding_fields_and_signature_is_stable():
@@ -386,6 +449,45 @@ def test_nonce_reuse_under_different_payload_is_refused(tmp_path):
     assert len(fresh) == 1
     ok, errors = DelegationChain([forged]).verify(nonces=fresh)
     assert not ok
+
+
+def test_nonce_registry_evicts_least_recently_used_entry():
+    from swarm.agentgit.identity import NonceRegistry
+
+    issuer = AgentKeypair.generate()
+    subjects = [AgentKeypair.generate() for _ in range(3)]
+    registry = NonceRegistry(max_entries=2)
+    links = [
+        sign_link(issuer, subject_did=subject.did, permissions=["read"], nonce=str(index))
+        for index, subject in enumerate(subjects)
+    ]
+
+    assert registry.check(links[0]) is None
+    assert registry.check(links[1]) is None
+    assert registry.check(links[0]) is None  # Refresh nonce 0.
+    assert registry.check(links[2]) is None
+    assert len(registry) == 2
+
+    reused_evicted_nonce = sign_link(
+        issuer, subject_did=subjects[2].did, permissions=["read"], nonce="1"
+    )
+    assert registry.check(reused_evicted_nonce) is None
+
+
+def test_default_registry_refuses_nonce_collision_across_verifications():
+    human, first_subject, second_subject = (AgentKeypair.generate() for _ in range(3))
+    nonce = "default-registry-collision-test"
+    first = sign_link(
+        human, subject_did=first_subject.did, permissions=["read"], nonce=nonce
+    )
+    second = sign_link(
+        human, subject_did=second_subject.did, permissions=["read"], nonce=nonce
+    )
+    ok, errors = DelegationChain([first]).verify()
+    assert ok, errors
+    ok, errors = DelegationChain([second]).verify()
+    assert not ok
+    assert any("reused under a different payload" in error for error in errors)
 
 
 def test_signed_wards_must_narrow_down_the_chain():
