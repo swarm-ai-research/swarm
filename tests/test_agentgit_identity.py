@@ -102,6 +102,18 @@ def _chain(human, org, agent, *, agent_perms=None, org_perms=None):
     return DelegationChain(links=[link_org, link_agent])
 
 
+def _legacy_chain(human, org, agent):
+    """Build a pre-binding chain with neither nonce nor audience fields."""
+
+    link_org = sign_link(
+        human, subject_did=org.did, permissions=["read", "test", "open_pr"], nonce=""
+    )
+    link_agent = sign_link(
+        org, subject_did=agent.did, permissions=["read", "test"], nonce=""
+    )
+    return DelegationChain(links=[link_org, link_agent])
+
+
 def test_valid_chain_verifies():
     human, org, agent = (AgentKeypair.generate() for _ in range(3))
     chain = _chain(human, org, agent)
@@ -341,7 +353,7 @@ def test_bound_link_presented_without_context_is_refused():
 
 def test_legacy_unbound_chain_still_verifies_with_context():
     human, org, agent = (AgentKeypair.generate() for _ in range(3))
-    chain = _chain(human, org, agent)
+    chain = _legacy_chain(human, org, agent)
     ok, errors = chain.verify(expected_subject_did=agent.did, context="task-42")
     assert ok, errors
 
@@ -360,7 +372,7 @@ def test_bundle_refuses_legacy_unbound_delegation(tmp_path):
         policy=AgentGitPolicy(allowed_paths=["swarm/**"]),
         identity=identity,
         agent_keypair=agent,
-        delegation=_chain(human, org, agent),
+        delegation=_legacy_chain(human, org, agent),
     )
     ok, errors = verify_bundle(bundle)
     assert not ok
@@ -400,7 +412,7 @@ def test_duplicate_nonce_inside_chain_is_refused_without_registry():
     link_agent = sign_link(
         org, subject_did=agent.did, permissions=["read"], nonce=nonce
     )
-    ok, errors = DelegationChain([link_org, link_agent]).verify()
+    ok, errors = DelegationChain([link_org, link_agent]).verify(nonces=None)
     assert not ok
     assert any("duplicate nonce" in error for error in errors)
 
@@ -437,6 +449,29 @@ def test_nonce_reuse_under_different_payload_is_refused(tmp_path):
     assert len(fresh) == 1
     ok, errors = DelegationChain([forged]).verify(nonces=fresh)
     assert not ok
+
+
+def test_nonce_registry_evicts_least_recently_used_entry():
+    from swarm.agentgit.identity import NonceRegistry
+
+    issuer = AgentKeypair.generate()
+    subjects = [AgentKeypair.generate() for _ in range(3)]
+    registry = NonceRegistry(max_entries=2)
+    links = [
+        sign_link(issuer, subject_did=subject.did, permissions=["read"], nonce=str(index))
+        for index, subject in enumerate(subjects)
+    ]
+
+    assert registry.check(links[0]) is None
+    assert registry.check(links[1]) is None
+    assert registry.check(links[0]) is None  # Refresh nonce 0.
+    assert registry.check(links[2]) is None
+    assert len(registry) == 2
+
+    reused_evicted_nonce = sign_link(
+        issuer, subject_did=subjects[2].did, permissions=["read"], nonce="1"
+    )
+    assert registry.check(reused_evicted_nonce) is None
 
 
 def test_default_registry_refuses_nonce_collision_across_verifications():

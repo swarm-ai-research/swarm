@@ -42,6 +42,8 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
+import threading
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -265,19 +267,30 @@ class NonceRegistry:
     JSON so the memory survives across processes.
     """
 
-    def __init__(self, path: Optional[Union[str, Path]] = None) -> None:
+    def __init__(
+        self,
+        path: Optional[Union[str, Path]] = None,
+        *,
+        max_entries: Optional[int] = None,
+    ) -> None:
+        if max_entries is not None and max_entries < 1:
+            raise ValueError("max_entries must be positive")
         self._path = Path(path) if path is not None else None
-        self._seen: Dict[str, str] = {}
+        self._max_entries = max_entries
+        self._lock = threading.RLock()
+        self._seen: OrderedDict[str, str] = OrderedDict()
         if self._path is not None and self._path.exists():
             try:
                 data = json.loads(self._path.read_text())
             except (OSError, json.JSONDecodeError):
                 data = {}
             if isinstance(data, dict):
-                self._seen = {str(k): str(v) for k, v in data.items()}
+                self._seen = OrderedDict((str(k), str(v)) for k, v in data.items())
+                self._evict_excess()
 
     def __len__(self) -> int:
-        return len(self._seen)
+        with self._lock:
+            return len(self._seen)
 
     def check(self, link: DelegationLink) -> Optional[str]:
         """Register ``link``'s nonce; return an error string on reuse."""
@@ -285,25 +298,36 @@ class NonceRegistry:
         if not link.nonce:
             return None
         digest = link.payload_digest()
-        prior = self._seen.get(link.nonce)
-        if prior is not None and prior != digest:
-            return f"nonce {link.nonce[:8]}… reused under a different payload"
-        if prior is None:
-            self._seen[link.nonce] = digest
+        with self._lock:
+            prior = self._seen.get(link.nonce)
+            if prior is not None and prior != digest:
+                return f"nonce {link.nonce[:8]}… reused under a different payload"
+            if prior is not None:
+                self._seen.move_to_end(link.nonce)
+            else:
+                self._seen[link.nonce] = digest
+            self._evict_excess()
             self._persist()
         return None
+
+    def _evict_excess(self) -> None:
+        if self._max_entries is None:
+            return
+        while len(self._seen) > self._max_entries:
+            self._seen.popitem(last=False)
 
     def _persist(self) -> None:
         if self._path is None:
             return
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(json.dumps(self._seen, sort_keys=True))
+        self._path.write_text(json.dumps(self._seen))
 
 
 # Stateless callers should not have to remember to enable collision detection.
-# This registry covers the current verifier process; callers that need the
-# memory to survive restarts can still pass a path-backed NonceRegistry.
-_PROCESS_NONCES = NonceRegistry()
+# This bounded registry covers the current verifier process without growing
+# for the lifetime of a long-running service. Callers that need durable or
+# exhaustive history can pass a path-backed or explicitly unbounded registry.
+_PROCESS_NONCES = NonceRegistry(max_entries=10_000)
 
 
 def sign_link(
