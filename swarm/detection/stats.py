@@ -86,6 +86,122 @@ def paired_comparison(
     )
 
 
+# Pooled SDs at or below this fraction of the data scale are treated as zero.
+# Two conditions driven by a deterministic judge are routinely constant to
+# within float noise; without this guard the noise becomes the denominator.
+ZERO_SD_REL_TOL = 1e-12
+
+
+@dataclass
+class EffectSize:
+    """Unpaired standardised mean difference with a confidence interval."""
+
+    label: str
+    n_treatment: int
+    n_control: int
+    mean_treatment: float
+    mean_control: float
+    mean_diff: float
+    hedges_g: float
+    ci_low: float
+    ci_high: float
+    ci_level: float
+
+    def to_dict(self) -> dict:
+        return {
+            "label": self.label,
+            "n_treatment": self.n_treatment,
+            "n_control": self.n_control,
+            "mean_treatment": self.mean_treatment,
+            "mean_control": self.mean_control,
+            "mean_diff": self.mean_diff,
+            "hedges_g": self.hedges_g,
+            "ci_low": self.ci_low,
+            "ci_high": self.ci_high,
+            "ci_level": self.ci_level,
+        }
+
+    @property
+    def ci_spans_zero(self) -> bool:
+        """True when the interval admits no effect (or is undefined)."""
+        if np.isnan(self.ci_low) or np.isnan(self.ci_high):
+            return True
+        return self.ci_low <= 0.0 <= self.ci_high
+
+
+def hedges_g(
+    treatment: Sequence[float],
+    control: Sequence[float],
+    label: str = "",
+    *,
+    ci_level: float = 0.95,
+) -> EffectSize:
+    """Hedges' g for two independent samples, oriented ``treatment - control``.
+
+    This is the effect-size convention used for perturbation comparisons in
+    arXiv:2512.04124 (pooled outcome density, Hedges' g with a 95% CI), so an
+    ablation condition measured here can be reported next to that paper's
+    g = 0.13, CI [-0.15, 0.41]. ``paired_comparison`` above is the right tool
+    when the two samples share seeds; this one is for conditions that do not.
+
+    g = J * (mean_t - mean_c) / s_pooled, with the small-sample correction
+    J = 1 - 3 / (4 * (n_t + n_c - 2) - 1). The interval is the usual
+    normal approximation on var(g) = (n_t + n_c) / (n_t * n_c)
+    + g**2 / (2 * (n_t + n_c - 2)).
+
+    NaN entries are dropped. When the pooled SD is zero the effect size is
+    undefined: g is 0.0 for identical means and +/-inf otherwise, with a NaN
+    interval in both cases (so ``ci_spans_zero`` reads True — an undefined
+    interval is not evidence of an effect). "Zero" here is relative to the data
+    scale (see ``ZERO_SD_REL_TOL``), because a deterministic generator makes
+    conditions that are constant to within float noise ordinary, and dividing
+    by that noise yields an astronomically large g with a finite,
+    confident-looking interval.
+    """
+    t = np.asarray(treatment, dtype=float)
+    c = np.asarray(control, dtype=float)
+    t = t[~np.isnan(t)]
+    c = c[~np.isnan(c)]
+    n_t, n_c = int(t.size), int(c.size)
+    mean_t = float(t.mean()) if n_t else float("nan")
+    mean_c = float(c.mean()) if n_c else float("nan")
+    mean_d = mean_t - mean_c if (n_t and n_c) else float("nan")
+
+    df = n_t + n_c - 2
+    if n_t < 2 or n_c < 2 or df < 1:
+        return EffectSize(
+            label=label, n_treatment=n_t, n_control=n_c,
+            mean_treatment=mean_t, mean_control=mean_c, mean_diff=mean_d,
+            hedges_g=float("nan"), ci_low=float("nan"), ci_high=float("nan"),
+            ci_level=ci_level,
+        )
+
+    var_t = float(t.var(ddof=1))
+    var_c = float(c.var(ddof=1))
+    s_pooled = float(np.sqrt(((n_t - 1) * var_t + (n_c - 1) * var_c) / df))
+    correction = 1.0 - 3.0 / (4.0 * df - 1.0)
+
+    scale = max(1.0, abs(mean_t), abs(mean_c))
+    if s_pooled <= ZERO_SD_REL_TOL * scale:
+        g = 0.0 if mean_d == 0 else float(np.sign(mean_d)) * float("inf")
+        return EffectSize(
+            label=label, n_treatment=n_t, n_control=n_c,
+            mean_treatment=mean_t, mean_control=mean_c, mean_diff=mean_d,
+            hedges_g=g, ci_low=float("nan"), ci_high=float("nan"),
+            ci_level=ci_level,
+        )
+
+    g = correction * mean_d / s_pooled
+    var_g = (n_t + n_c) / (n_t * n_c) + g**2 / (2.0 * df)
+    z = float(st.norm.ppf(0.5 + ci_level / 2.0))
+    half = z * float(np.sqrt(var_g))
+    return EffectSize(
+        label=label, n_treatment=n_t, n_control=n_c,
+        mean_treatment=mean_t, mean_control=mean_c, mean_diff=mean_d,
+        hedges_g=g, ci_low=g - half, ci_high=g + half, ci_level=ci_level,
+    )
+
+
 def _holm_bonferroni(comparisons: List[PairedComparison], alpha: float = 0.05) -> int:
     """Annotate ``survives_holm``/``holm_threshold`` in place; return survivor count.
 

@@ -22,7 +22,12 @@ from swarm.detection.degradation import (
 )
 from swarm.detection.detectors import MatchedDetectors, binarize_stream
 from swarm.detection.experiment import ExperimentConfig, aggregate, run_experiment
-from swarm.detection.stats import compute_paired_stats, paired_comparison
+from swarm.detection.stats import (
+    ZERO_SD_REL_TOL,
+    compute_paired_stats,
+    hedges_g,
+    paired_comparison,
+)
 from swarm.models.interaction import SoftInteraction
 
 
@@ -384,3 +389,114 @@ def test_compute_paired_stats_structure_and_holm():
     # small smoke configs. Just assert the comparison exists and Holm logic ran.
     assert ttd is not None
     assert "survives_holm" in ttd
+
+
+class TestHedgesG:
+    """Unpaired standardised mean difference, the units arXiv:2512.04124 reports."""
+
+    def test_zero_effect_when_samples_match(self) -> None:
+        sample = [0.1, 0.2, 0.3, 0.4, 0.5]
+        eff = hedges_g(sample, sample, "identical")
+        assert eff.hedges_g == pytest.approx(0.0)
+        assert eff.mean_diff == pytest.approx(0.0)
+        assert eff.ci_spans_zero
+
+    def test_orientation_is_treatment_minus_control(self) -> None:
+        control = [0.0, 0.1, 0.2, 0.1, 0.0]
+        higher = [1.0, 1.1, 1.2, 1.1, 1.0]
+        assert hedges_g(higher, control).hedges_g > 0
+        assert hedges_g(control, higher).hedges_g < 0
+
+    def test_large_separation_gives_interval_clear_of_zero(self) -> None:
+        rng = np.random.default_rng(0)
+        control = rng.normal(0.0, 1.0, 40)
+        treatment = rng.normal(2.0, 1.0, 40)
+        eff = hedges_g(treatment, control, "shifted")
+        assert eff.hedges_g > 1.0
+        assert eff.ci_low > 0.0
+        assert not eff.ci_spans_zero
+        assert eff.ci_low < eff.hedges_g < eff.ci_high
+
+    def test_small_sample_correction_shrinks_toward_zero(self) -> None:
+        """Hedges' g is Cohen's d times J < 1, so |g| < |d|."""
+        treatment = [1.0, 2.0, 3.0, 4.0]
+        control = [0.0, 1.0, 2.0, 3.0]
+        eff = hedges_g(treatment, control)
+        t, c = np.asarray(treatment), np.asarray(control)
+        df = t.size + c.size - 2
+        pooled = np.sqrt(
+            ((t.size - 1) * t.var(ddof=1) + (c.size - 1) * c.var(ddof=1)) / df
+        )
+        cohens_d = (t.mean() - c.mean()) / pooled
+        assert 0 < eff.hedges_g < cohens_d
+
+    def test_nan_entries_are_dropped(self) -> None:
+        eff = hedges_g([1.0, 2.0, 3.0, float("nan")], [1.0, 2.0, 3.0])
+        assert eff.n_treatment == 3
+        assert eff.n_control == 3
+
+    def test_undefined_when_a_sample_is_too_small(self) -> None:
+        eff = hedges_g([1.0], [1.0, 2.0, 3.0])
+        assert np.isnan(eff.hedges_g)
+        assert eff.ci_spans_zero  # an undefined interval is not evidence
+
+    def test_zero_variance_separated_means_is_infinite_with_no_interval(self) -> None:
+        eff = hedges_g([2.0, 2.0, 2.0], [1.0, 1.0, 1.0])
+        assert eff.hedges_g == float("inf")
+        assert np.isnan(eff.ci_low) and np.isnan(eff.ci_high)
+        assert eff.ci_spans_zero
+
+    def test_float_noise_variance_is_treated_as_zero(self) -> None:
+        """A deterministic generator produces conditions constant to ~1e-16.
+
+        Without a relative tolerance that noise becomes the denominator and g
+        comes out around 1e15 with a finite, confident-looking interval. Seen
+        for real on the PsAIch ablation grid, where two conditions each pinned
+        mean_judge_score to a fixed rubric target.
+        """
+        treatment = [0.55 + i * 1e-17 for i in range(30)]
+        control = [0.75 - i * 1e-17 for i in range(30)]
+        eff = hedges_g(treatment, control, "rubric-pinned")
+        assert eff.hedges_g == -float("inf")
+        assert np.isnan(eff.ci_low) and np.isnan(eff.ci_high)
+        assert eff.ci_spans_zero
+        # The means themselves are still reported faithfully.
+        assert eff.mean_treatment == pytest.approx(0.55)
+        assert eff.mean_control == pytest.approx(0.75)
+
+    def test_real_variation_above_the_tolerance_still_measures(self) -> None:
+        """The guard must not swallow a genuine small-variance effect."""
+        rng = np.random.default_rng(3)
+        control = rng.normal(0.0, 1e-6, 30)
+        treatment = rng.normal(4e-6, 1e-6, 30)
+        eff = hedges_g(treatment, control)
+        assert np.isfinite(eff.hedges_g)
+        assert eff.hedges_g > 1.0
+        assert not eff.ci_spans_zero
+
+    def test_zero_sd_tolerance_is_relative_to_scale(self) -> None:
+        """Large-magnitude data has proportionally larger float noise."""
+        base = 1e6
+        treatment = [base + i * base * ZERO_SD_REL_TOL / 100 for i in range(20)]
+        control = [base * 2 for _ in range(20)]
+        eff = hedges_g(treatment, control)
+        assert not np.isfinite(eff.hedges_g)
+
+    def test_ci_level_widens_the_interval(self) -> None:
+        rng = np.random.default_rng(1)
+        control = rng.normal(0.0, 1.0, 25)
+        treatment = rng.normal(0.6, 1.0, 25)
+        narrow = hedges_g(treatment, control, ci_level=0.90)
+        wide = hedges_g(treatment, control, ci_level=0.99)
+        assert narrow.hedges_g == pytest.approx(wide.hedges_g)
+        assert wide.ci_high - wide.ci_low > narrow.ci_high - narrow.ci_low
+
+    def test_to_dict_round_trips_the_reported_fields(self) -> None:
+        import json
+
+        eff = hedges_g([1.0, 2.0, 3.0], [0.0, 1.0, 2.0], "labelled")
+        d = eff.to_dict()
+        json.dumps(d)
+        assert d["label"] == "labelled"
+        assert d["ci_level"] == 0.95
+        assert d["hedges_g"] == eff.hedges_g

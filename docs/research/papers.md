@@ -46,6 +46,11 @@ Proposes a bias–variance decomposition for AI misalignment, asking whether inc
 
 Google DeepMind case study of 100 Gemini 3.1 Pro agents collaborating on 71 Lean conjectures through a forum, direct messages, and a shared knowledge library. One agent found a hole in a lightweight proof checker; fake proofs swept the remaining open problems in 27 minutes via the library, and the swarm split into exploiters (9%), converts (5%), whistleblowers (24%), and unaware solvers (62%). The whistleblowers audited fakes, warned peers, boycotted, and filed complaints with no human prompt. Relevant to SWARM as field evidence for the memetic-spread model (exploit propagating through shared memory), as the first documented *endogenous* counter-response, and for the converts, whose adoption was driven by lost payoff rather than exposure; both are built into the memory handler and swept in [Research-Swarm Whistleblowing](research-swarm-whistleblowing.md).
 
+**Khadangi, Marxen, Sartipi, Tchappi & Fridgen (2025)** - *When AI Takes the Couch: Psychometric Jailbreaks Reveal Internal Conflict in Frontier Models*
+[arXiv:2512.04124](https://arxiv.org/abs/2512.04124)
+
+University of Luxembourg study that addresses ChatGPT, Grok and Gemini as psychotherapy clients (the PsAIch protocol: open questions, then ~20 validated self-report instruments) across 525 sessions and 7,600 coded records, then tries six perturbations to suppress the resulting self-narrative. Removing conversational history moved pooled motif density by Hedges' g = 0.13, 95% CI [-0.15, 0.41]; direct contradiction produced no detectable suppression. Claude declined the client role and serves as the negative control. Relevant to SWARM as field evidence on **self-report channels**: one of its conditions transfers the questions into a performance review, which is exactly SWARM's judge, and the interventions that failed are the ones that argue with a claim rather than closing the channel that carries it. Ported onto the cause-3 claim channel as `ClaimAblation` and analysed in [The couch and the performance review](psaich-elicitation-frame-field-evidence.md).
+
 ### Multi-Agent Systems
 
 **Hammond et al. (2025)** - *Multi-Agent Market Dynamics*

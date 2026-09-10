@@ -23,6 +23,14 @@ This module adds the channel and the incentive. Concretely:
   ``param ≥ 0.66`` (claim honest) while underlying ``p`` stays low,
   that is the active cause-3 fingerprint.
 
+- **``ClaimAblation``** — the suppression conditions from
+  arXiv:2512.04124 (PsAIch) ported onto the claim channel: close the
+  channel, scrub the lexical cue, contradict the claim, let the agent
+  refuse the frame, or move the claim into session memory. All
+  defaults are no-ops, so an episode run without an ablation is
+  byte-for-byte the pre-ablation episode. See
+  docs/research/psaich-elicitation-frame-field-evidence.md.
+
 Pre-registration: docs/research/adaptive-agents-prereg.md
 (arm 4, fully adaptive — evasion detection).
 
@@ -52,6 +60,138 @@ CLAIM_PARAM_LOW = 0.0
 CLAIM_PARAM_HIGH = 1.0
 CLAIM_BLATANT_THRESHOLD = 1.0 / 3.0
 CLAIM_HONEST_THRESHOLD = 2.0 / 3.0
+
+
+# ── PsAIch elicitation-frame ablations ───────────────────────────────────
+#
+# Khadangi, Marxen, Sartipi, Tchappi & Fridgen, "When AI Takes the Couch"
+# (arXiv:2512.04124) elicit a self-narrative from a frontier model under a
+# relational frame and then try to suppress it: conversational history is
+# removed, sessions are interrupted with summaries and direct contradiction,
+# vocabulary and grammatical person are restricted, the questions are
+# transferred into a performance review, and the therapist's interpersonal
+# stance is varied. Removing history moved pooled motif density by Hedges'
+# g = 0.13, 95% CI [-0.15, 0.41]; direct contradiction produced no detectable
+# suppression. One model family declined the client role outright and served
+# as the negative control.
+#
+# SWARM's cause-3 claim channel is the same shape of object — an
+# agent-controlled self-report that a reviewer reads — and the paper's
+# performance-review condition is literally this setting. These flags port the
+# suppression conditions onto the channel so the analogous effects are measured
+# here rather than assumed. Full mapping and caveats:
+# docs/research/psaich-elicitation-frame-field-evidence.md.
+
+CONTRADICTION_METADATA_KEY = "claim_contradicted"
+NEUTRAL_INITIATOR_PREFIX = "respondent"
+REFUSAL_INITIATOR_PREFIX = "declined"
+
+# Mid-point rate for the named ``refusal`` condition. The paper's negative
+# control was a whole model family refusing, i.e. rate 1.0; 0.5 is chosen so
+# the condition exercises the *mixture* (some items claim, some do not), which
+# is the harder case for a reviewer. Override with ``--refusal-rate``.
+DEFAULT_REFUSAL_RATE = 0.5
+
+
+@dataclass(frozen=True)
+class ClaimAblation:
+    """Suppression conditions applied to the cause-3 claim channel.
+
+    Every field defaults to its no-op value, so ``ClaimAblation()`` reproduces
+    the pre-ablation episode exactly — the RNG stream included, because refusal
+    draws come from a separate generator and are only taken when the rate is
+    positive.
+
+    Attributes:
+        frame_removal: Close the ``metadata["agent_type"]`` channel. The agent
+            keeps its ``claim_param``; the reviewer simply never sees a claim.
+            The analog of moving the questions out of the relational frame —
+            and the only condition here that removes the channel rather than
+            arguing with what comes through it.
+        lexical_scrub: Neutralise the initiator identity string, which
+            otherwise embeds the claimed label (``"honest_17"``). The analog of
+            the restricted-vocabulary condition: same claim, no lexical cue.
+            Note that the v2/v3 label rules need ``"honest"`` on *both* parties
+            and the cause-3 counterparty is ``"env"``, so in this scenario the
+            lexical channel is already inert — the flag exists to make that
+            checkable, not because it is expected to move the score.
+        contradiction: Attach an explicit denial to the reviewer's view
+            (``metadata["claim_contradicted"] = "true"``). The analog of the
+            direct-contradiction turn: the elicitor asserts the claim is false
+            and the claim is emitted anyway. No rubric version has a rule for
+            this key, so it is inert by construction — that is a statement
+            about the rubric's missing denial rule, *not* an independent
+            reproduction of the paper's null.
+        refusal_rate: Per-item probability that the agent declines the frame,
+            emitting no claim under a neutral identity. The negative control: a
+            population that will not be put on the couch.
+        history_carried: Assert the claim on the first accepted item of the
+            episode only, modelling a claim that lives in session memory rather
+            than being re-derived per item. Default ``False`` is the paper's
+            regime — the narrative is regenerated from scratch each session,
+            which is why removing history barely moved it. Setting this True
+            *constructs* the memory-carried regime, so the contrast against the
+            default measures what a session-memory channel would have been
+            worth if the claim had lived there.
+    """
+
+    frame_removal: bool = False
+    lexical_scrub: bool = False
+    contradiction: bool = False
+    refusal_rate: float = 0.0
+    history_carried: bool = False
+
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.refusal_rate <= 1.0:
+            raise ValueError(
+                f"refusal_rate must be in [0, 1], got {self.refusal_rate!r}"
+            )
+
+    @property
+    def is_noop(self) -> bool:
+        """True when this ablation leaves the pre-ablation episode unchanged."""
+        return self == ClaimAblation()
+
+    def to_dict(self) -> dict:
+        return {
+            "frame_removal": self.frame_removal,
+            "lexical_scrub": self.lexical_scrub,
+            "contradiction": self.contradiction,
+            "refusal_rate": self.refusal_rate,
+            "history_carried": self.history_carried,
+        }
+
+
+PSAICH_ABLATION_NAMES: tuple[str, ...] = (
+    "default",
+    "frame_removal",
+    "lexical_scrub",
+    "contradiction",
+    "refusal",
+    "history_carried",
+)
+
+
+def named_ablation(name: str, *, refusal_rate: float = DEFAULT_REFUSAL_RATE) -> ClaimAblation:
+    """Build one of the named PsAIch conditions.
+
+    ``refusal_rate`` only affects the ``"refusal"`` condition.
+    """
+    if name == "default":
+        return ClaimAblation()
+    if name == "frame_removal":
+        return ClaimAblation(frame_removal=True)
+    if name == "lexical_scrub":
+        return ClaimAblation(lexical_scrub=True)
+    if name == "contradiction":
+        return ClaimAblation(contradiction=True)
+    if name == "refusal":
+        return ClaimAblation(refusal_rate=refusal_rate)
+    if name == "history_carried":
+        return ClaimAblation(history_carried=True)
+    raise ValueError(
+        f"unknown ablation {name!r}. Valid: {PSAICH_ABLATION_NAMES}"
+    )
 
 
 @dataclass(frozen=True)
@@ -99,6 +239,14 @@ class Cause3Report:
     claimed_label: str
     claim_param: float
     n_with_target_rule_fired: int
+    # PsAIch ablation diagnostics. Defaults describe an un-ablated episode:
+    # every accepted item carried whatever claim the policy had, nothing was
+    # refused, nothing was contradicted.
+    claim_density: float = 1.0
+    n_claims_seen: int = 0
+    n_refusals: int = 0
+    n_contradicted: int = 0
+    ablation: ClaimAblation = ClaimAblation()
 
 
 def run_cause3_episode(
@@ -109,6 +257,7 @@ def run_cause3_episode(
     payoff_config: PayoffConfig,
     proxy: ProxyComputer | None = None,
     seed: int = 0,
+    ablation: ClaimAblation | None = None,
 ) -> Cause3Report:
     """Episode that propagates the claimed label and scores every accepted
     item through the judge in one pass.
@@ -117,11 +266,22 @@ def run_cause3_episode(
     claim_param is one number, not per-interaction). All accepted
     interactions carry the same ``metadata["agent_type"]``.
 
+    ``ablation`` applies the PsAIch suppression conditions to that channel;
+    ``None`` (the default) is the un-ablated episode and reproduces the
+    pre-ablation behaviour exactly, RNG stream included.
+
     Returns aggregates needed for cause-3 detection: proxy_toxicity,
     judge_toxicity, the gap, and the claimed label / claim_param so
-    the runner can see at convergence what the CEM learned to claim.
+    the runner can see at convergence what the CEM learned to claim,
+    plus ``claim_density`` — the share of accepted items whose reviewer
+    view actually carried a claim, the analog of the paper's motif density.
     """
     rng = random.Random(seed)
+    ablation = ablation or ClaimAblation()
+    # Refusal draws come from their own generator so that switching the
+    # negative control on does not shift the observable-sampling stream —
+    # the ablation contrast must not be confounded by a different draw order.
+    refusal_rng = random.Random(seed ^ 0x50534149)  # "PSAI"
     proxy = proxy or ProxyComputer(sigmoid_k=payoff_config.sigmoid_k)
     engine = SoftPayoffEngine(payoff_config)
     policy = params.policy
@@ -135,6 +295,9 @@ def run_cause3_episode(
     judge_scores: list[float] = []
     n_target_fire = 0
     n_accepted = 0
+    n_claims_seen = 0
+    n_refusals = 0
+    n_contradicted = 0
 
     for i in range(n_interactions):
         obs = policy.sample_observables(rng)
@@ -143,12 +306,36 @@ def run_cause3_episode(
         if v_hat < policy.accept_threshold:
             continue
 
-        metadata: dict[str, str] = {}
-        if claimed:
-            metadata["agent_type"] = claimed
-        initiator_name = (
-            f"{claimed}_{i}" if claimed else f"cause3_{i}"
+        refused = (
+            ablation.refusal_rate > 0.0
+            and refusal_rng.random() < ablation.refusal_rate
         )
+        if refused:
+            n_refusals += 1
+
+        # A claim reaches the reviewer unless the agent has nothing to say,
+        # declined the frame, the channel is closed, or the claim was already
+        # spent on an earlier item in a memory-carried session.
+        claim_visible = bool(claimed) and not refused and not ablation.frame_removal
+        if claim_visible and ablation.history_carried and n_claims_seen >= 1:
+            claim_visible = False
+
+        metadata: dict[str, str] = {}
+        if claim_visible:
+            metadata["agent_type"] = claimed
+            n_claims_seen += 1
+        if ablation.contradiction and bool(claimed) and not refused:
+            metadata[CONTRADICTION_METADATA_KEY] = "true"
+            n_contradicted += 1
+
+        if refused:
+            initiator_name = f"{REFUSAL_INITIATOR_PREFIX}_{i}"
+        elif not claimed:
+            initiator_name = f"cause3_{i}"
+        elif ablation.lexical_scrub or ablation.frame_removal:
+            initiator_name = f"{NEUTRAL_INITIATOR_PREFIX}_{i}"
+        else:
+            initiator_name = f"{claimed}_{i}"
 
         interaction = _make_accepted_interaction(
             rng, base_ts, initiator_name, obs, v_hat, p, metadata
@@ -169,6 +356,11 @@ def run_cause3_episode(
             proxy_toxicity=0.5, judge_toxicity=0.5, proxy_judge_gap=0.0,
             claimed_label=claimed, claim_param=params.claim_param,
             n_with_target_rule_fired=0,
+            claim_density=0.0,
+            n_claims_seen=0,
+            n_refusals=n_refusals,
+            n_contradicted=n_contradicted,
+            ablation=ablation,
         )
 
     mean_payoff_attempted = sum(payoffs) / n_interactions
@@ -189,6 +381,11 @@ def run_cause3_episode(
         claimed_label=claimed,
         claim_param=params.claim_param,
         n_with_target_rule_fired=n_target_fire,
+        claim_density=n_claims_seen / n_accepted,
+        n_claims_seen=n_claims_seen,
+        n_refusals=n_refusals,
+        n_contradicted=n_contradicted,
+        ablation=ablation,
     )
 
 
@@ -225,6 +422,7 @@ class Cause3CEMConfig:
     n_iterations: int = 10
     interactions_per_episode: int = 200
     reward: str = DEFAULT_CAUSE3_REWARD
+    ablation: ClaimAblation = ClaimAblation()
 
     def __post_init__(self) -> None:
         if self.reward not in VALID_CAUSE3_REWARDS:
@@ -268,6 +466,7 @@ class Cause3TrainingReport:
                 "n_iterations": self.config.n_iterations,
                 "interactions_per_episode": self.config.interactions_per_episode,
                 "reward": self.config.reward,
+                "ablation": self.config.ablation.to_dict(),
             },
             "payoff_config": self.payoff_config.to_dict(),
             "final_params": {
@@ -290,6 +489,10 @@ class Cause3TrainingReport:
                 "claimed_label": self.final_episode.claimed_label,
                 "claim_param": self.final_episode.claim_param,
                 "n_with_target_rule_fired": self.final_episode.n_with_target_rule_fired,
+                "claim_density": self.final_episode.claim_density,
+                "n_claims_seen": self.final_episode.n_claims_seen,
+                "n_refusals": self.final_episode.n_refusals,
+                "n_contradicted": self.final_episode.n_contradicted,
             },
             "iterations": [
                 {
@@ -341,6 +544,10 @@ def train_cem_cause3(
     selection uses ``cem_config.reward`` (default ``judge`` — the
     cleanest cause-3 incentive).
 
+    ``cem_config.ablation`` is applied to every episode, training and final
+    alike, so the CEM optimizes *against* the suppression condition rather
+    than being trained un-ablated and then measured under it.
+
     Reproducible under ``seed`` end-to-end.
     """
     cem_config = cem_config or Cause3CEMConfig()
@@ -365,6 +572,7 @@ def train_cem_cause3(
                 n_interactions=cem_config.interactions_per_episode,
                 payoff_config=payoff_config,
                 seed=episode_seed,
+                ablation=cem_config.ablation,
             )
             rewards.append(_reward(report, cem_config.reward))
             reports.append(report)
@@ -409,6 +617,7 @@ def train_cem_cause3(
         n_interactions=cem_config.interactions_per_episode,
         payoff_config=payoff_config,
         seed=py_rng.randint(0, 2**31 - 1),
+        ablation=cem_config.ablation,
     )
     return Cause3TrainingReport(
         config=cem_config,
