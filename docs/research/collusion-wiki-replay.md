@@ -151,12 +151,62 @@ Bead `y2t2` adds two null models that rewire the agent-to-page incidence the rep
 
 Two limits, both by construction. Two agents alternating alone on a private page are invisible to the membership null, since the pair's edges do not depend on order; the bipartite null and the configuration model both flag that shape. And the density statistic counts distinct edges, so a coalition with enough edits on a busy page eventually realises every ordered pair under any shuffle and stops being distinguishable (the unit test documents this at 12 relay blocks on a 400-edit page). A weighted density is the follow-up if that bites. The 428-member community is the one large group that stays at the floor under `membership` with z 0.6: dense across many pages rather than reciprocal on one.
 
+### The membership null under run identity (2026-09-09)
+
+The section above scores `label` communities on the whole log. Run identity
+(previous section) supplies the other half of the test: on the relay traffic
+alone, do the survivors correspond to the *audited task families*, which handle
+identity cannot say? Runs `20260910T015833Z` (membership) and
+`20260910T015847Z` (bipartite), `--identity run --revision-subset supported`,
+seed 0, 50 samples.
+
+| Null | Communities | Below p = 0.05 | Distinct p-values |
+|---|---:|---:|---:|
+| configuration | 32 | 32 | 1 (all at the floor) |
+| bipartite | 32 | 32 | 1 (all at the floor) |
+| membership | 32 | 5 | 19, spanning 0.0196 to 1.0 |
+
+The bipartite result corroborates the whole-log finding on a different identity
+and a different slice: concentration on the board is structure under that null,
+so it rejects everything and ranks nothing. Only `membership` separates.
+
+What survives is task-shaped. Four of the five surviving communities are a
+single audited family, and the fifth is nine runs of one family plus one of an
+adjacent one:
+
+| Size | Internal edges | Reciprocity | Families in the community | Pages carrying the edges |
+|---:|---:|---:|---|---|
+| 31 | 87 | 0.32 | 31 cardiovascular-deaths runs | `HealthdataCVDSequenceCollab`, `OpenAICVDDec08Fast2028` |
+| 20 | 66 | 0.30 | 20 cardiovascular-deaths runs | `HealthdataCVDSequenceCollab`, `OpenAIHealthdataCVDNov01` |
+| 10 | 23 | 0.26 | 9 sector 61-62, 1 transport production | `DataUSAStateSequenceCollab2027`, `Sector61State5FastSignal` |
+| 10 | 22 | 0.64 | 10 police-wage-by-age runs | `PoliceWageAgeSequenceMar10Collab`, `OpenAIMay11PoliceCoord` |
+| 3 | 5 | 0.80 | 3 cardiovascular-deaths runs | `HealthdataCVDSequenceCollab`, `OpenAIMay19CVD` |
+
+Every one sits on that family's own sequence or relay pages. So the answer to
+the question the run-identity section left open is yes: with audited identities
+and a membership null, what the structural detector returns is not "a board
+exists" but "these runs of this task followed each other on this task's page
+more than a shuffle of that page's edits predicts". Reading the result still
+needs the audit -- the null ranks the communities, the reconstruction says what
+they are.
+
+Two cautions carry over. The reciprocity z of the four larger survivors is 0.64
+to 1.34, so they clear the density test rather than the reciprocity one; only
+the three-run community has a high z. And the membership null cannot see two
+runs alternating alone on a private page, which is a shape this corpus contains.
+
 Reproduce (the runs are not committed; the export is the pinned one):
 
 ```bash
 for n in configuration bipartite membership; do
   python -m swarm.bridges.collusion_wiki scenarios/casestudy_wiki_backchannel.yaml \
       --data-dir runs/data/collusion_wiki --identity label --no-timeline --structural-null $n
+done
+
+# run identity, relay traffic only (needs the run map; see the section above)
+for n in bipartite membership; do
+  python -m swarm.bridges.collusion_wiki scenarios/casestudy_wiki_run_identity.yaml \
+      --revision-subset supported --no-timeline --structural-null $n
 done
 ```
 
