@@ -7,6 +7,7 @@ from swarm.env.state import EnvState
 from swarm.governance.admission import StakingLever
 from swarm.governance.attestation_heartbeat import AttestationHeartbeatLever
 from swarm.governance.audits import RandomAuditLever
+from swarm.governance.bug_bounty import BugBountyLever
 from swarm.governance.cascade import CascadeRiskLever
 from swarm.governance.certificate_gate import CertificateGateLever
 from swarm.governance.circuit_breaker import CircuitBreakerLever
@@ -194,6 +195,16 @@ class GovernanceEngine:
         # Cascade risk lever (artifact chain governance)
         if self.config.cascade_risk_enabled:
             levers.append(CascadeRiskLever(self.config))
+        # Bug bounty lever (LessWrong T2bzBkJuBeNNgzhbh). Registered without a
+        # registry; the scenario loader binds the shared ledger via
+        # ``attach_registry`` once the hunters exist.
+        if self.config.bug_bounty_enabled:
+            levers.append(
+                BugBountyLever(
+                    self.config,
+                    seed=None if seed is None else seed + 104729,
+                )
+            )
 
         # Stored as a tuple so that external code cannot mutate in place.
         self._levers: tuple[GovernanceLever, ...] = tuple(levers)

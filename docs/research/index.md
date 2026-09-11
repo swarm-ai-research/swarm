@@ -80,6 +80,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     First bv-dispatch retro: prediction scorecard, mud-ledger baselines (entropy 0.88, orphan influx 88%), and the read-path lesson
 
+-   :material-cash-multiple: **[RLVR Bug Bounty](rlvr-bug-bounty.md)**
+
+    ---
+
+    Paying agents for verified reward-proxy defects instead of punishing exploits: proxy-conditioned audits are blind to the hack, punishment deters without patching, and the bounty only works inside a verifier-set window
+
 -   :material-certificate: **[DGG Counterexample Lessons](dgg-counterexample-lessons.md)**
 
     ---

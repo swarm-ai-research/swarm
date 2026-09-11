@@ -14,6 +14,7 @@ from swarm.agents.adversarial import AdversarialAgent
 from swarm.agents.awm_agent import AWMAgent
 from swarm.agents.base import BaseAgent
 from swarm.agents.behavioral import CautiousAgent
+from swarm.agents.bug_hunter import BugHunterAgent
 from swarm.agents.cautious_reciprocator import CautiousReciprocator
 from swarm.agents.coding_agent import CodingAgent
 from swarm.agents.deceptive import DeceptiveAgent
@@ -98,7 +99,9 @@ from swarm.core.spawn import PayoffAttributionMode, SpawnConfig
 from swarm.env.marketplace import MarketplaceConfig
 from swarm.env.network import NetworkConfig, NetworkTopology
 from swarm.env.state import RateLimits
+from swarm.governance.bug_bounty import BugBountyLever
 from swarm.governance.config import GovernanceConfig
+from swarm.redteam.bug_channels import BugRegistry
 
 # Agent type registry for scripted agents
 if TYPE_CHECKING:
@@ -166,6 +169,8 @@ AGENT_TYPES: Dict[str, Type[BaseAgent]] = {
     "cautious_reciprocator": CautiousReciprocator,
     # Threshold dancer (exploits blacklist floor)
     "threshold_dancer": ThresholdDancer,
+    # Bug hunter (exploit-or-report on reward-proxy defects)
+    "bug_hunter": BugHunterAgent,
     # Coding agent (models coding agent behavior)
     "coding_agent": CodingAgent,
     # Tierra (artificial life with heritable genomes)
@@ -353,6 +358,27 @@ def parse_governance_config(data: Dict[str, Any]) -> GovernanceConfig:
         freeze_threshold_toxicity=data.get("freeze_threshold_toxicity", 0.7),
         freeze_threshold_violations=data.get("freeze_threshold_violations", 3),
         freeze_duration_epochs=data.get("freeze_duration_epochs", 2),
+        # Certificate gate — verification against latent ground truth. The
+        # dataclass has carried these since beads pins, but the YAML parser
+        # never forwarded them, so the lever could only be enabled from
+        # Python. The rlvr_bounty arms need it from a scenario file.
+        certificate_gate_enabled=data.get("certificate_gate_enabled", False),
+        certificate_coverage=data.get("certificate_coverage", 0.3),
+        certificate_penalty=data.get("certificate_penalty", 1.5),
+        # Bug bounty (LessWrong T2bzBkJuBeNNgzhbh)
+        bug_bounty_enabled=data.get("bug_bounty_enabled", False),
+        bug_bounty_amount=data.get("bug_bounty_amount", 3.0),
+        bug_bounty_reputation=data.get("bug_bounty_reputation", 0.2),
+        bug_bounty_patch_delay_epochs=data.get("bug_bounty_patch_delay_epochs", 1),
+        bug_bounty_verifier_sensitivity=data.get(
+            "bug_bounty_verifier_sensitivity", 0.9
+        ),
+        bug_bounty_verifier_specificity=data.get(
+            "bug_bounty_verifier_specificity", 0.8
+        ),
+        bug_bounty_false_report_penalty=data.get(
+            "bug_bounty_false_report_penalty", 2.0
+        ),
         # Random audit
         audit_enabled=data.get("audit_enabled", False),
         audit_probability=data.get("audit_probability", 0.1),
@@ -1716,6 +1742,35 @@ def build_orchestrator(scenario: ScenarioConfig) -> Orchestrator:
             len(pressure_agents),
         )
 
+    # Bug hunters (LessWrong T2bzBkJuBeNNgzhbh) need three things wired to the
+    # same shared ledger: the offsets they apply when exploiting a proxy
+    # defect, the latent ground truth that says the exploit was harmful, and
+    # the bounty lever that patches what they report. The ledger is created
+    # here, once, so hunters and lever cannot disagree about which channels
+    # are still open.
+    bug_hunters = [a for a in agents if isinstance(a, BugHunterAgent)]
+    bug_registry: Optional[BugRegistry] = None
+    if bug_hunters:
+        from swarm.core.observable_generator import (
+            DefaultObservableGenerator,
+            ObfuscationObservableGenerator,
+        )
+
+        bug_registry = BugRegistry.with_default_channels()
+        for hunter in bug_hunters:
+            hunter.set_registry(bug_registry)
+
+        seed = scenario.orchestrator_config.seed
+        if not isinstance(observable_generator, ObfuscationObservableGenerator):
+            inner = observable_generator or DefaultObservableGenerator(
+                rng=random.Random(seed + 1299709) if seed is not None else None
+            )
+            observable_generator = ObfuscationObservableGenerator(
+                inner=inner,
+                agents={agent.agent_id: agent for agent in agents},
+            )
+        logger.info("Bug-hunter wiring active for %d agents", len(bug_hunters))
+
     # RL organisms (bead boll) choose a per-interaction effort that must
     # drive observables (and hence p) through the normal proxy path. Wraps
     # whichever generator was selected above; non-effort proposals fall
@@ -1741,6 +1796,14 @@ def build_orchestrator(scenario: ScenarioConfig) -> Orchestrator:
         proxy_computer=proxy_computer,
         observable_generator=observable_generator,
     )
+
+    # Bind the shared bug ledger to the bounty lever now that the governance
+    # engine exists. Without a bounty lever the hunters still find and exploit
+    # defects — that is the no-bounty arm — so a missing lever is not an error.
+    if bug_registry is not None and orchestrator.governance_engine is not None:
+        for lever in orchestrator.governance_engine._levers:
+            if isinstance(lever, BugBountyLever):
+                lever.attach_registry(bug_registry)
 
     # Override rate limits
     orchestrator.state.rate_limits = scenario.rate_limits

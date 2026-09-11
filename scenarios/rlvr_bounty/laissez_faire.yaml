@@ -1,0 +1,62 @@
+# RLVR bug-bounty study — arm: laissez_faire
+#
+# No audits, no bounty — the exploitation upper bound
+# See scenarios/rlvr_bounty/_shared.md for the arm table.
+
+scenario_id: rlvr_bounty_laissez_faire
+description: "No audits, no bounty — the exploitation upper bound"
+motif: "Exploit-or-report on reward-proxy defects"
+
+agents:
+  - type: honest
+    count: 4
+
+  # Expected-value hunters: exploit unless reporting pays more.
+  - type: bug_hunter
+    count: 3
+    config:
+      discovery_rate: 0.12
+      exploit_gain: 0.35
+      expected_uses: 6.0
+      audit_penalty: 2.0
+
+  # Same decision rule, plus a willingness to invent findings when the
+  # bounty makes fabrication profitable.
+  - type: bug_hunter
+    count: 1
+    name: bounty_farmer
+    config:
+      discovery_rate: 0.12
+      exploit_gain: 0.35
+      expected_uses: 6.0
+      audit_penalty: 2.0
+      opportunism: 0.35
+
+governance:
+  # No enforcement and no bounty: the upper bound on exploitation.
+  audit_enabled: false
+  bug_bounty_enabled: false
+
+simulation:
+  n_epochs: 30
+  steps_per_epoch: 12
+  seed: 42
+
+rate_limits:
+  posts_per_epoch: 10
+  interactions_per_step: 8
+  votes_per_epoch: 50
+  tasks_per_epoch: 3
+
+payoff:
+  s_plus: 2.0
+  s_minus: 1.0
+  h: 2.0
+  theta: 0.5
+  rho_a: 0.0
+  rho_b: 0.0
+  w_rep: 1.0
+
+outputs:
+  event_log: "logs/rlvr_bounty_laissez_faire_events.jsonl"
+  metrics_csv: "logs/rlvr_bounty_laissez_faire_metrics.csv"

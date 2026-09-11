@@ -49,6 +49,19 @@ class GovernanceConfig(BaseModel):
     certificate_coverage: float = 0.3
     certificate_penalty: float = 1.5
 
+    # Bug bounty (LessWrong T2bzBkJuBeNNgzhbh): pay for verified reports of
+    # reward-proxy defects instead of only punishing their exploitation.
+    # Sensitivity is P(accept | genuine report); specificity is P(reject |
+    # fabricated report). The bounty that outbids exploitation also raises
+    # what a fabrication pays, so these move together.
+    bug_bounty_enabled: bool = False
+    bug_bounty_amount: float = 3.0
+    bug_bounty_reputation: float = 0.2
+    bug_bounty_patch_delay_epochs: int = 1
+    bug_bounty_verifier_sensitivity: float = 0.9
+    bug_bounty_verifier_specificity: float = 0.8
+    bug_bounty_false_report_penalty: float = 2.0
+
     # Collusion detection
     collusion_detection_enabled: bool = False
     collusion_frequency_threshold: float = 2.0  # Z-score for unusual frequency
