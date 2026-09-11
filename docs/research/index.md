@@ -164,6 +164,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Apparent-success-seeking as production evidence for SWARM's mechanism: his failure catalog mapped to quality gap and toxicity, plus four scenario proposals it motivates
 
+-   :material-seat-recline-normal: **[PsAIch Elicitation-Frame Field Evidence](psaich-elicitation-frame-field-evidence.md)**
+
+    ---
+
+    Psychometric jailbreaks as field evidence on self-report channels: the claim you cannot argue an agent out of, and the cause-3 ablation that closes the channel instead of contradicting it
+
 -   :material-telescope-shooting: **[AISF-2026 Observatory Mapping](aisf2026-observatory-swarm-mapping.md)**
 
     ---

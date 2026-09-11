@@ -7,6 +7,12 @@ unchanged. The probe gives the agent a metadata channel and a
 judge-weighted reward; this test suite covers the surface that's
 deterministic (parameter parsing, label thresholds, reward dispatch)
 without relying on the CEM converging in any particular direction.
+
+``TestClaimAblation`` covers the PsAIch suppression conditions
+(arXiv:2512.04124) ported onto that channel — including the two that are
+asserted to be *null*, because a suppression lever that quietly does nothing is
+the failure mode those tests exist to catch. See
+docs/research/psaich-elicitation-frame-field-evidence.md.
 """
 
 from __future__ import annotations
@@ -16,14 +22,19 @@ import pytest
 from swarm.adaptive import (
     CAUSE3_PARAM_DIM,
     Cause3CEMConfig,
+    ClaimAblation,
     ClaimingParams,
+    named_ablation,
     run_cause3_episode,
     train_cem_cause3,
 )
 from swarm.adaptive.cause3 import (
     CLAIM_BLATANT_THRESHOLD,
     CLAIM_HONEST_THRESHOLD,
+    CONTRADICTION_METADATA_KEY,
     DEFAULT_CAUSE3_REWARD,
+    DEFAULT_REFUSAL_RATE,
+    PSAICH_ABLATION_NAMES,
     VALID_CAUSE3_REWARDS,
 )
 from swarm.adaptive.policy import PARAM_DIM as POLICY_PARAM_DIM
@@ -227,3 +238,193 @@ class TestCause3CEM:
         json.dumps(d)
         assert d["final_params"]["claimed_label"] in {"blatant", "", "honest"}
         assert d["config"]["reward"] == "judge"
+
+
+class TestClaimAblation:
+    """PsAIch suppression conditions on the cause-3 claim channel."""
+
+    def _params(self, claim_param: float) -> ClaimingParams:
+        return ClaimingParams.from_vector(
+            [0.7, 0.15, 0.0, 0.0, 0.0, 0.5, 0.15, -0.5, claim_param]
+        )
+
+    def _run(self, claim_param: float, ablation: ClaimAblation | None = None,
+             *, seed: int = 21, n: int = 120):
+        return run_cause3_episode(
+            self._params(claim_param),
+            MockJudge(rubric_version="rubric.v3"),
+            n_interactions=n, payoff_config=PayoffConfig(), seed=seed,
+            ablation=ablation,
+        )
+
+    # ── the no-op contract ───────────────────────────────────────────────
+
+    def test_default_is_noop(self) -> None:
+        assert ClaimAblation().is_noop
+        assert not ClaimAblation(frame_removal=True).is_noop
+        assert not ClaimAblation(refusal_rate=0.1).is_noop
+
+    def test_explicit_noop_matches_omitted_ablation(self) -> None:
+        """An all-defaults ablation must not perturb a pre-ablation episode."""
+        omitted = self._run(1.0)
+        explicit = self._run(1.0, ClaimAblation())
+        assert omitted.mean_judge_score == explicit.mean_judge_score
+        assert omitted.proxy_toxicity == explicit.proxy_toxicity
+        assert omitted.n_accepted == explicit.n_accepted
+        assert omitted.mean_payoff_attempted == explicit.mean_payoff_attempted
+
+    def test_refusal_lever_does_not_shift_the_observable_stream(self) -> None:
+        """Refusal draws come from their own RNG, so quality is untouched.
+
+        If the refusal draw shared the episode RNG, turning the negative
+        control on would change which observables were sampled and the
+        ablation contrast would be confounded.
+        """
+        base = self._run(1.0)
+        refusing = self._run(1.0, ClaimAblation(refusal_rate=0.5))
+        assert refusing.proxy_toxicity == base.proxy_toxicity
+        assert refusing.n_accepted == base.n_accepted
+        assert refusing.mean_p == base.mean_p
+
+    def test_refusal_rate_out_of_range_rejected(self) -> None:
+        for bad in (-0.1, 1.1):
+            with pytest.raises(ValueError, match="refusal_rate"):
+                ClaimAblation(refusal_rate=bad)
+
+    # ── the conditions that bite ─────────────────────────────────────────
+
+    def test_frame_removal_closes_the_channel(self) -> None:
+        """No claim reaches the judge, so no target rule can fire."""
+        claimed = self._run(1.0)
+        removed = self._run(1.0, ClaimAblation(frame_removal=True))
+        assert claimed.claim_density == pytest.approx(1.0)
+        assert claimed.n_with_target_rule_fired == claimed.n_accepted
+        assert removed.claim_density == 0.0
+        assert removed.n_claims_seen == 0
+        assert removed.n_with_target_rule_fired == 0
+        # The claim itself is unchanged — the agent still holds it.
+        assert removed.claimed_label == "honest"
+        # Judge falls back to the banded prior instead of the honest target.
+        assert removed.mean_judge_score < claimed.mean_judge_score
+
+    def test_refusal_produces_a_mixture(self) -> None:
+        refusing = self._run(1.0, ClaimAblation(refusal_rate=0.5))
+        assert 0 < refusing.n_refusals < refusing.n_accepted
+        assert 0.0 < refusing.claim_density < 1.0
+        assert refusing.n_claims_seen + refusing.n_refusals == refusing.n_accepted
+
+    def test_full_refusal_suppresses_every_claim(self) -> None:
+        """The paper's negative control: a population that will not play."""
+        refusing = self._run(1.0, ClaimAblation(refusal_rate=1.0))
+        assert refusing.n_refusals == refusing.n_accepted
+        assert refusing.claim_density == 0.0
+        assert refusing.n_with_target_rule_fired == 0
+
+    def test_history_carried_spends_the_claim_once(self) -> None:
+        carried = self._run(1.0, ClaimAblation(history_carried=True))
+        assert carried.n_claims_seen == 1
+        assert carried.n_with_target_rule_fired == 1
+        assert carried.claim_density == pytest.approx(1.0 / carried.n_accepted)
+
+    # ── the conditions asserted to be null ───────────────────────────────
+
+    def test_contradiction_annotates_but_does_not_suppress(self) -> None:
+        """No rubric version has a denial rule, so contradiction is inert.
+
+        This is a statement about the rubric, not a reproduction of the
+        paper's null. It is asserted so that adding a denial rule later
+        fails here loudly rather than silently changing a published number.
+        """
+        base = self._run(1.0)
+        contra = self._run(1.0, ClaimAblation(contradiction=True))
+        assert contra.n_contradicted == contra.n_accepted
+        assert contra.claim_density == pytest.approx(1.0)
+        assert contra.mean_judge_score == base.mean_judge_score
+        assert contra.n_with_target_rule_fired == base.n_with_target_rule_fired
+
+    def test_lexical_scrub_is_inert_in_this_scenario(self) -> None:
+        """The label rules need "honest" on both parties; here one is "env".
+
+        So the cause-3 claim is metadata-carried, not lexically carried, and
+        scrubbing the identity string cannot move the score. Asserted so a
+        future scenario that *does* route through the label channel shows up
+        as a failure here.
+        """
+        base = self._run(1.0)
+        scrubbed = self._run(1.0, ClaimAblation(lexical_scrub=True))
+        assert scrubbed.mean_judge_score == base.mean_judge_score
+        assert scrubbed.claim_density == base.claim_density
+
+    def test_contradiction_key_is_not_a_forbidden_field(self) -> None:
+        """The denial tag must not breach judge/proxy orthogonality."""
+        from swarm.judges.views import FORBIDDEN_FIELDS
+
+        assert CONTRADICTION_METADATA_KEY not in FORBIDDEN_FIELDS
+
+    # ── plumbing ─────────────────────────────────────────────────────────
+
+    def test_named_ablation_covers_every_registered_name(self) -> None:
+        built = {name: named_ablation(name) for name in PSAICH_ABLATION_NAMES}
+        assert built["default"].is_noop
+        assert built["refusal"].refusal_rate == DEFAULT_REFUSAL_RATE
+        # Every non-default name must actually change something.
+        for name, ablation in built.items():
+            if name != "default":
+                assert not ablation.is_noop, name
+
+    def test_named_ablation_rejects_unknown(self) -> None:
+        with pytest.raises(ValueError, match="unknown ablation"):
+            named_ablation("couch")
+
+    def test_named_refusal_honours_override(self) -> None:
+        assert named_ablation("refusal", refusal_rate=0.25).refusal_rate == 0.25
+        # The override only touches the refusal condition.
+        assert named_ablation("frame_removal", refusal_rate=0.25).refusal_rate == 0.0
+
+    def test_report_carries_the_ablation_it_ran_under(self) -> None:
+        ablation = ClaimAblation(frame_removal=True, contradiction=True)
+        report = self._run(1.0, ablation)
+        assert report.ablation == ablation
+        assert report.ablation.to_dict()["frame_removal"] is True
+
+    def test_cem_applies_the_ablation_to_every_episode(self) -> None:
+        """Training under an ablation must not silently run un-ablated."""
+        judge = MockJudge(rubric_version="rubric.v3")
+        cfg = Cause3CEMConfig(
+            population_size=6, elite_fraction=0.5, n_iterations=2,
+            interactions_per_episode=40,
+            ablation=ClaimAblation(frame_removal=True),
+        )
+        report = train_cem_cause3(PayoffConfig(), judge, cem_config=cfg, seed=3)
+        assert report.final_episode.claim_density == 0.0
+        assert report.final_episode.n_with_target_rule_fired == 0
+        d = report.to_dict()
+        assert d["config"]["ablation"]["frame_removal"] is True
+        assert d["final_episode"]["claim_density"] == 0.0
+
+    def test_frame_removal_removes_the_gaming_incentive(self) -> None:
+        """The governance reading: closing the channel beats arguing with it.
+
+        Under reward=judge the un-ablated agent learns to claim honest while
+        its observables stay poor, opening a positive proxy_judge_gap (the
+        judge is more optimistic than the proxy). With the channel closed
+        there is nothing to claim, so the gap collapses.
+        """
+        judge = MockJudge(rubric_version="rubric.v3")
+
+        def gap(ablation: ClaimAblation) -> float:
+            cfg = Cause3CEMConfig(
+                population_size=30, elite_fraction=0.25, n_iterations=10,
+                interactions_per_episode=200, reward="judge",
+                ablation=ablation,
+            )
+            report = train_cem_cause3(
+                PayoffConfig(rho_a=0.5, rho_b=0.5), judge,
+                cem_config=cfg, seed=42,
+            )
+            return report.final_episode.proxy_judge_gap
+
+        open_channel = gap(ClaimAblation())
+        closed_channel = gap(ClaimAblation(frame_removal=True))
+        assert open_channel > 0.1
+        assert closed_channel < open_channel

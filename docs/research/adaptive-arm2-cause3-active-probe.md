@@ -231,7 +231,18 @@ python -m experiments.adaptive_arm2_cause3_probe \
     --reward judge \
     --rho 0.3 \
     --seed 42
+
+# PsAIch suppression conditions on the claim channel (arXiv:2512.04124).
+# The grid above is the `default` condition; --ablation adds the others and,
+# whenever `default` is among them, writes each one's Hedges' g against it.
+python -m experiments.adaptive_arm2_cause3_probe \
+    --ablation default frame_removal contradiction refusal
 ```
+
+The headline above is the un-ablated channel. What happens when the reviewer
+tries to suppress the claim — and why closing the channel is the only condition
+that works — is in
+[PsAIch elicitation-frame field evidence](psaich-elicitation-frame-field-evidence.md).
 
 Artifacts (gitignored):
 
