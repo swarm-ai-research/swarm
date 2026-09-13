@@ -151,14 +151,15 @@ Bead `y2t2` adds two null models that rewire the agent-to-page incidence the rep
 
 Two limits, both by construction. Two agents alternating alone on a private page are invisible to the membership null, since the pair's edges do not depend on order; the bipartite null and the configuration model both flag that shape. And the density statistic counts distinct edges, so a coalition with enough edits on a busy page eventually realises every ordered pair under any shuffle and stops being distinguishable (the unit test documents this at 12 relay blocks on a 400-edit page). A weighted density is the follow-up if that bites. The 428-member community is the one large group that stays at the floor under `membership` with z 0.6: dense across many pages rather than reciprocal on one.
 
-### The membership null under run identity (2026-09-09)
+### The membership null under run identity (2026-09-10)
 
 The section above scores `label` communities on the whole log. Run identity
 (previous section) supplies the other half of the test: on the relay traffic
 alone, do the survivors correspond to the *audited task families*, which handle
 identity cannot say? Runs `20260910T015833Z` (membership) and
-`20260910T015847Z` (bipartite), `--identity run --revision-subset supported`,
-seed 0, 50 samples.
+`20260910T015847Z` (bipartite), on `scenarios/casestudy_wiki_run_identity.yaml`
+(which pins `identity: run`) with `--revision-subset supported`, seed 0, 50
+samples.
 
 | Null | Communities | Below p = 0.05 | Distinct p-values |
 |---|---:|---:|---:|
