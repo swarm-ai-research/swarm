@@ -44,6 +44,7 @@ from swarm.detection.stats import (
     compute_paired_stats,
     hedges_g,
     paired_comparison,
+    paired_hedges_g,
 )
 
 __all__ = [
@@ -58,6 +59,7 @@ __all__ = [
     "EffectSize",
     "ZERO_SD_REL_TOL",
     "hedges_g",
+    "paired_hedges_g",
     "StreamConfig",
     "PopulationConfig",
     "AgentStream",

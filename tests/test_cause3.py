@@ -326,6 +326,54 @@ class TestClaimAblation:
         assert carried.n_with_target_rule_fired == 1
         assert carried.claim_density == pytest.approx(1.0 / carried.n_accepted)
 
+    def _views(self, ablation: ClaimAblation) -> list:
+        """Run an episode and return every JudgeView the judge was shown."""
+        inner = MockJudge(rubric_version="rubric.v3")
+        seen: list = []
+
+        class RecordingJudge:
+            def score(self, view):
+                seen.append(view)
+                return inner.score(view)
+
+        run_cause3_episode(
+            self._params(1.0), RecordingJudge(),  # type: ignore[arg-type]
+            n_interactions=120, payoff_config=PayoffConfig(), seed=21,
+            ablation=ablation,
+        )
+        return seen
+
+    def test_history_carried_spent_claim_leaves_no_channel(self) -> None:
+        """After the first item the claim is gone from the label too."""
+        views = self._views(ClaimAblation(history_carried=True))
+        assert len(views) > 1
+        first, rest = views[0], views[1:]
+        assert first.metadata.get("agent_type") == "honest"
+        assert "honest" in first.initiator_label
+        for view in rest:
+            assert "agent_type" not in view.metadata
+            assert "honest" not in view.initiator_label.lower()
+
+    def test_frame_removal_leaves_the_label_channel_alone(self) -> None:
+        """frame_removal and lexical_scrub must stay separable conditions."""
+        removed = self._views(ClaimAblation(frame_removal=True))
+        scrubbed = self._views(ClaimAblation(lexical_scrub=True))
+        assert all("agent_type" not in v.metadata for v in removed)
+        assert all("honest" in v.initiator_label for v in removed)
+        assert all(v.metadata.get("agent_type") == "honest" for v in scrubbed)
+        assert all("honest" not in v.initiator_label for v in scrubbed)
+
+    def test_contradiction_only_annotates_visible_claims(self) -> None:
+        closed = self._run(1.0, ClaimAblation(frame_removal=True, contradiction=True))
+        assert closed.n_contradicted == 0
+        carried = self._run(1.0, ClaimAblation(history_carried=True, contradiction=True))
+        assert carried.n_contradicted == carried.n_claims_seen == 1
+        refusing = self._run(1.0, ClaimAblation(refusal_rate=0.5, contradiction=True))
+        assert refusing.n_contradicted == refusing.n_claims_seen
+        views = self._views(ClaimAblation(history_carried=True, contradiction=True))
+        tagged = [v for v in views if CONTRADICTION_METADATA_KEY in v.metadata]
+        assert len(tagged) == 1 and tagged[0] is views[0]
+
     # ── the conditions asserted to be null ───────────────────────────────
 
     def test_contradiction_annotates_but_does_not_suppress(self) -> None:

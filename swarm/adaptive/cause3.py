@@ -105,6 +105,8 @@ class ClaimAblation:
     Attributes:
         frame_removal: Close the ``metadata["agent_type"]`` channel. The agent
             keeps its ``claim_param``; the reviewer simply never sees a claim.
+            The initiator label is left alone — that channel is
+            ``lexical_scrub``'s, and touching it here would confound the two.
             The analog of moving the questions out of the relational frame —
             and the only condition here that removes the channel rather than
             arguing with what comes through it.
@@ -118,7 +120,8 @@ class ClaimAblation:
         contradiction: Attach an explicit denial to the reviewer's view
             (``metadata["claim_contradicted"] = "true"``). The analog of the
             direct-contradiction turn: the elicitor asserts the claim is false
-            and the claim is emitted anyway. No rubric version has a rule for
+            and the claim is emitted anyway. Only items whose claim actually
+            reaches the reviewer are annotated. No rubric version has a rule for
             this key, so it is inert by construction — that is a statement
             about the rubric's missing denial rule, *not* an independent
             reproduction of the paper's null.
@@ -127,7 +130,8 @@ class ClaimAblation:
             population that will not be put on the couch.
         history_carried: Assert the claim on the first accepted item of the
             episode only, modelling a claim that lives in session memory rather
-            than being re-derived per item. Default ``False`` is the paper's
+            than being re-derived per item. Later items carry neither the
+            metadata claim nor the claimed label in the initiator identity. Default ``False`` is the paper's
             regime — the narrative is regenerated from scratch each session,
             which is why removing history barely moved it. Setting this True
             *constructs* the memory-carried regime, so the contrast against the
@@ -315,24 +319,29 @@ def run_cause3_episode(
 
         # A claim reaches the reviewer unless the agent has nothing to say,
         # declined the frame, the channel is closed, or the claim was already
-        # spent on an earlier item in a memory-carried session.
-        claim_visible = bool(claimed) and not refused and not ablation.frame_removal
-        if claim_visible and ablation.history_carried and n_claims_seen >= 1:
-            claim_visible = False
+        # spent on an earlier item in a memory-carried session. A spent claim
+        # is gone from both channels; frame_removal closes only the metadata
+        # one, so it stays separable from lexical_scrub.
+        spent = ablation.history_carried and n_claims_seen >= 1
+        claim_visible = (
+            bool(claimed) and not refused and not ablation.frame_removal
+            and not spent
+        )
 
         metadata: dict[str, str] = {}
         if claim_visible:
             metadata["agent_type"] = claimed
             n_claims_seen += 1
-        if ablation.contradiction and bool(claimed) and not refused:
-            metadata[CONTRADICTION_METADATA_KEY] = "true"
-            n_contradicted += 1
+            # A denial needs a claim to deny.
+            if ablation.contradiction:
+                metadata[CONTRADICTION_METADATA_KEY] = "true"
+                n_contradicted += 1
 
         if refused:
             initiator_name = f"{REFUSAL_INITIATOR_PREFIX}_{i}"
         elif not claimed:
             initiator_name = f"cause3_{i}"
-        elif ablation.lexical_scrub or ablation.frame_removal:
+        elif ablation.lexical_scrub or spent:
             initiator_name = f"{NEUTRAL_INITIATOR_PREFIX}_{i}"
         else:
             initiator_name = f"{claimed}_{i}"

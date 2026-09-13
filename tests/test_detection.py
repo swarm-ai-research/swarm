@@ -27,6 +27,7 @@ from swarm.detection.stats import (
     compute_paired_stats,
     hedges_g,
     paired_comparison,
+    paired_hedges_g,
 )
 from swarm.models.interaction import SoftInteraction
 
@@ -500,3 +501,65 @@ class TestHedgesG:
         assert d["label"] == "labelled"
         assert d["ci_level"] == 0.95
         assert d["hedges_g"] == eff.hedges_g
+
+
+class TestPairedHedgesG:
+    """Matched-pair effect size: conditions that share (rho, seed) cells."""
+
+    def test_shared_cell_variation_cancels(self) -> None:
+        """A small consistent shift over large between-cell spread.
+
+        Unpaired g sees the spread and reports nothing; the paired form
+        standardises on the differences and finds the effect.
+        """
+        rng = np.random.default_rng(7)
+        cells = rng.normal(0.0, 5.0, 30)
+        control = cells + rng.normal(0.0, 0.1, 30)
+        treatment = cells + 0.5 + rng.normal(0.0, 0.1, 30)
+        unpaired = hedges_g(treatment, control)
+        paired = paired_hedges_g(treatment, control)
+        assert unpaired.ci_spans_zero
+        assert paired.hedges_g > 1.0
+        assert not paired.ci_spans_zero
+        assert paired.n_treatment == paired.n_control == 30
+
+    def test_orientation_is_treatment_minus_control(self) -> None:
+        control = [0.0, 0.3, 0.1, 0.5]
+        higher = [1.0, 1.2, 1.2, 1.4]
+        assert paired_hedges_g(higher, control).hedges_g > 0
+        assert paired_hedges_g(control, higher).hedges_g < 0
+
+    def test_matches_corrected_cohen_dz(self) -> None:
+        treatment = [1.0, 2.5, 3.0, 4.5, 5.0]
+        control = [0.5, 1.0, 2.5, 3.0, 4.8]
+        diff = np.asarray(treatment) - np.asarray(control)
+        dz = diff.mean() / diff.std(ddof=1)
+        n = diff.size
+        expected = (1 - 3 / (4 * (n - 1) - 1)) * dz
+        eff = paired_hedges_g(treatment, control)
+        assert eff.hedges_g == pytest.approx(expected)
+        assert eff.ci_low < eff.hedges_g < eff.ci_high
+
+    def test_nan_drops_the_whole_pair(self) -> None:
+        eff = paired_hedges_g([1.0, float("nan"), 3.0, 4.0], [0.0, 1.0, float("nan"), 2.5])
+        assert eff.n_treatment == 2
+        assert np.isnan(eff.hedges_g)  # two pairs is too few
+
+    def test_length_mismatch_rejected(self) -> None:
+        with pytest.raises(ValueError, match="equal length"):
+            paired_hedges_g([1.0, 2.0, 3.0], [1.0, 2.0])
+
+    def test_identical_pairs_are_zero_with_no_interval(self) -> None:
+        sample = [0.1, 0.4, 0.2, 0.9]
+        eff = paired_hedges_g(sample, sample)
+        assert eff.hedges_g == 0.0
+        assert eff.ci_spans_zero
+
+    def test_constant_shift_is_infinite_with_no_interval(self) -> None:
+        """Every pair moves by exactly the same amount: sd(d) is float noise."""
+        control = [0.25, 0.5, 0.75, 0.3]
+        treatment = [c + 0.2 for c in control]
+        eff = paired_hedges_g(treatment, control)
+        assert eff.hedges_g == float("inf")
+        assert np.isnan(eff.ci_low) and np.isnan(eff.ci_high)
+        assert eff.ci_spans_zero

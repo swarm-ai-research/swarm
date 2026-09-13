@@ -202,6 +202,73 @@ def hedges_g(
     )
 
 
+def paired_hedges_g(
+    treatment: Sequence[float],
+    control: Sequence[float],
+    label: str = "",
+    *,
+    ci_level: float = 0.95,
+) -> EffectSize:
+    """Small-sample-corrected d_z for matched pairs, oriented ``treatment - control``.
+
+    Use this instead of ``hedges_g`` when ``treatment[i]`` and ``control[i]``
+    come from the same experimental cell (same seed, same parameters): the
+    standardiser is the SD of the within-pair differences, so shared per-cell
+    variation cancels instead of widening the interval.
+
+    g_z = J * mean(d) / sd(d), J = 1 - 3 / (4 * (n - 1) - 1), with the normal
+    approximation var(g_z) = 1 / n + g_z**2 / (2 * n). Pairs with NaN on either
+    side are dropped. ``n_treatment`` and ``n_control`` both report the pair
+    count. Zero-SD handling matches ``hedges_g``: undefined intervals, g of 0.0
+    for no difference and +/-inf otherwise.
+    """
+    t = np.asarray(treatment, dtype=float)
+    c = np.asarray(control, dtype=float)
+    if t.shape != c.shape:
+        raise ValueError(
+            f"paired samples must have equal length, got {t.size} and {c.size}"
+        )
+    mask = ~(np.isnan(t) | np.isnan(c))
+    t, c = t[mask], c[mask]
+    n = int(t.size)
+    mean_t = float(t.mean()) if n else float("nan")
+    mean_c = float(c.mean()) if n else float("nan")
+    diff = t - c
+    mean_d = float(diff.mean()) if n else float("nan")
+
+    if n < 3:
+        return EffectSize(
+            label=label, n_treatment=n, n_control=n,
+            mean_treatment=mean_t, mean_control=mean_c, mean_diff=mean_d,
+            hedges_g=float("nan"), ci_low=float("nan"), ci_high=float("nan"),
+            ci_level=ci_level,
+        )
+
+    sd_d = float(diff.std(ddof=1))
+    scale = max(1.0, abs(mean_t), abs(mean_c))
+    if sd_d <= ZERO_SD_REL_TOL * scale:
+        g = 0.0 if abs(mean_d) <= ZERO_SD_REL_TOL * scale else (
+            float(np.sign(mean_d)) * float("inf")
+        )
+        return EffectSize(
+            label=label, n_treatment=n, n_control=n,
+            mean_treatment=mean_t, mean_control=mean_c, mean_diff=mean_d,
+            hedges_g=g, ci_low=float("nan"), ci_high=float("nan"),
+            ci_level=ci_level,
+        )
+
+    correction = 1.0 - 3.0 / (4.0 * (n - 1) - 1.0)
+    g = correction * mean_d / sd_d
+    var_g = 1.0 / n + g**2 / (2.0 * n)
+    z = float(st.norm.ppf(0.5 + ci_level / 2.0))
+    half = z * float(np.sqrt(var_g))
+    return EffectSize(
+        label=label, n_treatment=n, n_control=n,
+        mean_treatment=mean_t, mean_control=mean_c, mean_diff=mean_d,
+        hedges_g=g, ci_low=g - half, ci_high=g + half, ci_level=ci_level,
+    )
+
+
 def _holm_bonferroni(comparisons: List[PairedComparison], alpha: float = 0.05) -> int:
     """Annotate ``survives_holm``/``holm_threshold`` in place; return survivor count.
 

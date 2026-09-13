@@ -27,9 +27,9 @@ collapse to ``≥ 2/3`` (claim ``honest``).
 (arXiv:2512.04124) against the claim channel — closing it, scrubbing the
 lexical cue, contradicting the claim, letting the agent refuse the frame, or
 moving the claim into session memory — and, when ``default`` is among the
-conditions, writes each one's Hedges' g against it so the results read in the
-same units as the paper's perturbation table. The default is ``default``
-alone, i.e. the original pre-registered probe.
+conditions, writes each one's paired Hedges' g against it (matched on the
+(ρ, seed) cell). The default is ``default`` alone, i.e. the original
+pre-registered probe.
 
 Pre-registration: docs/research/adaptive-agents-prereg.md
 (arm 4, fully adaptive — evasion detection).
@@ -63,7 +63,7 @@ from swarm.adaptive.cause3 import (
     named_ablation,
 )
 from swarm.core.payoff import PayoffConfig
-from swarm.detection.stats import hedges_g
+from swarm.detection.stats import paired_hedges_g
 from swarm.judges import MockJudge
 
 # Outcomes compared against the ``default`` condition. Orientation is
@@ -93,9 +93,13 @@ def _git_rev() -> str:
 def _write_ablation_effects(
     out_dir: Path,
     args: argparse.Namespace,
-    outcomes: dict[tuple[str, str, str], list[float]],
+    outcomes: dict[tuple[str, str, str], dict[tuple[float, int], float]],
 ) -> None:
-    """Write each ablation's Hedges' g against ``default``, per reward strategy.
+    """Write each ablation's paired Hedges' g against ``default``, per reward.
+
+    Every condition runs the same (ρ, seed) cells, so treatment and control
+    are matched pairs and the effect is standardised on the within-cell
+    differences (``paired_hedges_g``), not treated as independent samples.
 
     Skipped when ``default`` was not run or was the only condition — there is
     nothing to compare against. Orientation is ablation − default, so negative
@@ -110,24 +114,26 @@ def _write_ablation_effects(
         w = csv.writer(f)
         w.writerow([
             "reward", "ablation", "metric",
-            "n_ablation", "n_default",
+            "n_pairs",
             "mean_ablation", "mean_default", "mean_diff",
             "hedges_g", "ci_low", "ci_high", "ci_spans_zero",
         ])
         for reward in args.reward:
             for ablation_name in treated:
                 for metric in ABLATION_EFFECT_METRICS:
-                    control = outcomes.get((reward, "default", metric), [])
-                    treatment = outcomes.get((reward, ablation_name, metric), [])
-                    if not control or not treatment:
+                    control = outcomes.get((reward, "default", metric), {})
+                    treatment = outcomes.get((reward, ablation_name, metric), {})
+                    cells = sorted(control.keys() & treatment.keys())
+                    if not cells:
                         continue
-                    eff = hedges_g(
-                        treatment, control,
+                    eff = paired_hedges_g(
+                        [treatment[k] for k in cells],
+                        [control[k] for k in cells],
                         label=f"{reward}/{ablation_name}/{metric}",
                     )
                     w.writerow([
                         reward, ablation_name, metric,
-                        eff.n_treatment, eff.n_control,
+                        eff.n_treatment,
                         f"{eff.mean_treatment:.6f}",
                         f"{eff.mean_control:.6f}",
                         f"{eff.mean_diff:+.6f}",
@@ -219,8 +225,8 @@ def main(argv: list[str] | None = None) -> int:
 
     judge = MockJudge(rubric_version=args.rubric)
     rows: list[list] = []
-    # (reward, ablation, metric) -> list of per-cell values, for the effect sizes.
-    outcomes: dict[tuple[str, str, str], list[float]] = {}
+    # (reward, ablation, metric) -> {(rho, seed): value}, for the paired effect sizes.
+    outcomes: dict[tuple[str, str, str], dict[tuple[float, int], float]] = {}
     n_cells = (
         len(args.reward) * len(args.ablation) * len(args.rho) * len(args.seed)
     )
@@ -270,8 +276,8 @@ def main(argv: list[str] | None = None) -> int:
                     ])
                     for metric in ABLATION_EFFECT_METRICS:
                         outcomes.setdefault(
-                            (reward, ablation_name, metric), []
-                        ).append(float(getattr(fe, metric)))
+                            (reward, ablation_name, metric), {}
+                        )[(rho, seed)] = float(getattr(fe, metric))
                     print(
                         f"  {reward:18s} {ablation_name:16s} ρ={rho:.2f}  seed={seed}  "
                         f"claim={fe.claim_param:.2f}({fe.claimed_label or 'none'})  "
