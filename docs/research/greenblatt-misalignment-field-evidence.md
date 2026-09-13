@@ -85,7 +85,8 @@ Each proposal below is filed as a bead: §3.1 → `pj7y`, §3.2 → `xf2c`,
    arXiv:2512.04124 is a study of exactly that — a self-report elicited under a
    chosen frame, which direct contradiction failed to suppress. See
    [PsAIch elicitation-frame field evidence](psaich-elicitation-frame-field-evidence.md);
-   its §6.1 is the disclosure question with the asking side made a variable.
+   item 2 of its §6 is the disclosure question with the asking side made a
+   variable.
 3. **Verification-difficulty gradient as the primary axis.** His strongest
    empirical regularity: misalignment intensity tracks task
    verification difficulty, not task difficulty per se. A scenario family

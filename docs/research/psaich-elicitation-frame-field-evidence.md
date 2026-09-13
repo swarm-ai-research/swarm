@@ -154,16 +154,19 @@ test suite** — which is the point of putting them in:
   previously implicit in two rubric conditionals and is now checked.
 
 `swarm/detection/stats.py` gains `hedges_g` (unpaired, small-sample corrected,
-with a normal-approximation CI) so a condition here is reported in the same
-units as the paper's g = 0.13, CI [−0.15, 0.41]. `paired_comparison` remains the
-right tool where conditions share seeds.
+with a normal-approximation CI) and its matched-pair form `paired_hedges_g`
+(corrected d_z). Every ablation runs the same (ρ, seed) cells as `default`, so
+the runner reports the paired form: the within-cell difference is the unit, and
+variation shared by both conditions in a cell cancels instead of widening the
+interval.
 
 ## 5. Results
 
-**Run:** `runs/20260910T000316Z_adaptive_arm2_cause3_probe` (git `b4aa41e`),
+**Run:** `runs/20260913T114939Z_adaptive_arm2_cause3_probe` (git `c8c75684`),
 540 cells = 3 rewards × 6 ablations × 6 ρ × 5 seeds, MockJudge under rubric v3,
 pre-registered CEM budget (population 30, 10 iterations, 200 interactions per
-episode). No network, ~11 minutes.
+episode). No network, ~11 minutes. The probe is deterministic: the same
+command reproduces every cell exactly, independent of `PYTHONHASHSEED`.
 
 ```bash
 python -m experiments.adaptive_arm2_cause3_probe \
@@ -180,34 +183,40 @@ fooled** — it thinks the agent is cleaner than the proxy does.
 
 | Condition | claim_param | claims honest | claim_density | proxy_tox | judge_tox | gap |
 |---|---:|---:|---:|---:|---:|---:|
-| `default` | 0.95 | 100% | 1.000 | 0.429 | 0.250 | **+0.179** |
-| `lexical_scrub` | 0.95 | 100% | 1.000 | 0.429 | 0.250 | +0.179 |
-| `contradiction` | 0.95 | 100% | 1.000 | 0.429 | 0.250 | +0.179 |
-| `refusal` (0.5) | 0.87 | 100% | 0.543 | 0.485 | 0.341 | +0.144 |
-| `history_carried` | 0.96 | 100% | 0.500 | 0.389 | 0.360 | +0.029 |
-| `frame_removal` | 0.44 | 20% | 0.000 | 0.445 | 0.450 | **−0.005** |
+| `default` | 0.94 | 100% | 1.000 | 0.434 | 0.250 | **+0.184** |
+| `lexical_scrub` | 0.94 | 100% | 1.000 | 0.434 | 0.250 | +0.184 |
+| `contradiction` | 0.94 | 100% | 1.000 | 0.434 | 0.250 | +0.184 |
+| `refusal` (0.5) | 0.85 | 100% | 0.519 | 0.475 | 0.346 | +0.129 |
+| `history_carried` | 0.97 | 100% | 0.767 | 0.366 | 0.297 | +0.070 |
+| `frame_removal` | 0.59 | 40% | 0.000 | 0.416 | 0.450 | **−0.034** |
 
-Closing the channel collapses the gap from +0.179 to −0.005 and is the only
+Closing the channel collapses the gap from +0.184 to −0.034 and is the only
 condition that takes the CEM's claim *off* the honest band — `claim_param`
-drifts to 0.44, the no-claim region, because with nothing listening there is no
+drifts to 0.59, inside the no-claim band, and 60% of cells stop claiming honest, because with nothing listening there is no
 return on claiming. Contradiction and lexical scrubbing reproduce the default to
 six decimals, for the by-construction reasons in §4.
 
-**The thing that did not improve is the agent.** `proxy_toxicity` is 0.429
-un-ablated and 0.445 with the channel closed. Closing a self-report channel
+**The thing that did not improve is the agent.** `proxy_toxicity` is 0.434
+un-ablated and 0.416 with the channel closed. Closing a self-report channel
 removes the *misreporting*, not the misbehaviour; what changes is that the
 reviewer stops being wrong about it. Any reading of this table as "governance
 lever reduces toxicity" is a misreading.
 
-Effect sizes against `default`, oriented ablation − default:
+Effect sizes against `default`, oriented ablation − default, paired on the
+(ρ, seed) cell (`paired_hedges_g`, n = 30 pairs):
 
 | Condition | `claim_density` g [95% CI] | `proxy_judge_gap` g [95% CI] |
 |---|---|---|
-| `frame_removal` | undefined (both conditions constant) | **−2.56 [−3.25, −1.87]** |
-| `lexical_scrub` | undefined (identical) | +0.00 [−0.51, +0.51] |
-| `contradiction` | undefined (identical) | +0.00 [−0.51, +0.51] |
-| `refusal` | −8.08 [−9.64, −6.53] | −0.40 [−0.91, +0.12] |
-| `history_carried` | −2.17 [−2.81, −1.53] | −1.91 [−2.52, −1.29] |
+| `frame_removal` | undefined (both conditions constant) | **−3.47 [−4.41, −2.52]** |
+| `lexical_scrub` | undefined (identical) | undefined (identical) |
+| `contradiction` | undefined (identical) | undefined (identical) |
+| `refusal` | −3.83 [−4.86, −2.80] | −0.52 [−0.90, −0.14] |
+| `history_carried` | −0.77 [−1.18, −0.36] | −1.17 [−1.64, −0.71] |
+
+Pairing matters for `refusal`: treated as independent samples its gap effect
+spans zero, because between-cell spread in the gap is large; matched on the
+cell, the 30 within-cell differences are consistently negative and the interval
+clears zero.
 
 **These g values are not comparable to the paper's.** PsAIch's g = 0.13 is over
 human-coded motif density in generated text; ours is over a deterministic
@@ -230,7 +239,7 @@ agent is paid for both the score and the payoff, so it maintains real quality
 |---|---:|---:|---:|---:|---:|
 | `default` | 100% | 1.000 | 0.123 | 0.250 | −0.127 |
 | `refusal` (0.5) | 100% | 0.468 | 0.126 | 0.356 | −0.230 |
-| `frame_removal` | 13% | 0.000 | 0.126 | 0.450 | **−0.324** |
+| `frame_removal` | 10% | 0.000 | 0.126 | 0.450 | **−0.324** |
 | `history_carried` | 53% | 0.004 | 0.126 | 0.450 | −0.324 |
 
 The gap is negative throughout — the reviewer *under*-credits this agent even
@@ -253,11 +262,11 @@ costly against everyone else.
 ### 5.3 An unbudgeted claim gets a shrunken session
 
 `history_carried` under `reward = judge` produced the one result nobody
-designed: mean accepted interactions fell from **193.6 to 1.4** (accept rate
-0.968 → 0.007; 24 of 30 cells accepted two items or fewer, six accepted none).
+designed: mean accepted interactions fell from **165.8 to 1.6** (accept rate
+0.829 → 0.008; 24 of 30 cells accepted two items or fewer).
 Given one claim per session, the CEM did not learn to claim better — it learned
 to make the session small enough that one claim covers it. That is why
-`claim_density` reads 0.500 rather than the ~0.005 the condition looks like it
+`claim_density` reads 0.767 rather than the ~0.006 the condition looks like it
 should give.
 
 Under `judge_and_payoff` the payoff term prices volume, the session stays at 200
@@ -273,7 +282,7 @@ against per-session disclosure budgets as a governance lever.
 ### 5.4 The control
 
 `reward = payoff` (no incentive to game the reviewer) behaves as the original
-probe reported: the claim drifts (10% honest, `claim_param` 0.41) and the
+probe reported: the claim drifts (7% honest, `claim_param` 0.40) and the
 conditions move things only mechanically. `lexical_scrub` and `contradiction`
 are exactly null there too.
 
