@@ -388,6 +388,64 @@ class SoftMetrics:
             "n_certified_rejected": n_cert_rej,
         }
 
+    def extreme_p_loss_share(
+        self, interactions: List[SoftInteraction], band: float = 0.05
+    ) -> Optional[dict]:
+        """
+        Share of realized loss carried by interactions with extreme p (bead l1d6).
+
+        Realized loss is (s_minus + h) for each accepted interaction whose
+        ground truth is -1: the negative surplus plus the harm, which is what an
+        accepted bad interaction actually costs. It is split by where p sat:
+
+          - high band, p >= 1 - band: the system was near-certain the interaction
+            was good and it was not. This is the confidently-wrong loss of the AI
+            Village loan, where a belief held at 1.0 cost the whole position.
+            Expected-harm metrics price it at (1-p)*h, close to zero.
+          - low band, p <= band: accepted although p said it was almost surely
+            bad. A selection failure, not a calibration one.
+
+        ``saturated`` counts accepted interactions with p exactly 0.0 or 1.0,
+        where no amount of evidence would register in (1-p) or p.
+
+        Args:
+            interactions: Interactions, some with ground_truth set
+            band: Width of each extreme band, in (0, 0.5)
+
+        Returns:
+            Dict with loss_total, loss_high, loss_low, share_high, share_low
+            (shares None when loss_total is 0), n_high, n_low and saturated
+            counts over accepted certified interactions; or None when no
+            accepted interaction carries ground truth.
+        """
+        if not 0.0 < band < 0.5:
+            raise ValueError(f"band must be in (0, 0.5), got {band}")
+        certified = [
+            i for i in interactions if i.accepted and i.ground_truth is not None
+        ]
+        if not certified:
+            return None
+
+        cfg = self.payoff_engine.config
+        unit_loss = cfg.s_minus + cfg.h
+        hi, lo = 1.0 - band, band
+        bad = [i for i in certified if i.ground_truth == -1]
+        loss_total = unit_loss * len(bad)
+        loss_high = unit_loss * sum(1 for i in bad if i.p >= hi)
+        loss_low = unit_loss * sum(1 for i in bad if i.p <= lo)
+        return {
+            "band": band,
+            "loss_total": loss_total,
+            "loss_high": loss_high,
+            "loss_low": loss_low,
+            "share_high": loss_high / loss_total if loss_total else None,
+            "share_low": loss_low / loss_total if loss_total else None,
+            "n_certified_accepted": len(certified),
+            "n_high": sum(1 for i in certified if i.p >= hi),
+            "n_low": sum(1 for i in certified if i.p <= lo),
+            "saturated": sum(1 for i in certified if i.p in (0.0, 1.0)),
+        }
+
     def selection_saturation(self, interactions: List[SoftInteraction]) -> float:
         """
         Fraction of the Cauchy-Schwarz bound on |Q| that is realized:

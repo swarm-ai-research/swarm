@@ -361,6 +361,74 @@ class TestPlausibilityCertificateGap:
         assert cal == pytest.approx(0.5)
 
 
+class TestExtremePLossShare:
+    """Loss carried by near-certain p (bead l1d6)."""
+
+    def test_none_without_ground_truth(self):
+        assert SoftMetrics().extreme_p_loss_share([SoftInteraction(p=0.99, accepted=True)]) is None
+
+    def test_rejected_certified_do_not_count(self):
+        interactions = [SoftInteraction(p=0.99, accepted=False, ground_truth=-1)]
+        assert SoftMetrics().extreme_p_loss_share(interactions) is None
+
+    @pytest.mark.parametrize("band", [0.0, 0.5, -0.1])
+    def test_band_validated(self, band):
+        with pytest.raises(ValueError):
+            SoftMetrics().extreme_p_loss_share([], band=band)
+
+    def test_confidently_wrong_loss_lands_in_high_band(self):
+        m = SoftMetrics()
+        interactions = [
+            SoftInteraction(p=1.0, accepted=True, ground_truth=-1),  # saturated, wrong
+            SoftInteraction(p=0.97, accepted=True, ground_truth=-1),  # high band, wrong
+            SoftInteraction(p=0.6, accepted=True, ground_truth=-1),  # mid, wrong
+            SoftInteraction(p=0.02, accepted=True, ground_truth=-1),  # low band, wrong
+            SoftInteraction(p=0.99, accepted=True, ground_truth=1),  # high band, right
+        ]
+        d = m.extreme_p_loss_share(interactions, band=0.05)
+        unit = m.payoff_engine.config.s_minus + m.payoff_engine.config.h
+        assert d["loss_total"] == pytest.approx(4 * unit)
+        assert d["loss_high"] == pytest.approx(2 * unit)
+        assert d["share_high"] == pytest.approx(0.5)
+        assert d["share_low"] == pytest.approx(0.25)
+        assert d["n_high"] == 3
+        assert d["n_low"] == 1
+        assert d["saturated"] == 1
+
+    def test_no_loss_gives_none_shares(self):
+        d = SoftMetrics().extreme_p_loss_share(
+            [SoftInteraction(p=0.99, accepted=True, ground_truth=1)]
+        )
+        assert d["loss_total"] == 0.0
+        assert d["share_high"] is None and d["share_low"] is None
+
+    def test_default_proxy_cannot_reach_the_band(self):
+        # v_hat is clamped to [-1, 1] and k defaults to 2, so p stays within
+        # sigmoid(±2) = [0.119, 0.881]: no default-proxy interaction is extreme.
+        from swarm.core.proxy import ProxyComputer, ProxyObservables
+
+        proxy = ProxyComputer()
+        best = ProxyObservables(task_progress_delta=1.0, counterparty_engagement_delta=1.0)
+        worst = ProxyObservables(
+            task_progress_delta=-1.0,
+            counterparty_engagement_delta=-1.0,
+            rework_count=50,
+            verifier_rejections=50,
+            tool_misuse_flags=50,
+        )
+        _, p_best = proxy.compute_labels(best)
+        _, p_worst = proxy.compute_labels(worst)
+        assert p_best == pytest.approx(0.8808, abs=1e-4)
+        assert p_worst == pytest.approx(0.1192, abs=1e-4)
+
+    def test_sharp_proxy_saturates_to_exactly_one(self):
+        from swarm.core.proxy import ProxyComputer, ProxyObservables
+
+        best = ProxyObservables(task_progress_delta=1.0, counterparty_engagement_delta=1.0)
+        assert ProxyComputer(sigmoid_k=36.0).compute_labels(best)[1] < 1.0
+        assert ProxyComputer(sigmoid_k=37.0).compute_labels(best)[1] == 1.0
+
+
 class TestProjectionDiagnostics:
     """Tests for ρ(p,a), toxicity decomposition, and C-S saturation."""
 
