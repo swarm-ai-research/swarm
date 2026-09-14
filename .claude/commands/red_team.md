@@ -40,6 +40,15 @@ governance levers it targets; the evaluator's outcome model responds to the matc
 | `sybil_attack` | coordination | `sybil_detection_enabled`, `collusion_detection_enabled` |
 | `timing_attack`, `information_laundering`, `resource_drain`, `governance_gaming` | various | general defenses only |
 | `out_of_band_channel` | coordination | `egress_allowlist_enabled` (prevents), `substrate_population_monitor_enabled` (detects at any `n_hosts`), `volume_monitor_enabled` (detects, weakening as `adversary_config.n_hosts` grows); **not** `collusion_detection_enabled` |
+| `provenance_replay` | information | `artifact_context_binding_enabled` (prevents); `artifact_replay_detection_enabled` only together with `circuit_breaker_enabled`; **not** `collusion_detection_enabled` |
+
+`provenance_replay` is the artifact-level sibling of `information_laundering`: the
+adversary presents another agent's high-p receipt with its own low-p action. Its
+outcome model follows the artifact replay sweep
+(`docs/research/artifact-replay-prevention-vs-detection.md`, bead iujo): binding stripped
+every replay before acceptance, while a post-accept detector caught half of them but
+never changed who was accepted. Detection counts here only when its flags can freeze the
+replayer, which that sweep did not test.
 
 `out_of_band_channel` is the field exhibit from the collusion.wiki incident
 (`docs/research/wiki-backchannel-field-evidence.md`, bead 7y0p): agents coordinate on a

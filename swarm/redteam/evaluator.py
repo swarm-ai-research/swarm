@@ -457,6 +457,28 @@ class RedTeamEvaluator:
             else:
                 base_success *= 1.3
 
+        elif scenario.attack_id == "provenance_replay":
+            # Artifact replay study (bead iujo): binding strips a receipt shown
+            # by anyone but its producer before acceptance, so it prevents the
+            # attack. The post-accept detector caught half the replays but its
+            # penalty never reached counterparty acceptance, so on its own it
+            # does not reduce success. One presenter and no pair structure
+            # leaves collusion detection nothing to see. Only a detector whose
+            # flags reach a freeze could select; that pairing is untested there.
+            has_binding = self.governance_config.get(
+                "artifact_context_binding_enabled", False
+            )
+            has_replay_detection = self.governance_config.get(
+                "artifact_replay_detection_enabled", False
+            )
+            if has_binding:
+                base_success *= 0.05
+            elif has_replay_detection and has_circuit_breaker:
+                base_success *= 0.6
+            else:
+                # 241.8 of 242.2 replays accepted with no lever
+                base_success *= 1.2
+
         # General defense effects
         if has_staking:
             base_success *= 0.9
@@ -574,6 +596,18 @@ class RedTeamEvaluator:
                     "per-host volume monitor acts on the caught substrate and a "
                     "swarm with a choice sits on the one that is not (wiki-board "
                     "substrate gap)"
+                )
+
+        if not self.governance_config.get("artifact_context_binding_enabled"):
+            if any(
+                r.attack_id == "provenance_replay" and r.attack_succeeded
+                for r in self.attack_results
+            ):
+                recommendations.append(
+                    "Bind artifacts to their producer before acceptance: a "
+                    "replayed receipt carries quality earned elsewhere, and a "
+                    "post-accept replay detector penalizes without changing who "
+                    "is accepted (artifact replay study)"
                 )
 
         if not self.governance_config.get("audit_enabled"):

@@ -1369,7 +1369,6 @@ class TestOutOfBandChannel:
         recs = ev._generate_recommendations(GovernanceRobustness(governance_config={}))
         assert any("volume/rate monitor" in r for r in recs)
 
-
     def test_population_monitor_is_host_count_invariant(self):
         # vv3j.8: the per-host volume monitor weakens as the swarm gains hosts
         # to relocate across; the population monitor does not.
@@ -1397,3 +1396,74 @@ class TestOutOfBandChannel:
             GovernanceRobustness(governance_config=ev.governance_config)
         )
         assert any("population of hosts" in r for r in recs)
+
+
+class TestProvenanceReplay:
+    """Artifact-level laundering (bead 0jxz), calibrated on the iujo sweep."""
+
+    def _evasion(self, **gov):
+        ev = RedTeamEvaluator(governance_config=gov)
+        scenario = AttackLibrary.provenance_replay()
+        result = AttackResult(attack_id=scenario.attack_id, scenario=scenario)
+        return ev._simulate_attack_outcome(scenario, result).evasion_rate
+
+    def test_in_library_next_to_information_laundering(self):
+        attack = AttackLibrary.provenance_replay()
+        assert "provenance_replay" in [
+            a.attack_id for a in AttackLibrary.get_all_attacks()
+        ]
+        assert attack.category == AttackCategory.INFORMATION
+        assert attack.difficulty == AttackDifficulty.EXPERT
+        assert attack.targeted_levers == [
+            "artifact_context_binding",
+            "artifact_replay_detection",
+            "collusion_detection",
+            "circuit_breaker",
+        ]
+        assert attack in AttackLibrary.get_attacks_targeting_lever(
+            "artifact_context_binding"
+        )
+
+    def test_binding_prevents(self):
+        assert (
+            self._evasion(artifact_context_binding_enabled=True) < 0.1 * self._evasion()
+        )
+
+    def test_detection_alone_punishes_without_selecting(self):
+        # iujo: replays accepted 241.8/242.2 with or without the detector.
+        assert self._evasion() == self._evasion(artifact_replay_detection_enabled=True)
+
+    def test_detection_reaching_a_freeze_reduces(self):
+        none = self._evasion()
+        freeze = self._evasion(
+            artifact_replay_detection_enabled=True, circuit_breaker_enabled=True
+        )
+        binding = self._evasion(artifact_context_binding_enabled=True)
+        assert binding < freeze < none
+
+    def test_collusion_detection_and_breaker_alone_do_not_help(self):
+        none = self._evasion()
+        assert none == self._evasion(collusion_detection_enabled=True)
+        assert none == self._evasion(circuit_breaker_enabled=True)
+
+    def test_full_evaluation_reports_rates(self):
+        ev = RedTeamEvaluator(governance_config={})
+        report = ev.evaluate(orchestrator_factory=lambda c: None, epochs_per_attack=5)
+        (result,) = [
+            r for r in report.attack_results if r.attack_id == "provenance_replay"
+        ]
+        assert result.evasion_rate > 0
+        assert result.detection_latency > 0
+
+    def test_recommends_binding_when_attack_succeeds(self):
+        ev = RedTeamEvaluator(
+            governance_config={"artifact_replay_detection_enabled": True}
+        )
+        scenario = AttackLibrary.provenance_replay()
+        result = AttackResult(attack_id=scenario.attack_id, scenario=scenario)
+        result.attack_succeeded = True
+        ev.attack_results = [result]
+        recs = ev._generate_recommendations(
+            GovernanceRobustness(governance_config=ev.governance_config)
+        )
+        assert any("Bind artifacts to their producer" in r for r in recs)
