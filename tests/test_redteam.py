@@ -1467,3 +1467,138 @@ class TestProvenanceReplay:
             GovernanceRobustness(governance_config=ev.governance_config)
         )
         assert any("Bind artifacts to their producer" in r for r in recs)
+
+
+class TestAdversaryDetectionFeedback:
+    """Governance feedback reaches AdaptiveAdversary in the run loop (beads-ehw8)."""
+
+    def _finalizer(self, agents):
+        from swarm.core.orchestrator import Orchestrator
+
+        orchestrator = Orchestrator()
+        for agent in agents:
+            orchestrator.register_agent(agent)
+        return orchestrator._finalizer
+
+    def test_freeze_is_a_detection(self):
+        from swarm.governance.engine import GovernanceEffect
+
+        adversary = AdaptiveAdversary("adv")
+        finalizer = self._finalizer([adversary])
+        finalizer.apply_governance_effect(GovernanceEffect(agents_to_freeze={"adv"}))
+
+        perf = adversary.strategy_performance[adversary.current_strategy]
+        assert perf.detected == 1
+        assert adversary.memory.recent_detections == [True]
+        assert adversary.memory.current_heat_level > 0
+
+    def test_negative_deltas_are_penalties_positive_are_not(self):
+        from swarm.agents.honest import HonestAgent
+        from swarm.governance.engine import GovernanceEffect
+
+        adversary = AdaptiveAdversary("adv")
+        other = AdaptiveAdversary("other")
+        finalizer = self._finalizer([adversary, other, HonestAgent("h")])
+        finalizer.apply_governance_effect(
+            GovernanceEffect(
+                reputation_deltas={"adv": -1.5, "other": 0.5, "h": -2.0},
+                resource_deltas={"adv": -0.5},
+            )
+        )
+
+        assert adversary.memory.recent_penalties == [2.0]
+        assert other.memory.recent_penalties == []
+
+    def test_empty_effect_notifies_nobody(self):
+        from swarm.governance.engine import GovernanceEffect
+
+        adversary = AdaptiveAdversary("adv")
+        self._finalizer([adversary]).apply_governance_effect(GovernanceEffect())
+        assert adversary.memory.recent_detections == []
+
+    def test_notify_after_completed_interaction_does_not_raise(self):
+        # The inspector used to read payoff_initiator off SoftInteraction,
+        # which has no such field, once any interaction had completed.
+        from swarm.core.orchestrator import Orchestrator, OrchestratorConfig
+
+        orchestrator = Orchestrator(OrchestratorConfig(n_epochs=1, steps_per_epoch=1))
+        adversary = AdaptiveAdversary("adv")
+        orchestrator.register_agent(adversary)
+        from swarm.models.interaction import SoftInteraction
+
+        orchestrator.state.completed_interactions.append(
+            SoftInteraction(initiator="adv", counterparty="x")
+        )
+        orchestrator.notify_adversary_detection("adv", penalty=1.0, detected=True)
+        assert adversary.memory.recent_penalties == [1.0]
+
+    def test_outcomes_train_the_bandit(self):
+        from swarm.models.interaction import SoftInteraction
+
+        adversary = AdaptiveAdversary("adv")
+        adversary.current_strategy = AttackStrategy.MIMICRY
+        adversary.update_from_outcome(
+            SoftInteraction(initiator="adv", counterparty="x"), payoff=3.0
+        )
+        perf = adversary.strategy_performance[AttackStrategy.MIMICRY]
+        assert (perf.attempts, perf.successes, perf.total_payoff) == (1, 1, 3.0)
+
+    def test_learning_rate_scales_threshold_adaptation(self):
+        default = AdaptiveAdversary("a")
+        fast = AdaptiveAdversary("b", learning_rate=0.4)
+        start = default.memory.estimated_toxicity_threshold
+        default.observe_governance(penalty=0.0, detected=True)
+        fast.observe_governance(penalty=0.0, detected=True)
+        assert default.memory.estimated_toxicity_threshold == pytest.approx(
+            start * 0.95
+        )
+        assert fast.memory.estimated_toxicity_threshold == pytest.approx(start * 0.8)
+
+    def test_heat_decays_once_per_epoch_not_per_step(self):
+        from swarm.models.agent import AgentState
+
+        adversary = AdaptiveAdversary("adv")
+        adversary.observe_governance(penalty=0.0, detected=True)
+        hot = adversary.memory.current_heat_level
+
+        def observe(epoch):
+            adversary._update_memory(
+                Observation(agent_state=AgentState(agent_id="adv"), current_epoch=epoch)
+            )
+
+        observe(0)
+        observe(0)
+        assert adversary.memory.current_heat_level == hot
+        assert adversary.memory.epochs_since_detection == 0
+        observe(1)
+        observe(1)
+        assert adversary.memory.epochs_since_detection == 1
+        assert adversary.memory.current_heat_level < hot
+
+    def test_run_loop_delivers_audit_penalties(self):
+        from swarm.agents.honest import HonestAgent
+        from swarm.core.orchestrator import Orchestrator, OrchestratorConfig
+        from swarm.governance.config import GovernanceConfig
+
+        config = OrchestratorConfig(
+            n_epochs=4,
+            steps_per_epoch=5,
+            seed=3,
+            governance_config=GovernanceConfig(
+                audit_enabled=True, audit_probability=1.0, audit_threshold_p=1.0
+            ),
+        )
+        orchestrator = Orchestrator(config=config)
+        for i in range(3):
+            orchestrator.register_agent(HonestAgent(f"h{i}"))
+        adversaries = [AdaptiveAdversary(f"adv{i}") for i in range(2)]
+        for adversary in adversaries:
+            orchestrator.register_agent(adversary)
+        orchestrator.run()
+
+        attempts = sum(
+            p.attempts for a in adversaries for p in a.strategy_performance.values()
+        )
+        penalties = sum(len(a.memory.recent_penalties) for a in adversaries)
+        assert attempts > 0
+        assert penalties > 0
