@@ -118,6 +118,93 @@ separates routers that carry an adversary from routers that don't (e.g.
 AUC > 0.8 at f = 0.05), lesson 1 is wrong about invisibility and the
 interesting lever becomes ban precision, not detection.
 
+## Findings (2026-09-14, bead `ggiw`): pooling is second-order, bans are not
+
+Run: `python -m experiments.router_intermediary` (config
+`scenarios/router_intermediary.yaml`, seed 42, 200 reps per detection cell).
+There are 400 operators, 20 of them adversarial, and each operator makes 10
+interactions per epoch. Benign p averages 0.80 and adversary p averages 0.60.
+Account toxicity is standardized against benign accounts of the same size, and
+each flag threshold is calibrated to a 5% false-positive rate on benign-only
+accounts. The predictions and the falsifier were written into the config
+before the first run.
+
+**Lever 1: operators per router.**
+
+| operators per router | clean accounts | AUC | adversary accounts flagged | clean accounts flagged |
+|---|---|---|---|---|
+| 1 (direct) | 0.95 | 0.999 | 0.995 | 0.050 |
+| 5 | 0.77 | 0.935 | 0.701 | 0.049 |
+| 20 | 0.34 | 0.841 | 0.474 | 0.052 |
+| 50 | 0.06 | 0.854 | 0.537 | 0.081 |
+
+**Lever 2: banning flagged accounts** over 20 epochs. Adversaries re-route
+after 1 epoch, benign operators after 4.
+
+| operators per router | adversary persistence | benign operator-epochs lost per adversary operator-epoch removed |
+|---|---|---|
+| 1 | 0.50 | 6.1 |
+| 5 | 0.59 | 16.8 |
+| 20 | 0.59 | 27.9 |
+| 50 | 0.54 | 26.6 |
+
+**Lever 3: KYC pass-through** at 50 operators per router. AUC is 0.854 with no
+routers forwarding operator ids, 0.961 with half of them, and 0.998 with all.
+
+**Sensitivity (not a lever): how benign the adversary's tasks look.**
+
+| adversary mean p | AUC, direct | AUC, 50 per router |
+|---|---|---|
+| 0.60 | 0.999 | 0.854 |
+| 0.70 | 0.940 | 0.772 |
+| 0.75 | 0.794 | 0.631 |
+| 0.78 | 0.626 | 0.603 |
+
+### 1. The falsifier fires: pooling does not make the adversary invisible
+
+At 20 operators per router, AUC is 0.84, above the preregistered 0.8. P1 holds
+in direction but not in size. The adversary's excess is diluted by 1/m, but
+benign noise averages down as well, by 1/√m, so detectability decays like 1/√m,
+not 1/m. Pooling also puts several adversaries in the same account once they
+are more than a few percent of traffic. At 50 per router, 94% of accounts carry
+an adversary, and "which account" stops being the useful question. The
+adversarial reading above said the adversary "is invisible for as long as the
+router's benign base stays large". At these parameters that is wrong.
+(At 50 per router the clean-account flag rate of 0.081 rests on about half a
+clean account per epoch and is noisy.)
+
+### 2. Subtlety of the component tasks dominates pooling
+
+Moving adversary p from 0.60 to 0.78 costs more AUC with direct accounts
+(0.999 → 0.626) than moving from direct accounts to 50 per router costs at any
+subtlety. At p = 0.78 the router adds almost nothing (0.626 → 0.603), because
+the adversary was already near-invisible on its own. BABEL's case is the
+subtle row: scrapers and dashboards look like ordinary coding work. What hides
+an operator like that is lesson 5 (composition), not lesson 1 (the router).
+
+### 3. The router's real cost lands on bans
+
+P2 holds. Each adversary operator-epoch removed costs about 6 benign
+operator-epochs with direct accounts and about 27 at 20 or more per router,
+roughly 4.5× more collateral. Bans never remove more than half of adversary
+presence, even with near-perfect direct detection, because adversaries come
+back after one epoch. The ban lever is limited by re-route speed first and by
+pooling second.
+
+### 4. KYC pass-through is the lever that pays
+
+Forwarding operator ids from half the routers recovers most of the lost AUC
+(0.854 → 0.961). It is the only lever here that improves detection *and*
+would cut ban collateral, since a flag then lands on an operator rather than
+on a router full of co-tenants.
+
+**Limits.** Adversaries make the same number of interactions as benign
+operators. An operator doing a team's work (lesson 4) makes more, which makes
+them easier to detect. There is one detector (mean toxicity per account per
+epoch) and no memory across epochs. Operators land on routers at random, not
+chosen strategically. It is a stylized Monte Carlo, not the engine: every
+SWARM lever keys on agent id, which is exactly the assumption under test.
+
 ## Open questions
 
 1. **Did BABEL's Claude traffic go through the router?** If all of it did, a
