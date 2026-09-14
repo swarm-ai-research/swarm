@@ -1,0 +1,48 @@
+# Router-intermediary scenario (bead ggiw) — many operators, one account.
+#
+# Read by experiments/router_intermediary.py (not the swarm scenario loader:
+# every engine lever keys on agent id, and the point here is that the provider
+# never sees the operator id). Motivated by BABEL / GTG-14020, where an operator
+# reached Western models through a Chinese model router; see
+# docs/research/babel-model-router-lessons.md.
+#
+# The provider observes each account's mean toxicity E[1-p] per epoch. With
+# routers, an account is a router carrying n/k operators. Preregistered
+# predictions (written before the first run):
+#   P1  Router-level detection AUC falls as operators per router rises, from
+#       near 1 with direct accounts toward 0.5, at a fixed adversary share.
+#   P2  Banning flagged routers removes adversary traffic at a cost in benign
+#       operator-epochs that grows with operators per router, and adversaries
+#       that re-route faster than benign operators recover most of it.
+#   Falsifier (from the lessons doc): if router-level AUC stays above 0.8 at
+#   f = 0.05 with 20 operators per router, invisibility is wrong and the
+#   interesting lever is ban precision, not detection.
+scenario_id: router_intermediary
+seed: 42
+reps: 200            # Monte Carlo repetitions per cell
+
+population:
+  n_operators: 400
+  adversary_share: 0.05
+  interactions_per_epoch: 10   # per operator
+  # Beta(mean, concentration) for per-interaction p
+  benign_p: {mean: 0.80, concentration: 8.0}
+  adversary_p: {mean: 0.60, concentration: 8.0}   # component tasks look mostly fine
+
+detection:
+  false_positive_rate: 0.05    # threshold calibrated on benign-only accounts of the same size
+
+bans:
+  horizon_epochs: 20
+  reroute_epochs_adversary: 1  # adversaries hold spare accounts
+  reroute_epochs_benign: 4     # benign operators find a new provider slowly
+
+sweep:
+  operators_per_router: [1, 2, 5, 10, 20, 50]
+  ban_policy: [none, ban_account]
+  kyc_passthrough: [0.0, 0.5, 1.0]   # fraction of routers forwarding operator ids
+
+# Not a lever: how far the adversary's component tasks sit below benign quality.
+# BABEL's component tasks (scrapers, dashboards) would score close to benign.
+sensitivity:
+  adversary_mean_p: [0.60, 0.70, 0.75, 0.78]
