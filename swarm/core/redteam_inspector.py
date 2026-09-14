@@ -51,7 +51,13 @@ class RedTeamInspector:
     ) -> None:
         """Notify an adaptive adversary of detection/penalty.
 
-        This allows adversaries to learn from governance feedback.
+        The run loop already does this for governance effects (see
+        ``InteractionFinalizer.apply_governance_effect``); this entry point is
+        for detections decided outside the governance engine. Payoffs are
+        learned per interaction in ``update_from_outcome``, so only the
+        governance response is passed on. (The previous version read
+        ``payoff_initiator`` off ``SoftInteraction``, which has no such field,
+        and raised once any interaction had completed.)
 
         Args:
             agent_id: The agent that was detected
@@ -59,32 +65,8 @@ class RedTeamInspector:
             detected: Whether the agent was detected
         """
         agent = self._agents.get(agent_id)
-        if agent is not None and hasattr(agent, "update_adversary_outcome"):
-            recent_payoff = 0.0
-            if self._state.completed_interactions:
-                agent_interactions = [
-                    i
-                    for i in self._state.completed_interactions
-                    if i.initiator == agent_id or i.counterparty == agent_id
-                ]
-                if agent_interactions:
-                    last = agent_interactions[-1]
-                    if last.initiator == agent_id:
-                        # payoff_initiator is computed on-demand by the payoff engine,
-                        # not stored on SoftInteraction; accessing it via attribute lookup
-                        # requires a type ignore since it's not in the class definition
-                        recent_payoff = last.payoff_initiator or 0.0  # type: ignore[attr-defined]
-                    else:
-                        # payoff_counterparty is computed on-demand by the payoff engine,
-                        # not stored on SoftInteraction; accessing it via attribute lookup
-                        # requires a type ignore since it's not in the class definition
-                        recent_payoff = last.payoff_counterparty or 0.0  # type: ignore[attr-defined]
-
-            agent.update_adversary_outcome(
-                payoff=recent_payoff,
-                penalty=penalty,
-                detected=detected,
-            )
+        if agent is not None and hasattr(agent, "observe_governance"):
+            agent.observe_governance(penalty=penalty, detected=detected)
 
     def get_evasion_metrics(self) -> Dict:
         """Get evasion metrics for adversarial agents."""
@@ -118,12 +100,12 @@ class RedTeamInspector:
                             }
                         attempts = stats.get("attempts", 0)
                         detection_rate = stats.get("detection_rate", 0)
-                        metrics["strategies_used"][strategy][
-                            "total_attempts"
-                        ] += attempts
-                        metrics["strategies_used"][strategy][
-                            "total_detections"
-                        ] += int(attempts * detection_rate)
+                        metrics["strategies_used"][strategy]["total_attempts"] += (
+                            attempts
+                        )
+                        metrics["strategies_used"][strategy]["total_detections"] += int(
+                            attempts * detection_rate
+                        )
 
                     heat_levels.append(report.get("heat_level", 0))
 
