@@ -147,9 +147,7 @@ class InteractionFinalizer:
                         payload={
                             "cost_a": gov_effect.cost_a,
                             "cost_b": gov_effect.cost_b,
-                            "levers": [
-                                e.lever_name for e in gov_effect.lever_effects
-                            ],
+                            "levers": [e.lever_name for e in gov_effect.lever_effects],
                         },
                         epoch=self._state.current_epoch,
                         step=self._state.current_step,
@@ -275,6 +273,29 @@ class InteractionFinalizer:
             if agent_state:
                 agent_state.update_resources(delta)
 
+        self._notify_governance_targets(effect)
+
+    def _notify_governance_targets(self, effect: GovernanceEffect) -> None:
+        """Tell agents that learn from governance when they were acted on.
+
+        Every interaction, step and epoch effect passes through
+        ``apply_governance_effect``, so this is the one place a freeze or a
+        penalty is known for certain. Penalty is the size of the negative
+        reputation and resource deltas; interaction costs (taxes, fees) are
+        left out because they are charged whether or not anything was caught.
+        """
+        penalties: Dict[str, float] = {}
+        for deltas in (effect.reputation_deltas, effect.resource_deltas):
+            for agent_id, delta in deltas.items():
+                if delta < 0:
+                    penalties[agent_id] = penalties.get(agent_id, 0.0) - delta
+        for agent_id in effect.agents_to_freeze | penalties.keys():
+            agent = self._agents.get(agent_id)
+            if agent is not None and hasattr(agent, "observe_governance"):
+                agent.observe_governance(
+                    penalty=penalties.get(agent_id, 0.0), detected=True
+                )
+
     # ------------------------------------------------------------------
     # Artifact layer
     # ------------------------------------------------------------------
@@ -302,7 +323,10 @@ class InteractionFinalizer:
             parent_interaction_id = registry.consume(
                 consumed_id, interaction.interaction_id
             )
-            if parent_interaction_id and parent_interaction_id not in interaction.causal_parents:
+            if (
+                parent_interaction_id
+                and parent_interaction_id not in interaction.causal_parents
+            ):
                 interaction.causal_parents.append(parent_interaction_id)
 
     # ------------------------------------------------------------------
