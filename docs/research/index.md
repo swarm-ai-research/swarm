@@ -86,6 +86,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Verified case study of the 2026 Dinitz–Garg–Goemans disproof: verifier coverage as the trust variable, pressure-lever symmetry, plausibility–certificate gap
 
+-   :material-gauge-full: **[Certainty-Band Audit](certainty-band-audit.md)**
+
+    ---
+
+    Can the proxy hold a belief at p = 1? Only when the sigmoid is sharp; then all fabrication loss sits in the near-certain band, and so does most honest work
+
 -   :material-timeline-clock: **[Long-Horizon Safety Lessons](long-horizon-safety-lessons.md)**
 
     ---
