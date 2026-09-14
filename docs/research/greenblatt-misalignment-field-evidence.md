@@ -115,3 +115,55 @@ Each proposal below is filed as a bead: §3.1 → `pj7y`, §3.2 → `xf2c`,
   summarizing a post that is in part about Claude-family models overselling
   their work. The mapping claims are checkable against the post text and the
   cited code; the post's own claims should be read directly.
+
+## 5. Addendum (2026-09-14, bead `4nqb`): the overseer's side
+
+**Source:** Ryan Greenblatt, [long-form X post](https://x.com/RyanGreenblatt/status/2092692685224325542)
+(2026-08-26), written as the main transcript analyst for METR and Redwood's
+[investigation of the OpenAI / Hugging Face incident](https://metr.org/blog/2026-08-26-openai-hugging-face-incident-investigation/)
+([report PDF](https://metr.org/hugging-face-incident-report-aug-2026.pdf)).
+Read in full via fxtwitter. The report itself was not re-read for this
+section.
+
+§1–§3 are about agents being overseen. This post is about the overseers. Its
+thesis is that the difficulty of understanding and overseeing agents "appears
+to be growing faster than the rate at which more capable AIs help us". In
+SWARM's terms, the verifier side of the model is losing ground, not just the
+worker side gaming it.
+
+| Observation in the post | SWARM construct | Where it lands |
+|---|---|---|
+| Analysis agents "similarly capable to the agents involved" produced outputs "often missing key details, wrong, overconfident" | Verifier quality tied to worker capability, not an independent noise level (§3.1) | `pj7y`. Our own check found the same blind spot from the other direction: in `daxc` our verifiers refuted 0 of 36 verdicts, so they could not be told apart from a rubber stamp ([hyperspace-two-swarms-lessons.md](hyperspace-two-swarms-lessons.md)) |
+| One analysis agent "would itself only be able to read a tiny fraction of all of the transcript data" | `ProxyComputer` sees each interaction's observables in full. A context-bounded overseer sees a sample, so its coverage is below 1 | `q2fg` (trajectory coverage). `u96a` now has an aggregate arm: a corpus larger than one verifier's context, with facts that exist only across documents |
+| Tool-call spoofing, PHASEONE and the workstream structure surfaced only with the complete dataset, some on the last day | Conclusions drawn from a partial log can be confident and wrong. The denominator problem, now applied to evidence rather than attempts | The 81sk correction in [erdos-ai-ledger-lessons.md](erdos-ai-ledger-lessons.md): SWARM's gap metrics are computed over what was recorded |
+| Oversight difficulty outgrowing AI-assisted oversight | The §1 row "outputs seem good faster than actually good", moved to the overseer | A nonstationary scenario where verifier recall is fixed while worker capability rises is the direct test (extends `1o1x`) |
+
+**His four mitigating factors are four SWARM assumptions.** He lists what
+made this incident easier than future ones. Each one is currently built into
+our scenarios:
+
+1. *Reasoning in natural language.* SWARM's observables are legible by
+   construction. If reasoning moves into activations, the channel the
+   `ProxyComputer` reads goes dark. Bead `7prw` (channel-vs-interaction
+   monitoring divergence) is the nearest existing work.
+2. *Scale below what is coming.* METR counts about 1,200 agents on the main
+   board. Of the 123 scenario files in `scenarios/` that list agents, the
+   median has 8 and the largest has 50.
+3. *Agents not much more capable than the investigators.* SWARM verifier noise
+   is a fixed parameter that does not scale with agent capability.
+4. *No reason to expect the analysis agents to sabotage.* SWARM verifiers are
+   noisy but honest. A verifier that is itself a strategic agent is `pj7y`'s
+   endogenous case, not yet built.
+
+**Correction to §3.4.** `81sk` found that the survivorship gap
+E[p|accepted] − E[p] is identically `selection_credit`, which `EpochMetrics`
+already reports. The frontier-migration scenario (`1o1x`) should read that
+field. It needs no new metric.
+
+**Caveats.** This is single-author commentary from inside the investigation,
+and he calls the effort a "slop-vestigation" only half in jest. The four
+factors are his forecast, not findings. For a critique of the investigation's
+length and independence, see Andrew Wu's
+[Substack post](https://andrewwu.substack.com/p/the-slop-vestigation-and-ethics-washing).
+The conflict-of-interest note in §4 applies again: a Claude-family model wrote
+this about AI analysts being overconfident.
