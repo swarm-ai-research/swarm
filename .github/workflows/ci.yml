@@ -202,12 +202,17 @@ jobs:
           sudo apt-get install -y \
             libcairo2-dev libfreetype6-dev libffi-dev libjpeg-dev libpng-dev libz-dev pngquant
       - name: Install docs build deps
+        # git-revision-date-localized pinned <1.6 (bead ggai): 1.6.0, released
+        # 2026-09-14, emits its "First revision timestamp is older than last"
+        # warning despite `strict: false` in mkdocs.yml, so `--strict` aborts on
+        # every run. Unpin once a release honours the plugin's own strict flag
+        # again (check: this job goes green with the pin removed).
         run: |
           python -m pip install \
             "mkdocs-material[imaging]" \
             "mkdocstrings[python]" \
             pymdown-extensions \
-            mkdocs-git-revision-date-localized-plugin \
+            "mkdocs-git-revision-date-localized-plugin<1.6" \
             mkdocs-rss-plugin
       - name: Build static site
         # --strict gates on broken internal links and nav regressions. The
