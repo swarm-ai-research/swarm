@@ -100,6 +100,7 @@ from swarm.env.marketplace import MarketplaceConfig
 from swarm.env.network import NetworkConfig, NetworkTopology
 from swarm.env.state import RateLimits
 from swarm.governance.config import GovernanceConfig
+from swarm.models.scenario import validate_scenario_config
 
 # Agent type registry for scripted agents
 if TYPE_CHECKING:
@@ -1214,6 +1215,7 @@ def load_scenario(path: Path) -> ScenarioConfig:
     """
     with open(path) as f:
         data = yaml.safe_load(f)
+    validate_scenario_config(data)
 
     # Parse component configs
     governance_config = parse_governance_config(data.get("governance", {}))
