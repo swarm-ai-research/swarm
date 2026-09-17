@@ -81,6 +81,24 @@ class TestParseRankings:
         result = parse_rankings(text, 3)
         assert result is None
 
+    def test_reasoning_before_ranking_marker(self):
+        text = (
+            "A is thorough but slow to the point. B has a factual error. "
+            "C is concise and correct.\n\nRANKING:\n1. C\n2. A\n3. B"
+        )
+        assert parse_rankings(text, 3) == ["C", "A", "B"]
+
+    def test_numbered_reasoning_uses_last_list(self):
+        text = (
+            "1. A is thorough.\n2. B has an error.\n3. C is concise.\n\n"
+            "1. C\n2. A\n3. B"
+        )
+        assert parse_rankings(text, 3) == ["C", "A", "B"]
+
+    def test_capitalized_words_after_numbers_ignored(self):
+        text = "Step 2. The best is clear.\n**Ranking:**\n1. Response B\n2. Response A"
+        assert parse_rankings(text, 2) == ["B", "A"]
+
     def test_two_responses(self):
         text = "1. B\n2. A"
         result = parse_rankings(text, 2)
