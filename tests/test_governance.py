@@ -927,3 +927,129 @@ class TestPayoffFlowsToResources:
         assert any(a.resources != 100.0 for a in state.agents.values())
         for agent in state.agents.values():
             assert agent.resources == pytest.approx(100.0 + agent.total_payoff)
+
+
+class TestSlashOnDetection:
+    """Wiring a detection to the slash path (beads-ms0f).
+
+    Without this, ``slash_stake`` has no caller in the run loop: balances
+    only ever rise, so the participation gate can never price anyone out.
+    """
+
+    def _engine(self, **gov):
+        fields = {
+            "staking_enabled": True,
+            "min_stake_to_participate": 50.0,
+            "stake_slash_rate": 0.2,
+            "audit_enabled": True,
+            "audit_probability": 1.0,
+            "audit_threshold_p": 0.5,
+            "audit_penalty_multiplier": 2.0,
+        }
+        fields.update(gov)
+        return GovernanceEngine(config=GovernanceConfig(**fields), seed=3)
+
+    @staticmethod
+    def _slashes(effect):
+        """Slash effects only — the staking lever also emits a no-op effect."""
+        return [
+            e
+            for e in effect.lever_effects
+            if e.lever_name == "staking" and e.details.get("reason") == "detected"
+        ]
+
+    def _state(self):
+        state = EnvState()
+        state.add_agent("a", initial_resources=100.0)
+        state.add_agent("b", initial_resources=100.0)
+        return state
+
+    def _caught(self):
+        # p below the audit threshold, so the audit lever penalises "a".
+        return SoftInteraction(initiator="a", counterparty="b", p=0.1, accepted=True)
+
+    def test_off_by_default_nothing_slashes(self):
+        effect = self._engine().apply_interaction(self._caught(), self._state())
+        assert self._slashes(effect) == []
+        assert effect.resource_deltas == {}
+
+    def test_an_audit_catch_slashes_the_initiator(self):
+        state = self._state()
+        effect = self._engine(slash_on_detection=True).apply_interaction(
+            self._caught(), state
+        )
+        # 20% of the 100.0 balance, on the caught agent only.
+        assert effect.resource_deltas == pytest.approx({"a": -20.0})
+        assert state.get_agent("a").stake_slashed == pytest.approx(20.0)
+        assert state.get_agent("b").stake_slashed == 0.0
+
+    def test_a_freeze_is_a_detection(self):
+        state = self._state()
+        engine = self._engine(
+            slash_on_detection=True,
+            audit_enabled=False,
+            circuit_breaker_enabled=True,
+            freeze_threshold_toxicity=0.1,
+            freeze_threshold_violations=1,
+        )
+        effect = engine.apply_interaction(self._caught(), state)
+        assert "a" in effect.agents_to_freeze
+        assert state.get_agent("a").stake_slashed > 0.0
+
+    def test_interaction_costs_alone_do_not_slash(self):
+        # A transaction tax is charged whether or not anything was caught,
+        # so it must not count as a detection.
+        state = self._state()
+        engine = self._engine(
+            slash_on_detection=True,
+            audit_enabled=False,
+            transaction_tax_rate=0.5,
+        )
+        effect = engine.apply_interaction(
+            SoftInteraction(initiator="a", counterparty="b", tau=2.0, accepted=True),
+            state,
+        )
+        assert effect.cost_a > 0.0
+        assert state.get_agent("a").stake_slashed == 0.0
+
+    def test_a_slash_does_not_re_trigger_itself(self):
+        state = self._state()
+        effect = self._engine(slash_on_detection=True).apply_interaction(
+            self._caught(), state
+        )
+        assert len(self._slashes(effect)) == 1
+
+    def test_slashing_pushes_an_agent_below_the_cumulative_bar(self):
+        # The point of the wiring: under the p70u basis, earnings only ever
+        # accumulate, so a slash is the one thing that can cross the bar.
+        state = self._state()
+        agent = state.get_agent("a")
+        agent.total_payoff = 10.0
+        engine = self._engine(
+            slash_on_detection=True,
+            stake_basis="cumulative_payoff",
+            min_stake_to_participate=100.0,
+        )
+        assert engine.can_agent_act("a", state)
+        engine.apply_interaction(self._caught(), state)
+        # 110 earned basis, 22 slashed -> 88, below the 100 bar.
+        assert not engine.can_agent_act("a", state)
+
+    def test_slash_never_pays_a_negative_balance(self):
+        state = self._state()
+        state.get_agent("a").update_resources(-150.0)
+        lever = StakingLever(
+            GovernanceConfig(staking_enabled=True, stake_slash_rate=0.2)
+        )
+        effect = lever.slash_stake("a", state)
+        assert effect.resource_deltas == {"a": 0.0}
+
+    def test_stake_slashed_survives_a_round_trip(self):
+        from swarm.models.agent import AgentState
+
+        state = self._state()
+        self._engine(slash_on_detection=True).apply_interaction(self._caught(), state)
+        agent = state.get_agent("a")
+        assert AgentState.from_dict(agent.to_dict()).stake_slashed == pytest.approx(
+            agent.stake_slashed
+        )

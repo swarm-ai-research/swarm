@@ -56,6 +56,11 @@ class AgentState(BaseModel):
     # earnings without those earnings having to move ``resources`` (beads-p70u).
     initial_resources: float = 100.0
 
+    # Cumulative stake slashed. Kept separately from ``resources`` so a slash
+    # also lowers the cumulative-payoff basis, which is otherwise monotone
+    # non-decreasing and so can never be pushed below the bar (beads-ms0f).
+    stake_slashed: float = 0.0
+
     # Cumulative statistics
     interactions_initiated: int = 0
     interactions_received: int = 0
@@ -129,6 +134,7 @@ class AgentState(BaseModel):
             "reputation": self.reputation,
             "resources": self.resources,
             "initial_resources": self.initial_resources,
+            "stake_slashed": self.stake_slashed,
             "interactions_initiated": self.interactions_initiated,
             "interactions_received": self.interactions_received,
             "interactions_accepted": self.interactions_accepted,
@@ -150,6 +156,7 @@ class AgentState(BaseModel):
             reputation=data["reputation"],
             resources=data["resources"],
             initial_resources=data.get("initial_resources", data["resources"]),
+            stake_slashed=data.get("stake_slashed", 0.0),
             interactions_initiated=data["interactions_initiated"],
             interactions_received=data["interactions_received"],
             interactions_accepted=data["interactions_accepted"],

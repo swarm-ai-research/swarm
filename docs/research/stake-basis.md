@@ -89,6 +89,7 @@ downward force, see below):
    Without audits nothing pushes a balance down, every type earns positive
    payoffs, and B never binds at all (0 blocks at stake 100). The basis fix is
    necessary but not sufficient: the lever also needs a downward force.
+   *Resolved 2026-09-17 by bead `ms0f` — see below.*
 
 ## Recommendation
 
@@ -101,10 +102,61 @@ be careful with it rather than an argument for it.
 
 Neither option should be presented as "staking now works". Follow-ups:
 
-- wire slashing to a detection (nothing calls it today);
+- wire slashing to a detection (nothing calls it today) — done, `ms0f`, below;
 - give the gate a bootstrap or re-admission path, so a stake above the
   endowment throttles rather than deadlocks;
 - re-run any staking result that predates this note: they measured a constant.
+
+## Update (2026-09-17, bead `ms0f`): the downward force, wired
+
+Finding 5 above is now fixed. `GovernanceEngine.apply_interaction` slashes the
+stake of every agent a lever caught while finalizing the interaction, under a
+new opt-in `slash_on_detection` (default off). A *detection* is a freeze or a
+negative reputation or resource delta — audit catches, collusion penalties,
+circuit-breaker freezes — and explicitly not `cost_a`/`cost_b`, which are
+charged whether or not anything was caught. Slashes are computed from the
+effects gathered before the slash, so a slash never re-triggers itself.
+
+The slash is recorded on `AgentState.stake_slashed` as well as the resource
+delta, because the cumulative-payoff basis is otherwise monotone
+non-decreasing: earnings only accumulate, so without netting out slashes
+nothing could push an agent below the bar however hard it was penalised.
+
+Measured the same way, now at **ordinary** audit settings (`p=0.3`, penalty
+×2, threshold 0.5) rather than the extreme `--hard-audit`:
+`python scripts/sweep_stake_basis.py --seeds 5 --stakes 99,100 --audit [--slash]`,
+rows in `experiments/stake_basis/results/2026-09-17/`.
+
+| arm @ stake | blocks | low-q | honest | welfare |
+|---|---|---|---|---|
+| B `cum_payoff` @99, no slash | **0** | 0 | 0 | 228.3 |
+| B @100, no slash | **0** | 0 | 0 | 228.3 |
+| B @99, slash | 120 | **120** | **0** | 209.9 |
+| B @100, slash | 128 | **128** | **0** | 206.6 |
+| control @99, slash | 425 | 237 | 188 | 172.3 |
+| control @100, slash | 1030 | 552 | 478 | 114.6 |
+| A `payoff_res` @99, slash | 265 | 198 | 67 | 196.0 |
+
+1. **Without slashing the gate is inert at these settings** — 0 blocks in
+   either B cell, exactly as finding 5 predicted. Slashing is what makes the
+   basis fix do anything at an audit setting anyone would actually run.
+2. **Every block still lands on a low-quality agent** (120/120, 128/128, zero
+   honest in all five seeds) at a welfare cost of about 9% against the unbound
+   228.3.
+3. **The default basis gets worse, not better, with slashing on**: 44–46% of
+   its blocks are honest agents, and welfare falls to 115. Slashing amplifies
+   whatever the basis already selects on, so it is not a fix for A or for the
+   default — it is a complement to B.
+4. Slashed value fell entirely on low-quality agents in every seed, because no
+   honest interaction landed under the audit threshold. **The gate inherits
+   the detector's false-positive rate**: this is a statement about the audit
+   lever's accuracy in this scenario, not a guarantee of the staking lever.
+   Under `--hard-audit --slash` the selection stays clean (537/537) but welfare
+   drops to 118, so an over-eager detector still costs.
+
+This makes staking functional in the narrow sense that the lever can now price
+out the agents it is meant to. It does **not** make staking a good policy: in
+every cell measured, the unbound run still has the highest welfare.
 
 ## Caveats
 

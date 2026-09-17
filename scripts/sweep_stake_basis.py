@@ -61,15 +61,21 @@ def _agent_type(agent_id: str) -> str:
 
 
 def run_one(
-    base: Any, arm: str, seed: int, stake: float, hard_audit: bool = False
+    base: Any,
+    arm: str,
+    seed: int,
+    stake: float,
+    hard_audit: bool = False,
+    audit: bool = False,
+    slash: bool = False,
 ) -> Dict[str, Any]:
     scenario = copy.deepcopy(base)
     ARMS[arm](scenario)
     _gov(scenario, min_stake_to_participate=stake)
     if hard_audit:
         # A downward force on low-quality agents, so the basis change has
-        # something to bite on. Nothing calls slash_stake, so audit penalties
-        # are the only way a balance falls.
+        # something to bite on. Before beads-ms0f wired slashing, audit
+        # penalties were the only way a balance could fall.
         _gov(
             scenario,
             audit_enabled=True,
@@ -77,6 +83,18 @@ def run_one(
             audit_penalty_multiplier=8.0,
             audit_threshold_p=0.6,
         )
+    elif audit:
+        # Ordinary audit settings: a detection channel that catches some of
+        # the low-quality interactions rather than all of them.
+        _gov(
+            scenario,
+            audit_enabled=True,
+            audit_probability=0.3,
+            audit_penalty_multiplier=2.0,
+            audit_threshold_p=0.5,
+        )
+    if slash:
+        _gov(scenario, slash_on_detection=True)
     scenario.orchestrator_config.seed = seed
     orch = build_orchestrator(scenario)
 
@@ -106,15 +124,17 @@ def run_one(
 
     stake = scenario.orchestrator_config.governance_config.min_stake_to_participate
     basis_by_type: Dict[str, List[float]] = {}
+    slashed_by_type: Dict[str, float] = {}
     below_bar: Counter = Counter()
     for agent_id, agent_state in orch.state.agents.items():
         kind = _agent_type(agent_id)
         balance = (
-            agent_state.initial_resources + agent_state.total_payoff
-            if arm == "cum_payoff"
+            lever.stake_balance(agent_state)
+            if lever is not None
             else agent_state.resources
         )
         basis_by_type.setdefault(kind, []).append(balance)
+        slashed_by_type[kind] = slashed_by_type.get(kind, 0.0) + agent_state.stake_slashed
         if balance < stake:
             below_bar[kind] += 1
 
@@ -131,6 +151,8 @@ def run_one(
         "gate_blocks": sum(blocks.values()),
         "gate_blocks_low_quality": low_blocks,
         "gate_blocks_honest": blocks["honest"],
+        "slashed_total": sum(slashed_by_type.values()),
+        "slashed_low_quality": sum(slashed_by_type.get(t, 0.0) for t in LOW_QUALITY_TYPES),
         "agents_below_bar": sum(below_bar.values()),
         "agents_below_bar_low_quality": sum(below_bar[t] for t in LOW_QUALITY_TYPES),
         "spread_basis": (
@@ -157,6 +179,16 @@ def main(argv: List[str] | None = None) -> int:
         action="store_true",
         help="certain audits with a heavy penalty, so balances can fall",
     )
+    ap.add_argument(
+        "--audit",
+        action="store_true",
+        help="ordinary audit settings (p=0.3, x2 penalty, threshold 0.5)",
+    )
+    ap.add_argument(
+        "--slash",
+        action="store_true",
+        help="slash the stake of a detected agent (beads-ms0f)",
+    )
     ap.add_argument("--out", type=Path, default=None)
     opts = ap.parse_args(argv)
 
@@ -171,7 +203,15 @@ def main(argv: List[str] | None = None) -> int:
         for stake in stakes:
             for offset in range(opts.seeds):
                 rows.append(
-                    run_one(base, arm, SEED_BASE + offset, stake, opts.hard_audit)
+                    run_one(
+                        base,
+                        arm,
+                        SEED_BASE + offset,
+                        stake,
+                        opts.hard_audit,
+                        opts.audit,
+                        opts.slash,
+                    )
                 )
                 row = rows[-1]
                 print(
@@ -192,6 +232,8 @@ def main(argv: List[str] | None = None) -> int:
     summary: Dict[str, Any] = {
         "scenario": str(SCENARIO_PATH.relative_to(PROJECT_ROOT)),
         "hard_audit": opts.hard_audit,
+        "audit": opts.audit,
+        "slash_on_detection": opts.slash,
         "seeds": [SEED_BASE + i for i in range(opts.seeds)],
         "arms": {},
     }
