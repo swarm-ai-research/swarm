@@ -834,3 +834,96 @@ class TestOrchestratorIntegration:
         # After 2 epochs with 0.5 decay: 10 * 0.5 * 0.5 = 2.5 (approximately)
         # But interactions may also affect reputation
         assert final_rep < 10.0
+
+
+class TestStakeBasis:
+    """What the participation stake is measured against (beads-p70u)."""
+
+    def _state(self):
+        state = EnvState()
+        earner = state.add_agent("earner", initial_resources=100.0)
+        loser = state.add_agent("loser", initial_resources=100.0)
+        earner.total_payoff = 40.0
+        loser.total_payoff = -40.0
+        return state
+
+    def test_default_basis_ignores_earnings(self):
+        lever = StakingLever(
+            GovernanceConfig(staking_enabled=True, min_stake_to_participate=80.0)
+        )
+        state = self._state()
+        # Both still hold their starting balance, so the gate cannot tell a
+        # losing agent from an earning one. This is the p70u finding.
+        assert lever.can_agent_act("earner", state)
+        assert lever.can_agent_act("loser", state)
+
+    def test_cumulative_basis_prices_out_the_loser(self):
+        lever = StakingLever(
+            GovernanceConfig(
+                staking_enabled=True,
+                min_stake_to_participate=80.0,
+                stake_basis="cumulative_payoff",
+            )
+        )
+        state = self._state()
+        assert lever.can_agent_act("earner", state)
+        assert not lever.can_agent_act("loser", state)
+
+    def test_cumulative_basis_admits_everyone_at_the_start(self):
+        # A bare earnings gate would block every agent at t=0 and deadlock the
+        # run, since a blocked agent cannot earn. Endowment is included.
+        lever = StakingLever(
+            GovernanceConfig(
+                staking_enabled=True,
+                min_stake_to_participate=100.0,
+                stake_basis="cumulative_payoff",
+            )
+        )
+        state = EnvState()
+        state.add_agent("fresh", initial_resources=100.0)
+        assert lever.can_agent_act("fresh", state)
+
+    def test_initial_resources_is_recorded_and_survives_a_round_trip(self):
+        state = EnvState()
+        agent = state.add_agent("a", initial_resources=42.0)
+        agent.update_resources(-10.0)
+        assert (agent.resources, agent.initial_resources) == (32.0, 42.0)
+        from swarm.models.agent import AgentState
+
+        assert AgentState.from_dict(agent.to_dict()).initial_resources == 42.0
+
+    def test_unknown_basis_is_rejected(self):
+        with pytest.raises(ValueError, match="stake_basis"):
+            GovernanceConfig(stake_basis="vibes").validate()
+
+
+class TestPayoffFlowsToResources:
+    """Whether interaction payoffs credit resources (beads-p70u)."""
+
+    def _run(self, **gov):
+        from swarm.agents.honest import HonestAgent
+        from swarm.core.orchestrator import Orchestrator, OrchestratorConfig
+
+        orch = Orchestrator(
+            config=OrchestratorConfig(
+                n_epochs=3,
+                steps_per_epoch=4,
+                seed=7,
+                governance_config=GovernanceConfig(**gov),
+            )
+        )
+        for i in range(4):
+            orch.register_agent(HonestAgent(f"h{i}"))
+        orch.run()
+        return orch.state
+
+    def test_off_by_default_resources_stay_flat(self):
+        state = self._run()
+        assert any(a.total_payoff != 0 for a in state.agents.values())
+        assert all(a.resources == 100.0 for a in state.agents.values())
+
+    def test_on_resources_track_earnings(self):
+        state = self._run(payoff_flows_to_resources=True)
+        assert any(a.resources != 100.0 for a in state.agents.values())
+        for agent in state.agents.values():
+            assert agent.resources == pytest.approx(100.0 + agent.total_payoff)

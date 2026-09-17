@@ -29,6 +29,24 @@ class GovernanceConfig(BaseModel):
     min_stake_to_participate: float = 0.0
     stake_slash_rate: float = 0.1  # fraction slashed on violation
 
+    # What the stake is measured against (beads-p70u). Interaction payoffs
+    # land in AgentState.total_payoff, never in resources, so with the
+    # default "resources" every agent sits at its starting balance and the
+    # stake is a constant gate: it either never binds or blocks everyone.
+    #   "resources"         - current balance (default; governance and
+    #                         marketplace escrow are its only inputs)
+    #   "cumulative_payoff" - endowment plus earnings to date, so a
+    #                         persistently low-quality agent can fall below
+    #                         the bar. Earnings are included because a bare
+    #                         earnings gate blocks every agent at t=0, which
+    #                         is a deadlock: blocked agents cannot earn.
+    stake_basis: str = "resources"
+
+    # Credit interaction payoffs to AgentState.resources as they are earned
+    # (beads-p70u). Off by default: it changes the resource trajectory of
+    # every scenario, not only staking ones.
+    payoff_flows_to_resources: bool = False
+
     # Circuit breaker
     circuit_breaker_enabled: bool = False
     freeze_threshold_toxicity: float = 0.7
@@ -188,7 +206,9 @@ class GovernanceConfig(BaseModel):
     # Loop detector
     loop_detector_enabled: bool = False
     loop_detector_quality_threshold: float = 0.4  # avg p threshold for quality loops
-    loop_detector_repetition_threshold: float = 0.6  # proportion threshold for repetition loops
+    loop_detector_repetition_threshold: float = (
+        0.6  # proportion threshold for repetition loops
+    )
     loop_detector_tool_misuse_threshold: int = 5  # total tool misuse flags for loop
     loop_detector_rework_threshold: int = 10  # total rework count for loop
     loop_detector_penalty_multiplier: float = 1.5  # cost multiplier for loop detection
@@ -213,8 +233,12 @@ class GovernanceConfig(BaseModel):
 
     # Hardware trust rejection handling
     hardware_trust_enabled: bool = False
-    hardware_trust_propagation_enabled: bool = True  # Propagate stop token to dependents
-    hardware_trust_recovery_max_steps: int = 10  # Max steps in constrained recovery mode
+    hardware_trust_propagation_enabled: bool = (
+        True  # Propagate stop token to dependents
+    )
+    hardware_trust_recovery_max_steps: int = (
+        10  # Max steps in constrained recovery mode
+    )
 
     # Diversity as Defense (DaD)
     diversity_enabled: bool = False
@@ -295,6 +319,8 @@ class GovernanceConfig(BaseModel):
             raise ValueError("min_stake_to_participate must be non-negative")
         if not 0.0 <= self.stake_slash_rate <= 1.0:
             raise ValueError("stake_slash_rate must be in [0, 1]")
+        if self.stake_basis not in ("resources", "cumulative_payoff"):
+            raise ValueError("stake_basis must be 'resources' or 'cumulative_payoff'")
         if not 0.0 <= self.freeze_threshold_toxicity <= 1.0:
             raise ValueError("freeze_threshold_toxicity must be in [0, 1]")
         if self.freeze_threshold_violations < 1:
@@ -363,13 +389,9 @@ class GovernanceConfig(BaseModel):
         if self.adaptive_controller_evidence_window < 1:
             raise ValueError("adaptive_controller_evidence_window must be >= 1")
         if self.adaptive_controller_contemplation_interval < 1:
-            raise ValueError(
-                "adaptive_controller_contemplation_interval must be >= 1"
-            )
+            raise ValueError("adaptive_controller_contemplation_interval must be >= 1")
         if self.adaptive_controller_min_evidence_epochs < 1:
-            raise ValueError(
-                "adaptive_controller_min_evidence_epochs must be >= 1"
-            )
+            raise ValueError("adaptive_controller_min_evidence_epochs must be >= 1")
         if not 0.0 <= self.adaptive_controller_confidence_threshold <= 1.0:
             raise ValueError(
                 "adaptive_controller_confidence_threshold must be in [0, 1]"
@@ -383,9 +405,7 @@ class GovernanceConfig(BaseModel):
                 "adaptive_controller_max_degradation_tolerance must be non-negative"
             )
         if self.adaptive_controller_max_active_proposals < 1:
-            raise ValueError(
-                "adaptive_controller_max_active_proposals must be >= 1"
-            )
+            raise ValueError("adaptive_controller_max_active_proposals must be >= 1")
 
         # Memory tier governance validation
         if not 0.0 <= self.memory_promotion_min_quality <= 1.0:
@@ -452,17 +472,11 @@ class GovernanceConfig(BaseModel):
         if self.self_evolution_max_tools < 1:
             raise ValueError("self_evolution_max_tools must be >= 1")
         if not 0.0 <= self.self_evolution_divergence_threshold <= 1.0:
-            raise ValueError(
-                "self_evolution_divergence_threshold must be in [0, 1]"
-            )
+            raise ValueError("self_evolution_divergence_threshold must be in [0, 1]")
         if not 0.0 <= self.self_evolution_tool_risk_threshold <= 1.0:
-            raise ValueError(
-                "self_evolution_tool_risk_threshold must be in [0, 1]"
-            )
+            raise ValueError("self_evolution_tool_risk_threshold must be in [0, 1]")
         if self.self_evolution_growth_freeze_duration < 1:
-            raise ValueError(
-                "self_evolution_growth_freeze_duration must be >= 1"
-            )
+            raise ValueError("self_evolution_growth_freeze_duration must be >= 1")
 
         # Self-modification governance validation
         if self.self_modification_max_per_epoch < 1:

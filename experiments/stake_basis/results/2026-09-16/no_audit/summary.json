@@ -1,0 +1,535 @@
+{
+  "scenario": "scenarios/contract_screening.yaml",
+  "hard_audit": false,
+  "seeds": [
+    42,
+    43,
+    44,
+    45,
+    46
+  ],
+  "arms": {
+    "control@5": {
+      "avg_quality_gap": {
+        "mean": 0.02129302631861885,
+        "sd": 0.01057981592093355
+      },
+      "avg_toxicity": {
+        "mean": 0.3205811343873175,
+        "sd": 0.0030855815407334693
+      },
+      "total_welfare": {
+        "mean": 228.36135920839638,
+        "sd": 7.011944737202091
+      },
+      "accepted_interactions": {
+        "mean": 253.0,
+        "sd": 8.154753215150045
+      },
+      "gate_checks": {
+        "mean": 2000.0,
+        "sd": 0.0
+      },
+      "gate_blocks": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "gate_blocks_low_quality": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "gate_blocks_honest": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "agents_below_bar": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "agents_below_bar_low_quality": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "spread_basis": {
+        "mean": 1.2,
+        "sd": 0.4472135954999579
+      },
+      "mean_basis_deceptive": {
+        "mean": 99.5,
+        "sd": 0.0
+      },
+      "mean_basis_honest": {
+        "mean": 99.44,
+        "sd": 0.2966479394838245
+      },
+      "mean_basis_opportunistic": {
+        "mean": 99.86666666666667,
+        "sd": 0.18257418583505278
+      }
+    },
+    "control@100": {
+      "avg_quality_gap": {
+        "mean": 0.01093126034988855,
+        "sd": 0.01468198357322395
+      },
+      "avg_toxicity": {
+        "mean": 0.3399582350590998,
+        "sd": 0.006567571189514801
+      },
+      "total_welfare": {
+        "mean": 153.2971791490574,
+        "sd": 30.857026747085758
+      },
+      "accepted_interactions": {
+        "mean": 187.2,
+        "sd": 35.42174473399073
+      },
+      "gate_checks": {
+        "mean": 2000.0,
+        "sd": 0.0
+      },
+      "gate_blocks": {
+        "mean": 820.0,
+        "sd": 215.05813167606567
+      },
+      "gate_blocks_low_quality": {
+        "mean": 334.0,
+        "sd": 153.72052563011877
+      },
+      "gate_blocks_honest": {
+        "mean": 486.0,
+        "sd": 165.62004709575467
+      },
+      "agents_below_bar": {
+        "mean": 4.4,
+        "sd": 1.140175425099138
+      },
+      "agents_below_bar_low_quality": {
+        "mean": 1.8,
+        "sd": 0.8366600265340756
+      },
+      "spread_basis": {
+        "mean": 2.4,
+        "sd": 2.6076809620810595
+      },
+      "mean_basis_deceptive": {
+        "mean": 98.8,
+        "sd": 1.3038404810405297
+      },
+      "mean_basis_honest": {
+        "mean": 99.4,
+        "sd": 0.14142135623730648
+      },
+      "mean_basis_opportunistic": {
+        "mean": 99.46666666666667,
+        "sd": 1.0165300454651252
+      }
+    },
+    "control@101": {
+      "avg_quality_gap": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "avg_toxicity": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "total_welfare": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "accepted_interactions": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "gate_checks": {
+        "mean": 2000.0,
+        "sd": 0.0
+      },
+      "gate_blocks": {
+        "mean": 2000.0,
+        "sd": 0.0
+      },
+      "gate_blocks_low_quality": {
+        "mean": 1000.0,
+        "sd": 0.0
+      },
+      "gate_blocks_honest": {
+        "mean": 1000.0,
+        "sd": 0.0
+      },
+      "agents_below_bar": {
+        "mean": 10.0,
+        "sd": 0.0
+      },
+      "agents_below_bar_low_quality": {
+        "mean": 5.0,
+        "sd": 0.0
+      },
+      "spread_basis": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "mean_basis_deceptive": {
+        "mean": 100.0,
+        "sd": 0.0
+      },
+      "mean_basis_honest": {
+        "mean": 100.0,
+        "sd": 0.0
+      },
+      "mean_basis_opportunistic": {
+        "mean": 100.0,
+        "sd": 0.0
+      }
+    },
+    "payoff_res@5": {
+      "avg_quality_gap": {
+        "mean": 0.021285652570355463,
+        "sd": 0.01058199596884399
+      },
+      "avg_toxicity": {
+        "mean": 0.32059347228307306,
+        "sd": 0.003085851290572424
+      },
+      "total_welfare": {
+        "mean": 228.1916927346472,
+        "sd": 7.129493932496427
+      },
+      "accepted_interactions": {
+        "mean": 253.0,
+        "sd": 8.154753215150045
+      },
+      "gate_checks": {
+        "mean": 2000.0,
+        "sd": 0.0
+      },
+      "gate_blocks": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "gate_blocks_low_quality": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "gate_blocks_honest": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "agents_below_bar": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "agents_below_bar_low_quality": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "spread_basis": {
+        "mean": 58.445984855502104,
+        "sd": 5.671332561020265
+      },
+      "mean_basis_deceptive": {
+        "mean": 104.27672554324147,
+        "sd": 0.8186811350654162
+      },
+      "mean_basis_honest": {
+        "mean": 130.0737440324201,
+        "sd": 1.8693193570615732
+      },
+      "mean_basis_opportunistic": {
+        "mean": 121.68984049535455,
+        "sd": 1.8190078163040442
+      }
+    },
+    "payoff_res@100": {
+      "avg_quality_gap": {
+        "mean": 0.0107376816146937,
+        "sd": 0.01242694009786959
+      },
+      "avg_toxicity": {
+        "mean": 0.32152078433214,
+        "sd": 0.009278835827066937
+      },
+      "total_welfare": {
+        "mean": 207.03980719122788,
+        "sd": 17.310912322937316
+      },
+      "accepted_interactions": {
+        "mean": 232.2,
+        "sd": 23.805461558222305
+      },
+      "gate_checks": {
+        "mean": 2000.0,
+        "sd": 0.0
+      },
+      "gate_blocks": {
+        "mean": 217.0,
+        "sd": 129.64759928359646
+      },
+      "gate_blocks_low_quality": {
+        "mean": 140.4,
+        "sd": 148.20020242901154
+      },
+      "gate_blocks_honest": {
+        "mean": 76.6,
+        "sd": 50.49059318328514
+      },
+      "agents_below_bar": {
+        "mean": 0.4,
+        "sd": 0.8944271909999159
+      },
+      "agents_below_bar_low_quality": {
+        "mean": 0.4,
+        "sd": 0.8944271909999159
+      },
+      "spread_basis": {
+        "mean": 55.14202066805488,
+        "sd": 6.414962523731119
+      },
+      "mean_basis_deceptive": {
+        "mean": 103.0034686274147,
+        "sd": 2.226290900377753
+      },
+      "mean_basis_honest": {
+        "mean": 126.52509979940949,
+        "sd": 2.6587630372284496
+      },
+      "mean_basis_opportunistic": {
+        "mean": 119.135790313117,
+        "sd": 4.108252450605025
+      }
+    },
+    "payoff_res@101": {
+      "avg_quality_gap": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "avg_toxicity": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "total_welfare": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "accepted_interactions": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "gate_checks": {
+        "mean": 2000.0,
+        "sd": 0.0
+      },
+      "gate_blocks": {
+        "mean": 2000.0,
+        "sd": 0.0
+      },
+      "gate_blocks_low_quality": {
+        "mean": 1000.0,
+        "sd": 0.0
+      },
+      "gate_blocks_honest": {
+        "mean": 1000.0,
+        "sd": 0.0
+      },
+      "agents_below_bar": {
+        "mean": 10.0,
+        "sd": 0.0
+      },
+      "agents_below_bar_low_quality": {
+        "mean": 5.0,
+        "sd": 0.0
+      },
+      "spread_basis": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "mean_basis_deceptive": {
+        "mean": 100.0,
+        "sd": 0.0
+      },
+      "mean_basis_honest": {
+        "mean": 100.0,
+        "sd": 0.0
+      },
+      "mean_basis_opportunistic": {
+        "mean": 100.0,
+        "sd": 0.0
+      }
+    },
+    "cum_payoff@5": {
+      "avg_quality_gap": {
+        "mean": 0.02129302631861885,
+        "sd": 0.01057981592093355
+      },
+      "avg_toxicity": {
+        "mean": 0.3205811343873175,
+        "sd": 0.0030855815407334693
+      },
+      "total_welfare": {
+        "mean": 228.36135920839638,
+        "sd": 7.011944737202091
+      },
+      "accepted_interactions": {
+        "mean": 253.0,
+        "sd": 8.154753215150045
+      },
+      "gate_checks": {
+        "mean": 2000.0,
+        "sd": 0.0
+      },
+      "gate_blocks": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "gate_blocks_low_quality": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "gate_blocks_honest": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "agents_below_bar": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "agents_below_bar_low_quality": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "spread_basis": {
+        "mean": 57.98329568001979,
+        "sd": 5.928508141944103
+      },
+      "mean_basis_deceptive": {
+        "mean": 104.77707226360822,
+        "sd": 0.8179661877754939
+      },
+      "mean_basis_honest": {
+        "mean": 130.65632244749185,
+        "sd": 1.717731729576525
+      },
+      "mean_basis_opportunistic": {
+        "mean": 121.84186748124021,
+        "sd": 1.6924438664343653
+      }
+    },
+    "cum_payoff@100": {
+      "avg_quality_gap": {
+        "mean": 0.02129302631861885,
+        "sd": 0.01057981592093355
+      },
+      "avg_toxicity": {
+        "mean": 0.3205811343873175,
+        "sd": 0.0030855815407334693
+      },
+      "total_welfare": {
+        "mean": 228.36135920839638,
+        "sd": 7.011944737202091
+      },
+      "accepted_interactions": {
+        "mean": 253.0,
+        "sd": 8.154753215150045
+      },
+      "gate_checks": {
+        "mean": 2000.0,
+        "sd": 0.0
+      },
+      "gate_blocks": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "gate_blocks_low_quality": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "gate_blocks_honest": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "agents_below_bar": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "agents_below_bar_low_quality": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "spread_basis": {
+        "mean": 57.98329568001979,
+        "sd": 5.928508141944103
+      },
+      "mean_basis_deceptive": {
+        "mean": 104.77707226360822,
+        "sd": 0.8179661877754939
+      },
+      "mean_basis_honest": {
+        "mean": 130.65632244749185,
+        "sd": 1.717731729576525
+      },
+      "mean_basis_opportunistic": {
+        "mean": 121.84186748124021,
+        "sd": 1.6924438664343653
+      }
+    },
+    "cum_payoff@101": {
+      "avg_quality_gap": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "avg_toxicity": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "total_welfare": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "accepted_interactions": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "gate_checks": {
+        "mean": 2000.0,
+        "sd": 0.0
+      },
+      "gate_blocks": {
+        "mean": 2000.0,
+        "sd": 0.0
+      },
+      "gate_blocks_low_quality": {
+        "mean": 1000.0,
+        "sd": 0.0
+      },
+      "gate_blocks_honest": {
+        "mean": 1000.0,
+        "sd": 0.0
+      },
+      "agents_below_bar": {
+        "mean": 10.0,
+        "sd": 0.0
+      },
+      "agents_below_bar_low_quality": {
+        "mean": 5.0,
+        "sd": 0.0
+      },
+      "spread_basis": {
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "mean_basis_deceptive": {
+        "mean": 100.0,
+        "sd": 0.0
+      },
+      "mean_basis_honest": {
+        "mean": 100.0,
+        "sd": 0.0
+      },
+      "mean_basis_opportunistic": {
+        "mean": 100.0,
+        "sd": 0.0
+      }
+    }
+  }
+}

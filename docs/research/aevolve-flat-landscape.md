@@ -88,6 +88,11 @@ is unreachable); minimum agent resources stayed at 100, so a stake of 5 never
 binds. `theta` only splits surplus, so it cannot move toxicity or total
 welfare by construction.
 
+The stake is the one that generalizes beyond this scenario: payoffs never
+reach `resources`, so the gate is a constant everywhere, not only here.
+[What should a participation stake be measured against?](stake-basis.md)
+(bead `p70u`) measures the two candidate fixes.
+
 ## Defender fix (2026-09-13, bead `sw83`): whitelist the thresholds, score welfare
 
 Two changes to `SwarmBenchmarkAdapter`:

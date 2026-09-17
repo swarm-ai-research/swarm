@@ -161,9 +161,16 @@ class InteractionFinalizer:
             initiator_state = self._state.get_agent(interaction.initiator)
             counterparty_state = self._state.get_agent(interaction.counterparty)
 
+            credit_resources = bool(
+                self._governance_engine
+                and self._governance_engine.config.payoff_flows_to_resources
+            )
+
             if initiator_state:
                 initiator_state.record_initiated(accepted=True, p=interaction.p)
                 initiator_state.total_payoff += payoff_init
+                if credit_resources:
+                    initiator_state.update_resources(payoff_init)
 
                 # Reputation delta formula:
                 #   rep_delta = (p - 0.5) - c_a
@@ -192,6 +199,8 @@ class InteractionFinalizer:
             if counterparty_state:
                 counterparty_state.record_received(accepted=True, p=interaction.p)
                 counterparty_state.total_payoff += payoff_counter
+                if credit_resources:
+                    counterparty_state.update_resources(payoff_counter)
 
         if interaction.initiator in self._agents:
             self._agents[interaction.initiator].update_from_outcome(

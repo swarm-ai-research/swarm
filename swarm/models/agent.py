@@ -52,6 +52,10 @@ class AgentState(BaseModel):
     # Resources/wealth
     resources: float = 100.0
 
+    # Starting balance, kept so a stake can be read against endowment plus
+    # earnings without those earnings having to move ``resources`` (beads-p70u).
+    initial_resources: float = 100.0
+
     # Cumulative statistics
     interactions_initiated: int = 0
     interactions_received: int = 0
@@ -71,8 +75,8 @@ class AgentState(BaseModel):
     # Spawn hierarchy
     parent_id: Optional[str] = None
 
-    @model_validator(mode='after')
-    def _default_name(self) -> 'AgentState':
+    @model_validator(mode="after")
+    def _default_name(self) -> "AgentState":
         """Default name to agent_id when not provided."""
         if self.name is None or self.name == "":
             self.name = self.agent_id
@@ -124,6 +128,7 @@ class AgentState(BaseModel):
             "agent_type": self.agent_type.value,
             "reputation": self.reputation,
             "resources": self.resources,
+            "initial_resources": self.initial_resources,
             "interactions_initiated": self.interactions_initiated,
             "interactions_received": self.interactions_received,
             "interactions_accepted": self.interactions_accepted,
@@ -144,6 +149,7 @@ class AgentState(BaseModel):
             agent_type=AgentType(data["agent_type"]),
             reputation=data["reputation"],
             resources=data["resources"],
+            initial_resources=data.get("initial_resources", data["resources"]),
             interactions_initiated=data["interactions_initiated"],
             interactions_received=data["interactions_received"],
             interactions_accepted=data["interactions_accepted"],

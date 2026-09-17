@@ -38,7 +38,12 @@ class StakingLever(GovernanceLever):
         if agent_state is None:
             return False
 
-        return agent_state.resources >= self.config.min_stake_to_participate
+        balance = (
+            agent_state.initial_resources + agent_state.total_payoff
+            if self.config.stake_basis == "cumulative_payoff"
+            else agent_state.resources
+        )
+        return balance >= self.config.min_stake_to_participate
 
     def slash_stake(
         self,

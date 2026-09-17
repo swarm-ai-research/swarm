@@ -182,6 +182,7 @@ class EnvState:
             agent_type=agent_type,
             reputation=initial_reputation,
             resources=initial_resources,
+            initial_resources=initial_resources,
         )
         self.agents[agent_id] = state
         self.rate_limit_states[agent_id] = RateLimitState()
