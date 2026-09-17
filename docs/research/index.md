@@ -140,6 +140,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Tipperman's 2026 prototyping essay read as the straw-horse gate one level down: a wrong draft draws correction and a blank page draws nothing, but the false green and the erdos gate show what happens when nobody checks the stain
 
+-   :material-key-variant: **[MVUEH Enigma Break Lessons](mvueh-enigma-break-lessons.md)**
+
+    ---
+
+    An AI-assisted break of a 1941 Enigma message, re-decrypted here from the archive's own ciphertext: re-encryption passes for every key, so the evidence is unforced German and a gate input the solver does not hold
+
 -   :material-cube-outline: **[Cantrip Runtime Lessons](cantrip-runtime-lessons.md)**
 
     ---
