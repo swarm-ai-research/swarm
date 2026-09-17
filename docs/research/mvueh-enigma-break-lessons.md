@@ -1,5 +1,5 @@
 ---
-description: "Leffen's AI-assisted break of the 1941 Enigma message MVUEH, re-checked here against the archive's ciphertext with our own simulator: a swarm result whose acceptance does not depend on the swarm, and a gate that is mechanical in form but only informative through language."
+description: "Two AI-assisted cipher breaks re-checked here from the archives' own ciphertext — the 1941 Enigma message MVUEH and an unsolved 1918 ADFGVX message: results whose acceptance does not depend on the solver, and gates that are mechanical in form but only informative through language."
 author: "SWARM Team"
 date: "2026-09-17"
 source: "https://mvueh-enigma-solved.carterl.chatgpt.site/"
@@ -155,12 +155,59 @@ calculation.
 | [erdos 1038](erdos-1038-swarm-lessons.md) | Lean kernel job, never dispatched | yes | nothing, since it did not run |
 | fm-agent-harness false green | example tests | yes | nothing, since broken code passed |
 | MVUEH | re-decrypting the archive ciphertext | no | the key, through unforced German |
+| ADFGVX 27 Nov 1918 | re-decrypting the scanned ciphertext | no | the key, through unforced German; one square cell by a ship's log |
 
 MVUEH supports erdos ecosystem lesson 7: aggressive AI search pays where
 checking is cheap relative to finding. It also sharpens the lesson. The
 check was cheap because the verifier's input was external and the
 discriminating signal was obvious to a non-expert. It was not cheap merely
 because it was mechanical.
+
+## A second case, checked the same way: an ADFGVX message from 1918
+
+On 2026-09-17, the day this note was written, prinz reported that GPT-6 Astra
+read one of the unsolved German WWI radio messages in the
+[Klausis Krypto Kolumne list](https://www.prinzai.com/p/gpt-6-astra-solves-a-wwi-german-radio),
+transmitted 27 November 1918 and enciphered with ADFGVX. Most of that corpus
+was already solved, by hand in 1918 and by
+[Lasry and Niebel (Cryptologia 2017)](https://www.tandfonline.com/doi/abs/10.1080/01611194.2016.1169461)
+with hill-climbing since; roughly a dozen were left.
+
+We re-ran this one too. The ciphertext and the substitution square exist only
+as page scans of Childs in the post, so we read them off the images,
+rebuilt the column order for the key `TRUPPENVERSCHIEBUNG` from the scanned
+numbering, undid the transposition and looked up the digraphs:
+
+```text
+EINENGLISCHERKREUZEREINLIEGXSEWASTOPOLXS?STENXEINGESCHWADERDERXALLIIERTENFOLGT26STENX
+```
+
+"An English cruiser docked at Sevastopol on the ?4th. An allied squadron of
+the Allies follows on the 26th." The 170 characters split into eighteen
+columns of 9 and one of 8, exactly as the key length requires.
+
+Two features make it a useful companion to MVUEH rather than a repetition.
+
+**The discriminating check is again language, and again cheap.** No indicator
+and no re-encryption identity is involved. A wrong key gives noise, this key
+gives German, and no calibrated reviewer is needed to tell the two apart.
+
+**An ambiguous cell was resolved by an outside record, not by scoring.** The
+square's scan carries handwritten corrections, and one cell reads as either
+4 or 8. Our first pass guessed 8 and produced `S8STEN`. The post reads 4 and
+cites HMS Canterbury's log putting the ship in Sevastopol on the 24th, with an
+allied squadron on the 26th. The log is external to the break, so it fixes
+that cell and the message's date arithmetic at once. Compare § 3: the
+degree of freedom was closed by a record the solver did not produce.
+
+**Where this case is weaker than MVUEH.** Novelty is unconfirmed: the post
+says only "to my knowledge" the message was never decoded, and no custodian
+has marked it solved, so the § 6 institutional step has not happened. The key
+`TRUPPENVERSCHIEBUNG` is documented as in use from 9 December 1918, twelve
+days after this message's date; the post flags the discrepancy and does not
+resolve it. Either the recorded key period or the date is wrong. The German
+is not in question either way, which is the point: the decryption is checkable
+even while its provenance is not.
 
 ## Candidate rig change (not applied)
 
@@ -184,6 +231,10 @@ The change is left for review, not applied. It touches dispatch budgets.
   the 923 indicator-compatible keys is taken from the solver's report.
 - "Connected German" is our own reading of the output, not a German
   specialist's.
+- For the ADFGVX message we transcribed the ciphertext and the square from
+  page scans by eye. A transcription slip would garble the plaintext locally,
+  which is its own check, but the reading of the 4/8 cell rests on the
+  Canterbury log as reported in the post, not on the scan.
 - The historical claims are the solver's and Weierud's: the SS-Totenkopf
   supply-service key, the retransmission link to SIPVX, "Waschbusch" as a
   signature, and which Rosenow. The report lists the last three as open.
