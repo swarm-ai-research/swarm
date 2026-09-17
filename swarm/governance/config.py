@@ -47,6 +47,17 @@ class GovernanceConfig(BaseModel):
     # every scenario, not only staking ones.
     payoff_flows_to_resources: bool = False
 
+    # Slash the stake of an agent a lever caught during an interaction
+    # (beads-ms0f). Off by default. Without it nothing in the run loop calls
+    # StakingLever.slash_stake: every agent type earns positive payoffs, no
+    # balance ever falls, and the participation gate has no downward force,
+    # so it cannot price anyone out however the basis is measured. A
+    # "detection" is a freeze or a negative reputation or resource delta
+    # emitted by a lever while finalizing an interaction — audit catches,
+    # collusion penalties and circuit-breaker freezes, but not the taxes and
+    # fees charged whether or not anything was caught.
+    slash_on_detection: bool = False
+
     # Circuit breaker
     circuit_breaker_enabled: bool = False
     freeze_threshold_toxicity: float = 0.7
