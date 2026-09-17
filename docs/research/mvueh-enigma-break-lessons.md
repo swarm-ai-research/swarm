@@ -45,8 +45,10 @@ Enigma problem has been broken with AI."
 
 ## Our check
 
-We checked it on 2026-09-17 with a 30-line Enigma I simulator written for
-this purpose. It uses the standard wiring for rotors I–V and reflector B,
+We checked it on 2026-09-17 with an Enigma I simulator written for this
+purpose, now kept with the ADFGVX one in
+[swarm-ai-research/cipher-break-verification](https://github.com/swarm-ai-research/cipher-break-verification)
+(CI re-runs both decryptions on every push). It uses the standard wiring for rotors I–V and reflector B,
 plus double-stepping. None of the solver's code was used. The input was the
 ciphertext as published on CryptoCellar, not the solver's preferred
 reading.
@@ -199,6 +201,11 @@ cites HMS Canterbury's log putting the ship in Sevastopol on the 24th, with an
 allied squadron on the 26th. The log is external to the break, so it fixes
 that cell and the message's date arithmetic at once. Compare § 3: the
 degree of freedom was closed by a record the solver did not produce.
+
+One byproduct is worth recording. We first read the square's `O` and `0`
+cells the wrong way round, and the plaintext came out as `SEWAST0P0L`. The
+German located our own transcription error for us. A source read by eye is a
+fitted input too, and the language is what catches it.
 
 **Where this case is weaker than MVUEH.** Novelty is unconfirmed: the post
 says only "to my knowledge" the message was never decoded, and no custodian
