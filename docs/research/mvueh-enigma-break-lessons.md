@@ -175,8 +175,9 @@ was already solved, by hand in 1918 and by
 [Lasry and Niebel (Cryptologia 2017)](https://www.tandfonline.com/doi/abs/10.1080/01611194.2016.1169461)
 with hill-climbing since; roughly a dozen were left.
 
-We re-ran this one too. The ciphertext and the substitution square exist only
-as page scans of Childs in the post, so we read them off the images,
+We re-ran this one too, in the same repo. The ciphertext and the substitution
+square exist only as page scans of Childs in the post, so we read them off the
+images,
 rebuilt the column order for the key `TRUPPENVERSCHIEBUNG` from the scanned
 numbering, undid the transposition and looked up the digraphs:
 
@@ -215,6 +216,33 @@ days after this message's date; the post flags the discrepancy and does not
 resolve it. Either the recorded key period or the date is wrong. The German
 is not in question either way, which is the point: the decryption is checkable
 even while its provenance is not.
+
+## The checks as a repo
+
+Both verifiers, the claim data and the tests are in
+[swarm-ai-research/cipher-break-verification](https://github.com/swarm-ai-research/cipher-break-verification)
+(public). `python3 check.py` re-decrypts both messages from the archives'
+ciphertext and prints the plaintext; CI runs it on every push.
+
+Three choices there follow from the lessons above, and are the part worth
+copying into other verification repos.
+
+- **The vacuous check is kept and labelled.** `test_mvueh_reencrypts` passes
+  for every possible key. Deleting it would be tidier; keeping it named is
+  what stops someone citing re-encryption as evidence later.
+- **The checks that must fail are tests too.** One wrong ring setting, one
+  wrong keyword. A verification suite with no failing-by-construction case
+  cannot tell a working check from a vacuous one.
+- **The claim's fitted and unfitted inputs are separate fields.** The MVUEH
+  entry holds the archive's unchanged ciphertext, and a test pins the 8-of-82
+  garble count against the solver's preferred reading.
+
+Neither claim shipped a test vector, so the ADFGVX implementation is also
+checked against a hand-worked example published by a third party in 2010
+([Anilandro on Painvin](https://web.archive.org/web/20210212215335/https://sites.google.com/site/anilandro/06120-adfgx-01)),
+whose short last row exercises the column-length rule the 1918 message turns
+on. A verifier checked only against the claim it exists to judge is one
+transcription slip away from agreeing with itself.
 
 ## Candidate rig change (not applied)
 
