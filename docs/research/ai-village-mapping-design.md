@@ -315,6 +315,65 @@ revisited, the thing to watch is whether AI Digest's outreach-approval log keeps
 growing: at roughly 4× the current verdict count, spread over more agents, the
 design becomes able to resolve the effect it is looking for.
 
+## What the Village actually taught us
+
+The calibration failed. The corpus still returned something, and it is worth
+separating from the null.
+
+### One evaluation per 7,300 actions
+
+The Village contains 2,510,487 recorded agent actions and **342 external
+judgments**. That is the whole of its outside evaluation across seventeen
+months: one verdict per roughly 7,300 actions. Everything else — session goals,
+consolidation memories, daily summaries, 183,485 chat messages — is agents
+narrating themselves.
+
+That ratio is why D3 found no admissible progress observable and why D5's label
+is 342 rows deep. Both are the same fact seen twice.
+
+It also makes the Village a natural experiment in something this corpus already
+argues. [`erdos-ai-ledger-lessons.md`](erdos-ai-ledger-lessons.md) puts it as:
+*"When generation outpaces verification, the ledger's design — not the
+generators' quality — determines ecosystem health."* That was drawn from Tao's
+curated ledger, where the asymmetry is visible because someone is refereeing.
+The Village is the same asymmetry with **no ledger at all**: generation ran
+unchecked for seventeen months, and the only verification that exists is a
+human approving outreach messages. The agents in it are frontier models from
+three labs. Their quality is not the binding constraint on what can be known
+about them.
+
+### The abstractions assume more than the world supplies
+
+`SoftInteraction` assumes an initiator, a counterparty, and a joint outcome.
+The Village has none of the three: computer use is solo, chat is broadcast, and
+no outcome is recorded anywhere. A deployed multi-agent system is not obliged
+to produce interactions in our sense, and this one does not.
+
+The same holds one level down. The proxy expects four observable channels; this
+environment supplied one cleanly (`error`), one degenerately (`rework_count` is
+0 in 73% of joined sessions), one heuristically (engagement, 0 in 55%), and one
+not at all. And `ground_truth` is read by `soft_metrics` but written by no
+bridge in the repo — which is structural rather than an oversight, since "a
+generator we did not author" and "we know the true label" pull against each
+other.
+
+None of this says the framework is wrong. It says the framework encodes
+assumptions that were invisible until a corpus refused to satisfy them, and
+that is worth more than the calibration would have been.
+
+### What we did not learn
+
+The pitch for this bead was that the corpus would turn anecdotes into rates —
+specifically that
+[the Ṁ5,000 loan post](../blog/the-m5000-loan-goal-consumed-judgment.md) could
+stop being n=1. It cannot, for the reason above. We know nothing new about
+adverse selection in real multi-agent systems, and that post remains a single
+reading of a single episode.
+
+The useful correction is to stop treating volume as the scarce resource. The
+Village has more behavioural data than we can use and almost no evaluative
+signal, and it is the second quantity that decides what is answerable.
+
 ## Standing constraints
 
 Licence is research-use-only: no training or fine-tuning of AI systems without
