@@ -13,7 +13,14 @@ what serves as the outcome variable. The fifth was raised by the first four. It
 is answered here, but not in the shape the bead assumed: the Village supplies a
 gate decision, not an interaction outcome.
 
-Every figure below is reproducible with `experiments/ai_village_probe.py`.
+Every figure below is reproducible with `experiments/ai_village_probe.py`
+(schema and regime counts) and `experiments/ai_village_gate_study.py` (the
+outcome join and the result).
+
+**Outcome, stated up front:** the design clears, the study runs, and the result
+is a null. `vu70` does not deliver a calibration, `fcmy.7` falls back to
+MiroShark, and no bridge code is warranted. The reasoning is kept in full
+because the negative result is the deliverable.
 
 ## What the data actually is
 
@@ -241,6 +248,72 @@ the same reason.
 - The 83 rejected verdicts that fail to join are not noise — check whether
   non-joining correlates with the verdict before treating the 259 as a random
   subset.
+
+## Result: the gate study is a null, and the fallback fires
+
+The design above was run (`experiments/ai_village_gate_study.py`). It does not
+find what it was looking for. Recording that here rather than in a drawer.
+
+Per D3 the progress channel is held at zero and three are fitted; `p` comes from
+the repo's own `ProxyComputer` with default weights, not a reimplementation.
+
+```
+quality_gap = E[p | approved] − E[p | rejected] = −0.0074
+  agent-cluster bootstrap 95% CI: [−0.0377, +0.0241]   → no separation
+```
+
+Scoring each channel on its own, to tell "no signal" apart from "signal
+cancelled by the composition":
+
+| channel | AUC | 95% CI (agent-clustered) | verdict |
+|---|---|---|---|
+| composed proxy `p` | 0.498 | [0.415, 0.607] | null |
+| error rate | 0.604 | [0.447, 0.723] | null |
+| repeat rate | 0.436 | [0.362, 0.526] | null |
+| engagement | 0.491 | [0.427, 0.569] | null |
+| session length | 0.522 | [0.410, 0.727] | null |
+
+**The clustering is the whole story, and it is a trap worth naming.** Scored
+flat, error rate reaches AUC 0.604 and reads like a real signal — the one
+channel that works, with a tidy explanation about the composition washing it
+out. It does not survive resampling whole agents. With 20 clusters, one holding
+35% of rows, the nominal n of 259 is worth roughly 20 independent units, and the
+design can only resolve AUC ≳ 0.64. Anyone reporting the flat number would have
+published an artifact of pseudo-replication.
+
+This is **absence of evidence, not evidence of absence**. The result does not
+show the proxy is uninformative about reviewer decisions; it shows this corpus
+cannot resolve an effect of this size. Only 342 verdicts exist, so more data is
+not available — the ceiling is a property of the Village, not of the analysis.
+
+Two secondary observations, both weak and neither chased further:
+
+- Non-join bias is mild but real: the 259 joined verdicts are 76.1% approvals
+  against 69.9% among the 83 that fail to join (+6.2pp). The joined subset is
+  slightly approval-enriched, as D5 warned it might be.
+- The observables are close to degenerate on this subset — `rework_count` is 0
+  in 73% of joined sessions and engagement is 0 in 55%. Session length does not
+  differ by verdict (median 41 turns either way), so length is at least not a
+  confound.
+
+### What this settles
+
+The fallback pre-registered in D5 fires, and that is the process working rather
+than failing. `vu70` does **not** deliver a calibration. It delivers:
+
+1. this negative result, with the pseudo-replication trap documented;
+2. descriptive validation of the observable distributions across the corpus;
+3. a verified schema mapping, so nobody repeats the inference from the card.
+
+`fcmy.7` falls back to MiroShark as the not-authored-by-us generator. The
+Village cannot answer it — not because the data is bad, but because the only
+externally-labelled outcome in it is 342 rows deep and clustered on 20 agents.
+
+**No bridge code is warranted.** Building `swarm/bridges/ai_village/` to serve a
+null would be work in service of a result already in hand. If the Village is
+revisited, the thing to watch is whether AI Digest's outreach-approval log keeps
+growing: at roughly 4× the current verdict count, spread over more agents, the
+design becomes able to resolve the effect it is looking for.
 
 ## Standing constraints
 
