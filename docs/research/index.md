@@ -308,6 +308,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     De novo emergence on tabular bandits with no strategy enum: targeted predation appears at 3 states, a predatory coalition at 18 — and the emergent coalition walks past CollusionDetector in all 20 runs because pair-first scoring can't see quality-inside/harm-outside structure (beads boll → mwve)
 
+-   :material-graph-outline: **[SwarmWorld: Stigmergic Transmission](swarmworld-stigmergic-transmission.md)**
+
+    ---
+
+    Buehler's LLM-agent societies (arXiv:2608.26081) ran the dyadic-transmission test our CollusionDetector is built on and it came back at parity with a schedule-preserving shuffled null — while coordination was real and dense, and ~95% of first artifact reuse began with physical observation rather than a message; plus two things to import (the agent-free held-out assay, the endpoint-wise best-of-N isolated baseline) and one threat to validity for the whistleblowing warning result (beads ci8k → xf2r, h5mg, nlws)
+
 </div>
 
 ## Core Research Questions
