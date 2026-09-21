@@ -320,7 +320,44 @@ class GovernanceEngine:
             effect = lever.on_interaction(interaction, state)
             if effect.lever_name:  # Non-empty effect
                 effects.append(effect)
+        effects.extend(self._slash_detected_agents(effects, state))
         return GovernanceEffect.from_lever_effects(effects)
+
+    def _slash_detected_agents(
+        self,
+        effects: List[LeverEffect],
+        state: EnvState,
+    ) -> List[LeverEffect]:
+        """Slash the stake of every agent a lever just caught (beads-ms0f).
+
+        Nothing else in the run loop calls ``slash_stake``, so without this
+        the staking lever has no downward force: balances only ever rise and
+        the participation bar can never bind on the agents it is meant to
+        price out.
+
+        A detection is a freeze or a negative reputation or resource delta.
+        Interaction costs (``cost_a``/``cost_b``) are deliberately not
+        detections — taxes and fees are charged whether or not a lever caught
+        anything. Slashes are computed from the effects gathered *before*
+        this call, so a slash never re-triggers itself.
+        """
+        if not (self.config.slash_on_detection and self.config.staking_enabled):
+            return []
+        if self._staking_lever is None:
+            return []
+
+        detected: Set[str] = set()
+        for effect in effects:
+            detected |= effect.agents_to_freeze
+            for deltas in (effect.reputation_deltas, effect.resource_deltas):
+                detected |= {
+                    agent_id for agent_id, delta in deltas.items() if delta < 0
+                }
+
+        return [
+            self._staking_lever.slash_stake(agent_id, state, reason="detected")
+            for agent_id in sorted(detected)
+        ]
 
     def apply_step(
         self,
