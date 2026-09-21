@@ -116,6 +116,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Design gate before bridging AI Digest's 17-month agent corpus: which regime, how to manufacture a dyad the data never recorded, why no admissible task-progress observable exists, and the outcome-variable problem that decides what the calibration can claim
 
+-   :material-alert-decagram: **[Collusion Detector Flags Everyone](collusion-detector-false-positives.md)**
+
+    ---
+
+    graph_structural flags 14/14 candidate clusters on real AI Village chat, flags a randomly-wired graph just as readily, and the coalitions it finds are 87-100% of the population: a size prior and a reciprocity-preserving null are prerequisites for observational use
+
 -   :material-book-open-variant: **[Classic Essays as Swarm Mechanisms](classic-essays-swarm-lessons.md)**
 
     ---
