@@ -7,10 +7,13 @@ roughly 2× stale. Tracked as bead `vu70`; the calibration question it feeds is
 `fcmy.7`.
 
 This is the design gate that has to clear before any bridge code is written. It
-answers four questions — which regime, what counts as an interaction, what
-stands in for task progress, and how the addressing heuristic gets validated —
-and then raises a fifth that the first four expose and that nothing in the
-dataset resolves.
+answers five questions — which regime, what counts as an interaction, what
+stands in for task progress, how the addressing heuristic gets validated, and
+what serves as the outcome variable. The fifth was raised by the first four. It
+is answered here, but not in the shape the bead assumed: the Village supplies a
+gate decision, not an interaction outcome.
+
+Every figure below is reproducible with `experiments/ai_village_probe.py`.
 
 ## What the data actually is
 
@@ -162,31 +165,82 @@ display names are prefixes of each other (`Claude Opus 4` vs `Claude Opus 4.5`),
 so match **longest-first**; and `\b` never matches before `@`, so a
 word-boundary-anchored `@handle` pattern is silently dead.
 
-## D5 — The unresolved problem: there is no outcome variable
+## D5 — Resolved: an outcome variable exists, but it is a gate decision
 
-The four decisions above define observables. They do not define `v`.
+The four decisions above define observables. They do not define `v`, and
+`fcmy.7`'s posterior fits proxy parameters against *observed outcomes*. Three
+candidates were measured.
 
-SWARM's proxy maps observables to `p = P(v = +1)`, and `fcmy.7`'s posterior fits
-proxy parameters against *observed outcomes*. **The Village ships no outcome
-labels, and nothing in the schema stands in for one.** Session summaries are
-self-reports; engagement is already spent as an input channel and cannot also
-serve as the target without circularity; human reaction (`USER_TALK`, 2,228 in
-the primary window) is sparse and not attributable to a session.
+| candidate | n | verdict |
+|---|---|---|
+| `OUTREACH_APPROVAL_RESPONSE.approval` | 342 requests, 259 joinable | **usable** — external binary decision |
+| `summaries` (`goal` 83, `daily` 805) | 939 | rejected — LLM-written but blind to session internals by construction, and coarse (multi-day, multi-agent) |
+| consolidation-goal repetition | 18,832 pairs | rejected — only 8.6% repeat at string level, the real pattern is *continuation* ("Continue investigating…"), and the goal text is itself laced with self-reported progress |
 
-This is load-bearing for what `vu70` can deliver, so it should be settled
-deliberately rather than discovered halfway through the bridge:
+The third deserves a note, because it was the one that would have scaled. It
+fails for the D3 reason wearing a disguise: `nextSessionGoal` contains claims
+like "I have successfully registered…", so an outcome derived from it is a
+self-report again.
 
-- If a defensible `v` can be constructed — and the case for one has to be made
-  explicitly, not assumed — `vu70` delivers the calibration it promised, over
-  three channels.
-- If it cannot, `vu70` downgrades from *refit the weights* to *descriptive
-  validation*: the observable distributions, their correlation structure, and
-  how the existing metrics behave on real multi-agent history. That is still
-  worth having and still novel, but it is a smaller claim, and `fcmy.7` falls
-  back to MiroShark as the not-authored-by-us generator.
+### The outcome that survives
 
-Deciding D5 is the next step. It is a research question, not an implementation
-detail, and no amount of bridge code answers it.
+`OUTREACH_APPROVAL_RESPONSE` carries a boolean `approval`, a `rationale`, and
+an `adminComment`. It is a genuine external verdict on a specific agent action,
+and the `adminComment` pattern shows a human behind it — present on 81 of 87
+rejections but only 52 of 255 approvals, which is what a reviewer who explains
+refusals and waves through approvals looks like. (Counts are per distinct
+request id: there are 343 response *events* but 342 distinct requests, so one
+request was answered twice.)
+
+Measured feasibility of joining verdicts to session observables:
+
+| | |
+|---|---|
+| verdicts | 342, over 2026-04-16 → 2026-09-18, 21 agents |
+| base rate | 74.6% approved / 25.4% rejected |
+| join rate into a session with turns | **259 / 342 (75.7%)** |
+| joined class balance | 197 approved / 62 rejected |
+| median turns in joined session | 41 — matches the ~40-action consolidation cadence |
+| clustering | 20 agents; largest single agent is 35% of rows |
+
+**This reframes what the Village is good for.** It does not supply interaction
+outcomes, so it cannot calibrate the proxy the way the bead first assumed. What
+it supplies is *real accept/reject decisions by a human reviewer* — which is
+exactly what SWARM's selection metrics consume. `quality_gap` is defined as
+`E[p | accepted] − E[p | rejected]`, and every quantity in it is now available
+from real data: `p` from the session's observables, the decision from the
+reviewer. The same holds for toxicity and conditional loss. This is a
+**governance-gate study**, not a proxy calibration, and it is a better fit for
+the metric suite than the original framing was.
+
+### The assumption it rests on, and how it fails
+
+The verdict judges a proposed *outreach message*; the observables describe the
+*session* the request was made from. The design therefore assumes session
+quality carries information about message approval. That assumption is testable
+and may simply be false — a careless session can produce a clean message. If the
+proxy has no predictive power over the verdicts, that is a null result, and it
+is worth reporting as one rather than hunted around.
+
+Power is adequate but not comfortable: 62 minority-class events over three
+parameters clears the usual ten-events-per-parameter rule, but the 20 agent
+clusters with one agent at 35% mean the effective sample is well below 259. Fit
+with cluster-robust or hierarchical treatment of agent, and report effective
+alongside nominal n — the same discipline the observation-unit note demands, for
+the same reason.
+
+### What this settles for `vu70` and `fcmy.7`
+
+- `vu70` delivers a real but **narrow** calibration on ~259 externally-labelled
+  rows, plus descriptive validation of the observable distributions across the
+  much larger unlabelled corpus.
+- `fcmy.7` gets a genuine test on a generator nobody here authored — but over
+  three channels, on 259 rows, against a gate decision rather than an
+  interaction outcome. That is a real answer and a partial one. It does not
+  retire MiroShark as the second non-authored generator; it complements it.
+- The 83 rejected verdicts that fail to join are not noise — check whether
+  non-joining correlates with the verdict before treating the 259 as a random
+  subset.
 
 ## Standing constraints
 
