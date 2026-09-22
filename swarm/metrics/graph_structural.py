@@ -325,6 +325,8 @@ def _null_graph(
 ) -> DiGraph:
     if null == "configuration":
         return configuration_model_null(g, seed=seed)
+    if null == "reciprocity":
+        return reciprocity_preserving_null(g, seed=seed)
     if null in ("bipartite", "membership"):
         if incidence is None:
             raise ValueError(f"null={null!r} needs the incidence the graph was projected from")
@@ -478,6 +480,111 @@ def configuration_model_null(g: DiGraph, *, seed: int = 0) -> DiGraph:
     return DiGraph.from_edges(edges)
 
 
+def _swap_rewire(
+    pairs: List[Tuple[str, str]],
+    rng: random.Random,
+    *,
+    symmetric: bool,
+    forbidden: Optional[Set[Tuple[str, str]]] = None,
+) -> List[Tuple[str, str]]:
+    """Double-edge swap (Maslov-Sneppen): rewire in place, preserving degree
+    AND the exact number of edges.
+
+    Stub matching -- what :func:`configuration_model_null` uses -- loses
+    edges whenever two stubs collide or form a self-loop, so its output is
+    systematically sparser than the input. Swapping never changes the edge
+    count, which is what :func:`density_pvalue` needs (see bead 1a2w).
+    """
+    edges = list(pairs)
+    if len(edges) < 2:
+        return edges
+    present = {(u, v) for u, v in edges}
+    if symmetric:
+        present |= {(v, u) for u, v in edges}
+    # Positions already taken by the other edge class. Without this a rewired
+    # one-way edge can land on (or opposite) a mutual dyad, which both loses
+    # an edge to the merge and invents reciprocity the observed graph lacked.
+    blocked = forbidden or set()
+    for _ in range(10 * len(edges)):
+        i, j = rng.randrange(len(edges)), rng.randrange(len(edges))
+        if i == j:
+            continue
+        a, b = edges[i]
+        c, d = edges[j]
+        if len({a, b, c, d}) < 4:
+            continue
+        if (a, d) in present or (c, b) in present:
+            continue
+        if (a, d) in blocked or (c, b) in blocked:
+            continue
+        if not symmetric and ((d, a) in present or (b, c) in present):
+            # A one-way edge must stay one-way: landing opposite another
+            # one-way edge would invent a mutual dyad and inflate the null's
+            # reciprocity above the observed value.
+            continue
+        present.discard((a, b))
+        present.discard((c, d))
+        if symmetric:
+            present.discard((b, a))
+            present.discard((d, c))
+        edges[i], edges[j] = (a, d), (c, b)
+        present.add((a, d))
+        present.add((c, b))
+        if symmetric:
+            present.add((d, a))
+            present.add((b, c))
+    return edges
+
+
+def reciprocity_preserving_null(g: DiGraph, *, seed: int = 0) -> DiGraph:
+    """Null that preserves degree, the mutual-dyad structure, AND edge count.
+
+    Two defects in ``"configuration"`` motivate this (bead 1a2w, measured in
+    docs/research/collusion-detector-false-positives.md):
+
+    1. Stub matching drops 8-23% of edges to collisions and self-loops, so the
+       null is systematically sparser than the observed graph. That makes
+       ``density_pvalue`` report the *whole graph* as significantly dense
+       (p=0.0196), which is impossible -- a graph cannot be denser than
+       itself -- and it is why every large candidate is flagged.
+    2. It destroys mutuality, so any corpus where partners answer each other
+       scores as anomalous. Real AI Village chat ran reciprocity 0.90 against
+       ``reciprocity_z`` ~7.5.
+
+    Edges are split into mutual dyads and one-way edges and rewired
+    separately by double-edge swap, so mutual-degree, one-way-degree and the
+    exact edge count are all preserved. Against this null the question
+    sharpens to: is this group denser and more mutual than chance *given*
+    that conversation is already reciprocal?
+    """
+    rng = random.Random(seed)
+    mutual: List[Tuple[str, str]] = []
+    one_way: List[Tuple[str, str]] = []
+    seen: Set[Tuple[str, str]] = set()
+    for u in sorted(g.nodes):
+        for v in sorted(g.out.get(u, {})):
+            if u == v:
+                continue
+            if u in g.out.get(v, {}):
+                key = (u, v) if u < v else (v, u)
+                if key not in seen:
+                    seen.add(key)
+                    mutual.append(key)
+            else:
+                one_way.append((u, v))
+
+    edges: List[Edge] = []
+    taken: Set[Tuple[str, str]] = set()
+    for u, v in _swap_rewire(mutual, rng, symmetric=True):
+        edges.append((u, v, 1.0))
+        edges.append((v, u, 1.0))
+        taken.add((u, v))
+        taken.add((v, u))
+    for u, v in _swap_rewire(one_way, rng, symmetric=False, forbidden=taken):
+        edges.append((u, v, 1.0))
+    return DiGraph.from_edges(edges)
+
+
 def reciprocity_zscore(
     g: DiGraph,
     subset: Optional[Set[str]] = None,
@@ -611,6 +718,14 @@ class StructuralAnomaly:
     # separate a planted burst coalition from honest one-window noise —
     # recurrence of the same set across windows can (beads-p56u).
     n_windows_surfaced: int = 0
+    # Fraction of the whole graph's nodes this cluster covers (bead 1a2w).
+    # Always populated by :func:`detect_structural_anomalies`; 0.0 when the
+    # anomaly was built by hand or by a path that has no graph to compare to.
+    # A cluster at ~1.0 is not a finding about coordination, it is a
+    # restatement of the population -- see
+    # docs/research/collusion-detector-false-positives.md, where every
+    # flagged cluster on real chat covered 87-100% of the agents.
+    size_fraction: float = 0.0
 
     @property
     def edge_probability(self) -> float:
@@ -647,6 +762,7 @@ def detect_structural_anomalies(
     null: str = "configuration",
     incidence: Optional[Sequence[Incidence]] = None,
     projection: str = "sequential",
+    max_size_fraction: Optional[float] = None,
 ) -> List[StructuralAnomaly]:
     """End-to-end detector: build graph, run all four signals, return
     one anomaly record per candidate cluster.
@@ -656,10 +772,19 @@ def detect_structural_anomalies(
 
     ``null`` selects the null model behind ``reciprocity_z`` and
     ``pvalue``: ``"configuration"`` (default, degree-preserving),
-    ``"bipartite"`` or ``"membership"``; the last two need the
-    agent->object ``incidence`` that ``edges`` were projected from (see
+    ``"reciprocity"`` (:func:`reciprocity_preserving_null`, also preserves
+    mutual dyads), ``"bipartite"`` or ``"membership"``; the last two need
+    the agent->object ``incidence`` that ``edges`` were projected from (see
     :func:`bipartite_null`). Candidate extraction and the other signals
     do not depend on the null.
+
+    ``max_size_fraction`` drops candidates covering more than that fraction
+    of the graph's nodes. Default ``None`` keeps every candidate, which is
+    the historical behaviour -- beads qoro and 3ru4 published numbers under
+    it, so changing the default would silently invalidate closed work. On
+    dense observational graphs the detector otherwise returns the whole
+    population as a coalition (bead 19n0); ~0.5 is a reasonable starting
+    point there, but it is a prior and should be chosen deliberately.
     """
     g = DiGraph.from_edges(edges)
     if len(g.nodes) < min_size:
@@ -706,8 +831,11 @@ def detect_structural_anomalies(
                 pvalue=pval,
                 total_internal_weight=g.induced_edge_weight(cand),
                 weighted_reciprocity=g.weighted_reciprocity(cand),
+                size_fraction=len(cand) / len(g.nodes),
             )
         )
+    if max_size_fraction is not None:
+        results = [r for r in results if r.size_fraction <= max_size_fraction]
     return results
 
 

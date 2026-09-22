@@ -113,13 +113,14 @@ def to_interactions(records):
     ]
 
 
-def score(records, label):
+def score(records, label, *, null="configuration", max_size_fraction=None):
     edges = edges_from_interactions(to_interactions(records), weight="count")
     nodes = {n for e in edges for n in (e[0], e[1])}
     if len(nodes) < 3:
         return None
     anomalies = detect_structural_anomalies(
-        edges, min_size=3, n_null_samples=N_NULL, seed=0)
+        edges, min_size=3, n_null_samples=N_NULL, seed=0,
+        null=null, max_size_fraction=max_size_fraction)
     flagged = [a for a in anomalies if a.pvalue < ALPHA]
     density = len(edges) / max(len(nodes) * (len(nodes) - 1), 1)
     share = (sum(len(a.members) for a in flagged) / (len(flagged) * len(nodes))
@@ -165,6 +166,16 @@ def main():
             pooled_f += got[0]
             pooled_n += got[1]
         score(null_months[month], f"  null {month}")
+
+    # --- bead 1a2w: do the two proposed fixes actually help? ---------------
+    print("\nfixes (bead 1a2w), on the real baseline graph:")
+    for null, cap, label in (
+        ("configuration", None, "  none (as published in 19n0)"),
+        ("configuration", 0.5, "  size prior only (<=0.5)"),
+        ("reciprocity", None, "  reciprocity null only"),
+        ("reciprocity", 0.5, "  both"),
+    ):
+        score(by_name, label, null=null, max_size_fraction=cap)
 
     print(f"\nPOOLED over months, real data: {pooled_f}/{pooled_n} candidate "
           f"clusters flagged at p<{ALPHA} = {pooled_f/max(pooled_n,1):.3f}")

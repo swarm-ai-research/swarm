@@ -77,6 +77,73 @@ Whether signal survives beneath the vacuous global cluster — for instance with
 cluster size capped at a third of the graph — is the obvious follow-up, and is
 deliberately out of scope here.
 
+## Update (bead `1a2w`): both fixes implemented, neither repairs it
+
+The two fixes proposed above were built, tested and measured. **Neither fixes
+the real-data false positives, and finding that out located a deeper defect.**
+
+| configuration on the real graph | flagged |
+|---|---|
+| none (as published above) | 2/2 |
+| size prior only (≤0.5 of nodes) | **0/0** |
+| reciprocity-preserving null only | 2/2 |
+| both | 0/0 |
+
+**The size prior does not sharpen the detector, it silences it.** `0/0` means no
+candidate survives the filter at all — candidate generation only ever produces
+near-complete node sets, so capping size removes every candidate rather than
+leaving the true ones behind. It suppresses the false positives by suppressing
+the output.
+
+**The reciprocity-preserving null changes nothing here** (2/2), despite being
+correct on sparse graphs. Chasing why produced the actual finding.
+
+### The real defect: the nulls lose edges
+
+Both null models rewire by stub matching, and stubs collide or form self-loops.
+The null graph therefore has systematically *fewer* edges than the observed one
+— 8–23% fewer in direct measurement. The consequence is not subtle:
+
+```
+density_pvalue(WHOLE GRAPH) = 0.0196     under the configuration null
+```
+
+A graph cannot be denser than itself. Any candidate approaching the full node
+set is guaranteed "significantly dense," which is precisely why every cluster is
+flagged, why a randomly-wired graph is flagged too, and why a size prior appears
+to help — it is removing the candidates that trip the artifact, not detecting
+anything.
+
+`reciprocity_preserving_null` is therefore built on double-edge swaps
+(Maslov–Sneppen), which preserve degree *and* edge count exactly. On a sparse
+graph it works as intended:
+
+| | observed | configuration null | reciprocity null |
+|---|---|---|---|
+| edges | 97 | 85.5 (88%) | **97.0 (100%)** |
+| reciprocity | 0.082 | destroyed | **0.082 (exact)** |
+| `density_pvalue` (whole graph) | — | 0.0196 | **1.0000** |
+| `reciprocity_z` (whole graph) | — | 2.52 | **−0.23** |
+
+**And it does not carry to dense graphs.** At the density real group chat runs
+(0.46), roughly 2% of edges are still lost to collisions that exist before any
+swap is attempted, and 2% is enough to keep `density_pvalue` at the floor. That
+is why the real corpus is still 2/2. Both behaviours are pinned in tests
+(`TestEdgeCountArtifact`), including the failure.
+
+### Where that leaves the detector
+
+Unchanged for existing work: `max_size_fraction` defaults to `None` and `null`
+defaults to `"configuration"`, so `qoro` and `3ru4` remain reproducible, and a
+test asserts default output is identical.
+
+For observational use the honest position is that `graph_structural` is still
+not deployable on dense chat, and the remaining blocker is now specific and
+fixable: make the rewiring collision-free on dense graphs, or replace the
+density p-value with a statistic that is not degenerate when the candidate
+approaches the whole graph. Fixing candidate generation — which currently cannot
+propose anything smaller than most of the population — is the other half.
+
 ## Limits
 
 - **Only `graph_structural` was exercised.** The composite score in

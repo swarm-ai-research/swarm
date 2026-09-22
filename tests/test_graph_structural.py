@@ -18,6 +18,7 @@ from swarm.metrics.graph_structural import (
     label_propagation,
     project_incidence,
     rank_aggregated_scores,
+    reciprocity_preserving_null,
     reciprocity_zscore,
 )
 from swarm.models.interaction import SoftInteraction
@@ -485,3 +486,148 @@ class TestBipartiteNull:
         p_member = density_pvalue(g, coalition, n_samples=50, seed=0, null="membership", incidence=inc)
         p_bip = density_pvalue(g, coalition, n_samples=50, seed=0, null="bipartite", incidence=inc)
         assert p_bip <= 0.05 < p_member
+
+
+class TestSizePrior:
+    """bead 1a2w: a cluster covering the whole graph is not a coalition."""
+
+    @staticmethod
+    def _dense_chat(n=12):
+        """Everyone answers everyone -- the shape real group chat takes."""
+        edges = []
+        for i in range(n):
+            for j in range(n):
+                if i != j:
+                    edges.append((f"a{i}", f"a{j}", 1.0))
+        return edges
+
+    def test_size_fraction_is_populated(self):
+        an = detect_structural_anomalies(self._dense_chat(), n_null_samples=20, seed=0)
+        assert an, "dense graph should yield candidates"
+        for a in an:
+            assert 0.0 < a.size_fraction <= 1.0
+            assert a.size_fraction == pytest.approx(len(a.members) / 12)
+
+    def test_whole_graph_clusters_are_flagged_without_the_prior(self):
+        """The 19n0 failure, pinned: candidates cover ~all agents."""
+        an = detect_structural_anomalies(self._dense_chat(), n_null_samples=20, seed=0)
+        assert max(a.size_fraction for a in an) > 0.9
+
+    def test_max_size_fraction_drops_them(self):
+        an = detect_structural_anomalies(
+            self._dense_chat(), n_null_samples=20, seed=0, max_size_fraction=0.5
+        )
+        assert all(a.size_fraction <= 0.5 for a in an)
+
+    def test_default_is_unchanged(self):
+        """qoro and 3ru4 published under the old defaults; keep them valid."""
+        edges = self._dense_chat()
+        base = detect_structural_anomalies(edges, n_null_samples=20, seed=0)
+        explicit = detect_structural_anomalies(
+            edges, n_null_samples=20, seed=0, max_size_fraction=None
+        )
+        assert [sorted(a.members) for a in base] == [sorted(a.members) for a in explicit]
+        assert [a.pvalue for a in base] == [a.pvalue for a in explicit]
+
+
+class TestReciprocityPreservingNull:
+    """bead 1a2w: the configuration null treats ordinary dialogue as anomalous."""
+
+    @staticmethod
+    def _mutual_ring(n=10):
+        """Every neighbour pair answers back: high reciprocity, no coalition."""
+        edges = []
+        for i in range(n):
+            j = (i + 1) % n
+            edges.append((f"a{i}", f"a{j}", 1.0))
+            edges.append((f"a{j}", f"a{i}", 1.0))
+        return edges
+
+    def test_null_preserves_mutual_dyad_count(self):
+        g = DiGraph.from_edges(self._mutual_ring())
+        null_g = reciprocity_preserving_null(g, seed=1)
+        # Global reciprocity is preserved by construction; the observed graph
+        # is fully mutual, so the null must be too.
+        assert null_g.reciprocity() == pytest.approx(g.reciprocity(), abs=0.05)
+
+    def test_configuration_null_does_not(self):
+        """Why the new null exists: the old one destroys mutuality."""
+        from swarm.metrics.graph_structural import configuration_model_null
+
+        g = DiGraph.from_edges(self._mutual_ring())
+        cfg = configuration_model_null(g, seed=1)
+        assert cfg.reciprocity() < g.reciprocity() - 0.3
+
+    def test_dialogue_is_less_anomalous_under_the_new_null(self):
+        g = DiGraph.from_edges(self._mutual_ring())
+        subset = set(g.nodes)
+        _, z_cfg = reciprocity_zscore(g, subset, n_samples=40, seed=0, null="configuration")
+        _, z_rec = reciprocity_zscore(g, subset, n_samples=40, seed=0, null="reciprocity")
+        assert z_rec < z_cfg
+
+    def test_selectable_by_name(self):
+        edges = self._mutual_ring()
+        an = detect_structural_anomalies(edges, n_null_samples=20, seed=0, null="reciprocity")
+        assert isinstance(an, list)
+
+    def test_unknown_null_still_rejected(self):
+        g = DiGraph.from_edges(self._mutual_ring())
+        with pytest.raises(ValueError, match="unknown null model"):
+            reciprocity_zscore(g, set(g.nodes), n_samples=2, seed=0, null="nope")
+
+
+class TestEdgeCountArtifact:
+    """bead 1a2w: why the configuration null flags everything.
+
+    Stub matching drops edges to collisions and self-loops, so the null is
+    sparser than the observed graph and ``density_pvalue`` reports even the
+    WHOLE GRAPH as significantly dense -- which is impossible, since a graph
+    cannot be denser than itself.
+    """
+
+    @staticmethod
+    def _sparse_random(n=30, pr=0.1, seed=0):
+        rng = random.Random(seed)
+        return [(f"a{i}", f"a{j}", 1.0) for i in range(n) for j in range(n)
+                if i != j and rng.random() < pr]
+
+    @staticmethod
+    def _edge_count(g):
+        return sum(len(v) for v in g.out.values())
+
+    def test_configuration_null_loses_edges(self):
+        from swarm.metrics.graph_structural import configuration_model_null
+
+        g = DiGraph.from_edges(self._sparse_random())
+        observed = self._edge_count(g)
+        nulls = [self._edge_count(configuration_model_null(g, seed=s)) for s in range(10)]
+        assert sum(nulls) / len(nulls) < observed, "stub matching should lose edges"
+
+    def test_whole_graph_is_flagged_under_configuration_null(self):
+        """The artifact, pinned. Change this test only with a reason."""
+        g = DiGraph.from_edges(self._sparse_random())
+        assert density_pvalue(g, set(g.nodes), n_samples=50, seed=0) <= 0.05
+
+    def test_reciprocity_null_preserves_edge_count_and_reciprocity(self):
+        g = DiGraph.from_edges(self._sparse_random())
+        for seed in range(5):
+            null_g = reciprocity_preserving_null(g, seed=seed)
+            assert self._edge_count(null_g) == self._edge_count(g)
+            assert null_g.reciprocity() == pytest.approx(g.reciprocity(), abs=1e-9)
+
+    def test_reciprocity_null_removes_the_artifact_on_sparse_graphs(self):
+        g = DiGraph.from_edges(self._sparse_random())
+        whole = set(g.nodes)
+        assert density_pvalue(g, whole, n_samples=50, seed=0) <= 0.05
+        assert density_pvalue(
+            g, whole, n_samples=50, seed=0, null="reciprocity") > 0.05
+
+    def test_artifact_survives_on_dense_graphs(self):
+        """Honest limit: ~2% of edges are still lost to pre-existing
+        collisions when the graph is dense, so the fix does NOT carry to
+        real group chat (density 0.46). Measured in
+        docs/research/collusion-detector-false-positives.md.
+        """
+        g = DiGraph.from_edges(self._sparse_random(pr=0.5))
+        assert density_pvalue(
+            g, set(g.nodes), n_samples=50, seed=0, null="reciprocity") <= 0.05
