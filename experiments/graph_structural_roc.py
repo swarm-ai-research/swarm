@@ -36,6 +36,14 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Set, Tuple
 
+# Pin `swarm` to THIS checkout (bead hjyp). `python experiments/x.py` puts
+# experiments/ on sys.path[0], not the repo root, so `import swarm` otherwise
+# resolves through the editable install, which points at whichever checkout ran
+# `pip install -e .` last -- possibly another session's worktree.
+__import__("sys").path.insert(
+    0, str(__import__("pathlib").Path(__file__).resolve().parents[1])
+)
+
 from swarm.governance.reputation_governor import ReputationGovernor
 from swarm.knowledge.graph_memory import GraphMemoryStore, RelationshipEdge
 from swarm.metrics.collusion import CollusionDetector

@@ -259,6 +259,10 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+# Experiment scripts pin `swarm` to their own checkout before importing it
+# (bead hjyp), so their swarm imports necessarily follow a statement. The
+# alternative is 62 inline noqa comments.
+"experiments/*.py" = ["E402"]
 
 [tool.coverage.run]
 source = ["swarm"]
