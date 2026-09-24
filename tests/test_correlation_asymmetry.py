@@ -11,9 +11,13 @@ import pytest
 from experiments.correlation_asymmetry import (
     Config,
     attacker_hit,
+    best_rule_by_cost,
+    break_even_cost,
     defender_catch,
     defender_retain,
+    false_accept,
     family_sizes,
+    keep_threshold,
     p_all,
     p_all_structured,
     p_any,
@@ -22,7 +26,9 @@ from experiments.correlation_asymmetry import (
     p_none_structured,
     same_family_pair_fraction,
     sweep_exchangeable,
+    sweep_two_arm,
     two_level_params,
+    utility,
 )
 
 RHOS = [i / 20 for i in range(21)]
@@ -246,3 +252,69 @@ class TestSweepShape:
         for r in sweep_exchangeable(Config(), RHOS):
             for key in ("attacker_hit", "defender_detect", "defender_retain", "defender_catch"):
                 assert 0.0 <= r[key] <= 1.0
+
+
+class TestTwoArm:
+    """Aggregation rule as a k-of-n knob, with the false-accept arm (bead rrsf)."""
+
+    def test_named_rules_are_thresholds(self):
+        assert keep_threshold("unanimous", 5) == 5
+        assert keep_threshold("majority", 5) == 3
+        assert keep_threshold("majority", 4) == 3
+        assert keep_threshold("any_keeps", 5) == 1
+        assert keep_threshold("k_of_n", 5, 2) == 2
+
+    @pytest.mark.parametrize("k", [0, 6])
+    def test_k_of_n_out_of_range_rejected(self, k):
+        with pytest.raises(ValueError):
+            keep_threshold("k_of_n", 5, k)
+
+    def test_k_of_n_reproduces_named_rules(self):
+        for rule in ("unanimous", "majority", "any_keeps"):
+            k = keep_threshold(rule, 5)
+            for rho in RHOS:
+                named = defender_retain(Config(verify_rule=rule), rho)
+                generic = defender_retain(Config(verify_rule="k_of_n", verify_k=k), rho)
+                assert generic == pytest.approx(named)
+
+    def test_non_discriminating_verifier_accepts_false_like_true(self):
+        # a verifier that keeps false findings as often as true ones
+        cfg = Config(verify_rule="majority", e_false_drop=0.4, e_false_keep=0.6)
+        for rho in RHOS:
+            assert false_accept(cfg, rho) == pytest.approx(defender_retain(cfg, rho))
+
+    def test_unanimous_false_accept_independent(self):
+        cfg = Config(verify_rule="unanimous", e_false_keep=0.3)
+        assert false_accept(cfg, 0.0) == pytest.approx(0.3**5)
+
+    def test_stricter_threshold_trades_catch_for_false_accepts(self):
+        # stricter thresholds accept fewer false findings and catch fewer true ones
+        rows = sorted(sweep_two_arm(Config(), [0.0], [0.3]), key=lambda r: r["k"])
+        fa = [r["false_accept"] for r in rows]
+        catch = [r["defender_catch"] for r in rows]
+        assert fa == sorted(fa, reverse=True)
+        assert catch == sorted(catch, reverse=True)
+
+    def test_break_even_equalises_utility(self):
+        rows = sorted(sweep_two_arm(Config(), [0.0], [0.3]), key=lambda r: r["k"])
+        for a, b in zip(rows, rows[1:], strict=False):
+            c = break_even_cost(a, b)
+            assert utility(a["defender_catch"], a["false_accept"], c) == pytest.approx(
+                utility(b["defender_catch"], b["false_accept"], c), abs=1e-5
+            )
+
+    def test_best_rule_gets_stricter_as_false_accepts_cost_more(self):
+        rows = sweep_two_arm(Config(), [0.0], [0.3])
+        best = best_rule_by_cost(rows, 0.0, 0.3, [0.1, 0.5, 1.0, 4.0, 8.0])
+        ks = [b["best_k"] for b in best]
+        assert ks == sorted(ks)
+        assert ks[0] < ks[-1]
+
+    @pytest.mark.parametrize("fk", [0.1, 0.3, 0.5])
+    @pytest.mark.parametrize("cost", [0.5, 1.0, 4.0])
+    def test_joint_optimum_is_independence_once_false_accepts_are_priced(self, fk, cost):
+        # pcdq's interior optimum (rho*=0.65 under unanimous) scored recall only.
+        # With the false-accept arm, the best (rule, rho) pair sits at rho=0.
+        rows = sweep_two_arm(Config(), RHOS, [fk])
+        best = max(rows, key=lambda r: utility(r["defender_catch"], r["false_accept"], cost))
+        assert best["rho"] == 0.0
