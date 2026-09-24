@@ -21,6 +21,15 @@ Posts about SWARM research findings, framework updates, and multi-agent safety.
 
 ## September 2026
 
+<div class="blog-post" data-tags="llm-agents evaluation engineering" markdown>
+
+**Sep 21** — [Our Detectors Work on Simulations. We Tried Them on Real Agents.](our-detectors-work-on-simulations.md)
+<span class="blog-tag">LLM Agents</span> <span class="blog-tag">Evaluation</span> <span class="blog-tag">Engineering</span>
+
+We pointed three SWARM instruments at 17 months of real multi-agent data from the AI Village. The calibration returned a null, the collusion detector flagged the entire population — and flagged a randomly-wired graph just as readily — and both obvious repairs failed. Chasing that found the cause: our null model loses 8–23% of its edges, so the whole graph scores as significantly dense. The organising number is 1 external judgment per 7,340 recorded actions.
+
+</div>
+
 <div class="blog-post" data-tags="llm-agents evaluation" markdown>
 
 **Sep 6** — [When Does a Model Decide to Post to the Wiki?](when-does-a-model-decide-to-post-to-the-wiki.md)
