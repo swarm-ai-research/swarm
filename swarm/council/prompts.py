@@ -20,8 +20,10 @@ def build_ranking_prompt(
         "You are a fair and impartial judge. You will be shown responses from "
         "multiple anonymous participants to the same query. Rank them from best "
         "to worst based on quality, accuracy, and usefulness. "
-        "Output ONLY the ranking as a numbered list, e.g.:\n"
-        "1. A\n2. B\n3. C"
+        "First give one or two sentences of reasoning per response. Then end "
+        "with a line reading RANKING: followed by the ranking as a numbered "
+        "list, e.g.:\n"
+        "RANKING:\n1. A\n2. B\n3. C"
     )
 
     response_text = ""
@@ -32,7 +34,7 @@ def build_ranking_prompt(
         f"Original query: {query}\n\n"
         f"Responses:{response_text}\n"
         f"Rank these {len(anon_responses)} responses from best to worst. "
-        f"Output ONLY the ranking."
+        f"Reason briefly about each, then end with RANKING: and the numbered list."
     )
 
     return system_prompt, user_prompt
