@@ -140,7 +140,7 @@ gamescape = [
     "gamescape",
 ]
 langgraph = [
-    "langgraph==1.2.11",
+    "langgraph==1.2.12",
     "langchain-core==1.6.2",
     "langchain-anthropic==1.7.1",
     "langchain-ollama>=0.3.0",
