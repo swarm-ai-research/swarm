@@ -33,6 +33,17 @@ Arguments: $ARGUMENTS
      commitments (prereg locks, frozen schemas, append-only principles).
      The pattern: grep frozen/locked/prereg commitments, compare each to the
      current default it constrains. Every hit is a naa8-class incident waiting.
+     Then measure the lag, not just the shear (pace layers;
+     docs/research/pace-layers-swarm-lag.md):
+     `python scripts/layer_lag.py --since <last retro date>` and again with
+     `--scope dir`. Record the OPEN count and oldest OPEN age per prereg, every
+     GONE pin, and the fast:slow churn ratio trend. OPEN means a pinned file
+     changed and no prereg commit has named it since; each one is either an
+     amendment owed (fix: a prereg line naming the pin) or drift (fix: bring
+     the code back to the lock). File-scope OPEN hits are the priority;
+     dir-scope is where naa8 itself shows up, and it is noisy. Add each
+     confirmed shear's date as `--incident` next time; the churn-ratio
+     prediction is untestable below three incidents.
   4. Orphan influx (Morgenthaler et al., "Searching for Build Debt", MTD'12:
      make the default the right thing) — of beads created since last retro,
      what fraction arrived with zero edges? The wrong default (edgeless

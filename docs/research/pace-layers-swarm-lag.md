@@ -31,7 +31,8 @@ runtime, read for structural wards),
 > **Sourcing status.** Quotes tagged `[read]` were checked word for word
 > against the page HTML on 2026-10-25. Rig numbers are quoted from the files
 > named next to them. Mappings tagged `[inferred]` are this note's argument,
-> not the essay's. No experiment was run for this note. §4 proposes one.
+> not the essay's. §4 proposes a lag metric and §4.1 reports its first run
+> over git history. No simulation was run.
 
 ## The claim in one paragraph
 
@@ -113,7 +114,7 @@ trained organisation.
 
 ## 4. Proposal: measure the lag, not just the shear
 
-None of this has been run. The aim is an observable for "tension building".
+The aim is an observable for "tension building". §4.1 has the first run.
 
 **Layer tags.** Assign every rig artifact a layer by path:
 
@@ -146,6 +147,60 @@ humans over inter-agent messages) is the same metric at a different joint: the
 fast layer is agent-to-agent traffic and the slow layer is the human. A single
 lag metric would let the rig compare its own layer health with a simulated
 organisation's.
+
+### 4.1 First run (2026-10-25)
+
+`scripts/layer_lag.py` implements both metrics; `tests/test_layer_lag.py`
+pins the naa8 case. Run over main's first-parent history: 1,509 commits from
+2026-02-02 to 2026-10-25, 26 sweep commits (more than 40 files) skipped. Ages
+are measured to the last commit. A pin is a backticked repo path in the
+prereg; a change is ratified when a later prereg commit has a changed line
+naming the pin.
+
+| Prereg | Pins | Changes since lock (file / dir scope) | Ratified | OPEN, oldest |
+|---|---|---|---|---|
+| `calibration-prereg.md` | 3, one GONE | 0 / 41 | 0 | dir: 41, incl. naa8 (`d49daaa2`, 142.7 d) |
+| `graph-structural-prereg.md` | 3 | 12 / 97 | 0 | file: 12, oldest `fa5678a6` 2026-06-06 (141.2 d) |
+| `adaptive-agents-prereg.md` | 1 | 1 / 64 | 0 | file: 1, `0ecbb5f2` 2026-09-22 (33.2 d) |
+
+What the naa8 control showed, in the order it came up:
+
+1. **File scope can't see naa8.** The pinned `swarm/judges/rubric_v1.md`
+   never changed after the lock. The default that drifted lived beside it in
+   `swarm/judges/judge.py`. At dir scope the drift shows up as OPEN from
+   2026-06-05 and has stayed open, which is correct: naa8 was fixed in code
+   (`998f3fbe`), and the prereg never mentioned it.
+2. **"Doc was touched" is not ratification.** `d49daaa2` moved the default
+   to v3 *and* added a v3 pilot pointer line to the prereg in the same
+   commit. Counting any doc edit (`--ratify touch`) scores the real incident
+   as ratified at lag 0.
+3. **Lock words don't work either.** A first strict rule that also accepted
+   lock/amend/deviation language closed naa8 on 2026-07-21, through an
+   unrelated "Arm A deviation analysis" line. Only naming the pin works.
+4. **History has to be first-parent.** In full history, `rubric_v1.md` was
+   created on a PR branch before the prereg and re-added by the squash
+   merge, which made its own creation look like drift.
+
+Findings for a human to triage (the script reports; it doesn't judge):
+
+- **graph-structural prereg:** none of its 12 file-scope changes has ever
+  been named in the prereg, which still reads "pre-registered, not yet run".
+  The 2026-06-06 commits added operating-point metrics two days after
+  registration. Whether that's an amendment owed or a protocol change is a
+  read of the diffs, not of this table.
+- **GONE pin:** the calibration prereg still points at `beta_swarm/agents.py`,
+  which left this repo when `beta_swarm` became a submodule (`e0e7f1ae`,
+  2026-09-16).
+- **Churn and the prediction:** the mean smoothed ratio was 5.25 in the four
+  weeks before naa8's drift date versus 2.87 in all other weeks. That's the
+  direction the note predicts, but with one incident it's a description,
+  not a test. The fast layer also goes quiet in git after 2026-09-21, when
+  bead traffic moved to Dolt, so ratios after that date undercount it. A
+  real test needs at least three dated shears and a Dolt-side fast series.
+
+Wired into `/bv-dispatch` retro, MUD LEDGER item 3: each retro records OPEN
+counts, GONE pins and the ratio trend, and adds each confirmed shear as an
+`--incident`.
 
 ## 5. What not to take from the essay
 
