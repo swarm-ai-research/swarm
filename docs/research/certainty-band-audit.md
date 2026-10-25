@@ -45,12 +45,14 @@ returns None when no accepted interaction carries ground truth.
 
 ## 3. Run
 
-`python -m experiments.certainty_band_audit` on `escalating_pressure` (the
-scenario that records ground truth per interaction; fabricated positives are
-−1). Only `sigmoid_k` changes between cells. Seeds 42, 7, 101; band 0.05. Means
-over seeds:
+`python -m experiments.certainty_band_audit` on `escalating_pressure`.
+Ground truth is available for interactions initiated by pressure-responsive
+workers (fabricated positives are −1), not for every interaction in the
+scenario. The table's ground-truth rates, band fractions, and realized-loss
+shares therefore use the accepted certified worker subset. Only `sigmoid_k`
+changes between cells. Seeds 42, 7, 101; band 0.05. Means over seeds:
 
-| k | p range | accepted in high band | saturated (p = 1.0) | ground-truth bad share | proxy toxicity | share of loss in high band |
+| k | p range | certified accepted in high band | saturated (p = 1.0) | certified bad share | proxy toxicity | share of certified loss in high band |
 |---|---|---|---|---|---|---|
 | 2 | [0.426, 0.881] | 0.000 | 0 | 0.072 | 0.295 | 0.000 |
 | 5 | [0.320, 0.993] | 0.327 | 0 | 0.075 | 0.146 | **1.000** |
@@ -71,10 +73,11 @@ seed.** Nine accepted interactions per run sit at exactly p = 1.0 by k = 40.
 This is the loan case reproduced: the system's most confident beliefs carry
 all of its realized loss.
 
-**3. The band is not a detector.** At k = 40 it holds 75% of all accepted work,
-nearly all of it honest. Every dollar of loss is in the band, but most of the
-band is fine. Capping p at 1 − band would restore a nonzero expected-harm floor
-but would not tell fabrication from success.
+**3. The band is not a detector.** At k = 40 it holds 75% of accepted work in
+the certified worker subset, nearly all of it honest. Every dollar of measured
+loss is in the band, but most certified work in the band is fine. Capping p at
+1 − band would restore a nonzero expected-harm floor but would not tell
+fabrication from success.
 
 **4. Sharpness alone moves proxy toxicity fourfold.** Ground-truth bad share
 stays near 0.07 while E[1 − p | accepted] falls from 0.295 at k = 2 to 0.074 at

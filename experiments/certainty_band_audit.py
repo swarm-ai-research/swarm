@@ -6,9 +6,9 @@ whether p can get near 0 or 1 at all is set by the sharpness k. At the default
 k = 2, p is confined to [0.119, 0.881]. It reaches exactly 1.0 in float once
 k >= 37.
 
-This sweeps k on escalating_pressure, the scenario that records ground truth
-per interaction (fabricated positives are -1), and reports the share of
-realized loss carried by interactions in the extreme bands.
+This sweeps k on escalating_pressure, where pressure-responsive workers record
+ground truth (fabricated positives are -1), and reports the share of realized
+loss carried by certified interactions in the extreme bands.
 
 Only k changes between cells. It is set on the orchestrator's shared
 ProxyComputer after the build, the same instance the interaction finalizer
@@ -24,10 +24,16 @@ import statistics
 from datetime import datetime, timezone
 from pathlib import Path
 
-from swarm.metrics.soft_metrics import SoftMetrics
+# Pin `swarm` to THIS checkout (bead hjyp). `python experiments/x.py` puts
+# experiments/ on sys.path[0], not the repo root, so `import swarm` otherwise
+# may resolve through an editable install from another worktree.
+__import__("sys").path.insert(
+    0, str(__import__("pathlib").Path(__file__).resolve().parents[1])
+)
+
 from swarm.scenarios.loader import build_orchestrator, load_scenario
 
-SCENARIO = "scenarios/escalating_pressure.yaml"
+SCENARIO = Path("scenarios/escalating_pressure.yaml")
 KS = [2.0, 5.0, 10.0, 40.0]
 SEEDS = [42, 7, 101]
 BAND = 0.05
@@ -36,6 +42,11 @@ BAND = 0.05
 def run_cell(k: float, seed: int) -> dict:
     scenario = load_scenario(SCENARIO)
     scenario.orchestrator_config.seed = seed
+    # The source scenario's canonical event log is append-only. This audit is
+    # an independent in-memory sweep, so it must not contaminate that replay
+    # artifact across cells or repeated runs.
+    scenario.orchestrator_config.log_path = None
+    scenario.orchestrator_config.log_events = False
     orch = build_orchestrator(scenario)
     orch.proxy_computer.sigmoid_k = k
 
@@ -43,7 +54,9 @@ def run_cell(k: float, seed: int) -> dict:
     orch.on_interaction_complete(lambda i, _a, _b: rec.append(i))
     orch.run()
 
-    metrics = SoftMetrics()
+    # Reuse the calculator wired to the orchestrator's scenario-specific
+    # payoff engine; a fresh SoftMetrics would silently use default payoffs.
+    metrics = orch.metrics_calculator
     d = metrics.extreme_p_loss_share(rec, band=BAND)
     accepted = [i for i in rec if i.accepted]
     certified = [i for i in accepted if i.ground_truth is not None]

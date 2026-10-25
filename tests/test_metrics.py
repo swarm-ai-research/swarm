@@ -395,6 +395,16 @@ class TestExtremePLossShare:
         assert d["n_low"] == 1
         assert d["saturated"] == 1
 
+    def test_saturation_counts_both_exact_endpoints(self):
+        interactions = [
+            SoftInteraction(p=0.0, accepted=True, ground_truth=-1),
+            SoftInteraction(p=1.0, accepted=True, ground_truth=1),
+        ]
+        d = SoftMetrics().extreme_p_loss_share(interactions, band=0.05)
+        assert d["n_low"] == 1
+        assert d["n_high"] == 1
+        assert d["saturated"] == 2
+
     def test_no_loss_gives_none_shares(self):
         d = SoftMetrics().extreme_p_loss_share(
             [SoftInteraction(p=0.99, accepted=True, ground_truth=1)]
