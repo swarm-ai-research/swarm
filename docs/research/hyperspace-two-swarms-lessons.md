@@ -374,25 +374,29 @@ Utility-best rule at ρ = 0 by cost ratio:
 |---|---|---|---|---|---|---|---|
 | 0.1 | any_keeps | 2 of 5 | 2 of 5 | 2 of 5 | 2 of 5 | majority | majority |
 | 0.3 | any_keeps | 2 of 5 | 2 of 5 | majority | majority | 4 of 5 | 4 of 5 |
-| 0.5 | any_keeps | any_keeps | 2 of 5 | majority | unanimous | unanimous | unanimous |
+| 0.5 | any_keeps | any_keeps | 2 of 5 | majority | unanimous | reject all | reject all |
 
 ### 1. Correlation's interior optimum was a product of scoring recall alone
 
-With false accepts priced, the best (rule, ρ) pair sits at **ρ = 0 in all nine
-cells** of e_fk ∈ {0.1, 0.3, 0.5} × c ∈ {0.5, 1, 4}. This is pinned in
-`tests/test_correlation_asymmetry.py`. Unanimous-drop's own best ρ falls from
-0.65 toward 0 as the cost ratio rises, because correlation among verifiers also
-correlates their mistakes in keeping false findings. Finding 2's conclusion,
-"the lever is the rule, not the correlation", now holds on both sides.
+With false accepts priced, the best (rule, ρ) pair among the k-of-n rules sits
+at **ρ = 0 in all nine cells** of e_fk ∈ {0.1, 0.3, 0.5} × c ∈ {0.5, 1, 4}.
+This is pinned in `tests/test_correlation_asymmetry.py`; in the e_fk = 0.5,
+c = 4 cell, the separate reject-all baseline is better than every k-of-n rule.
+Unanimous-drop's own best ρ falls from 0.65 toward 0 as the cost ratio rises,
+because correlation among verifiers also correlates their mistakes in keeping
+false findings. Finding 2's conclusion, "the lever is the rule, not the
+correlation", now holds on both sides when a verification rule is worth using.
 
 ### 2. Unanimous-drop wins only where the verifier pool barely pays
 
-Unanimous-drop is utility-best only when e_fk = 0.5 and c ≥ 2, meaning
-verifiers keep a false finding almost as often as a true one (0.5 vs 0.6) and
-false accepts are expensive. In that corner its utility is about 0.01 at c = 2
-and negative beyond, where rejecting every finding (utility 0) beats every
-rule. Its region is exactly where verification is close to useless. Everywhere
-else it is dominated by a looser threshold, usually by a wide margin.
+On the sampled grid, unanimous-drop is utility-best only when e_fk = 0.5 and
+c = 2, meaning verifiers keep a false finding almost as often as a true one
+(0.5 vs 0.6) and false accepts are expensive. In that cell its utility is
+about 0.01. At c = 4 and 8 it is negative, so the explicit reject-all baseline
+(utility 0) beats every verification rule. This narrow region is where
+verification is close to useless. In the other sampled cells, a looser
+threshold or reject-all is better, usually by a wide margin. These statements
+describe the displayed cost and e_fk grid, not all possible parameter values.
 
 ### 3. Recommendation for our own review
 
@@ -413,10 +417,12 @@ told to refute), recomputed at N_v = 3:
 | 0.5 | 0.72 | 1.09 |
 
 **Use majority (2 of 3) as the default.** It is utility-best across the
-middle of every row. Unanimous-drop becomes best only when false accepts cost
-more than ~2× a catch *and* verifiers discriminate poorly. Any-verifier-drops
-is what "refute when uncertain" together with a per-verifier veto produces, so
-it should not be the default, even though it is the easiest to build. The exact switch points depend on e_fk, which we have not
+middle of every row. Among the three threshold rules, unanimous-drop becomes
+best only when false accepts cost more than the displayed break-even and
+verifiers discriminate poorly; at still higher costs, reject-all can instead
+be optimal. Any-verifier-drops is what "refute when uncertain" together with a
+per-verifier veto produces, so it should not be the default, even though it is
+the easiest to build. The exact switch points depend on e_fk, which we have not
 measured: daxc's verifiers refuted nothing, so the fixture could not estimate
 it. Bead `u96a`'s decoy findings measure e_fk directly, and with that number
 this table picks the rule.

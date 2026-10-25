@@ -8,6 +8,7 @@ requested rather than achieved rho_bar.
 
 import pytest
 
+import experiments.correlation_asymmetry as correlation_asymmetry
 from experiments.correlation_asymmetry import (
     Config,
     attacker_hit,
@@ -309,6 +310,52 @@ class TestTwoArm:
         ks = [b["best_k"] for b in best]
         assert ks == sorted(ks)
         assert ks[0] < ks[-1]
+
+    def test_reject_all_beats_negative_utility_thresholds(self):
+        rows = sweep_two_arm(Config(), [0.0], [0.5])
+        [best] = best_rule_by_cost(rows, 0.0, 0.5, [8.0])
+        assert best["best_rule"] == "reject_all"
+        assert best["best_k"] is None
+        assert best["catch"] == 0.0
+        assert best["false_accept"] == 0.0
+        assert best["utility"] == 0.0
+
+    def test_rule_selection_uses_unrounded_probabilities(self):
+        rows = [
+            {
+                "e_false_keep": 0.3,
+                "rule": "lower_k",
+                "k": 1,
+                "rho": 0.0,
+                "defender_catch": 0.5000004,
+                "false_accept": 0.1,
+            },
+            {
+                "e_false_keep": 0.3,
+                "rule": "higher_k",
+                "k": 2,
+                "rho": 0.0,
+                "defender_catch": 0.5000005,
+                "false_accept": 0.1,
+            },
+        ]
+        [best] = best_rule_by_cost(rows, 0.0, 0.3, [1.0])
+        assert best["best_rule"] == "higher_k"
+
+    @pytest.mark.parametrize("validate", [False, True])
+    def test_cli_rejects_invalid_k_of_n_before_running(self, monkeypatch, validate):
+        argv = [
+            "correlation_asymmetry",
+            "--verify-rule",
+            "k_of_n",
+            "--verifiers",
+            "5",
+        ]
+        if validate:
+            argv.append("--validate")
+        monkeypatch.setattr("sys.argv", argv)
+        with pytest.raises(SystemExit, match="2"):
+            correlation_asymmetry.main()
 
     @pytest.mark.parametrize("fk", [0.1, 0.3, 0.5])
     @pytest.mark.parametrize("cost", [0.5, 1.0, 4.0])

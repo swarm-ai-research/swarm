@@ -392,7 +392,12 @@ def break_even_cost(a: dict, b: dict) -> float:
 
 
 def sweep_two_arm(cfg: Config, rhos: List[float], false_keeps: List[float]) -> List[dict]:
-    """Catch rate and false-accept rate for every k-of-n rule, rho, e_false_keep."""
+    """Catch and false-accept rates for every rule, rho, and e_false_keep.
+
+    Probabilities remain at full precision so downstream utility comparisons
+    are not changed by presentation rounding. CSV and console formatting are
+    responsible for rounding output.
+    """
     rows = []
     for fk in false_keeps:
         for label, c in rule_configs(replace(cfg, e_false_keep=fk)):
@@ -403,8 +408,8 @@ def sweep_two_arm(cfg: Config, rhos: List[float], false_keeps: List[float]) -> L
                         "rule": label,
                         "k": c.verify_k,
                         "rho": round(rho, 4),
-                        "defender_catch": round(defender_catch(c, rho), 6),
-                        "false_accept": round(false_accept(c, rho), 6),
+                        "defender_catch": defender_catch(c, rho),
+                        "false_accept": false_accept(c, rho),
                     }
                 )
     return rows
@@ -413,21 +418,42 @@ def sweep_two_arm(cfg: Config, rhos: List[float], false_keeps: List[float]) -> L
 def best_rule_by_cost(
     rows: List[dict], rho: float, fk: float, costs: List[float]
 ) -> List[dict]:
-    """Utility-maximising k at each cost_ratio, for one (rho, e_false_keep) cell."""
+    """Utility-maximising policy for one (rho, e_false_keep) cell.
+
+    Rejecting every finding is an explicit zero-utility baseline. Without it,
+    this function can misleadingly label a negative-utility threshold as the
+    best available policy.
+    """
     cell = [r for r in rows if r["rho"] == round(rho, 4) and r["e_false_keep"] == fk]
+    if not cell:
+        raise ValueError(f"no rows for rho={rho}, e_false_keep={fk}")
+    reject_all = {
+        "e_false_keep": fk,
+        "rule": "reject_all",
+        "k": max(r["k"] for r in cell) + 1,
+        "rho": round(rho, 4),
+        "defender_catch": 0.0,
+        "false_accept": 0.0,
+    }
     out = []
     for cost in costs:
-        best = max(cell, key=lambda r: (utility(r["defender_catch"], r["false_accept"], cost), -r["k"]))
+        best = max(
+            [*cell, reject_all],
+            key=lambda r: (
+                utility(r["defender_catch"], r["false_accept"], cost),
+                -r["k"],
+            ),
+        )
         out.append(
             {
                 "e_false_keep": fk,
                 "rho": round(rho, 4),
                 "cost_ratio": cost,
                 "best_rule": best["rule"],
-                "best_k": best["k"],
+                "best_k": None if best["rule"] == "reject_all" else best["k"],
                 "catch": best["defender_catch"],
                 "false_accept": best["false_accept"],
-                "utility": round(utility(best["defender_catch"], best["false_accept"], cost), 6),
+                "utility": utility(best["defender_catch"], best["false_accept"], cost),
             }
         )
     return out
@@ -442,12 +468,21 @@ def argmax_row(rows: List[dict], key: str, rho_key: str = "rho") -> dict:
 # ---------------------------------------------------------------------------
 
 
-def write_csv(path: Path, rows: List[dict]) -> None:
+def write_csv(path: Path, rows: List[dict], float_digits: int | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=list(rows[0].keys()))
         writer.writeheader()
-        writer.writerows(rows)
+        if float_digits is None:
+            writer.writerows(rows)
+        else:
+            writer.writerows(
+                {
+                    key: round(value, float_digits) if isinstance(value, float) else value
+                    for key, value in row.items()
+                }
+                for row in rows
+            )
 
 
 def main() -> int:
@@ -463,6 +498,12 @@ def main() -> int:
     ap.add_argument("--false-drop", type=float, default=0.4)
     ap.add_argument("--verifiers", type=int, default=5)
     args = ap.parse_args()
+
+    if args.verify_rule == "k_of_n" and not 1 <= args.verify_k <= args.verifiers:
+        ap.error(
+            "--verify-rule k_of_n requires "
+            f"1 <= --verify-k <= --verifiers (got {args.verify_k} and {args.verifiers})"
+        )
 
     cfg = Config(
         verify_rule=args.verify_rule,
@@ -552,11 +593,11 @@ def main() -> int:
     false_keeps = [0.1, 0.3, 0.5]
     costs = [0.1, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0]
     two_arm = sweep_two_arm(cfg, rhos, false_keeps)
-    write_csv(csv_dir / "two_arm.csv", two_arm)
+    write_csv(csv_dir / "two_arm.csv", two_arm, float_digits=6)
     best_rows = []
     for fk in false_keeps:
         best_rows.extend(best_rule_by_cost(two_arm, 0.0, fk, costs))
-    write_csv(csv_dir / "best_rule_by_cost.csv", best_rows)
+    write_csv(csv_dir / "best_rule_by_cost.csv", best_rows, float_digits=6)
 
     print(f"\nTwo-arm comparison at rho=0, N_v={cfg.n_verifiers}, e_drop={cfg.e_false_drop} (matched budget)")
     print(f"{'e_fk':>5} {'rule':>10} {'catch':>8} {'false acc':>10}")
