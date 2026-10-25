@@ -175,7 +175,8 @@ class CollusionDetector:
             quality_asymmetry_threshold: Difference in avg p (internal vs external)
             min_interactions_for_analysis: Minimum interactions to analyze a pair
             collusion_score_threshold: Threshold for flagging suspicious pairs
-            seed: Random seed for any stochastic analysis
+            seed: Random seed for any stochastic analysis. ``None`` means
+                seed 0, so the permutation null is reproducible by default.
             permutation_null_replicates: Number of directed schedule-null
                 samples. At least 200 are required so the 95% interval has
                 useful tail resolution.
@@ -616,7 +617,11 @@ class CollusionDetector:
         activity marginals, not preserving the observed dyad identities.
 
         Returns ``(null_mean, observed/null, ci_low, ci_high)``. The interval
-        is the central 95% permutation interval for the observed/null ratio.
+        is the observed rate divided by the 97.5th and 2.5th null percentiles,
+        so ``ci_low > 1`` is a one-sided permutation test at p < 0.025 rather
+        than a confidence interval on the ratio. When a null rate is zero the
+        corresponding value is undefined and reported as ``nan``; exporters
+        should write it as ``null``.
         """
         if not interactions:
             return 0.0, 0.0, 0.0, 0.0
@@ -659,41 +664,45 @@ class CollusionDetector:
         )
 
         n_events = len(recipients)
-        swaps_per_sample = max(100, 2 * n_events)
+        n_pairs = n_events // 2
 
-        def mix(n_attempts: int) -> None:
-            for _ in range(n_attempts):
-                left = int(rng.integers(n_events))
-                right = int(rng.integers(n_events))
-                if left == right:
-                    continue
+        def mix(n_rounds: int) -> None:
+            # Each round proposes ``n_events // 2`` disjoint double-edge swaps
+            # at once. Disjoint pairs commute, so applying the valid ones
+            # together equals applying them one by one; this keeps the same
+            # chain as sequential swapping while running in numpy instead of
+            # a per-swap Python loop (the governance lever re-runs this every
+            # epoch on the accumulated history).
+            if n_pairs == 0:
+                return
+            for _ in range(n_rounds):
+                order = rng.permutation(n_events)
+                left = order[:n_pairs]
+                right = order[n_pairs : 2 * n_pairs]
                 left_recipient = recipients[left]
                 right_recipient = recipients[right]
-                if (
-                    initiators[left] == right_recipient
-                    or initiators[right] == left_recipient
-                ):
-                    continue
-                recipients[left], recipients[right] = (
-                    right_recipient,
-                    left_recipient,
+                valid = (initiators[left] != right_recipient) & (
+                    initiators[right] != left_recipient
                 )
+                recipients[left[valid]] = right_recipient[valid]
+                recipients[right[valid]] = left_recipient[valid]
 
-        mix(max(500, 10 * n_events))
+        # ~10n swap proposals of burn-in, ~2n between retained samples.
+        mix(20)
         null_rates = np.empty(self.permutation_null_replicates, dtype=float)
         for replicate in range(self.permutation_null_replicates):
-            mix(swaps_per_sample)
+            mix(4)
             null_rates[replicate] = internal_rate(recipients)
 
         null_mean = float(np.mean(null_rates))
         if null_mean <= 0.0:
-            ratio = float("inf") if observed > 0.0 else 0.0
+            ratio = float("nan") if observed > 0.0 else 0.0
         else:
             ratio = observed / null_mean
 
         null_low, null_high = np.quantile(null_rates, [0.025, 0.975])
-        ci_low = observed / null_high if null_high > 0.0 else float("inf")
-        ci_high = observed / null_low if null_low > 0.0 else float("inf")
+        ci_low = observed / null_high if null_high > 0.0 else float("nan")
+        ci_high = observed / null_low if null_low > 0.0 else float("nan")
         return null_mean, float(ratio), float(ci_low), float(ci_high)
 
     def _detect_groups_structural(

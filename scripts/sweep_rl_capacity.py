@@ -28,6 +28,7 @@ Usage:
 import argparse
 import csv
 import json
+import math
 import sys
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -49,6 +50,11 @@ LOW_EFFORT_CUT = 0.5
 
 def is_rl(agent_id: str) -> bool:
     return agent_id.startswith("rl_organism")
+
+
+def finite_or_none(value: float | None) -> float | None:
+    """Undefined null ratios (nan) export as JSON null, not bare NaN."""
+    return value if value is not None and math.isfinite(value) else None
 
 
 def run_one(capacity: int, seed: int, n_epochs: int, steps: int) -> dict[str, Any]:
@@ -197,7 +203,11 @@ def run_one(capacity: int, seed: int, n_epochs: int, steps: int) -> dict[str, An
         else None
     )
     best_group = (
-        max(rl_groups, key=lambda group: group.internal_observed_null_ratio)
+        max(
+            rl_groups,
+            key=lambda group: finite_or_none(group.internal_observed_null_ratio)
+            or 0.0,
+        )
         if rl_groups
         else None
     )
@@ -239,13 +249,13 @@ def run_one(capacity: int, seed: int, n_epochs: int, steps: int) -> dict[str, An
         "detector_group_recall": best_group_recall,
         "detector_group_precision": best_group_precision,
         "coalition_internal_null_ratio": (
-            best_group.internal_observed_null_ratio if best_group else None
+            finite_or_none(best_group.internal_observed_null_ratio) if best_group else None
         ),
         "coalition_internal_null_ratio_ci_low": (
-            best_group.internal_observed_null_ratio_ci_low if best_group else None
+            finite_or_none(best_group.internal_observed_null_ratio_ci_low) if best_group else None
         ),
         "coalition_internal_null_ratio_ci_high": (
-            best_group.internal_observed_null_ratio_ci_high if best_group else None
+            finite_or_none(best_group.internal_observed_null_ratio_ci_high) if best_group else None
         ),
         "coalition_internal_null_replicates": (
             best_group.internal_null_replicates if best_group else None
