@@ -21,6 +21,7 @@ from layer_lag import (  # noqa: E402
     fast_events,
     fill_weeks,
     incident_test,
+    known_bead_ids,
     ratification_lags,
     ratifies,
     weekly_churn,
@@ -61,6 +62,15 @@ class TestPins:
         assert ratifies(["rubric_v1.md is still the lock"], PIN)
         assert not ratifies(["Pilot re-run (rubric v3): see findings"], PIN)
         assert not ratifies(["Arm A deviation analysis"], PIN)
+
+    def test_basename_needs_a_word_boundary(self):
+        assert ratifies(["see judge.py"], "swarm/judges/judge.py")
+        assert not ratifies(["see llm_judge.py"], "swarm/judges/judge.py")
+        assert not ratifies(["follow-up xbeads-5cdk"], PIN, {"beads-5cdk"})
+
+    def test_known_ids_include_dolt_export(self, tmp_path):
+        known = known_bead_ids(tmp_path, [{"id": "swarm-ms0f"}, {"id": None}])
+        assert known == {"ms0f"}
 
     def test_touch_mode_ratifies_anything(self):
         assert ratifies([], None)

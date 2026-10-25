@@ -170,18 +170,23 @@ def change_refs(subject: str, known: Set[str]) -> Set[str]:
     return refs
 
 
-def known_bead_ids(root: Path = Path(".")) -> Set[str]:
-    """Short ids (``naa8``, ``illq.2``) from .beads/issues.jsonl, if present."""
+def known_bead_ids(root: Path = Path("."), beads: Sequence[dict] = ()) -> Set[str]:
+    """Short ids (``naa8``, ``illq.2``) from .beads/issues.jsonl, if present,
+    plus ``beads`` (a ``bd list --json`` export). The jsonl froze when beads
+    moved to Dolt, so later ids (``ms0f``) are only known from the export."""
     jsonl = root / ".beads" / "issues.jsonl"
-    known: Set[str] = set()
+    records: List[dict] = list(beads)
     if jsonl.is_file():
         for line in jsonl.read_text(errors="ignore").splitlines():
             try:
-                bead_id = json.loads(line).get("id", "")
-            except (json.JSONDecodeError, AttributeError):
+                records.append(json.loads(line))
+            except json.JSONDecodeError:
                 continue
-            if bead_id:
-                known.add(bead_id.rsplit("-", 1)[-1])
+    known: Set[str] = set()
+    for record in records:
+        bead_id = record.get("id", "") if isinstance(record, dict) else ""
+        if bead_id:
+            known.add(bead_id.rsplit("-", 1)[-1])
     return known
 
 
@@ -194,7 +199,7 @@ def ratifies(
         return True
     needles = [pin, posixpath.basename(pin), *refs]
     return any(
-        re.search(rf"{re.escape(n)}(?![0-9A-Za-z])", line)
+        re.search(rf"(?<![0-9A-Za-z_]){re.escape(n)}(?![0-9A-Za-z])", line)
         for n in needles for line in changed_lines
     )
 
@@ -361,7 +366,8 @@ def build_report(args: argparse.Namespace) -> dict:
     head = set(_git("ls-files").splitlines())
     ever = {f for c in all_commits for f in c.files} | head
     now = max(c.when for c in all_commits)
-    known = known_bead_ids()
+    beads = json.loads(Path(args.beads_json).read_text()) if args.beads_json else []
+    known = known_bead_ids(beads=beads)
 
     docs = sorted(f for f in head if fnmatch.fnmatchcase(f, "docs/research/*prereg*.md"))
     locks = []
@@ -395,7 +401,6 @@ def build_report(args: argparse.Namespace) -> dict:
     churn = weekly_churn(kept)
     has_events = bool(args.beads_json or args.runs_db)
     if has_events:
-        beads = json.loads(Path(args.beads_json).read_text()) if args.beads_json else []
         messages: List[str] = []
         if args.runs_db:
             with sqlite3.connect(f"file:{args.runs_db}?mode=ro", uri=True) as conn:
@@ -474,7 +479,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--scope", choices=("file", "dir"), default="file",
                         help="pin a file exactly, or widen each pin to its directory")
     parser.add_argument("--ratify", choices=("strict", "touch"), default="strict",
-                        help="strict: a doc edit must name the pin or the lock; touch: any edit")
+                        help="strict: a doc edit must name the pin, or the change's bead id "
+                             "or PR number; touch: any edit")
     parser.add_argument("--sweep-files", type=int, default=40,
                         help="skip commits touching more files than this")
     parser.add_argument("--incident", action="append",
