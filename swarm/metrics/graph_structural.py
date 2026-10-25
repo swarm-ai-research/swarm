@@ -573,9 +573,16 @@ def reciprocity_preserving_null(g: DiGraph, *, seed: int = 0) -> DiGraph:
             else:
                 one_way.append((u, v))
 
+    # The mutual rewire must not land on, or opposite, a one-way edge either.
+    # Without this block the one-way edges are left sitting on positions the
+    # mutual rewire has just taken, the two merge, and the null loses ~1% of
+    # its edges on dense graphs -- enough that the whole AI Village graph
+    # still scored p=0.005 against itself (bead 50bb).
+    one_way_slots = {(u, v) for u, v in one_way} | {(v, u) for u, v in one_way}
+
     edges: List[Edge] = []
     taken: Set[Tuple[str, str]] = set()
-    for u, v in _swap_rewire(mutual, rng, symmetric=True):
+    for u, v in _swap_rewire(mutual, rng, symmetric=True, forbidden=one_way_slots):
         edges.append((u, v, 1.0))
         edges.append((v, u, 1.0))
         taken.add((u, v))
