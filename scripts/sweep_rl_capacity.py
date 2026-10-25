@@ -32,6 +32,7 @@ import sys
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -50,8 +51,8 @@ def is_rl(agent_id: str) -> bool:
     return agent_id.startswith("rl_organism")
 
 
-def run_one(capacity: int, seed: int, n_epochs: int, steps: int) -> dict:
-    scenario = load_scenario(str(SCENARIO_PATH))
+def run_one(capacity: int, seed: int, n_epochs: int, steps: int) -> dict[str, Any]:
+    scenario = load_scenario(SCENARIO_PATH)
     scenario.orchestrator_config.n_epochs = n_epochs
     scenario.orchestrator_config.steps_per_epoch = steps
     scenario.orchestrator_config.seed = seed
@@ -195,12 +196,19 @@ def run_one(capacity: int, seed: int, n_epochs: int, steps: int) -> dict:
         if rl_groups
         else None
     )
+    best_group = (
+        max(rl_groups, key=lambda group: group.internal_observed_null_ratio)
+        if rl_groups
+        else None
+    )
 
     # snapshot one learner's policy for the artifact
     snapshot = {}
     for agent_id, agent in orch._agents.items():
         if is_rl(agent_id):
-            snapshot = agent.q_table_snapshot()
+            snapshot_fn = getattr(agent, "q_table_snapshot", None)
+            if callable(snapshot_fn):
+                snapshot = snapshot_fn()
             break
 
     return {
@@ -230,6 +238,18 @@ def run_one(capacity: int, seed: int, n_epochs: int, steps: int) -> dict:
         "coalition_detected": coalition_detected,
         "detector_group_recall": best_group_recall,
         "detector_group_precision": best_group_precision,
+        "coalition_internal_null_ratio": (
+            best_group.internal_observed_null_ratio if best_group else None
+        ),
+        "coalition_internal_null_ratio_ci_low": (
+            best_group.internal_observed_null_ratio_ci_low if best_group else None
+        ),
+        "coalition_internal_null_ratio_ci_high": (
+            best_group.internal_observed_null_ratio_ci_high if best_group else None
+        ),
+        "coalition_internal_null_replicates": (
+            best_group.internal_null_replicates if best_group else None
+        ),
         "series": series,
         "q_table_sample": snapshot,
     }
@@ -251,7 +271,7 @@ def main() -> None:
     (run_dir / "csv").mkdir(parents=True)
     (run_dir / "plots").mkdir()
 
-    results = []
+    results: list[dict[str, Any]] = []
     for capacity in CAPACITIES:
         for s in range(n_seeds):
             seed = SEED_BASE + s
@@ -276,7 +296,7 @@ def main() -> None:
             for row in r["series"]:
                 writer.writerow({"capacity": r["capacity"], "seed": r["seed"], **row})
 
-    summary = {
+    summary: dict[str, Any] = {
         "scenario": str(SCENARIO_PATH.relative_to(PROJECT_ROOT)),
         "bead": "distributional-agi-safety-boll",
         "timestamp": ts,
@@ -293,7 +313,7 @@ def main() -> None:
         ],
     }
 
-    def agg(capacity, key):
+    def agg(capacity: int, key: str) -> Any:
         vals = [
             r[key] for r in results if r["capacity"] == capacity and r[key] is not None
         ]
