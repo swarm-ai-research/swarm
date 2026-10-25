@@ -36,7 +36,10 @@ Arguments: $ARGUMENTS
      Then measure the lag, not just the shear (pace layers;
      docs/research/pace-layers-swarm-lag.md):
      `python scripts/layer_lag.py --since <last retro date>` and again with
-     `--scope dir`. Record the OPEN count and oldest OPEN age per prereg, every
+     `--scope dir`. For the fast series, export the rig's Dolt beads first
+     (`bd list --json --status all --limit 0 > /tmp/beads.json`) and pass
+     `--beads-json /tmp/beads.json --runs-db runs/runs.db`; git-visible
+     `.beads/` commits stopped on 2026-09-21. Record the OPEN count and oldest OPEN age per prereg, every
      GONE pin, and the fast:slow churn ratio trend. OPEN means a pinned file
      changed and no prereg commit has named it since; each one is either an
      amendment owed (fix: a prereg line naming the pin) or drift (fix: bring

@@ -17,7 +17,10 @@ path:
 and the tool reports three things:
 
   CHURN       commits per ISO week touching each layer, and the smoothed
-              fast:slow ratio (fast+1)/(slow+1).
+              fast:slow ratio (fast+1)/(slow+1). With --beads-json and/or
+              --runs-db, a second fast series counts bead events (created +
+              closed) and agent_messages rows per week, which survives the
+              move of beads to Dolt; ev_ratio = (events+1)/(slow+1).
   LAG         for each prereg doc, every later commit that changed a file
               the doc pins (a backticked repo path), and the time until a doc
               commit ratified it. Never ratified = OPEN. A pin that no longer
@@ -30,9 +33,12 @@ Usage:
     python scripts/layer_lag.py
     python scripts/layer_lag.py --scope dir --since 2026-06-01
     python scripts/layer_lag.py --incident 2026-06-05 --json
+    bd list --json --status all --limit 0 > /tmp/beads.json   # in the rig
+    python scripts/layer_lag.py --beads-json /tmp/beads.json --runs-db runs/runs.db
 
-Ratification (--ratify strict, the default): a doc commit ratifies a pin
-only if one of its changed lines names the pin's path or file name.
+Ratification (--ratify strict, the default): a doc commit ratifies a
+change only if one of its changed lines names the pin's path or file name,
+or the change's own bead id or PR number (taken from its commit subject).
 --ratify touch counts any doc edit. naa8 is why: d49daaa2 moved the rubric
 default to v3 *and* added a v3 pilot pointer to the prereg in the same
 commit, so "touch" scores the real incident as ratified at lag 0. Matching
@@ -51,6 +57,7 @@ import fnmatch
 import json
 import posixpath
 import re
+import sqlite3
 import subprocess
 import sys
 from collections import defaultdict
@@ -85,6 +92,7 @@ LAYERS = ("fast", "middle", "slow")
 DEFAULT_INCIDENTS = ("2026-06-05",)
 
 _PIN = re.compile(r"`([^`\s]+)`")
+_REF = re.compile(r"beads-[a-z0-9]{4}(?:\.\d+)?|#\d+|(?<=\()[a-z0-9]{4}(?:\.\d+)?(?=[),])")
 
 
 @dataclass(frozen=True)
@@ -92,6 +100,7 @@ class Commit:
     sha: str
     when: datetime
     files: Tuple[str, ...]
+    subject: str = ""
 
 
 @dataclass(frozen=True)
@@ -147,15 +156,47 @@ def _matches(path: str, pins: Sequence[str], scope: str) -> Optional[str]:
     return None
 
 
-def ratifies(changed_lines: Sequence[str], pin: Optional[str]) -> bool:
-    """Does a doc commit with these changed lines ratify ``pin``?
+def change_refs(subject: str, known: Set[str]) -> Set[str]:
+    """Bead ids and PR numbers a commit subject names: ``beads-5cdk``,
+    ``#501``, and a bare ``(naa8)`` only if ``naa8`` is a known bead short
+    id, so ``(blog)`` and ``(deps)`` never count. A bare id also matches its
+    ``beads-`` form."""
+    refs = set()
+    for r in _REF.findall(subject):
+        if r.startswith(("#", "beads-")):
+            refs.add(r)
+        elif r in known:
+            refs |= {r, f"beads-{r}"}
+    return refs
 
-    ``pin=None`` is --ratify touch: any edit counts.
-    """
+
+def known_bead_ids(root: Path = Path(".")) -> Set[str]:
+    """Short ids (``naa8``, ``illq.2``) from .beads/issues.jsonl, if present."""
+    jsonl = root / ".beads" / "issues.jsonl"
+    known: Set[str] = set()
+    if jsonl.is_file():
+        for line in jsonl.read_text(errors="ignore").splitlines():
+            try:
+                bead_id = json.loads(line).get("id", "")
+            except (json.JSONDecodeError, AttributeError):
+                continue
+            if bead_id:
+                known.add(bead_id.rsplit("-", 1)[-1])
+    return known
+
+
+def ratifies(
+    changed_lines: Sequence[str], pin: Optional[str], refs: Iterable[str] = ()
+) -> bool:
+    """Does a doc commit with these changed lines ratify a change to ``pin``
+    made by a commit naming ``refs``? ``pin=None`` is --ratify touch."""
     if pin is None:
         return True
-    name = posixpath.basename(pin)
-    return any(pin in line or name in line for line in changed_lines)
+    needles = [pin, posixpath.basename(pin), *refs]
+    return any(
+        re.search(rf"{re.escape(n)}(?![0-9A-Za-z])", line)
+        for n in needles for line in changed_lines
+    )
 
 
 def ratification_lags(
@@ -164,6 +205,7 @@ def ratification_lags(
     pins: Sequence[str],
     scope: str,
     doc_edits: Optional[Dict[str, List[str]]] = None,
+    known: Set[str] = frozenset(),
 ) -> List[Change]:
     """Every pinned-file change after both ``doc`` and the pinned file exist,
     with the first doc commit at or after it that ratifies the pin. ``commits`` must be
@@ -182,11 +224,12 @@ def ratification_lags(
             pin = None if f == doc else _matches(f, pins, scope)
             if pin is None or c.when <= born[pin]:
                 continue
+            refs = change_refs(c.subject, known)
             ratified = next(
                 (d.when for d in doc_commits
                  if d.when >= c.when
                  and ratifies(doc_edits.get(d.sha, []) if doc_edits is not None else [],
-                              pin if doc_edits is not None else None)),
+                              pin if doc_edits is not None else None, refs)),
                 None,
             )
             changes.append(Change(doc, c.sha, c.when, f, ratified))
@@ -204,12 +247,53 @@ def weekly_churn(commits: Iterable[Commit]) -> Dict[str, Dict[str, int]]:
     return dict(sorted(weeks.items()))
 
 
-def churn_ratio(row: Dict[str, int]) -> float:
-    return (row["fast"] + 1) / (row["slow"] + 1)
+def fill_weeks(churn: Dict[str, Dict[str, int]]) -> Dict[str, Dict[str, int]]:
+    """Add zero rows for empty weeks between the first and last, so quiet
+    weeks count in the incident comparison instead of vanishing."""
+    if not churn:
+        return churn
+    keys = set().union(*churn.values())
+    start, end = week_start(min(churn)), week_start(max(churn))
+    while start <= end:
+        churn.setdefault(iso_week(datetime.combine(start, datetime.min.time())),
+                         dict.fromkeys(keys, 0))
+        start += timedelta(weeks=1)
+    return dict(sorted(churn.items()))
+
+
+def churn_ratio(row: Dict[str, int], key: str = "fast") -> float:
+    return (row[key] + 1) / (row["slow"] + 1)
+
+
+def _parse_ts(ts: str) -> datetime:
+    return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+
+
+def fast_events(beads: Sequence[dict], messages: Sequence[str]) -> Dict[str, int]:
+    """Fast-layer events per ISO week: bead created + bead closed + one per
+    agent_messages row. Deleted beads are gone from ``bd list``, so this
+    undercounts weeks whose beads were later cleaned up."""
+    weeks: Dict[str, int] = defaultdict(int)
+    for bead in beads:
+        for key in ("created_at", "closed_at"):
+            if bead.get(key):
+                weeks[iso_week(_parse_ts(bead[key]))] += 1
+    for ts in messages:
+        weeks[iso_week(_parse_ts(ts))] += 1
+    return dict(weeks)
+
+
+def merge_events(churn: Dict[str, Dict[str, int]], events: Dict[str, int]) -> None:
+    """Add an ``events`` column to every churn row, adding empty weeks as needed."""
+    for week in events:
+        churn.setdefault(week, dict.fromkeys(LAYERS, 0))
+    for week, row in churn.items():
+        row["events"] = events.get(week, 0)
 
 
 def incident_test(
-    churn: Dict[str, Dict[str, int]], incidents: Sequence[date], window: int
+    churn: Dict[str, Dict[str, int]], incidents: Sequence[date], window: int,
+    key: str = "fast",
 ) -> List[dict]:
     """Mean churn ratio in the ``window`` weeks before each incident vs the rest."""
     out = []
@@ -218,9 +302,10 @@ def incident_test(
         for week, row in churn.items():
             start = week_start(week)
             in_window = incident - timedelta(weeks=window) <= start < incident
-            (before if in_window else rest).append(churn_ratio(row))
+            (before if in_window else rest).append(churn_ratio(row, key))
         out.append({
             "incident": incident.isoformat(),
+            "series": key,
             "weeks_before": len(before),
             "ratio_before": round(mean(before), 2) if before else None,
             "ratio_rest": round(mean(rest), 2) if rest else None,
@@ -235,23 +320,24 @@ def _git(*args: str) -> str:
 
 
 def read_commits(since: Optional[str], until: Optional[str]) -> List[Commit]:
-    args = ["log", "--first-parent", "--reverse", "--no-renames", "--format=@@%H\t%aI", "--name-only"]
+    args = ["log", "--first-parent", "--reverse", "--no-renames",
+            "--format=@@%H\t%aI\t%s", "--name-only"]
     if since:
         args.append(f"--since={since}")
     if until:
         args.append(f"--until={until}")
     commits: List[Commit] = []
-    sha, when, files = None, None, []
+    sha, when, subject, files = None, None, "", []
     for line in _git(*args).splitlines():
         if line.startswith("@@"):
             if sha:
-                commits.append(Commit(sha, when, tuple(files)))
-            sha, iso = line[2:].split("\t")
+                commits.append(Commit(sha, when, tuple(files), subject))
+            sha, iso, subject = line[2:].split("\t", 2)
             when, files = datetime.fromisoformat(iso), []
         elif line:
             files.append(line)
     if sha:
-        commits.append(Commit(sha, when, tuple(files)))
+        commits.append(Commit(sha, when, tuple(files), subject))
     return commits
 
 
@@ -275,6 +361,7 @@ def build_report(args: argparse.Namespace) -> dict:
     head = set(_git("ls-files").splitlines())
     ever = {f for c in all_commits for f in c.files} | head
     now = max(c.when for c in all_commits)
+    known = known_bead_ids()
 
     docs = sorted(f for f in head if fnmatch.fnmatchcase(f, "docs/research/*prereg*.md"))
     locks = []
@@ -284,6 +371,7 @@ def build_report(args: argparse.Namespace) -> dict:
             [c for c in all_commits if len(c.files) <= args.sweep_files],
             doc, pins, args.scope,
             read_doc_edits(doc) if args.ratify == "strict" else None,
+            known,
         )
         if args.since:
             cutoff = kept[0].when if kept else now
@@ -305,6 +393,17 @@ def build_report(args: argparse.Namespace) -> dict:
         })
 
     churn = weekly_churn(kept)
+    has_events = bool(args.beads_json or args.runs_db)
+    if has_events:
+        beads = json.loads(Path(args.beads_json).read_text()) if args.beads_json else []
+        messages: List[str] = []
+        if args.runs_db:
+            with sqlite3.connect(f"file:{args.runs_db}?mode=ro", uri=True) as conn:
+                messages = [r[0] for r in conn.execute("SELECT ts FROM agent_messages")]
+        lo = kept[0].when.date() if kept else date.min
+        events = {w: n for w, n in fast_events(beads, messages).items() if week_start(w) >= lo - timedelta(days=6)}
+        merge_events(churn, events)
+    churn = fill_weeks(churn)
     fast_seen = [c.when for c in kept if any(classify(f) == "fast" for f in c.files)]
     incidents = [date.fromisoformat(d) for d in (args.incident or DEFAULT_INCIDENTS)]
     return {
@@ -316,23 +415,31 @@ def build_report(args: argparse.Namespace) -> dict:
         "fast_last_seen": fast_seen[-1].date().isoformat() if fast_seen else None,
         "churn": churn,
         "locks": locks,
-        "incidents": incident_test(churn, incidents, args.window),
+        "events": {
+            "beads_json": args.beads_json, "runs_db": args.runs_db,
+        } if has_events else None,
+        "incidents": incident_test(churn, incidents, args.window) + (
+            incident_test(churn, incidents, args.window, "events") if has_events else []
+        ),
     }
 
 
 def render(report: dict) -> str:
+    events = report["events"] is not None
     lines = [
         f"Layer lag over {report['range']}: {report['commits']} commits, "
         f"{report['sweeps_skipped']} sweeps skipped, pin scope={report['scope']}, "
         f"ratify={report['ratify']}",
         "",
         "CHURN (commits per ISO week; ratio = (fast+1)/(slow+1))",
-        f"  {'week':<10} {'fast':>5} {'middle':>7} {'slow':>5} {'ratio':>6}",
+        f"  {'week':<10} {'fast':>5} {'middle':>7} {'slow':>5} {'ratio':>6}"
+        + (f" {'events':>7} {'ev_ratio':>8}" if events else ""),
     ]
     for week, row in report["churn"].items():
         lines.append(
             f"  {week:<10} {row['fast']:>5} {row['middle']:>7} {row['slow']:>5} "
             f"{churn_ratio(row):>6.2f}"
+            + (f" {row['events']:>7} {churn_ratio(row, 'events'):>8.2f}" if events else "")
         )
     lines.append(
         f"  fast layer last seen in git: {report['fast_last_seen']} "
@@ -352,7 +459,7 @@ def render(report: dict) -> str:
     lines += ["", "INCIDENTS (mean ratio in the weeks before vs all other weeks)"]
     for inc in report["incidents"]:
         lines.append(
-            f"  {inc['incident']}: before {inc['ratio_before']} "
+            f"  {inc['incident']} [{inc['series']}]: before {inc['ratio_before']} "
             f"({inc['weeks_before']} wk) vs rest {inc['ratio_rest']}"
         )
     if len(report["incidents"]) < 3:
@@ -374,6 +481,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                         help=f"known shear date, repeatable (default {DEFAULT_INCIDENTS})")
     parser.add_argument("--window", type=int, default=4,
                         help="weeks before an incident to compare (default 4)")
+    parser.add_argument("--beads-json",
+                        help="output of `bd list --json --status all --limit 0` (Dolt-era fast layer)")
+    parser.add_argument("--runs-db", help="runs.db holding agent_messages (read-only)")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     report = build_report(args)

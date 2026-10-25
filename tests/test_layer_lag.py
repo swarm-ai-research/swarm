@@ -14,9 +14,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from layer_lag import (  # noqa: E402
     Commit,
+    change_refs,
     churn_ratio,
     classify,
     extract_pins,
+    fast_events,
+    fill_weeks,
     incident_test,
     ratification_lags,
     ratifies,
@@ -62,6 +65,18 @@ class TestPins:
     def test_touch_mode_ratifies_anything(self):
         assert ratifies([], None)
 
+    def test_refs_from_subject(self):
+        known = {"naa8", "5cdk"}
+        assert change_refs("feat: metrics (beads-5cdk) (#501)", known) == {"beads-5cdk", "#501"}
+        assert change_refs("fix: pin Arm B rubric (naa8)", known) == {"naa8", "beads-naa8"}
+        assert change_refs("fix(blog): thing (deps)", known) == set()
+
+    def test_ratifies_by_bead_ref(self):
+        line = ["## Operating-point metrics (2026-06-05, beads-5cdk)"]
+        assert ratifies(line, PIN, {"beads-5cdk"})
+        assert not ratifies(line, PIN, {"#50"})
+        assert not ratifies(["see #5010"], PIN, {"#501"})
+
 
 class TestLag:
     def commits(self):
@@ -84,6 +99,13 @@ class TestLag:
         lags = {c.sha: c for c in ratification_lags(self.commits(), DOC, [PIN], "dir", edits)}
         assert lags["drift"].ratified == T0 + timedelta(days=20)
         assert lags["edit"].ratified == T0 + timedelta(days=20)
+
+    def test_addendum_naming_the_bead_ratifies(self):
+        commits = [at(0, "reg", DOC), at(1, "born", PIN),
+                   Commit("fix", T0 + timedelta(days=2), (PIN, DOC), "feat: x (beads-5cdk)")]
+        edits = {"reg": [], "fix": ["## Addendum (beads-5cdk)"]}
+        (change,) = ratification_lags(commits, DOC, [PIN], "file", edits, {"5cdk"})
+        assert change.ratified == T0 + timedelta(days=2)
 
     def test_file_scope_misses_sibling(self):
         shas = {c.sha for c in ratification_lags(self.commits(), DOC, [PIN], "file", None)}
@@ -121,3 +143,18 @@ class TestChurn:
         assert row["weeks_before"] == 2
         assert row["ratio_before"] == 5.5
         assert row["ratio_rest"] == 1.0
+
+
+class TestFastEvents:
+    def test_beads_and_messages_counted_per_week(self):
+        beads = [{"created_at": "2026-06-01T10:00:00Z", "closed_at": "2026-06-02T10:00:00Z"},
+                 {"created_at": "2026-06-09T10:00:00Z", "closed_at": None}]
+        msgs = ["2026-06-03T00:00:00.000Z"]
+        assert fast_events(beads, msgs) == {"2026-W23": 3, "2026-W24": 1}
+
+    def test_fill_weeks_adds_quiet_weeks(self):
+        churn = {"2026-W20": {"fast": 1, "middle": 0, "slow": 0},
+                 "2026-W23": {"fast": 2, "middle": 0, "slow": 0}}
+        filled = fill_weeks(churn)
+        assert list(filled) == ["2026-W20", "2026-W21", "2026-W22", "2026-W23"]
+        assert filled["2026-W21"] == {"fast": 0, "middle": 0, "slow": 0}

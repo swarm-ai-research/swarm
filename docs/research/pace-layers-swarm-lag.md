@@ -154,13 +154,13 @@ organisation's.
 pins the naa8 case. Run over main's first-parent history: 1,509 commits from
 2026-02-02 to 2026-10-25, 26 sweep commits (more than 40 files) skipped. Ages
 are measured to the last commit. A pin is a backticked repo path in the
-prereg; a change is ratified when a later prereg commit has a changed line
-naming the pin.
+prereg. A change is ratified when a later prereg commit has a changed line
+naming the pin, or naming the change's own bead id or PR number.
 
 | Prereg | Pins | Changes since lock (file / dir scope) | Ratified | OPEN, oldest |
 |---|---|---|---|---|
 | `calibration-prereg.md` | 3, one GONE | 0 / 41 | 0 | dir: 41, incl. naa8 (`d49daaa2`, 142.7 d) |
-| `graph-structural-prereg.md` | 3 | 12 / 97 | 0 | file: 12, oldest `fa5678a6` 2026-06-06 (141.2 d) |
+| `graph-structural-prereg.md` | 3 | 12 / 97 | 1 (`fa5678a6`, by bead ref) | file: 11, oldest `ab4e9a57` 2026-06-06 (141.2 d) |
 | `adaptive-agents-prereg.md` | 1 | 1 / 64 | 0 | file: 1, `0ecbb5f2` 2026-09-22 (33.2 d) |
 
 What the naa8 control showed, in the order it came up:
@@ -180,23 +180,94 @@ What the naa8 control showed, in the order it came up:
 4. **History has to be first-parent.** In full history, `rubric_v1.md` was
    created on a PR branch before the prereg and re-added by the squash
    merge, which made its own creation look like drift.
+5. **Bead refs count too.** `fa5678a6` wrote its own addendum into the
+   graph-structural prereg ("Operating-point metrics … beads-5cdk"), but
+   named the bead rather than the file. Accepting the change's bead id or PR
+   number as ratification closes it, and naa8 stays open: its prereg line
+   names neither `#494` nor a bead. Bare `(xxxx)` tokens count only if they
+   are known bead ids, so `(blog)` and `(deps)` never do.
 
-Findings for a human to triage (the script reports; it doesn't judge):
+Findings for a human to triage (§4.2 has the graph-structural read):
 
-- **graph-structural prereg:** none of its 12 file-scope changes has ever
-  been named in the prereg, which still reads "pre-registered, not yet run".
-  The 2026-06-06 commits added operating-point metrics two days after
-  registration. Whether that's an amendment owed or a protocol change is a
-  read of the diffs, not of this table.
 - **GONE pin:** the calibration prereg still points at `beta_swarm/agents.py`,
   which left this repo when `beta_swarm` became a submodule (`e0e7f1ae`,
   2026-09-16).
-- **Churn and the prediction:** the mean smoothed ratio was 5.25 in the four
-  weeks before naa8's drift date versus 2.87 in all other weeks. That's the
-  direction the note predicts, but with one incident it's a description,
-  not a test. The fast layer also goes quiet in git after 2026-09-21, when
-  bead traffic moved to Dolt, so ratios after that date undercount it. A
-  real test needs at least three dated shears and a Dolt-side fast series.
+- **Churn and the prediction depend on the instrument.** Quiet weeks count
+  as ratio 1.0. With `.beads/` commits in git as the fast layer, the mean
+  ratio was 5.25 in the four weeks before naa8's drift date versus 2.48 in
+  the other 34 weeks: the predicted direction. That series goes quiet after
+  2026-09-21, when bead traffic moved to Dolt. With bead events from the rig's
+  Dolt DB (`bd list --json --status all`, 647 issues, created + closed) plus
+  the 122 `agent_messages` rows as the fast layer, the same weeks score 16.03
+  versus 19.20: the opposite direction. One incident, and the sign flips with
+  the instrument. Nothing here supports the tectonic prediction yet. The
+  events series is the better instrument (it covers the whole range), but it
+  misses beads deleted in cleanups.
+
+### 4.2 Triage: the graph-structural OPEN list
+
+All 11 changes landed after the prereg's results. The doc's header still
+says "pre-registered, not yet run", but its body records a run on
+2026-06-04 and four addenda through 2026-06-05. The header is stale. What
+matters is the chain from verdict to default:
+
+1. **06-04, registered verdict:** no strict AUC dominance → rule #2, "ship
+   as a secondary metric only; no governance wiring".
+2. **06-04, same day:** a `density_pvalue` bug fix, then harder generators
+   after the first re-run hit the AUC ceiling. The re-run then meets rule #1
+   on three families, and wiring is filed (`4ae5`, opt-in). Every step is
+   disclosed in the prereg. Still, the generators were part of the
+   registered design and were changed after seeing results.
+3. **06-05, addendum 5cdk:** F1 at each detector's native cutoff, a metric
+   the prereg never registered. graph_structural "strictly dominates" on
+   four families because every other detector scores F1 = 0.000. The
+   addendum recommends default ON, with two conditions: "n=20, not n=100.
+   Re-run before the flip-on PR lands", and a follow-up bead "with a canary
+   plan".
+4. **06-06, `b0fa86ad` (2iok):** `structural_enabled` flips to default ON,
+   citing the same n=20 table. No n=100 re-run is recorded anywhere in the
+   prereg or the CHANGELOG, and no canary bead was filed. The addendum's own
+   conditions were not met.
+
+Three of the OPEN commits then weakened that evidence, and the prereg names
+none of them:
+
+- **`5c722b33` (06-06, qoro):** on overlapping coalitions graph_structural's
+  AUC is the worst of the four detectors. The commit calls the F1 dominance
+  "partly trivial — every other detector is at 0.000 because their native
+  cutoffs don't fire".
+- **`f7b5ce9a` (07-24, qoro):** "3 of 5 detectors return none on ANY family,
+  so their TPR of 0 is a detector property". The F1 = 0 baseline that
+  justified the flip is a detector that never fires, not a detector that
+  lost.
+- **19n0** ([collusion-detector-false-positives.md](collusion-detector-false-positives.md),
+  measured with `fe11e3d9`'s opt-in fixes): on 28,476 real messages
+  `detect_structural_anomalies` flags 14 of 14 candidate clusters and flags
+  a random-partner null just as readily. Neither fix repairs it. The
+  defaults are unchanged.
+
+So the governor runs, by default, a detector that flags every candidate
+cluster on real chat (and a random null just as often), justified by an F1
+comparison its own follow-ups disqualified, at n=20.
+Its docstring (`swarm/governance/reputation_governor.py:115-128`) still
+gives the 5cdk F1 table as the reason. Exposure is latent, the same shape as
+naa8: inside this repo only the benchmark and the tests construct a
+`ReputationGovernor`. This is a shearing-layer incident of the naa8 class,
+found by the lag list rather than by the binary check.
+
+Not prereg-relevant: `ab4e9a57` (weighted fields kept out of the composite,
+"AUC numbers identical"), `bf05c327` / `ed2bae85` (a new temporal detector
+alongside the original), `bb2cb7ae` (an opt-in null, default unchanged),
+`9feeafa7` (six lines on an unrelated attack; the prereg names
+`attacks.py` only as loose inspiration), `0ecbb5f2` (a sys.path guard).
+These are triage closures for a human. The script can't make them.
+
+**Owed, not done here** (operator decisions, slow layer):
+(a) decide `structural_enabled`'s default, either by running the n=100
+re-run and canary the addendum required, or by reverting to OFF until they
+exist; (b) add an addendum to the prereg naming `5c722b33`, `f7b5ce9a` and
+19n0, and fix the stale status header; (c) repoint the calibration
+prereg's `beta_swarm/agents.py` pin at the submodule.
 
 Wired into `/bv-dispatch` retro, MUD LEDGER item 3: each retro records OPEN
 counts, GONE pins and the ratio trend, and adds each confirmed shear as an
