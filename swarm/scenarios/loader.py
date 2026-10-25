@@ -350,6 +350,7 @@ def parse_governance_config(data: Dict[str, Any]) -> GovernanceConfig:
         staking_enabled=data.get("staking_enabled", False),
         min_stake_to_participate=data.get("min_stake_to_participate", 0.0),
         stake_slash_rate=data.get("stake_slash_rate", 0.1),
+        slash_on_detection=data.get("slash_on_detection", False),
         # Circuit breaker
         circuit_breaker_enabled=data.get("circuit_breaker_enabled", False),
         freeze_threshold_toxicity=data.get("freeze_threshold_toxicity", 0.7),

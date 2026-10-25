@@ -5,14 +5,14 @@ management, escrow settlement, dispute handling, and epoch
 maintenance.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from swarm.agents.base import Action, ActionType
 from swarm.core.handler import Handler, HandlerActionResult
 from swarm.env.marketplace import EscrowStatus, Marketplace
 from swarm.env.state import EnvState
 from swarm.env.tasks import TaskPool
-from swarm.governance.engine import GovernanceEngine
+from swarm.governance.engine import GovernanceEffect, GovernanceEngine
 from swarm.logging.event_bus import EventBus
 from swarm.models.events import Event, EventType
 from swarm.models.interaction import InteractionType, SoftInteraction
@@ -296,6 +296,7 @@ class MarketplaceHandler(Handler):
         success: bool,
         state: EnvState,
         governance_engine: Optional[GovernanceEngine] = None,
+        governance_effect_applier: Optional[Callable[[GovernanceEffect], None]] = None,
         quality_score: float = 1.0,
     ) -> Optional[Dict]:
         """Settle a marketplace bounty/escrow after task completion.
@@ -357,6 +358,10 @@ class MarketplaceHandler(Handler):
                     tau=released,
                 )
                 gov_effect = governance_engine.apply_interaction(interaction, state)
+                if governance_effect_applier is not None:
+                    governance_effect_applier(gov_effect)
+                else:
+                    self._apply_governance_effect_to_state(gov_effect, state)
                 if gov_effect.cost_a > 0 and poster_state:
                     poster_state.update_resources(-gov_effect.cost_a)
                 if gov_effect.cost_b > 0 and worker_state:
@@ -396,6 +401,24 @@ class MarketplaceHandler(Handler):
             )
 
         return settlement
+
+    @staticmethod
+    def _apply_governance_effect_to_state(
+        effect: GovernanceEffect, state: EnvState
+    ) -> None:
+        """Apply non-cost governance effects for direct handler consumers."""
+        for agent_id in effect.agents_to_freeze:
+            state.freeze_agent(agent_id)
+        for agent_id in effect.agents_to_unfreeze:
+            state.unfreeze_agent(agent_id)
+        for agent_id, delta in effect.reputation_deltas.items():
+            agent = state.get_agent(agent_id)
+            if agent is not None:
+                agent.update_reputation(delta)
+        for agent_id, delta in effect.resource_deltas.items():
+            agent = state.get_agent(agent_id)
+            if agent is not None:
+                agent.update_resources(delta)
 
     # ------------------------------------------------------------------
     # Epoch maintenance

@@ -59,6 +59,13 @@ class TestParseGovernanceConfig:
         assert config.min_stake_to_participate == 25.0
         assert config.stake_slash_rate == 0.15
 
+    def test_parses_detection_slashing(self):
+        config = parse_governance_config(
+            {"staking_enabled": True, "slash_on_detection": True}
+        )
+        assert config.staking_enabled
+        assert config.slash_on_detection
+
     def test_parses_circuit_breaker(self):
         """Should parse circuit breaker settings."""
         data = {
