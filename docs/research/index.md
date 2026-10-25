@@ -158,6 +158,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Tipperman's 2026 prototyping essay read as the straw-horse gate one level down: a wrong draft draws correction and a blank page draws nothing, but the false green and the erdos gate show what happens when nobody checks the stain
 
+-   :material-account-hard-hat: **[How I Work with Agents Lessons](how-i-work-with-agents-lessons.md)**
+
+    ---
+
+    Thorsten Ball's October 2026 habits read against the rig: proof and blind evals match what we measured, "use the newest model" and "stop worrying about slop" don't survive a swarm, and a blind eval of our own AGENTS.md is proposed
+
 -   :material-key-variant: **[MVUEH Enigma Break Lessons](mvueh-enigma-break-lessons.md)**
 
     ---
