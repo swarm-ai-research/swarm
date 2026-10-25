@@ -1,11 +1,15 @@
 """Tests for the router-intermediary experiment (bead ggiw)."""
 
+import json
+import math
 import random
+import sys
 from pathlib import Path
 
 import pytest
 import yaml
 
+import experiments.router_intermediary as router_intermediary
 from experiments.router_intermediary import (
     Population,
     auc,
@@ -72,9 +76,24 @@ class TestCells:
         assert kyc == pytest.approx(direct, abs=0.02)
 
     def test_fully_contaminated_pooling_reports_nan_not_crash(self):
-        # 100 operators, 5 adversaries, accounts of 50: usually no clean account
-        r = detection_cell(POP, 50, 0.0, 0.05, reps=10, seed=3)
-        assert 0.0 <= r["clean_account_share"] <= 0.5
+        all_adversary = Population(
+            n_operators=20,
+            adversary_share=1.0,
+            interactions_per_epoch=2,
+            benign_mean=0.8,
+            benign_conc=8.0,
+            adversary_mean=0.6,
+            adversary_conc=8.0,
+        )
+        r = detection_cell(all_adversary, 5, 0.0, 0.05, reps=3, seed=3)
+        assert r["clean_account_share"] == 0.0
+        assert math.isnan(r["auc"])
+        assert math.isnan(r["clean_account_flag_rate"])
+
+    def test_remainder_account_size_is_calibrated(self):
+        pop = Population(23, 0.1, 2, 0.8, 8, 0.6, 8)
+        r = detection_cell(pop, 5, 0.0, 0.05, reps=2, seed=3)
+        assert 0.0 <= r["adversary_account_flag_rate"] <= 1.0
 
     def test_no_ban_keeps_every_adversary_online(self):
         r = ban_cell(POP, 5, "none", 0.05, horizon=5, reroute_adv=1, reroute_ben=4, reps=2, seed=0)
@@ -87,8 +106,54 @@ class TestCells:
         pooled = ban_cell(POP, 10, "ban_account", 0.05, **kw)
         assert pooled["benign_epochs_lost_per_rep"] > direct["benign_epochs_lost_per_rep"]
 
+    def test_unknown_ban_policy_is_rejected(self):
+        with pytest.raises(ValueError, match="unknown ban policy"):
+            ban_cell(POP, 5, "ban_acount", 0.05, 5, 1, 4, 2, 0)
+
     def test_scenario_config_parses(self):
         cfg = yaml.safe_load(Path("scenarios/router_intermediary.yaml").read_text())
         pop = population_from(cfg)
         assert pop.n_adversaries == 20
         assert cfg["sweep"]["ban_policy"] == ["none", "ban_account"]
+
+    def test_quick_main_writes_reproducible_artifacts(self, tmp_path, monkeypatch):
+        cfg = yaml.safe_load(Path("scenarios/router_intermediary.yaml").read_text())
+        cfg["population"]["n_operators"] = 20
+        cfg["population"]["interactions_per_epoch"] = 2
+        cfg["reps"] = 2
+        cfg["bans"]["horizon_epochs"] = 2
+        cfg["sweep"]["kyc_passthrough"] = [0.0, 1.0]
+        cfg["sensitivity"]["adversary_mean_p"] = [0.6]
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text(yaml.safe_dump(cfg))
+
+        original_threshold = router_intermediary.benign_threshold
+        monkeypatch.setattr(
+            router_intermediary,
+            "benign_threshold",
+            lambda rng, pop, m, fpr, samples=4000: original_threshold(
+                rng, pop, m, fpr, samples=30
+            ),
+        )
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "router_intermediary",
+                "--quick",
+                "--config",
+                str(config_path),
+                "--output",
+                str(tmp_path),
+            ],
+        )
+        assert router_intermediary.main() == 0
+
+        [run_dir] = [p for p in tmp_path.iterdir() if p.is_dir()]
+        for name in ("detection.csv", "bans.csv", "kyc.csv", "sensitivity.csv"):
+            assert (run_dir / name).is_file()
+        summary = json.loads((run_dir / "summary.json").read_text())
+        assert summary["config"] == str(config_path)
+        assert summary["seed"] == cfg["seed"]
+        assert summary["reps"] == 20
+        assert summary["quick"] is True

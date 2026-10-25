@@ -34,6 +34,13 @@ from typing import List, Sequence, Tuple
 
 import yaml
 
+# Pin `swarm` to THIS checkout (bead hjyp). This experiment currently has no
+# swarm import, but keeping the standard guard makes future imports safe and
+# satisfies the repository-wide experiment contract.
+__import__("sys").path.insert(
+    0, str(__import__("pathlib").Path(__file__).resolve().parents[1])
+)
+
 DEFAULT_CONFIG = Path("scenarios/router_intermediary.yaml")
 
 
@@ -133,7 +140,9 @@ def account_scores(
 
 def detection_cell(pop: Population, m: int, kyc: float, fpr: float, reps: int, seed: int) -> dict:
     rng = random.Random(seed)
-    thr = {size: benign_threshold(rng, pop, size, fpr) for size in {1, m}}
+    remainder = pop.n_operators % m
+    sizes = sorted({1, min(m, pop.n_operators), remainder} - {0})
+    thr = {size: benign_threshold(rng, pop, size, fpr) for size in sizes}
     aucs, tprs, fprs, clean_share = [], [], [], []
     for _ in range(reps):
         pos, neg = account_scores(rng, pop, m, kyc)
@@ -163,6 +172,8 @@ def _mean(xs: Sequence[float]) -> float:
 def ban_cell(pop: Population, m: int, policy: str, fpr: float, horizon: int,
              reroute_adv: int, reroute_ben: int, reps: int, seed: int) -> dict:
     """Epoch loop with account bans. Operators hit by a ban are offline until they re-route."""
+    if policy not in {"none", "ban_account"}:
+        raise ValueError(f"unknown ban policy: {policy}")
     rng = random.Random(seed)
     thresholds: dict = {}
 
@@ -180,7 +191,7 @@ def ban_cell(pop: Population, m: int, policy: str, fpr: float, horizon: int,
         for epoch in range(horizon):
             online = [o for o in range(n) if offline_until[o] <= epoch]
             adv_epochs += sum(1 for o in online if o in adversaries)
-            if policy != "ban_account":
+            if policy == "none":
                 continue
             for account in partition(online, m, rng):
                 tox = sum(operator_toxicity(rng, pop, o in adversaries) for o in account) / len(account)
@@ -250,7 +261,7 @@ def main() -> int:
     # lever 2: ban policy, per pooling ratio
     ban = [
         ban_cell(pop, m, policy, fpr, bans["horizon_epochs"], bans["reroute_epochs_adversary"],
-                 bans["reroute_epochs_benign"], max(1, reps // 10), seed)
+                 bans["reroute_epochs_benign"], reps, seed)
         for m in ms for policy in sweep["ban_policy"]
     ]
     write_csv(out / "bans.csv", ban)
@@ -285,6 +296,10 @@ def main() -> int:
 
     falsifier = next((r for r in det if r["operators_per_router"] == 20), None)
     summary = {
+        "config": str(args.config),
+        "seed": seed,
+        "reps": reps,
+        "quick": args.quick,
         "falsifier_auc_at_20_per_router": falsifier["auc"] if falsifier else None,
         "falsifier_fires": bool(falsifier and falsifier["auc"] > 0.8),
     }
