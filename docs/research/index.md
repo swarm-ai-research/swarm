@@ -158,6 +158,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Tipperman's 2026 prototyping essay read as the straw-horse gate one level down: a wrong draft draws correction and a blank page draws nothing, but the false green and the erdos gate show what happens when nobody checks the stain
 
+-   :material-layers-triple-outline: **[Pace Layers and Swarm Lag](pace-layers-swarm-lag.md)**
+
+    ---
+
+    deepfates' Long Now essay on AI as cheap attention, read against the rig: the shearing-layer check we already run, orphan influx and the 23-day wiki lead as layer lag, and a ratification-lag metric with a falsifiable prediction
+
 -   :material-key-variant: **[MVUEH Enigma Break Lessons](mvueh-enigma-break-lessons.md)**
 
     ---
