@@ -46,7 +46,7 @@ from __future__ import annotations
 import argparse
 import csv
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from math import comb
 from pathlib import Path
@@ -185,7 +185,11 @@ class Config:
     # defender stage 2: verification (conjunctive -- any verifier may drop)
     n_verifiers: int = 5
     e_false_drop: float = 0.4
-    verify_rule: str = "unanimous"  # unanimous | majority | any_keeps
+    verify_rule: str = "unanimous"  # unanimous | majority | any_keeps | k_of_n
+    verify_k: int = 0  # keepers required when verify_rule == "k_of_n"
+    # false findings reaching verification: each verifier wrongly keeps one
+    # with this rate (bead rrsf -- the precision arm pcdq did not measure)
+    e_false_keep: float = 0.3
     horizon: int = 20
 
 
@@ -199,23 +203,42 @@ def defender_detect(cfg: Config, rho: float) -> float:
     return p_any(cfg.q_detect, rho, cfg.n_detectors)
 
 
+def keep_threshold(rule: str, n: int, k: int = 0) -> int:
+    """Verifiers that must keep a finding for it to survive, under ``rule``.
+
+    Every rule is a k-of-n threshold on keep votes, so they share one form:
+    ``unanimous`` (no verifier may drop) is n-of-n, ``majority`` is
+    floor(n/2)+1, ``any_keeps`` is 1-of-n, and ``k_of_n`` takes ``k``.
+    """
+    if rule == "unanimous":
+        return n
+    if rule == "majority":
+        return n // 2 + 1
+    if rule == "any_keeps":
+        return 1
+    if rule == "k_of_n":
+        if not 1 <= k <= n:
+            raise ValueError(f"k_of_n needs 1 <= k <= n, got k={k}, n={n}")
+        return k
+    raise ValueError(f"unknown verify_rule: {rule}")
+
+
 def defender_retain(cfg: Config, rho: float) -> float:
     """Probability a surfaced true finding survives the verifier pool.
 
-    ``unanimous``  -- retained only if no verifier drops it (conjunctive).
-    ``majority``   -- retained if fewer than half drop it.
-    ``any_keeps``  -- retained if at least one verifier keeps it (disjunctive).
+    Each verifier keeps a true finding with rate ``1 - e_false_drop``; the
+    finding survives if at least ``keep_threshold`` verifiers keep it.
     """
-    e, n = cfg.e_false_drop, cfg.n_verifiers
-    if cfg.verify_rule == "unanimous":
-        # no verifier drops == P(zero drops) == P(all "keep") with rate 1-e
-        return p_all(1.0 - e, rho, n)
-    if cfg.verify_rule == "majority":
-        # retained if at least ceil((n+1)/2) verifiers keep
-        return p_at_least(1.0 - e, rho, n, n // 2 + 1)
-    if cfg.verify_rule == "any_keeps":
-        return p_any(1.0 - e, rho, n)
-    raise ValueError(f"unknown verify_rule: {cfg.verify_rule}")
+    n = cfg.n_verifiers
+    k = keep_threshold(cfg.verify_rule, n, cfg.verify_k)
+    return p_at_least(1.0 - cfg.e_false_drop, rho, n, k)
+
+
+def false_accept(cfg: Config, rho: float) -> float:
+    """Probability a false finding survives the verifier pool (same rule)."""
+    n = cfg.n_verifiers
+    k = keep_threshold(cfg.verify_rule, n, cfg.verify_k)
+    return p_at_least(cfg.e_false_keep, rho, n, k)
 
 
 def defender_catch(cfg: Config, rho: float) -> float:
@@ -333,6 +356,109 @@ def sweep_structured(cfg: Config, rhos: List[float], k_families: int, spread: fl
     return rows
 
 
+RULES = ("unanimous", "majority", "any_keeps")
+
+
+def rule_configs(cfg: Config) -> List[Tuple[str, Config]]:
+    """Every k-of-n rule for cfg.n_verifiers, named ones labelled as such.
+
+    All rules share the same N_v verifier calls per finding, so comparisons
+    between them are at matched verification budget.
+    """
+    n = cfg.n_verifiers
+    named = {keep_threshold(r, n): r for r in RULES}
+    out = []
+    for k in range(1, n + 1):
+        label = named.get(k, f"{k}_of_{n}")
+        out.append((label, replace(cfg, verify_rule="k_of_n", verify_k=k)))
+    return out
+
+
+def utility(catch: float, false_acc: float, cost_ratio: float) -> float:
+    """Per true event: +1 per caught true finding, -cost_ratio per false accept.
+
+    ``cost_ratio`` folds together how many false findings reach verification
+    per true event and how much one false accept costs relative to one catch.
+    """
+    return catch - cost_ratio * false_acc
+
+
+def break_even_cost(a: dict, b: dict) -> float:
+    """cost_ratio at which rows a and b have equal utility (inf if never)."""
+    d_fa = a["false_accept"] - b["false_accept"]
+    if abs(d_fa) < 1e-12:
+        return float("inf")
+    return float((a["defender_catch"] - b["defender_catch"]) / d_fa)
+
+
+def sweep_two_arm(cfg: Config, rhos: List[float], false_keeps: List[float]) -> List[dict]:
+    """Catch and false-accept rates for every rule, rho, and e_false_keep.
+
+    Probabilities remain at full precision so downstream utility comparisons
+    are not changed by presentation rounding. CSV and console formatting are
+    responsible for rounding output.
+    """
+    rows = []
+    for fk in false_keeps:
+        for label, c in rule_configs(replace(cfg, e_false_keep=fk)):
+            for rho in rhos:
+                rows.append(
+                    {
+                        "e_false_keep": fk,
+                        "rule": label,
+                        "k": c.verify_k,
+                        "rho": round(rho, 4),
+                        "defender_catch": defender_catch(c, rho),
+                        "false_accept": false_accept(c, rho),
+                    }
+                )
+    return rows
+
+
+def best_rule_by_cost(
+    rows: List[dict], rho: float, fk: float, costs: List[float]
+) -> List[dict]:
+    """Utility-maximising policy for one (rho, e_false_keep) cell.
+
+    Rejecting every finding is an explicit zero-utility baseline. Without it,
+    this function can misleadingly label a negative-utility threshold as the
+    best available policy.
+    """
+    cell = [r for r in rows if r["rho"] == round(rho, 4) and r["e_false_keep"] == fk]
+    if not cell:
+        raise ValueError(f"no rows for rho={rho}, e_false_keep={fk}")
+    reject_all = {
+        "e_false_keep": fk,
+        "rule": "reject_all",
+        "k": max(r["k"] for r in cell) + 1,
+        "rho": round(rho, 4),
+        "defender_catch": 0.0,
+        "false_accept": 0.0,
+    }
+    out = []
+    for cost in costs:
+        best = max(
+            [*cell, reject_all],
+            key=lambda r: (
+                utility(r["defender_catch"], r["false_accept"], cost),
+                -r["k"],
+            ),
+        )
+        out.append(
+            {
+                "e_false_keep": fk,
+                "rho": round(rho, 4),
+                "cost_ratio": cost,
+                "best_rule": best["rule"],
+                "best_k": None if best["rule"] == "reject_all" else best["k"],
+                "catch": best["defender_catch"],
+                "false_accept": best["false_accept"],
+                "utility": utility(best["defender_catch"], best["false_accept"], cost),
+            }
+        )
+    return out
+
+
 def argmax_row(rows: List[dict], key: str, rho_key: str = "rho") -> dict:
     return max(rows, key=lambda r: r[key])
 
@@ -342,12 +468,21 @@ def argmax_row(rows: List[dict], key: str, rho_key: str = "rho") -> dict:
 # ---------------------------------------------------------------------------
 
 
-def write_csv(path: Path, rows: List[dict]) -> None:
+def write_csv(path: Path, rows: List[dict], float_digits: int | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=list(rows[0].keys()))
         writer.writeheader()
-        writer.writerows(rows)
+        if float_digits is None:
+            writer.writerows(rows)
+        else:
+            writer.writerows(
+                {
+                    key: round(value, float_digits) if isinstance(value, float) else value
+                    for key, value in row.items()
+                }
+                for row in rows
+            )
 
 
 def main() -> int:
@@ -357,14 +492,24 @@ def main() -> int:
     ap.add_argument("--steps", type=int, default=21, help="rho grid resolution")
     ap.add_argument("--trials", type=int, default=200000, help="MC trials for --validate")
     ap.add_argument("--validate", action="store_true", help="run MC validation and exit")
-    ap.add_argument("--verify-rule", default="unanimous", choices=["unanimous", "majority", "any_keeps"])
+    ap.add_argument("--verify-rule", default="unanimous", choices=["unanimous", "majority", "any_keeps", "k_of_n"])
+    ap.add_argument("--verify-k", type=int, default=0, help="keepers required for --verify-rule k_of_n")
+    ap.add_argument("--false-keep", type=float, default=0.3, help="per-verifier rate of keeping a false finding")
     ap.add_argument("--false-drop", type=float, default=0.4)
     ap.add_argument("--verifiers", type=int, default=5)
     args = ap.parse_args()
 
+    if args.verify_rule == "k_of_n" and not 1 <= args.verify_k <= args.verifiers:
+        ap.error(
+            "--verify-rule k_of_n requires "
+            f"1 <= --verify-k <= --verifiers (got {args.verify_k} and {args.verifiers})"
+        )
+
     cfg = Config(
         verify_rule=args.verify_rule,
+        verify_k=args.verify_k,
         e_false_drop=args.false_drop,
+        e_false_keep=args.false_keep,
         n_verifiers=args.verifiers,
     )
 
@@ -443,6 +588,34 @@ def main() -> int:
             f"note: {n_sat}/{len(struct_all)} structured cells could not reach the "
             f"requested rho_bar (within-family shock saturated); compare on achieved."
         )
+
+    # --- two-arm rule comparison (bead rrsf) ------------------------------
+    false_keeps = [0.1, 0.3, 0.5]
+    costs = [0.1, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0]
+    two_arm = sweep_two_arm(cfg, rhos, false_keeps)
+    write_csv(csv_dir / "two_arm.csv", two_arm, float_digits=6)
+    best_rows = []
+    for fk in false_keeps:
+        best_rows.extend(best_rule_by_cost(two_arm, 0.0, fk, costs))
+    write_csv(csv_dir / "best_rule_by_cost.csv", best_rows, float_digits=6)
+
+    print(f"\nTwo-arm comparison at rho=0, N_v={cfg.n_verifiers}, e_drop={cfg.e_false_drop} (matched budget)")
+    print(f"{'e_fk':>5} {'rule':>10} {'catch':>8} {'false acc':>10}")
+    for fk in false_keeps:
+        for r in two_arm:
+            if r["rho"] == 0.0 and r["e_false_keep"] == fk:
+                print(f"{fk:5.2f} {r['rule']:>10} {r['defender_catch']:8.4f} {r['false_accept']:10.4f}")
+    print("\nbreak-even cost_ratio between adjacent thresholds at rho=0 (above it, the stricter rule wins)")
+    for fk in false_keeps:
+        cell = sorted((r for r in two_arm if r["rho"] == 0.0 and r["e_false_keep"] == fk), key=lambda r: r["k"])
+        pairs = ", ".join(
+            f"{a['rule']}->{b['rule']}: {break_even_cost(a, b):.3g}" for a, b in zip(cell, cell[1:], strict=False)
+        )
+        print(f"  e_fk={fk:.2f}  {pairs}")
+    print(f"\n{'e_fk':>5} " + " ".join(f"{c:>10}" for c in costs) + "   (utility-best rule by cost_ratio, rho=0)")
+    for fk in false_keeps:
+        names = [r["best_rule"] for r in best_rows if r["e_false_keep"] == fk]
+        print(f"{fk:5.2f} " + " ".join(f"{n:>10}" for n in names))
 
     print(f"\nMC validation: {'PASS' if ok else 'FAIL'}")
     print(f"artifacts: {run_dir}")

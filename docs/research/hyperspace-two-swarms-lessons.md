@@ -339,6 +339,100 @@ defects that need intent to see. Then a single fixture measures both the
 dropped-true-positive rate and the false-kept rate, and the three rules can
 separate.
 
+## Findings (2026-09-14, bead `rrsf`): the aggregation rule with its false-positive cost
+
+Finding 2 above measured only one side of verification: how many true findings
+survive. Precision is the reason anyone runs unanimous-drop, so a rule
+comparison without false accepts recommends on half the evidence. This run adds
+the other side at matched verification budget. Every rule uses the same N_v
+verifier calls per finding.
+
+**Model.** Each rule is a k-of-n threshold on keep votes. Unanimous-drop is
+n-of-n, majority is ⌊n/2⌋+1, and any_keeps is 1-of-n.
+`experiments/correlation_asymmetry.py` now takes `verify_rule="k_of_n"` with
+`verify_k`. A verifier keeps a true finding with rate 1 − e_drop and a false
+finding with rate e_fk, under the same common-shock correlation ρ. Utility per
+true event is catch − c · false_accept, where the cost ratio c folds together
+how many false findings reach verification per true event and what one false
+accept costs relative to one catch.
+
+Run: `python -m experiments.correlation_asymmetry --output runs/ --seed 42`
+(new CSVs `two_arm.csv` and `best_rule_by_cost.csv`; MC validation PASS).
+Parameters as in finding 1: q = 0.3, N_d = 8, e_drop = 0.4, N_v = 5.
+
+| e_fk | rule | catch | false accept |
+|---|---|---|---|
+| 0.3 | any_keeps (1 of 5) | 0.9327 | 0.8319 |
+| 0.3 | 2 of 5 | 0.8603 | 0.4718 |
+| 0.3 | majority (3 of 5) | 0.6432 | 0.1631 |
+| 0.3 | 4 of 5 | 0.3175 | 0.0308 |
+| 0.3 | unanimous (5 of 5) | 0.0733 | 0.0024 |
+
+Utility-best rule at ρ = 0 by cost ratio:
+
+| e_fk | c = 0.1 | 0.25 | 0.5 | 1 | 2 | 4 | 8 |
+|---|---|---|---|---|---|---|---|
+| 0.1 | any_keeps | 2 of 5 | 2 of 5 | 2 of 5 | 2 of 5 | majority | majority |
+| 0.3 | any_keeps | 2 of 5 | 2 of 5 | majority | majority | 4 of 5 | 4 of 5 |
+| 0.5 | any_keeps | any_keeps | 2 of 5 | majority | unanimous | reject all | reject all |
+
+### 1. Correlation's interior optimum was a product of scoring recall alone
+
+With false accepts priced, the best (rule, ρ) pair among the k-of-n rules sits
+at **ρ = 0 in all nine cells** of e_fk ∈ {0.1, 0.3, 0.5} × c ∈ {0.5, 1, 4}.
+This is pinned in `tests/test_correlation_asymmetry.py`; in the e_fk = 0.5,
+c = 4 cell, the separate reject-all baseline is better than every k-of-n rule.
+Unanimous-drop's own best ρ falls from 0.65 toward 0 as the cost ratio rises,
+because correlation among verifiers also correlates their mistakes in keeping
+false findings. Finding 2's conclusion, "the lever is the rule, not the
+correlation", now holds on both sides when a verification rule is worth using.
+
+### 2. Unanimous-drop wins only where the verifier pool barely pays
+
+On the sampled grid, unanimous-drop is utility-best only when e_fk = 0.5 and
+c = 2, meaning verifiers keep a false finding almost as often as a true one
+(0.5 vs 0.6) and false accepts are expensive. In that cell its utility is
+about 0.01. At c = 4 and 8 it is negative, so the explicit reject-all baseline
+(utility 0) beats every verification rule. This narrow region is where
+verification is close to useless. In the other sampled cells, a looser
+threshold or reject-all is better, usually by a wide margin. These statements
+describe the displayed cost and e_fk grid, not all possible parameter values.
+
+### 3. Recommendation for our own review
+
+`swarm/agentgit/review.py` does not implement unanimous-drop. The panel
+verdict is the worst verdict across reviewers, so any one reviewer's blocking
+finding survives. That is **any_keeps**, with no separate verifier stage. The
+table puts any_keeps at the lowest cost ratios, where a false blocking finding
+costs a human a look and a missed true one lands in main. That is consistent
+with how the panel is used, so this finding gives no reason to change it.
+
+For review-then-verify fan-out (the `daxc` shape: reviewers, then 3 verifiers
+told to refute), recomputed at N_v = 3:
+
+| e_fk | break-even c, any_keeps → majority | break-even c, majority → unanimous |
+|---|---|---|
+| 0.1 | 1.12 | 15.1 |
+| 0.3 | 0.62 | 2.15 |
+| 0.5 | 0.72 | 1.09 |
+
+**Use majority (2 of 3) as the default.** It is utility-best across the
+middle of every row. Among the three threshold rules, unanimous-drop becomes
+best only when false accepts cost more than the displayed break-even and
+verifiers discriminate poorly; at still higher costs, reject-all can instead
+be optimal. Any-verifier-drops is what "refute when uncertain" together with a
+per-verifier veto produces, so it should not be the default, even though it is
+the easiest to build. The exact switch points depend on e_fk, which we have not
+measured: daxc's verifiers refuted nothing, so the fixture could not estimate
+it. Bead `u96a`'s decoy findings measure e_fk directly, and with that number
+this table picks the rule.
+
+**Not built:** a verification-pool knob in the governance engine. The engine
+has no verification pool for such a knob to configure, so the rule is not
+hardcoded anywhere there. It is a config in the experiment and a documented
+convention for our review fan-out. If a scenario ever adds verifier agents,
+`keep_threshold` is the function to reuse.
+
 ## Open questions
 
 1. **Verifier/finder family separation in the demo.** Read
