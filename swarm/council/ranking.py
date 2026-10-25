@@ -42,7 +42,9 @@ def anonymize_responses(
 def parse_rankings(text: str, n_responses: int) -> Optional[List[str]]:
     """Parse a ranking from LLM text output.
 
-    Tries structured format first (e.g., "1. A\\n2. B\\n3. C"),
+    Tolerates reasoning before the ranking: text after the last "RANKING:"
+    marker is parsed, and the last n numbered labels win. Tries structured
+    format first (e.g., "1. A\\n2. B\\n3. C"),
     then falls back to regex extraction.
 
     Args:
@@ -54,10 +56,18 @@ def parse_rankings(text: str, n_responses: int) -> Optional[List[str]]:
     """
     labels = [chr(65 + i) for i in range(n_responses)]
 
-    # Try structured format: "1. A", "2. B", etc.
-    structured = re.findall(r"\d+\.\s*([A-Z])", text)
-    if len(structured) == n_responses and set(structured) == set(labels):
-        return structured
+    # Reasoning may precede the ranking; read only what follows the last
+    # "RANKING:" marker when there is one.
+    markers = list(re.finditer(r"ranking\W*:", text, re.IGNORECASE))
+    if markers:
+        text = text[markers[-1].end():]
+
+    # Try structured format: "1. A", "2. Response B", etc. Take the last
+    # n matches so numbered reasoning above the list does not count.
+    structured = re.findall(r"\d+[.)]\s*\**(?:Response\s+)?([A-Z])\b", text)
+    tail = structured[-n_responses:]
+    if len(tail) == n_responses and set(tail) == set(labels):
+        return tail
 
     # Try comma-separated: "A, B, C" or "A > B > C"
     for sep in [r"\s*>\s*", r"\s*,\s*"]:
