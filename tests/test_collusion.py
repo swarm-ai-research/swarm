@@ -343,8 +343,39 @@ class TestGroupDetection:
         )
         assert flagged.detection_method == "mutual_favoritism"
         assert flagged.directional_quality_asymmetry >= 0.2
+        # Positive control for the schedule-preserving permutation null: the
+        # hard-coded coalition must clear the complete 95% null interval, not
+        # merely exceed a uniform-mixing point estimate.
+        assert flagged.internal_null_replicates == 200
+        assert flagged.internal_observed_null_ratio > 1.0
+        assert flagged.internal_observed_null_ratio_ci_low > 1.0
+        assert flagged.internal_observed_null_ratio_ci_high >= (
+            flagged.internal_observed_null_ratio_ci_low
+        )
+        # Activity imbalance matters in this fixture, so the calibrated null
+        # should differ from the old |G|-only uniform expectation (2 / 5).
+        assert flagged.internal_null_mean != pytest.approx(2 / 5, abs=0.02)
         # Victims must NOT be reported as coalition members.
         assert not (set(victims) & set(flagged.members))
+
+        # Fixed seed plus group-specific stream makes the audit reproducible.
+        repeated = CollusionDetector(
+            min_interactions_for_analysis=3,
+            quality_asymmetry_threshold=0.2,
+        ).analyze(interactions)
+        repeated_flag = next(
+            g for g in repeated.suspicious_groups if set(members) <= set(g.members)
+        )
+        assert repeated_flag.internal_null_mean == flagged.internal_null_mean
+        assert (
+            repeated_flag.internal_observed_null_ratio_ci_low
+            == flagged.internal_observed_null_ratio_ci_low
+        )
+
+    def test_permutation_null_requires_200_replicates(self):
+        """The requested tail resolution cannot be silently configured away."""
+        with pytest.raises(ValueError, match="at least 200"):
+            CollusionDetector(permutation_null_replicates=199)
 
     def test_group_first_pass_ignores_uniform_honest_population(self):
         """A population where everyone trades high-p with everyone must not

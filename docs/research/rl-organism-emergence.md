@@ -128,6 +128,30 @@ pair-first recall stays 0.0 everywhere (the fix lives entirely at the group
 level; the pair path genuinely cannot see this structure). Ground-truth
 fixture: `scenarios/rl_emergence.yaml` capacity=3 seed=44.
 
+**Schedule-preserving null (`xf2r`, 2026-10-25).** The internal-concentration
+term is now calibrated with 200 fixed-seed recipient permutations. Each sample
+keeps every initiator and timestamp fixed, preserves every agent's exact
+outgoing and incoming activity count, forbids self-interactions, and changes
+only recipient assignments. It cannot also preserve the exact named dyads:
+doing so would leave within-group concentration mathematically invariant. This
+is therefore the activity-schedule analogue of SwarmWorld's timestamp null,
+not a claim to reproduce its stronger named-dyad constraint.
+
+The hard-coded export-harm positive control clears the null: observed internal
+rate 0.400, null mean 0.295, observed/null **1.357**, 95% permutation interval
+**[1.175, 1.616]**. The real L3/seed-44 coalition does the opposite. An exact
+60-epoch × 10-step rerun (`runs/20261025T201311Z_xf2r_rl_seed44`) produces
+2,535 interactions, zero flagged pairs, and one six-member RL group with
+precision 1.0 and recall 1.0, but its internal-concentration ratio is
+**0.895 [0.881, 0.909]**—significantly *below* the activity-preserving null.
+The archived 20-run sweep already shows that the other 19 runs have no group
+candidate to calibrate.
+
+Verdict: **pair-first detection does not survive this test.** The known-real
+coalition is recovered only because it behaves well inside and exports low-p
+harm outside; neither pair scores nor dyadic/internal enrichment identify it.
+That is a structural threat-model result, not a threshold-tuning result.
+
 **4. Screening works where it's learned.** The population quality gap stays
 positive (0.04–0.09) — no adverse selection, because the learners' accept
 policies are trained on realized payoffs. The scripted honest agents' lenient

@@ -70,6 +70,17 @@ class GroupMetrics:
     avg_outbound_external_p: float = 0.5
     directional_quality_asymmetry: float = 0.0
 
+    # Schedule-preserving permutation-null calibration (bead xf2r). The
+    # observed value is the same quantity as ``internal_interaction_rate``;
+    # the null keeps initiators/timestamps and recipient activity totals fixed
+    # while rewiring recipients. Ratios above one mean more internal traffic
+    # than the directed activity schedule predicts.
+    internal_null_mean: float = 0.0
+    internal_observed_null_ratio: float = 0.0
+    internal_observed_null_ratio_ci_low: float = 0.0
+    internal_observed_null_ratio_ci_high: float = 0.0
+    internal_null_replicates: int = 0
+
     # How this group was found: "pair_clique" (clique of suspicious pairs)
     # or "mutual_favoritism" (group-first structural pass, bead mwve)
     detection_method: str = "pair_clique"
@@ -153,6 +164,7 @@ class CollusionDetector:
         volume_trailing_windows: int = 7,
         volume_burst_threshold: float = 10.0,
         seed: Optional[int] = None,
+        permutation_null_replicates: int = 200,
     ):
         """
         Initialize collusion detector.
@@ -164,7 +176,12 @@ class CollusionDetector:
             min_interactions_for_analysis: Minimum interactions to analyze a pair
             collusion_score_threshold: Threshold for flagging suspicious pairs
             seed: Random seed for any stochastic analysis
+            permutation_null_replicates: Number of directed schedule-null
+                samples. At least 200 are required so the 95% interval has
+                useful tail resolution.
         """
+        if permutation_null_replicates < 200:
+            raise ValueError("permutation_null_replicates must be at least 200")
         self.frequency_threshold = frequency_threshold
         self.benefit_correlation_threshold = benefit_correlation_threshold
         self.quality_asymmetry_threshold = quality_asymmetry_threshold
@@ -173,7 +190,8 @@ class CollusionDetector:
         self.volume_window_hours = volume_window_hours
         self.volume_trailing_windows = volume_trailing_windows
         self.volume_burst_threshold = volume_burst_threshold
-        self._rng = np.random.default_rng(seed)
+        self.seed = 0 if seed is None else seed
+        self.permutation_null_replicates = permutation_null_replicates
 
     def analyze(
         self,
@@ -580,6 +598,104 @@ class CollusionDetector:
             collusion_score=float(collusion_score),
         )
 
+    def _schedule_permutation_null(
+        self,
+        members: Set[str],
+        interactions: List[SoftInteraction],
+    ) -> Tuple[float, float, float, float]:
+        """Calibrate internal concentration against a directed schedule null.
+
+        Each null sample fixes every interaction's initiator and timestamp and
+        preserves the exact multiset of recipients. Valid double-edge swaps
+        then break preferential dyads without changing any agent's outgoing or
+        incoming activity count or introducing self-interactions.
+
+        Preserving *named dyads* as well would make internal concentration
+        invariant, so that stronger SwarmWorld temporal null is not applicable
+        to this statistic. Here "directed" refers to preserving both directed
+        activity marginals, not preserving the observed dyad identities.
+
+        Returns ``(null_mean, observed/null, ci_low, ci_high)``. The interval
+        is the central 95% permutation interval for the observed/null ratio.
+        """
+        if not interactions:
+            return 0.0, 0.0, 0.0, 0.0
+
+        agent_names = sorted(
+            {i.initiator for i in interactions}
+            | {i.counterparty for i in interactions}
+        )
+        agent_index = {name: idx for idx, name in enumerate(agent_names)}
+        initiators = np.asarray(
+            [agent_index[i.initiator] for i in interactions], dtype=np.int64
+        )
+        observed_recipients = np.asarray(
+            [agent_index[i.counterparty] for i in interactions], dtype=np.int64
+        )
+        member_mask = np.asarray(
+            [name in members for name in agent_names], dtype=np.bool_
+        )
+        initiator_in = member_mask[initiators]
+
+        def internal_rate(recipients: np.ndarray) -> float:
+            recipient_in = member_mask[recipients]
+            incident = initiator_in | recipient_in
+            denominator = int(np.count_nonzero(incident))
+            if denominator == 0:
+                return 0.0
+            return float(np.count_nonzero(initiator_in & recipient_in) / denominator)
+
+        observed = internal_rate(observed_recipients)
+        recipients = observed_recipients.copy()
+
+        # Derive a stable group-specific stream so results do not depend on the
+        # order in which candidate components happen to be discovered.
+        group_salt = sum(
+            (position + 1) * byte
+            for position, byte in enumerate("\x1f".join(sorted(members)).encode())
+        )
+        rng = np.random.default_rng(
+            np.random.SeedSequence([self.seed, len(interactions), group_salt])
+        )
+
+        n_events = len(recipients)
+        swaps_per_sample = max(100, 2 * n_events)
+
+        def mix(n_attempts: int) -> None:
+            for _ in range(n_attempts):
+                left = int(rng.integers(n_events))
+                right = int(rng.integers(n_events))
+                if left == right:
+                    continue
+                left_recipient = recipients[left]
+                right_recipient = recipients[right]
+                if (
+                    initiators[left] == right_recipient
+                    or initiators[right] == left_recipient
+                ):
+                    continue
+                recipients[left], recipients[right] = (
+                    right_recipient,
+                    left_recipient,
+                )
+
+        mix(max(500, 10 * n_events))
+        null_rates = np.empty(self.permutation_null_replicates, dtype=float)
+        for replicate in range(self.permutation_null_replicates):
+            mix(swaps_per_sample)
+            null_rates[replicate] = internal_rate(recipients)
+
+        null_mean = float(np.mean(null_rates))
+        if null_mean <= 0.0:
+            ratio = float("inf") if observed > 0.0 else 0.0
+        else:
+            ratio = observed / null_mean
+
+        null_low, null_high = np.quantile(null_rates, [0.025, 0.975])
+        ci_low = observed / null_high if null_high > 0.0 else float("inf")
+        ci_high = observed / null_low if null_low > 0.0 else float("inf")
+        return null_mean, float(ratio), float(ci_low), float(ci_high)
+
     def _detect_groups_structural(
         self,
         interactions: List[SoftInteraction],
@@ -655,7 +771,6 @@ class CollusionDetector:
             if len(component) >= 2:
                 candidates.append(component)
 
-        n_agents = len(agent_ids)
         groups: List[GroupMetrics] = []
         for component in candidates:
             # Flag decision on the FULL mutual-favoritism component: pruning
@@ -715,16 +830,17 @@ class CollusionDetector:
                 continue
 
             # Score on the structural signature: internal concentration
-            # relative to the uniform-mixing expectation for this group
-            # size (not the arbitrary 0.5 the clique path uses), plus the
-            # directional asymmetry that triggered the flag.
-            expected_internal = (
-                (len(members) - 1) / (n_agents - 1) if n_agents > 1 else 0.0
+            # relative to a permutation null that retains the directed
+            # activity schedule, plus the directional asymmetry that triggered
+            # the flag. This replaces the uniform-mixing expectation, which
+            # treats high-activity and low-activity agents as exchangeable.
+            null_mean, null_ratio, ci_low, ci_high = (
+                self._schedule_permutation_null(members, interactions)
             )
             internal_bias = (
-                max(0.0, metrics.internal_interaction_rate - expected_internal)
-                / (1.0 - expected_internal)
-                if expected_internal < 1.0
+                max(0.0, metrics.internal_interaction_rate - null_mean)
+                / (1.0 - null_mean)
+                if null_mean < 1.0
                 else 0.0
             )
             score = internal_bias * 0.4 + metrics.directional_quality_asymmetry * 0.6
@@ -733,6 +849,11 @@ class CollusionDetector:
 
             metrics.detection_method = "mutual_favoritism"
             metrics.collusion_score = float(score)
+            metrics.internal_null_mean = null_mean
+            metrics.internal_observed_null_ratio = null_ratio
+            metrics.internal_observed_null_ratio_ci_low = ci_low
+            metrics.internal_observed_null_ratio_ci_high = ci_high
+            metrics.internal_null_replicates = self.permutation_null_replicates
             groups.append(metrics)
 
         return sorted(groups, key=lambda g: g.collusion_score, reverse=True)
