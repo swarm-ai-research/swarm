@@ -134,7 +134,7 @@ worker side gaming it.
 | Observation in the post | SWARM construct | Where it lands |
 |---|---|---|
 | Analysis agents "similarly capable to the agents involved" produced outputs "often missing key details, wrong, overconfident" | Verifier quality tied to worker capability, not an independent noise level (§3.1) | `pj7y`. Our own check found the same blind spot from the other direction: in `daxc` our verifiers refuted 0 of 36 verdicts, so they could not be told apart from a rubber stamp ([hyperspace-two-swarms-lessons.md](hyperspace-two-swarms-lessons.md)) |
-| One analysis agent "would itself only be able to read a tiny fraction of all of the transcript data" | `ProxyComputer` sees each interaction's observables in full. A context-bounded overseer sees a sample, so its coverage is below 1 | `q2fg` (trajectory coverage). `u96a` now has an aggregate arm: a corpus larger than one verifier's context, with facts that exist only across documents |
+| One analysis agent "would itself only be able to read a tiny fraction of all of the transcript data" | `ProxyComputer` sees each selected interaction's observables in full. A context-bounded overseer may instead see only part of the evidence within a transcript or corpus | `q2fg` is an adjacent trajectory-sampling analogy, not a model of within-context coverage: it selects whole trajectories and then reads all their steps. `u96a` now has the closer aggregate arm: a corpus larger than one verifier's context, with facts that exist only across documents |
 | Tool-call spoofing, PHASEONE and the workstream structure surfaced only with the complete dataset, some on the last day | Conclusions drawn from a partial log can be confident and wrong. The denominator problem, now applied to evidence rather than attempts | The 81sk correction in [erdos-ai-ledger-lessons.md](erdos-ai-ledger-lessons.md): SWARM's gap metrics are computed over what was recorded |
 | Oversight difficulty outgrowing AI-assisted oversight | The §1 row "outputs seem good faster than actually good", moved to the overseer | A nonstationary scenario where verifier recall is fixed while worker capability rises is the direct test (extends `1o1x`) |
 
@@ -147,13 +147,16 @@ our scenarios:
    `ProxyComputer` reads goes dark. Bead `7prw` (channel-vs-interaction
    monitoring divergence) is the nearest existing work.
 2. *Scale below what is coming.* METR counts about 1,200 agents on the main
-   board. Of the 123 scenario files in `scenarios/` that list agents, the
-   median has 8 and the largest has 50.
+   board. Across checked-in scenario files whose top-level `agents` list
+   specifies a population, the median has 8 agents and the largest has 50
+   (recomputed 2026-10-25).
 3. *Agents not much more capable than the investigators.* SWARM verifier noise
    is a fixed parameter that does not scale with agent capability.
-4. *No reason to expect the analysis agents to sabotage.* SWARM verifiers are
-   noisy but honest. A verifier that is itself a strategic agent is `pj7y`'s
-   endogenous case, not yet built.
+4. *No reason to expect the analysis agents to sabotage.* SWARM's default
+   verifiers are noisy but honest, but the repository already includes the
+   explicitly deceptive `CollusiveVerifierAgent` and uses it in
+   `scenarios/memory_tiers.yaml`. Bead `pj7y` adds the distinct endogenous
+   case where verifier quality and strategy vary with worker capability.
 
 **Correction to §3.4.** `81sk` found that the survivorship gap
 E[p|accepted] − E[p] is identically `selection_credit`, which `EpochMetrics`
