@@ -176,6 +176,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     A one-operator surveillance stack built with Claude and reached through a Chinese model router, set against Anthropic's GTG-14020: many operators behind one account, harm realized off-platform, refusals that yield to a re-prompt
 
+-   :material-link-variant-off: **[Storm-0940 ARTEX Supply-Chain Lessons](storm-0940-artex-supply-chain-lessons.md)**
+
+    ---
+
+    An agentic pentest framework turned through ConnectWise Cloud Backup: the spray failed loudly, the vendor-app token path succeeded quietly, and an app granted itself Global Administrator. Read against INV-6, INV-7 and the prevention/detection split
+
 -   :material-file-alert: **[ARA Compiler Pilot Report](ara-pilot-report.md)**
 
     ---
