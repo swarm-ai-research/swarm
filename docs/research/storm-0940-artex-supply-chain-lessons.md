@@ -75,11 +75,16 @@ the defender's misses were silent. Here the attacker's *failures* were visible
 and its *successes* were silent, because success ran on trust the defender had
 already issued.
 
-For SWARM the point is where `p` comes from. Every detection lever in
-`swarm/governance/` scores interactions through the proxy label, so all of them
-see an interaction that looks like routine vendor traffic as routine vendor
-traffic. The levers that could have stopped the token path are the ones that
-check **authority**, not suspiciousness.
+For SWARM the point is where `p` comes from. The `p`-threshold detectors in
+`swarm/governance/` (the circuit breaker, random audits) score interactions
+through the proxy label, so they see an interaction that looks like routine
+vendor traffic as routine vendor traffic. Not every detector is `p`-only:
+`LoopDetectorLever` (`swarm/governance/loop_detector.py`) can freeze an
+initiator on repetition, tool misuse or rework whatever its `p`, and bulk Key
+Vault reads might well look like repetition to it. But a pattern detector
+fires on the shape of behaviour, and an attacker who controls tempo controls
+the shape. The levers that would have stopped the token path outright are the
+ones that check **authority**, not suspiciousness.
 
 ## Lessons and their translation
 
@@ -90,10 +95,10 @@ maps onto the **model plane** (constructs in the SWARM simulation) and the
 | # | Mechanism | Model plane (SWARM sim) | Practice plane (this rig) |
 |---|---|---|---|
 | 1 | **An app granted itself Global Administrator.** The grant the tenant gave the vendor app included the power to change role assignments, its own included. | INV-6: *an authority bound a child can loosen is not a bound.* Wards compose by intersection and reject an over-scoped declaration rather than clamp it (`swarm/agentgit/wards.py`, `tests/test_agentgit_wards.py::TestNeverWidens`). A tenant's consent grant has no such composition rule: a role-management permission is a permission to widen. | `/claim` refuses (exit 3) a claim that would widen a dispatch `WARDS:` line. That covers stamped beads. Unstamped beads carry no bound at all, so a session working one has nothing to widen against, which is the vendor app's position. |
-| 2 | **One credential, 2,250 tenants.** The app's identity was valid in every tenant that had consented to it. | INV-7: *a credential valid everywhere is a bearer token, not a delegation.* `swarm/agentgit/identity.py` binds a `DelegationLink` to an `audience` and refuses it in a foreign context (`test_bound_link_replayed_into_foreign_context_is_refused`). A multi-tenant app secret is the unbound case: holding it is enough. | Our MCP and API keys in `.mcp.json` placeholders and `/load_keys` are bearer credentials of the same kind. Nothing in the rig scopes a key to the session that loaded it. |
+| 2 | **One credential, 2,250 tenants.** The app's identity was valid in every tenant that had consented to it. | INV-7: *a credential valid everywhere is a bearer token, not a delegation.* `swarm/agentgit/identity.py` binds a `DelegationLink` to an `audience` and refuses it in a foreign context (`test_bound_link_replayed_into_foreign_context_is_refused`). A multi-tenant app secret is the unbound case: holding it is enough. Binding limits *replay*, not *holding*: a vendor that legitimately holds a bound link for each of `N` tenants, all signed by one key store, loses all `N` when that store is taken (`DelegationChain.verify` checks each link's audience, not how many grants one subject holds). What would have limited this incident is per-tenant key separation, which INV-7 does not provide. | Our MCP and API keys in `.mcp.json` placeholders and `/load_keys` are bearer credentials of the same kind. Nothing in the rig scopes a key to the session that loaded it. |
 | 3 | **The spray tripped every alarm and caught nothing that mattered.** | `CircuitBreakerLever` (`swarm/governance/circuit_breaker.py`) freezes an agent on windowed average toxicity `1 − p`. An attacker running a loud decoy path and a quiet real path gets the breaker spent on the decoy. The lever is per-initiator, and the quiet path's initiator is the trusted vendor, whose `p` stays high. | The heartbeat and claim-collision guards are the loud-path kind: they fire on two sessions in one checkout. A session acting under another's legitimate claim marker would pass both. |
 | 4 | **Prevention vs. detection.** The mitigations that would have bounded damage are all authority-side: least privilege on multi-tenant consent, monitoring credential *additions*, alerting on role self-assignment. | `CapabilityPreconditionLever` (`swarm/governance/capability_precondition.py`, bead `vwj3`) refuses a write outside the grant whatever its `p`, and its docstring states the limit: a harmful write to a resource the agent *is* granted passes. Storm-0940 needed exactly one write outside any sane grant (the role self-assignment), and after that everything was inside the grant. | Same split as the [Shepherd](shepherd-reversible-execution.md) note: prevention bounds the blast radius, detection explains it afterwards. This incident is a prevention failure that detection then documented. |
-| 5 | **Under 3 hours from targeting to privileged access.** Agents "work around the clock" and "attempt multiple breach paths simultaneously". | Breaker freezes are counted in epochs and need `freeze_threshold_violations` repeated windows to trip. If an attack completes inside one review period, any epoch-granular lever acts after the fact by construction. SWARM has no wall-clock axis on governance latency. | Dispatch retros and `/bv-dispatch` run on human cadence. A session that went wrong would have hours of commits before the next retro looked. |
+| 5 | **Under 3 hours from targeting to privileged access.** Agents "work around the clock" and "attempt multiple breach paths simultaneously". | `CircuitBreakerLever` checks after every interaction and the freeze applies immediately; epochs set only how long a freeze lasts. So SWARM's governance is, if anything, faster than real defenders: it has no response delay at all. The incident's gap is between detection and a human acting on it, and SWARM has no parameter for that. A scenario about tempo needs an explicit response delay. | Dispatch retros and `/bv-dispatch` run on human cadence. A session that went wrong would have hours of commits before the next retro looked. |
 | 6 | **The vendor is a hub.** One upstream compromise reached every downstream tenant that trusted it. | `CascadeRiskLever` (`swarm/governance/cascade.py`) governs artifact chains: a node penalised for its bad *descendants*. The trust graph here has the same shape with the direction reversed: one *ancestor* compromised, all descendants exposed. Nothing in SWARM scores a node by how many others have delegated authority to it. | `main` and the shared `runs/runs.db` are this rig's hubs. Every worktree trusts both. |
 | 7 | **Preserve before deleting the app.** Deleting the enterprise app first destroys the sign-in and audit history needed to scope the breach. | INV-2: event logs are append-only and replayable. The guidance is the same invariant applied by an incident responder: removing the actor must not remove the record of what it did. | `/ship` and worktree `cleanup` delete branches and worktrees. The beads JSONL and git history survive; per-session heartbeats and claim markers do not. |
 | 8 | **ARTEX is open-source, model-agnostic and used by several actors.** | Attacker capability here is a property of a public tool, not of any single model or account, so per-model refusals and per-account bans do not bound it. This is the [BABEL](babel-model-router-lessons.md) lesson (harm carried by tooling) arriving in offence. | — |
@@ -136,21 +141,43 @@ Compare three governance stacks at matched cost:
 
 1. detection only (`CircuitBreakerLever` and audits on `p`);
 2. detection plus `CapabilityPreconditionLever` with the vendor's grant fixed;
-3. (2) plus context-bound delegation (INV-7 semantics), so the vendor credential
-   verifies in one tenant per link.
+3. (2) plus per-tenant keys: each tenant's delegation is bound to that tenant
+   (INV-7 semantics) **and** signed by a separate vendor key, with the
+   compromise modelled as theft of `k` of the `N` keys.
 
-Measure tenants with widened authority and harm realised before the first
-freeze, sweeping attack tempo against the governance epoch length.
+Add an explicit governance response delay `d` (interactions between a lever
+firing and the freeze taking effect); SWARM has none by default. Measure
+tenants with widened authority and harm realised over a **fixed observation
+horizon**, not up to the first freeze, since the first freeze is expected to
+land on the decoy. Report decoy and vendor freeze times separately. Sweep
+attack tempo against `d`.
 
 **Prediction:** stack 1 freezes the decoy initiator and misses the vendor in
-every cell. Stack 2 stops the self-widening write but not harm inside the
-existing grant. Stack 3 bounds the number of tenants one stolen credential
-reaches to one. Once attack tempo is faster than one epoch, stack 1's outcome
-stops depending on its thresholds.
+every cell, unless the quiet path's shape trips `LoopDetectorLever`. Stack 2
+stops the self-widening write but not harm inside the existing grant. Stack 3
+bounds the tenants reached to `k`; with `k = N` (one key store for every
+tenant) it is no better than stack 2. Harm under every stack rises with `d`
+once attack tempo exceeds `1/d`.
 
 **Falsifier:** if stack 1 catches the quiet path at any threshold setting that
 does not also freeze the honest vendor in the no-attack control, then
 `p`-scored detection can see a trusted-identity attack and lesson 3 is wrong.
+
+## Correction of record (2026-10-25)
+
+The first version of this note (PR #643) made four errors, caught in review
+and recorded rather than edited away:
+
+1. It said every detection lever in `swarm/governance/` scores only through
+   `p`. `LoopDetectorLever` does not.
+2. It said epoch-granular levers act after the fact by construction. The
+   circuit breaker freezes on the interaction that trips it; epochs set only
+   the freeze duration.
+3. The scenario measured harm up to the first freeze, which would land on the
+   decoy and cut off the vendor activity the scenario exists to measure.
+4. It predicted that context-bound delegation limits a stolen vendor
+   credential to one tenant. Binding stops replay into a foreign context; it
+   does not limit a vendor that holds valid bound links for every tenant.
 
 ## Caveats
 
