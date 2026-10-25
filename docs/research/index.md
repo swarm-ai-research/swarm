@@ -128,6 +128,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     graph_structural flags 14/14 candidate clusters on real AI Village chat, flags a randomly-wired graph just as readily, and the coalitions it finds are 87-100% of the population: a size prior and a reciprocity-preserving null are prerequisites for observational use
 
+-   :material-scale-balance: **[Significant Is Not Convincing](collusion-evidence-audit.md)**
+
+    ---
+
+    Null-model audit of structural collusion evidence on real AI Village chat (Apart sprint, RQ 2.3): an edge leak fixed, a schedule-preserving null that clears the detector's own clusters, and why no null makes a p-value sufficient when honest affinity overlaps planted collusion
+
 -   :material-book-open-variant: **[Classic Essays as Swarm Mechanisms](classic-essays-swarm-lessons.md)**
 
     ---
