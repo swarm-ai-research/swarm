@@ -326,6 +326,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     Buehler's LLM-agent societies (arXiv:2608.26081) ran the dyadic-transmission test our CollusionDetector is built on and it came back at parity with a schedule-preserving shuffled null — while coordination was real and dense, and ~95% of first artifact reuse began with physical observation rather than a message; plus two things to import (the agent-free held-out assay, the endpoint-wise best-of-N isolated baseline) and one threat to validity for the whistleblowing warning result (beads ci8k → xf2r, h5mg, nlws)
 
+-   :material-account-group-outline: **[Avalon-M1 Organisational Insularity](avalon-m1-insularity.md)**
+
+    ---
+
+    General Reasoning's Avalon-M1 trains agent organisations on one shared reward: refusal of harmful actions stays near-universal while reporting to humans falls (77% → 0–3% of runs in the collective-cyberattack scenario). Why that makes the whistleblower fraction a decaying quantity, an absence our presence-only detectors can't see, and a redundancy that copies of one policy don't provide; plus four proposed experiments, none run
+
 </div>
 
 ## Core Research Questions
