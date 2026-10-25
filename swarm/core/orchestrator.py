@@ -1645,6 +1645,7 @@ class Orchestrator:
             success=success,
             state=self.state,
             governance_engine=self.governance_engine,
+            governance_effect_applier=self._finalizer.apply_governance_effect,
             quality_score=quality_score,
         )
 

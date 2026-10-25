@@ -291,6 +291,7 @@ class GovernanceEngine:
             effect = lever.on_epoch_start(state, epoch)
             if effect.lever_name:  # Non-empty effect
                 effects.append(effect)
+        effects.extend(self._slash_detected_agents(effects, state))
         return GovernanceEffect.from_lever_effects(effects)
 
     def screen_artifact_presentation(

@@ -109,13 +109,14 @@ Neither option should be presented as "staking now works". Follow-ups:
 
 ## Update (2026-09-17, bead `ms0f`): the downward force, wired
 
-Finding 5 above is now fixed. `GovernanceEngine.apply_interaction` slashes the
-stake of every agent a lever caught while finalizing the interaction, under a
+Finding 5 above is now fixed. `GovernanceEngine` slashes the stake of every
+agent a lever catches during interaction or epoch-start processing, under a
 new opt-in `slash_on_detection` (default off). A *detection* is a freeze or a
-negative reputation or resource delta — audit catches, collusion penalties,
-circuit-breaker freezes — and explicitly not `cost_a`/`cost_b`, which are
-charged whether or not anything was caught. Slashes are computed from the
-effects gathered before the slash, so a slash never re-triggers itself.
+negative reputation or resource delta — audit catches, epoch collusion
+penalties, circuit-breaker freezes — and explicitly not `cost_a`/`cost_b`,
+which are charged whether or not anything was caught. Slashes are computed
+from the effects gathered before the slash, so a slash never re-triggers
+itself.
 
 The slash is recorded on `AgentState.stake_slashed` as well as the resource
 delta, because the cumulative-payoff basis is otherwise monotone
@@ -123,9 +124,10 @@ non-decreasing: earnings only accumulate, so without netting out slashes
 nothing could push an agent below the bar however hard it was penalised.
 
 Measured the same way, now at **ordinary** audit settings (`p=0.3`, penalty
-×2, threshold 0.5) rather than the extreme `--hard-audit`:
-`python scripts/sweep_stake_basis.py --seeds 5 --stakes 99,100 --audit [--slash]`,
-rows in `experiments/stake_basis/results/2026-09-17/`.
+×2, threshold 0.5) rather than the extreme `--hard-audit`. The two commands
+are `python scripts/sweep_stake_basis.py --seeds 5 --stakes 99,100 --audit`
+and `python scripts/sweep_stake_basis.py --seeds 5 --stakes 99,100 --audit
+--slash`; rows are in `experiments/stake_basis/results/2026-09-17/`.
 
 | arm @ stake | blocks | low-q | honest | welfare |
 |---|---|---|---|---|

@@ -380,10 +380,10 @@ class TestDisputeLifecycle:
 class TestOrchestratorIntegration:
     """Test marketplace integration with orchestrator."""
 
-    def _make_orchestrator(self, with_governance=False):
+    def _make_orchestrator(self, with_governance=False, governance_config=None):
         """Create an orchestrator with marketplace enabled."""
-        gov_config = None
-        if with_governance:
+        gov_config = governance_config
+        if with_governance and gov_config is None:
             gov_config = GovernanceConfig(
                 transaction_tax_rate=0.1,
                 transaction_tax_split=0.5,
@@ -629,6 +629,64 @@ class TestOrchestratorIntegration:
         # Worker gets funds minus tax
         h2_after = orch.state.get_agent("h2").resources
         assert h2_after > h2_before  # Worker still nets positive
+
+    def test_settlement_applies_detection_slash_resource_delta(self):
+        """Marketplace settlement must apply more than governance costs."""
+        orch = self._make_orchestrator(
+            governance_config=GovernanceConfig(
+                staking_enabled=True,
+                stake_slash_rate=0.2,
+                slash_on_detection=True,
+                audit_enabled=True,
+                audit_probability=1.0,
+                audit_threshold_p=0.5,
+            )
+        )
+        from swarm.agents.base import Action
+
+        orch.state.get_agent("h1").resources = 100.0
+        orch.state.get_agent("h2").resources = 100.0
+        orch._execute_action(
+            Action(
+                action_type=ActionType.POST_BOUNTY,
+                agent_id="h1",
+                content="Task",
+                metadata={"reward_amount": 10.0},
+            )
+        )
+        bounty = orch.marketplace.get_agent_bounties("h1")[0]
+        orch._execute_action(
+            Action(
+                action_type=ActionType.PLACE_BID,
+                agent_id="h2",
+                target_id=bounty.bounty_id,
+                metadata={"bid_amount": 8.0},
+            )
+        )
+        bid = orch.marketplace.get_bids_for_bounty(bounty.bounty_id)[0]
+        orch._execute_action(
+            Action(
+                action_type=ActionType.ACCEPT_BID,
+                agent_id="h1",
+                target_id=bounty.bounty_id,
+                metadata={"bid_id": bid.bid_id},
+            )
+        )
+
+        poster = orch.state.get_agent("h1")
+        before = poster.resources
+        result = orch.settle_marketplace_task(
+            bounty.task_id, success=True, quality_score=0.1
+        )
+
+        assert result is not None
+        assert poster.stake_slashed > 0.0
+        assert poster.resources == pytest.approx(
+            before
+            + result.get("refund_to_poster", 0.0)
+            - poster.stake_slashed
+            - 0.8  # audit shortfall (0.5 - 0.1) * multiplier 2
+        )
 
     def test_observation_includes_marketplace(self):
         orch = self._make_orchestrator()

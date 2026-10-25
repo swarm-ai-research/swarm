@@ -1019,6 +1019,22 @@ class TestSlashOnDetection:
         )
         assert len(self._slashes(effect)) == 1
 
+    def test_epoch_start_detection_slashes_the_flagged_agent(self):
+        class EpochDetector:
+            def on_epoch_start(self, state, epoch):
+                return LeverEffect(
+                    lever_name="epoch_detector",
+                    reputation_deltas={"a": -1.0},
+                )
+
+        state = self._state()
+        engine = self._engine(slash_on_detection=True)
+        engine._levers = (EpochDetector(),)
+        effect = engine.apply_epoch_start(state, epoch=1)
+
+        assert effect.resource_deltas == pytest.approx({"a": -20.0})
+        assert state.get_agent("a").stake_slashed == pytest.approx(20.0)
+
     def test_slashing_pushes_an_agent_below_the_cumulative_bar(self):
         # The point of the wiring: under the p70u basis, earnings only ever
         # accumulate, so a slash is the one thing that can cross the bar.
