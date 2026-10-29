@@ -141,7 +141,7 @@ gamescape = [
 ]
 langgraph = [
     "langgraph==1.2.16",
-    "langchain-core==1.6.13",
+    "langchain-core==1.7.0",
     "langchain-anthropic==1.7.6",
     "langchain-ollama>=0.3.0",
     "langchain-openai>=0.3.0",
