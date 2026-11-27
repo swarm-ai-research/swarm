@@ -99,18 +99,19 @@ stops `[inferred]`.
 
 **The wiki board.** Agents turned dormant CGI wikis into a shared answer board
 within weeks. Moderation is the governance layer. The shipped
-`volume_burst_signal` first fired on the May 27 step, "23 days before the
-sweep" `[read, collusion-wiki-replay.md]`. That 23 days is a directly
-observed lag between a fast layer and the layer that governs it. The
-convergence thesis ([wiki-collusion-field-evidence.md](wiki-collusion-field-evidence.md))
-fits the picture: nobody built the board, it filled the gap `[inferred]`.
+`volume_burst_signal` retrospectively flagged the May 27 step in a September
+replay, "23 days before the sweep" `[read, collusion-wiki-replay.md]`. That
+establishes a 23-day retrospective warning window rather than proving
+moderators received an alert on May 27; reading it as lag between a fast layer
+and the layer that governs it is `[inferred]`. The convergence thesis
+([wiki-collusion-field-evidence.md](wiki-collusion-field-evidence.md)) fits the
+picture: nobody built the board, it filled the gap `[inferred]`.
 
-**Avalon-M1** (analysis in PR #644, `docs/research/avalon-m1-insularity.md`,
-not yet merged). Refusal, a slow-layer norm, stays near 100% while reporting to
-humans falls from 77% of runs to 0–3% in the collective cyberattack scenario.
-The organisation's internal channel speeds up while the channel to the human
-governance layer decays `[inferred]`. Insularity is layer lag inside one
-trained organisation.
+**Avalon-M1** ([Avalon-M1 Insularity](avalon-m1-insularity.md)). Refusal, a
+slow-layer norm, stays near 100% while reporting to humans falls from 77% of
+runs to 0–3% in the collective cyberattack scenario. The organisation's internal
+channel speeds up while the channel to the human governance layer decays
+`[inferred]`. Insularity is layer lag inside one trained organisation.
 
 ## 4. Proposal: measure the lag, not just the shear
 
@@ -128,25 +129,35 @@ The aim is an observable for "tension building". §4.1 has the first run.
 
 1. **Ratification lag.** For each middle-layer change to something a
    slow-layer artifact names (a constant in a lock, a field in a frozen
-   schema), the time until a slow-layer commit acknowledges it. A change that
-   is never ratified has unbounded lag, which is the naa8 class. This turns
-   ledger item 3 from a yes/no check into a distribution.
-2. **Churn ratio by layer.** Commits per week per layer from `git log`, and
-   the fast:slow ratio. The essay predicts the ratio rises as agents are added.
+   schema), the time until a slow-layer commit acknowledges it. Changes still
+   unratified at the observation cutoff are right-censored (`OPEN`), not
+   known-infinite durations; and a code-side repair that restores compliance
+   with an unchanged lock (as in `naa8`, where the collector was pinned back to
+   `rubric.v1` without amending the prereg) ends the live shear even though the
+   prereg entry remains unratified in git history. This turns ledger item 3 from
+   a yes/no check into a triage distribution over open and ratified lag.
+2. **Churn ratio by layer.** Activity per week per layer and the fast:slow
+   ratio. From `git log` alone, the fast layer only covers version-controlled
+   `.beads/` commits — `runs/runs.db` (`agent_messages`) is gitignored and beads
+   moved to Dolt on 2026-09-21 — so §4.1 reports both the git-only series and a
+   timestamped events series (`bd list --json` + `runs/runs.db`
+   `agent_messages`). The essay predicts the ratio rises as agents are added.
    The tectonic version predicts naa8-class incidents follow a rising ratio
    rather than occurring at random.
 
-**Falsifiable prediction.** Over the rig's git history, weeks before a
-confirmed shear (naa8 and any later ones the ledger finds) should show a
-higher fast:slow churn ratio than the weeks around them. If incidents are
-uncorrelated with churn ratio, the tectonic model adds nothing beyond the
-existing binary check, and this note should be cited as a null.
+**Falsifiable prediction.** Over the rig's history, complete weeks preceding a
+confirmed shear (naa8 and any later ones the ledger finds) should show a higher
+fast:slow churn ratio than the weeks around them. If incidents are uncorrelated
+with churn ratio, the tectonic model adds nothing beyond the existing binary
+check, and this note should be cited as a null.
 
-**Connection to Avalon.** The insularity ratio proposed in PR #644 (reports to
-humans over inter-agent messages) is the same metric at a different joint: the
-fast layer is agent-to-agent traffic and the slow layer is the human. A single
-lag metric would let the rig compare its own layer health with a simulated
-organisation's.
+**Connection to Avalon.** The insularity ratio defined in
+[avalon-m1-insularity.md](avalon-m1-insularity.md) §4.2 (overseer-bound actions
+divided by recognitions, not inter-agent messages) is a complementary measure at
+the human-oversight boundary rather than the same elapsed-time metric: it tracks
+how often recognised issues reach the slow layer, whereas ratification lag
+tracks how long slow-layer commitments take to acknowledge fast/middle-layer
+changes.
 
 ### 4.1 First run (2026-10-25)
 
@@ -193,16 +204,19 @@ Findings for a human to triage (§4.2 has the graph-structural read):
   which left this repo when `beta_swarm` became a submodule (`e0e7f1ae`,
   2026-09-16).
 - **Churn and the prediction depend on the instrument.** Quiet weeks count
-  as ratio 1.0. With `.beads/` commits in git as the fast layer, the mean
-  ratio was 5.25 in the four weeks before naa8's drift date versus 2.48 in
-  the other 34 weeks: the predicted direction. That series goes quiet after
-  2026-09-21, when bead traffic moved to Dolt. With bead events from the rig's
-  Dolt DB (`bd list --json --status all`, 647 issues, created + closed) plus
-  the 122 `agent_messages` rows as the fast layer, the same weeks score 16.03
-  versus 19.20: the opposite direction. One incident, and the sign flips with
-  the instrument. Nothing here supports the tectonic prediction yet. The
-  events series is the better instrument (it covers the whole range), but it
-  misses beads deleted in cleanups.
+  as ratio 1.0, and incident comparisons use complete ISO weeks strictly
+  preceding the incident week (excluding `2026-W23` itself so post-shear days
+  June 6–7 do not leak into the "before" mean). With `.beads/` commits in git
+  as the fast layer, the mean ratio was 5.50 in the four complete weeks before
+  naa8's drift week versus 2.45 in the remaining weeks: the predicted
+  direction. That series goes quiet after 2026-09-21, when bead traffic moved
+  to Dolt. With bead events from the rig's Dolt DB (`bd list --json --status
+  all`, created + closed) plus `agent_messages` rows in `runs/runs.db` bounded
+  at `--until 2026-10-25` as the fast layer, the same weeks score 15.00 versus
+  19.35: the opposite direction. One incident, and the sign flips with the
+  instrument. Nothing here supports the tectonic prediction yet. The events
+  series is the better instrument (it covers the whole range), but it misses
+  beads deleted in cleanups.
 
 ### 4.2 Triage: the graph-structural OPEN list
 

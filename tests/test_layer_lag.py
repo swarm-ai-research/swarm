@@ -6,12 +6,15 @@ moved the rubric default also touched the prereg, so "any doc edit" must not
 count as ratification.
 """
 
+import argparse
+import json
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
+import layer_lag  # noqa: E402
 from layer_lag import (  # noqa: E402
     Commit,
     change_refs,
@@ -24,6 +27,7 @@ from layer_lag import (  # noqa: E402
     known_bead_ids,
     ratification_lags,
     ratifies,
+    render,
     weekly_churn,
 )
 
@@ -147,12 +151,15 @@ class TestChurn:
         churn = {
             "2026-W20": {"fast": 9, "middle": 0, "slow": 0},
             "2026-W22": {"fast": 1, "middle": 0, "slow": 1},
+            # 2026-W23 contains 2026-06-05 (Friday), including post-shear June 6-7:
+            # must NOT be counted in the "before" average.
+            "2026-W23": {"fast": 99, "middle": 0, "slow": 0},
             "2026-W30": {"fast": 0, "middle": 0, "slow": 0},
         }
         (row,) = incident_test(churn, [date(2026, 6, 5)], window=4)
         assert row["weeks_before"] == 2
         assert row["ratio_before"] == 5.5
-        assert row["ratio_rest"] == 1.0
+        assert row["ratio_rest"] == 50.5
 
 
 class TestFastEvents:
@@ -161,6 +168,40 @@ class TestFastEvents:
                  {"created_at": "2026-06-09T10:00:00Z", "closed_at": None}]
         msgs = ["2026-06-03T00:00:00.000Z"]
         assert fast_events(beads, msgs) == {"2026-W23": 3, "2026-W24": 1}
+
+    def test_until_bounds_external_events(self):
+        beads = [{"created_at": "2026-06-01T10:00:00Z", "closed_at": "2026-06-15T10:00:00Z"}]
+        msgs = ["2026-06-03T00:00:00Z", "2026-06-20T00:00:00Z"]
+        assert fast_events(beads, msgs, until=date(2026, 6, 7)) == {"2026-W23": 2}
+
+    def test_empty_kept_commits_with_events_does_not_overflow(self, tmp_path, monkeypatch):
+        beads_path = tmp_path / "beads.json"
+        beads_path.write_text(json.dumps([{"id": "swarm-abcd", "created_at": "2026-06-01T10:00:00Z"}]))
+        monkeypatch.setattr(layer_lag, "read_commits", lambda since, until: [])
+        monkeypatch.setattr(layer_lag, "_git", lambda *a: "")
+        args = argparse.Namespace(
+            since="2026-06-01", until="2026-06-07", scope="file", ratify="strict",
+            sweep_files=40, incident=None, window=4,
+            beads_json=str(beads_path), runs_db=None, json=False,
+        )
+        report = layer_lag.build_report(args)
+        assert report["range"] is None
+        assert "2026-W23" in report["churn"]
+
+    def test_render_counts_distinct_incidents_for_warning(self):
+        report = {
+            "range": ["2026-06-01", "2026-06-14"],
+            "commits": 2, "sweeps_skipped": 0, "scope": "file", "ratify": "strict",
+            "fast_last_seen": None, "churn": {}, "locks": [],
+            "events": {"beads_json": "b.json", "runs_db": None},
+            "incidents": [
+                {"incident": "2026-06-05", "series": "fast", "weeks_before": 1, "ratio_before": 2.0, "ratio_rest": 1.0},
+                {"incident": "2026-06-12", "series": "fast", "weeks_before": 1, "ratio_before": 2.0, "ratio_rest": 1.0},
+                {"incident": "2026-06-05", "series": "events", "weeks_before": 1, "ratio_before": 2.0, "ratio_rest": 1.0},
+                {"incident": "2026-06-12", "series": "events", "weeks_before": 1, "ratio_before": 2.0, "ratio_rest": 1.0},
+            ],
+        }
+        assert "fewer than 3 incidents" in render(report)
 
     def test_fill_weeks_adds_quiet_weeks(self):
         churn = {"2026-W20": {"fast": 1, "middle": 0, "slow": 0},

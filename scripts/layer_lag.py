@@ -62,7 +62,7 @@ import subprocess
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from statistics import mean, median
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
@@ -274,17 +274,37 @@ def _parse_ts(ts: str) -> datetime:
     return datetime.fromisoformat(ts.replace("Z", "+00:00"))
 
 
-def fast_events(beads: Sequence[dict], messages: Sequence[str]) -> Dict[str, int]:
+def fast_events(
+    beads: Sequence[dict],
+    messages: Sequence[str],
+    *,
+    since: Optional[date] = None,
+    until: Optional[date] = None,
+) -> Dict[str, int]:
     """Fast-layer events per ISO week: bead created + bead closed + one per
     agent_messages row. Deleted beads are gone from ``bd list``, so this
-    undercounts weeks whose beads were later cleaned up."""
+    undercounts weeks whose beads were later cleaned up.
+
+    When ``since`` or ``until`` is given, individual timestamps outside
+    ``[since, until]`` are excluded before weekly aggregation.
+    """
     weeks: Dict[str, int] = defaultdict(int)
+
+    def _add(ts: str) -> None:
+        dt = _parse_ts(ts)
+        d = dt.date()
+        if since is not None and d < since:
+            return
+        if until is not None and d > until:
+            return
+        weeks[iso_week(dt)] += 1
+
     for bead in beads:
         for key in ("created_at", "closed_at"):
             if bead.get(key):
-                weeks[iso_week(_parse_ts(bead[key]))] += 1
+                _add(bead[key])
     for ts in messages:
-        weeks[iso_week(_parse_ts(ts))] += 1
+        _add(ts)
     return dict(weeks)
 
 
@@ -300,13 +320,20 @@ def incident_test(
     churn: Dict[str, Dict[str, int]], incidents: Sequence[date], window: int,
     key: str = "fast",
 ) -> List[dict]:
-    """Mean churn ratio in the ``window`` weeks before each incident vs the rest."""
+    """Mean churn ratio in the ``window`` complete ISO weeks preceding each
+    incident's week versus all other weeks.
+
+    Comparing complete weeks strictly before the incident week avoids leaking
+    post-incident days (e.g. June 6–7 for a June 5 incident) into the
+    "before" window.
+    """
     out = []
     for incident in incidents:
+        inc_week_start = incident - timedelta(days=incident.weekday())
         before, rest = [], []
         for week, row in churn.items():
             start = week_start(week)
-            in_window = incident - timedelta(weeks=window) <= start < incident
+            in_window = inc_week_start - timedelta(weeks=window) <= start < inc_week_start
             (before if in_window else rest).append(churn_ratio(row, key))
         out.append({
             "incident": incident.isoformat(),
@@ -359,13 +386,22 @@ def read_doc_edits(doc: str) -> Dict[str, List[str]]:
     return edits
 
 
+def _parse_optional_date(raw: Optional[str]) -> Optional[date]:
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw[:10])
+    except ValueError:
+        return None
+
+
 def build_report(args: argparse.Namespace) -> dict:
     commits = read_commits(args.since, args.until)
     all_commits = read_commits(None, args.until) if args.since else commits
     kept = [c for c in commits if len(c.files) <= args.sweep_files]
     head = set(_git("ls-files").splitlines())
     ever = {f for c in all_commits for f in c.files} | head
-    now = max(c.when for c in all_commits)
+    now = max((c.when for c in all_commits), default=datetime.now(timezone.utc))
     beads = json.loads(Path(args.beads_json).read_text()) if args.beads_json else []
     known = known_bead_ids(beads=beads)
 
@@ -405,8 +441,18 @@ def build_report(args: argparse.Namespace) -> dict:
         if args.runs_db:
             with sqlite3.connect(f"file:{args.runs_db}?mode=ro", uri=True) as conn:
                 messages = [r[0] for r in conn.execute("SELECT ts FROM agent_messages")]
-        lo = kept[0].when.date() if kept else date.min
-        events = {w: n for w, n in fast_events(beads, messages).items() if week_start(w) >= lo - timedelta(days=6)}
+        lo = kept[0].when.date() if kept else _parse_optional_date(args.since)
+        hi = _parse_optional_date(args.until)
+        if hi is None and args.until and kept:
+            hi = kept[-1].when.date()
+        raw_events = fast_events(beads, messages, until=hi)
+        if lo is not None:
+            min_week_start = lo - timedelta(days=lo.weekday())
+            events = {
+                w: n for w, n in raw_events.items() if week_start(w) >= min_week_start
+            }
+        else:
+            events = raw_events
         merge_events(churn, events)
     churn = fill_weeks(churn)
     fast_seen = [c.when for c in kept if any(classify(f) == "fast" for f in c.files)]
@@ -467,7 +513,7 @@ def render(report: dict) -> str:
             f"  {inc['incident']} [{inc['series']}]: before {inc['ratio_before']} "
             f"({inc['weeks_before']} wk) vs rest {inc['ratio_rest']}"
         )
-    if len(report["incidents"]) < 3:
+    if len({inc["incident"] for inc in report["incidents"]}) < 3:
         lines.append("  fewer than 3 incidents: descriptive only, not a test")
     return "\n".join(lines)
 
