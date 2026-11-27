@@ -165,9 +165,10 @@ communication compute growing with RL compute `[read]`) while traffic on the
 overseer channel falls. The board in Avalon is designed and sanctioned, so a
 side-channel detector has nothing to find.
 
-[Wiki-Collusion Field Evidence](wiki-collusion-field-evidence.md) already
-argues that the discriminating feature between collusion and convergence is an
-absence. Avalon gives a measurable absence: the ratio of overseer-bound actions
+[Designed Agent Community vs. Converged Board](designed-agent-community-vs-converged-board.md)
+already argues that the features separating collusion from convergence are
+present in constructed systems and *absent* in converged ones, so an absence
+can be the signal. Avalon gives a measurable absence: the ratio of overseer-bound actions
 to recognitions. Recognition is visible in reasoning at 97–100%. A monitor that
 reads reasoning would report the organisation as alert and well-behaved at
 every checkpoint. The failure is only visible in the action stream.
@@ -234,7 +235,7 @@ does.
 | Reporting decays while refusal holds | `whistleblower_fraction` on `MemoryTierConfig` | Fixed per run today; needs a decay schedule (§4.1) |
 | Recognition 97–100%, reporting 0–3% | No recognition/action gap metric | Missing (§4.2) |
 | Sanctioned board busier, overseer channel quieter | `volume_burst_signal` fires on rises only | Missing a decay detector (§4.2) |
-| 0–3% of 8-agent runs report at all | Independent-agent assumptions in the whistleblower and side-channel grids | Untested under correlated agents (§4.3) |
+| 0–3% of 8-agent runs report at all | Whistleblower audits draw independently per agent (`(1 - audit_rate) ** n_wb`); the side-channel grid has no agent-side reporting at all (detection is the exogenous `side_detection_rate`) | Untested under correlated agents (§4.3) |
 | Punishment holds public-goods contribution flat | Sanctions/staking levers | Consistent; no new work |
 
 ## 4. Proposed experiments (not run)
@@ -264,10 +265,12 @@ Two metrics, both computable from interaction logs we already keep:
 
 ### 4.3 Correlated reporters
 
-In the side-channel and whistleblower grids, replace independent per-agent
-report draws with a shared latent: each agent reports with probability p, but
-the draws are correlated at ρ. Sweep ρ from 0 to 1 at a fixed mean p. Report
-P(at least one report per run) against ρ. Avalon predicts the payoff from N
+In the whistleblower grid, replace the independent per-whistleblower audit
+draws with a shared latent: each whistleblower catches a suspect entry with
+probability p, but the draws are correlated at ρ. (The side-channel grid has no
+agent-side reporting to correlate; adding a reporting arm there would come
+first.) Sweep ρ from 0 to 1 at a fixed mean p. Report
+P(a suspect entry is caught by at least one whistleblower) against ρ. Avalon predicts the payoff from N
 falls quickly as ρ rises. This is cheap and isolates the "copies of one policy"
 effect from any training story.
 
