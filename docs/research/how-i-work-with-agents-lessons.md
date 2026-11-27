@@ -23,7 +23,7 @@ corrector who doesn't check),
 [erdos-1038 Swarm Lessons](erdos-1038-swarm-lessons.md) (phantom gates),
 [Dispatch Retro 2026-07-19](dispatch-retro-2026-07-19.md) (side-effect writes),
 and Pace Layers and Swarm Lag (layer tags; PR
-[#646](https://github.com/swarm-ai-research/swarm/pull/646), not yet merged).
+[#650](https://github.com/swarm-ai-research/swarm/pull/650), not yet merged).
 
 > **Sourcing status.** The post could not be fetched (x.com returned HTTP 402).
 > Quotes tagged `[pasted]` are from the text the operator pasted on
@@ -89,16 +89,20 @@ branch, which this note was itself written in.
 
 ## 2. Where the rig's numbers disagree
 
-**"Use the latest model" doesn't fix not knowing which 10%.** Three review
-passes over the same 12 files (two effort levels of one model, one pass of
-another) gave 11 verified-true findings with no line reported twice. The
-higher-effort pass found none of what the lower-effort pass found. Nine of the
-twelve files came back empty from a single pass and were not clean. Separately,
-about 30% of fan-out review findings in the July pg-cleanup campaign were wrong
-when checked against source. If a pass samples a small slice of what is
-findable, a better model samples a different slice. Repeat passes and take the
-union, then verify each finding. The post's own premise (you don't know which
-10%) argues for that more than for an upgrade `[inferred]`.
+**"Use the latest model" doesn't fix not knowing which 10%.** In an informal
+three-pass code review over 12 files (two effort levels of one model, one pass
+of another), the operator recorded 11 manually checked findings with no line
+reported twice `[unverified: operator notes only — no archived review outputs,
+model/effort logs, or verification record in the repo]`. The higher-effort pass
+found none of what the lower-effort pass found, and nine of the twelve files
+came back empty from a single pass without being clean. Separately, in the July
+`pg-cleanup` campaign (beads labeled `pg-cleanup` in `.beads/issues.jsonl`),
+roughly 30% of fan-out review findings were wrong when checked against source
+(also an informal tally rather than a published audit script). If a single pass
+samples only a slice of what is findable, a better model samples a different
+slice. Repeat passes and take the union, then verify each finding. The post's
+own premise (you don't know which 10%) argues for that more than for an upgrade
+`[inferred]`.
 
 **"Stop worrying about slop" holds at one layer, not all of them.** The post's
 examples are code-level: "Closure vs. class, a neater type, variable names,
@@ -136,22 +140,21 @@ unsupported claims of success?
 **Arms.** Five agents per arm, same model, same tasks, blind to the
 experiment.
 
-| Arm | AGENTS.md |
+| Arm | Treatment |
 |---|---|
-| Control | current file |
+| Control | current `AGENTS.md` |
 | Prose | current file plus a "this is not evidence" list: example-only tests, an agent saying it verified something, subagent summaries, CI that doesn't build |
 | Read path | the same list injected at session start by hook, not left in the file |
+| Gate | current `AGENTS.md` plus a structural gate enforcing one item on that list — e.g. the `done_requires_artifact` trigger on `agent_messages` rejecting a `DONE:` row without a commit hash, `runs/` path, or `artifact=` tag (CLAUDE.md, from erdos-1038 lesson 5), or a CI checker verifying the referenced artifact exists |
 
-The rig already enforces one item on that list in code rather than prose. The
-`done_requires_artifact` trigger on `agent_messages` rejects a `DONE:` row with
-no commit hash, `runs/` path or `artifact=` tag (CLAUDE.md, from erdos-1038
-lesson 5). That is a fourth arm for free: the trigger's rejection count is the
-false-claim rate where the rule is a gate, to compare with the rate where it
-is only text.
-
-**Measure.** For each completed task, whether the final report claims success,
-and whether a held-out checker the agents never see agrees. The metric is the
-false-claim rate: claimed success that the held-out checker rejects.
+**Measure.** Every arm (including Gate) is scored with the same held-out checker
+the agents never see and the same task denominator. The primary metric is the
+**false-claim rate**: fraction of tasks where the final report claims success
+and the held-out checker rejects it. For the Gate arm, **missing-reference
+rejections** (trigger blocks on `DONE:` rows) must be reported separately from
+false claims: a syntax-only trigger passes an unsupported report carrying
+`artifact=nonexistent` and rejects a truthful report that omits a reference, so
+trigger rejections measure reference-format compliance rather than claim truth.
 
 **Prediction.** The retro predicts Prose ≈ Control and Read path < Control. If
 Prose already beats Control, the retro's lesson was about coordination
