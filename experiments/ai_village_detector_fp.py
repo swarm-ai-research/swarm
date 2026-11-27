@@ -52,17 +52,19 @@ N_NULL = 200             # p resolution floor is 1/N_NULL = 0.005
 ALPHA = 0.05
 
 
-def rows(name):
+def rows(name, *, revision=None):
     from huggingface_hub import hf_hub_download
 
-    with gzip.open(hf_hub_download(REPO, name, repo_type="dataset"), "rt") as fh:
+    with gzip.open(
+        hf_hub_download(REPO, name, repo_type="dataset", revision=revision), "rt"
+    ) as fh:
         for line in fh:
             line = line.strip()
             if line:
                 yield json.loads(line)
 
 
-def build_edges_source(mode):
+def build_edges_source(mode, *, revision=None):
     """Directed (speaker -> addressee) records from post-cutover chat.
 
     ``mode="name"``  : message names exactly one other agent by display name.
@@ -71,7 +73,9 @@ def build_edges_source(mode):
     Neither is validated as *addressing* rather than *mentioning* (mapping-design
     D4); running both is the robustness check for that.
     """
-    agents = {a["id"]: a["name"] for a in rows("agents.jsonl.gz")}
+    agents = {
+        a["id"]: a["name"] for a in rows("agents.jsonl.gz", revision=revision)
+    }
     # longest-first: 'Claude Opus 4' is a prefix of 'Claude Opus 4.5'
     names = sorted(agents.values(), key=len, reverse=True)
     named = re.compile("|".join(re.escape(n) for n in names))
@@ -80,7 +84,7 @@ def build_edges_source(mode):
     lowered = {n.lower(): n for n in names}
 
     out = []
-    for m in rows("chat_messages.jsonl.gz"):
+    for m in rows("chat_messages.jsonl.gz", revision=revision):
         ts = m.get("created_at", "")
         if ts < CUTOVER:
             continue

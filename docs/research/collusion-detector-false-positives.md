@@ -165,3 +165,13 @@ propose anything smaller than most of the population — is the other half.
 
 Licence: research use only, no training without written permission, cite
 AI Digest / AI Village.
+
+## Update (bead `50bb`): the edge leak located, and a null that fixes the clusters
+
+The ~2% dense-graph loss above came from the mutual-dyad rewire landing on (or
+opposite) original one-way edges, which then merged. Blocking those positions
+makes the reciprocity null exact (994/994 edges; whole graph p = 1.00). A
+schedule-preserving message null (`day_perm`) then flags 1 of 16 of the
+detector's own clusters, where `configuration` flags 16/16 — but no null makes a
+p-value sufficient on honest named groups (28–41% significant). See
+[Significant is not convincing](collusion-evidence-audit.md).

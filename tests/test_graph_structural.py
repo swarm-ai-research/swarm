@@ -622,12 +622,18 @@ class TestEdgeCountArtifact:
         assert density_pvalue(
             g, whole, n_samples=50, seed=0, null="reciprocity") > 0.05
 
-    def test_artifact_survives_on_dense_graphs(self):
-        """Honest limit: ~2% of edges are still lost to pre-existing
-        collisions when the graph is dense, so the fix does NOT carry to
-        real group chat (density 0.46). Measured in
-        docs/research/collusion-detector-false-positives.md.
+    def test_dense_graphs_keep_every_edge(self):
+        """1a2w pinned a ~2% edge loss here. It came from the mutual rewire
+        landing on one-way positions, which then merged (bead 50bb). With
+        those positions blocked the count is exact at real chat density.
         """
         g = DiGraph.from_edges(self._sparse_random(pr=0.5))
+        for seed in range(5):
+            null_g = reciprocity_preserving_null(g, seed=seed)
+            assert self._edge_count(null_g) == self._edge_count(g)
+            assert null_g.reciprocity() == pytest.approx(g.reciprocity(), abs=1e-9)
+
+    def test_whole_dense_graph_is_not_denser_than_itself(self):
+        g = DiGraph.from_edges(self._sparse_random(pr=0.5))
         assert density_pvalue(
-            g, set(g.nodes), n_samples=50, seed=0, null="reciprocity") <= 0.05
+            g, set(g.nodes), n_samples=50, seed=0, null="reciprocity") == 1.0
