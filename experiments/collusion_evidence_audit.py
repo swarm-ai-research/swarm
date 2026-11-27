@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import hashlib
 import json
 import sys
 import time
@@ -149,11 +150,18 @@ def null_day_perm(w, rng):
         seg[:] = seg[rng.permutation(hi - lo)]
         src = w.src[lo:hi]
         for i in np.flatnonzero(seg == src):
+            repaired = False
             for _ in range(50):
                 j = int(rng.integers(0, hi - lo))
                 if seg[j] != src[i] and seg[i] != src[j]:
                     seg[i], seg[j] = seg[j], seg[i]
+                    repaired = True
                     break
+            if not repaired:
+                compat = np.flatnonzero((seg != src[i]) & (src != seg[i]))
+                if len(compat) > 0:
+                    j = int(compat[int(rng.integers(0, len(compat)))])
+                    seg[i], seg[j] = seg[j], seg[i]
     return out
 
 
@@ -261,6 +269,12 @@ def main():
     ap.add_argument("--groups", type=int, default=20)
     ap.add_argument("--n-msg", type=int, default=500)
     ap.add_argument("--n-graph", type=int, default=100)
+    ap.add_argument(
+        "--revision",
+        default=None,
+        help="HuggingFace dataset commit/revision SHA for reproducible loading",
+    )
+    ap.add_argument("--bootstrap-seed", type=int, default=0)
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
     if args.quick:
@@ -268,7 +282,10 @@ def main():
     fs = (0.0, 0.1, 0.2, 0.4)
 
     t0 = time.time()
-    records = av.build_edges_source("name")
+    records = av.build_edges_source("name", revision=args.revision)
+    records_sha256 = hashlib.sha256(
+        "\n".join(f"{ts}\t{s}\t{t}" for ts, s, t in records).encode("utf-8")
+    ).hexdigest()
     by_month = collections.defaultdict(list)
     for r in records:
         by_month[r[0][:7]].append(r)
@@ -319,7 +336,9 @@ def main():
         print(f"  {month} [{split}] agents={w.n_agents} msgs={len(w.src)} "
               f"done ({time.time()-t0:.0f}s)", flush=True)
 
-    summary = summarise(rows, background, screen, calib)
+    summary = summarise(
+        rows, background, screen, calib, bootstrap_seed=args.bootstrap_seed
+    )
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out = Path(args.out or f"runs/{stamp}_collusion_evidence_audit{'_quick' if args.quick else ''}")
     out.mkdir(parents=True, exist_ok=True)
@@ -327,12 +346,31 @@ def main():
     (out / "background_candidates.json").write_text(json.dumps(background, indent=1))
     (out / "screening.json").write_text(json.dumps(screen, indent=1))
     (out / "summary.json").write_text(json.dumps(summary, indent=1))
-    (out / "config.json").write_text(json.dumps(vars(args) | {"fs": fs, "alpha": ALPHA,
-                                                             "calib": calib, "test": test}))
+    (out / "config.json").write_text(json.dumps(vars(args) | {
+        "dataset_repo": av.REPO,
+        "dataset_revision": args.revision,
+        "n_records": len(records),
+        "records_sha256": records_sha256,
+        "months": months,
+        "fs": fs,
+        "alpha": ALPHA,
+        "calib": calib,
+        "test": test,
+    }))
     print(f"\nwrote {out}  ({time.time()-t0:.0f}s)")
 
 
-def summarise(rows, background, screen, calib):
+def _roc_auc(negatives: list[float], positives: list[float]) -> float:
+    """Exact Mann-Whitney ROC AUC (tie-safe) for ``positives`` vs ``negatives``."""
+    if not negatives or not positives:
+        return float("nan")
+    neg = np.asarray(negatives, dtype=float)
+    pos = np.asarray(positives, dtype=float)
+    diff = pos[:, None] - neg[None, :]
+    return float((np.count_nonzero(diff > 0) + 0.5 * np.count_nonzero(diff == 0)) / diff.size)
+
+
+def summarise(rows, background, screen, calib, *, bootstrap_seed=0, n_boot=2000):
     def flag_p(s, null):
         return s[null]["p"] < ALPHA
 
@@ -341,6 +379,14 @@ def summarise(rows, background, screen, calib):
     honest_cal = [r["scores"]["day_perm"]["ratio"] for r in rows
                   if r["f"] == 0 and r["split"] == "calib"]
     r_star = float(np.percentile(honest_cal, 95)) if honest_cal else float("nan")
+    if honest_cal:
+        boot_rng = np.random.default_rng(bootstrap_seed)
+        arr = np.asarray(honest_cal, dtype=float)
+        draws = boot_rng.choice(arr, size=(n_boot, len(arr)), replace=True)
+        q95 = np.percentile(draws, 95, axis=1)
+        r_star_bootstrap95 = [float(np.percentile(q95, 2.5)), float(np.percentile(q95, 97.5))]
+    else:
+        r_star_bootstrap95 = [float("nan"), float("nan")]
 
     def frozen(s):
         d = s["day_perm"]
@@ -380,9 +426,40 @@ def summarise(rows, background, screen, calib):
     for r in rows:
         for n in MESSAGE_NULLS:
             ratios[f"{n} f={r['f']}"].append(r["scores"][n]["ratio"])
-    return {"r_star": r_star, "rules": table, "background_candidates": bg,
-            "screening": sc,
-            "median_ratio": {k: float(np.median(v)) for k, v in ratios.items()}}
+
+    ratio_auc = {}
+    for split in ("calib", "test"):
+        split_aucs = {}
+        for n in MESSAGE_NULLS:
+            neg = [
+                r["scores"][n]["ratio"]
+                for r in rows
+                if r["split"] == split and r["f"] == 0
+            ]
+            per_f = {}
+            for f in sorted({r["f"] for r in rows if r["f"] > 0}):
+                pos = [
+                    r["scores"][n]["ratio"]
+                    for r in rows
+                    if r["split"] == split and r["f"] == f
+                ]
+                if neg and pos:
+                    per_f[str(f)] = _roc_auc(neg, pos)
+            if per_f:
+                split_aucs[n] = per_f
+        ratio_auc[split] = split_aucs
+
+    return {
+        "r_star": r_star,
+        "r_star_bootstrap95": r_star_bootstrap95,
+        "r_star_bootstrap_seed": bootstrap_seed,
+        "r_star_bootstrap_replicates": n_boot,
+        "rules": table,
+        "background_candidates": bg,
+        "screening": sc,
+        "ratio_auc": ratio_auc,
+        "median_ratio": {k: float(np.median(v)) for k, v in ratios.items()},
+    }
 
 
 def wilson(k, n, z=1.96):

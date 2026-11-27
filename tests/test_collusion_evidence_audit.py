@@ -99,3 +99,45 @@ def test_plant_keeps_speakers_and_volume(w):
     wp = cea.plant(w, [0, 1, 2], 0.5, np.random.default_rng(6))
     assert np.array_equal(wp.src, w.src) and len(wp.dst) == len(w.dst)
     assert cea.plant(w, [0, 1, 2], 0.0, np.random.default_rng(6)) is w
+
+
+def test_day_perm_skewed_schedule_no_self_addressing():
+    """Highly skewed daily activity (one agent has out + in == total messages)
+    must still produce zero self-addresses while preserving per-day counts."""
+    recs = []
+    # Agent a0 sends 25 msgs to a1..a5 and receives 25 msgs from a1..a5 on one day:
+    # out(a0) + in(a0) == 50 == total messages on day 1, so only exact
+    # bipartite swaps avoid self-addressing.
+    for i in range(25):
+        other = f"a{(i % 5) + 1}"
+        recs.append((f"2026-01-01T00:{i:02d}:00", "a0", other))
+        recs.append((f"2026-01-01T01:{i:02d}:00", other, "a0"))
+    w = cea.Window(recs)
+    rng = np.random.default_rng(42)
+    for _ in range(20):
+        dst = cea.null_day_perm(w, rng)
+        assert _per_day_received(w, dst) == _per_day_received(w, w.dst)
+        assert not np.any(dst == w.src), "skewed day_perm left self-address"
+
+
+def test_summarise_exports_bootstrap_ci_and_ratio_auc():
+    """summarise() must compute deterministic r_star_bootstrap95 and ratio_auc."""
+    def _row(split, f, ratio, p=0.01):
+        sc = {n: {"obs": 10, "ratio": ratio, "ci": (0.8, 1.2), "p": p}
+              for n in cea.MESSAGE_NULLS}
+        for n in cea.GRAPH_NULLS:
+            sc[n] = {"p": p}
+        return {"month": "2026-04", "split": split, "group": 0, "f": f, "scores": sc}
+
+    rows = (
+        [_row("calib", 0.0, r) for r in (0.8, 1.0, 1.2, 1.5, 2.0)]
+        + [_row("test", 0.0, r) for r in (0.9, 1.0, 1.1)]
+        + [_row("test", 0.2, r) for r in (1.5, 2.0, 2.5)]
+    )
+    summary = cea.summarise(rows, [], [], ["2026-03"], bootstrap_seed=7, n_boot=500)
+    assert summary["r_star_bootstrap_seed"] == 7
+    assert summary["r_star_bootstrap_replicates"] == 500
+    lo, hi = summary["r_star_bootstrap95"]
+    assert 0.8 <= lo <= summary["r_star"] <= hi <= 2.0
+    assert summary["ratio_auc"]["test"]["day_perm"]["0.2"] == pytest.approx(1.0)
+    assert summary["ratio_auc"]["test"]["uniform"]["0.2"] == pytest.approx(1.0)

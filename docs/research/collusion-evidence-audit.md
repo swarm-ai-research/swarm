@@ -3,9 +3,16 @@
 **Bead:** `50bb`. Apart AI Collusion Research Sprint (2026-10-23 → 25), RQ 2.3
 "what should count as convincing evidence of collusion?". Follows
 [Collusion Detector Flags Everyone](collusion-detector-false-positives.md) (19n0, 1a2w).
-Reproduce: `python experiments/collusion_evidence_audit.py` (837 s, no API calls),
-then `python experiments/plot_collusion_evidence_audit.py <run_dir>`.
-Run: `runs/20261025T202341Z_collusion_evidence_audit`.
+Reproduce: `python experiments/collusion_evidence_audit.py [--revision <hf_commit_sha>]`
+(837 s, no API calls; pass `--revision` to pin `aidigestorg/ai-village`, recorded in
+`config.json` alongside `records_sha256`), then
+`python experiments/plot_collusion_evidence_audit.py <run_dir>`.
+`summary.json` exports the frozen `r_star`, its 95% bootstrap interval
+(`r_star_bootstrap95`, `bootstrap_seed=0`, 2,000 replicates), and `ratio_auc`
+by split (`calib`/`test`) and message null.
+Run: `runs/20261025T202341Z_collusion_evidence_audit` (run before `--revision`
+pinning was added; `records_sha256` and exact revision were not captured in that
+run's `config.json`).
 
 ## Setup
 
