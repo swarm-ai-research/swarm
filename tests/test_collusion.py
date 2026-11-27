@@ -377,6 +377,56 @@ class TestGroupDetection:
         with pytest.raises(ValueError, match="at least 200"):
             CollusionDetector(permutation_null_replicates=199)
 
+    def test_dedup_preserves_structural_null_calibration(self):
+        """When both pair_clique and mutual_favoritism flag the same members,
+        deduplication must keep the calibrated null statistics."""
+        members = ["m1", "m2", "m3"]
+        victims = ["v1", "v2", "v3"]
+        interactions = []
+        for a, b in [("m1", "m2"), ("m2", "m3"), ("m1", "m3")]:
+            interactions.extend(create_collusion_pattern(a, b, count=12, p_internal=0.85))
+        for m in members:
+            for v in victims:
+                for _ in range(6):
+                    interactions.append(create_interaction(m, v, p=0.25, accepted=True))
+        for a, b in [("v1", "v2"), ("v2", "v3"), ("v1", "v3")]:
+            for _ in range(5):
+                interactions.append(create_interaction(a, b, p=0.8, accepted=True))
+
+        # Low pair threshold so pair_clique also flags {m1, m2, m3}.
+        detector = CollusionDetector(
+            min_interactions_for_analysis=3,
+            collusion_score_threshold=0.05,
+            quality_asymmetry_threshold=0.2,
+        )
+        report = detector.analyze(interactions)
+        matching = [g for g in report.suspicious_groups if set(g.members) == set(members)]
+        assert len(matching) == 1
+        assert matching[0].internal_null_replicates == 200
+        assert matching[0].internal_observed_null_ratio > 1.0
+        assert matching[0].internal_null_mean > 0.0
+
+    def test_schedule_permutation_null_excludes_self_interactions(self):
+        """Self-interactions must be excluded consistently from observed and
+        null calculations so loop-free swap constraints always hold."""
+        base_interactions = [
+            create_interaction("a", "b", p=0.9, accepted=True),
+            create_interaction("b", "a", p=0.9, accepted=True),
+            create_interaction("a", "c", p=0.4, accepted=True),
+            create_interaction("c", "d", p=0.8, accepted=True),
+            create_interaction("d", "c", p=0.8, accepted=True),
+        ] * 4
+        with_self = list(base_interactions) + [
+            create_interaction("a", "a", p=0.9, accepted=True) for _ in range(30)
+        ]
+        detector = CollusionDetector(seed=7)
+        clean_res = detector._schedule_permutation_null({"a", "b"}, base_interactions)
+        self_res = detector._schedule_permutation_null({"a", "b"}, with_self)
+        assert self_res == clean_res
+        assert detector._schedule_permutation_null(
+            {"a"}, [create_interaction("a", "a", p=0.9, accepted=True)]
+        ) == (0.0, 0.0, 0.0, 0.0)
+
     def test_group_first_pass_ignores_uniform_honest_population(self):
         """A population where everyone trades high-p with everyone must not
         be flagged — mutual favoritism without out-group harm is not

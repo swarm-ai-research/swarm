@@ -202,13 +202,16 @@ def run_one(capacity: int, seed: int, n_epochs: int, steps: int) -> dict[str, An
         if rl_groups
         else None
     )
+    calibrated_rl_groups = [
+        g for g in rl_groups if g.internal_null_replicates > 0
+    ]
     best_group = (
         max(
-            rl_groups,
+            calibrated_rl_groups,
             key=lambda group: finite_or_none(group.internal_observed_null_ratio)
             or 0.0,
         )
-        if rl_groups
+        if calibrated_rl_groups
         else None
     )
 

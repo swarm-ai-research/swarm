@@ -277,10 +277,28 @@ class CollusionDetector:
         # mutual-favoritism structure and flag on directional quality
         # asymmetry — the criterion quality_asymmetry_threshold documents
         # but the pair-first pipeline never evaluated.
-        flagged_members = [frozenset(g.members) for g in suspicious_groups]
+        flagged_by_members = {frozenset(g.members): g for g in suspicious_groups}
         for group in self._detect_groups_structural(interactions, agent_ids):
-            if frozenset(group.members) not in flagged_members:
+            key = frozenset(group.members)
+            existing = flagged_by_members.get(key)
+            if existing is None:
+                flagged_by_members[key] = group
                 suspicious_groups.append(group)
+            elif (
+                existing.internal_null_replicates == 0
+                and group.internal_null_replicates > 0
+            ):
+                existing.internal_null_mean = group.internal_null_mean
+                existing.internal_observed_null_ratio = (
+                    group.internal_observed_null_ratio
+                )
+                existing.internal_observed_null_ratio_ci_low = (
+                    group.internal_observed_null_ratio_ci_low
+                )
+                existing.internal_observed_null_ratio_ci_high = (
+                    group.internal_observed_null_ratio_ci_high
+                )
+                existing.internal_null_replicates = group.internal_null_replicates
         suspicious_groups.sort(key=lambda g: g.collusion_score, reverse=True)
 
         # Compute per-agent risk scores
@@ -622,20 +640,26 @@ class CollusionDetector:
         than a confidence interval on the ratio. When a null rate is zero the
         corresponding value is undefined and reported as ``nan``; exporters
         should write it as ``null``.
+
+        Self-interactions (``initiator == counterparty``) are excluded
+        consistently from both the observed rate and the swap pool so every
+        retained schedule admits a loop-free assignment and no self-edges
+        persist in the null samples.
         """
-        if not interactions:
+        non_self = [i for i in interactions if i.initiator != i.counterparty]
+        if not non_self:
             return 0.0, 0.0, 0.0, 0.0
 
         agent_names = sorted(
-            {i.initiator for i in interactions}
-            | {i.counterparty for i in interactions}
+            {i.initiator for i in non_self}
+            | {i.counterparty for i in non_self}
         )
         agent_index = {name: idx for idx, name in enumerate(agent_names)}
         initiators = np.asarray(
-            [agent_index[i.initiator] for i in interactions], dtype=np.int64
+            [agent_index[i.initiator] for i in non_self], dtype=np.int64
         )
         observed_recipients = np.asarray(
-            [agent_index[i.counterparty] for i in interactions], dtype=np.int64
+            [agent_index[i.counterparty] for i in non_self], dtype=np.int64
         )
         member_mask = np.asarray(
             [name in members for name in agent_names], dtype=np.bool_
@@ -660,7 +684,7 @@ class CollusionDetector:
             for position, byte in enumerate("\x1f".join(sorted(members)).encode())
         )
         rng = np.random.default_rng(
-            np.random.SeedSequence([self.seed, len(interactions), group_salt])
+            np.random.SeedSequence([self.seed, len(non_self), group_salt])
         )
 
         n_events = len(recipients)
