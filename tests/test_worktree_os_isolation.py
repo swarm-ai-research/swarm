@@ -134,11 +134,18 @@ def test_fail_open_runs_and_labels_none(tmp_path, monkeypatch):
     assert result.isolation == "none"
 
 
-# --- real-backend enforcement (skipped where no backend exists, e.g. CI) ---
+# --- real-backend enforcement (skipped where no backend exists) ---
 
 _BACKEND = detect_backend()
 _needs_backend = pytest.mark.skipif(
     _BACKEND == "none", reason="no OS sandbox backend on this host"
+)
+_needs_sandbox_exec = pytest.mark.skipif(
+    _BACKEND != "sandbox-exec",
+    reason=(
+        "filename-regex read denial is only supported by macOS sandbox-exec "
+        "(bwrap enforces concrete deny_read_paths via tmpfs)"
+    ),
 )
 
 
@@ -234,6 +241,13 @@ def test_bwrap_masks_secret_dirs_with_tmpfs():
     assert argv.index("--tmpfs") < argv.index("--bind")
 
 
+def test_bwrap_empty_deny_read_paths_has_no_tmpfs_masks():
+    from swarm.bridges.worktree.sandbox_launch import wrap_command as wc
+
+    argv = wc(CMD, sandbox_path="/box", backend="bwrap", deny_read_paths=[])
+    assert "--tmpfs" not in argv
+
+
 def test_none_backend_unchanged_with_deny_reads():
     from swarm.bridges.worktree.sandbox_launch import wrap_command as wc
 
@@ -265,11 +279,13 @@ def test_executor_resolves_secret_denials_from_config(tmp_path):
     assert ex_off._resolve_secret_read_denials() == []
 
 
-@_needs_backend
+@_needs_sandbox_exec
 def test_secret_named_read_blocked_live(tmp_path):
-    """The dotenv/pem name-regex denial must actually block, not merely
-    appear in the profile — the profile-text assertion previously passed
-    while _sbpl_string's backslash escaping made the regex inert."""
+    """The macOS SBPL dotenv/pem name-regex denial must actually block, not
+    merely appear in the profile — the profile-text assertion previously passed
+    while _sbpl_string's backslash escaping made the regex inert. Linux bwrap
+    does not support global filename-regex rules and instead masks concrete
+    ``deny_read_paths`` (covered by ``test_default_secret_dir_read_blocked_live``)."""
     import subprocess
 
     from swarm.bridges.worktree.sandbox_launch import wrap_command as wc
