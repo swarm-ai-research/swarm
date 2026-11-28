@@ -128,6 +128,12 @@ Academic foundations and related publications. SWARM implements the framework de
 
     graph_structural flags 14/14 candidate clusters on real AI Village chat, flags a randomly-wired graph just as readily, and the coalitions it finds are 87-100% of the population: a size prior and a reciprocity-preserving null are prerequisites for observational use
 
+-   :material-scale-balance: **[Significant Is Not Convincing](collusion-evidence-audit.md)**
+
+    ---
+
+    Null-model audit of structural collusion evidence on real AI Village chat (Apart sprint, RQ 2.3): an edge leak fixed, a schedule-preserving null that clears the detector's own clusters, and why no null makes a p-value sufficient when honest affinity overlaps planted collusion
+
 -   :material-book-open-variant: **[Classic Essays as Swarm Mechanisms](classic-essays-swarm-lessons.md)**
 
     ---
@@ -163,6 +169,12 @@ Academic foundations and related publications. SWARM implements the framework de
     ---
 
     Thorsten Ball's October 2026 habits read against the rig: proof and blind evals match what we measured, "use the newest model" and "stop worrying about slop" don't survive a swarm, and a blind eval of our own AGENTS.md is proposed
+
+-   :material-layers-triple-outline: **[Pace Layers and Swarm Lag](pace-layers-swarm-lag.md)**
+
+    ---
+
+    deepfates' Long Now essay on AI as cheap attention, read against the rig: the shearing-layer check we already run, orphan influx and the 23-day wiki lead as layer lag, and a ratification-lag metric with a falsifiable prediction
 
 -   :material-key-variant: **[MVUEH Enigma Break Lessons](mvueh-enigma-break-lessons.md)**
 

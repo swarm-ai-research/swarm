@@ -22,8 +22,7 @@ corrector who doesn't check),
 [Cantrip Runtime Lessons](cantrip-runtime-lessons.md) (the `nudge` ladder),
 [erdos-1038 Swarm Lessons](erdos-1038-swarm-lessons.md) (phantom gates),
 [Dispatch Retro 2026-07-19](dispatch-retro-2026-07-19.md) (side-effect writes),
-and Pace Layers and Swarm Lag (layer tags; PR
-[#650](https://github.com/swarm-ai-research/swarm/pull/650), not yet merged).
+and [Pace Layers and Swarm Lag](pace-layers-swarm-lag.md) (layer tags).
 
 > **Sourcing status.** The post could not be fetched (x.com returned HTTP 402).
 > Quotes tagged `[pasted]` are from the text the operator pasted on
