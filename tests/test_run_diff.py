@@ -241,6 +241,50 @@ def test_missing_run_files_raise_clear_error(tmp_path):
         load_run_metrics(run_dir)
 
 
+def test_csv_discovery_ignores_non_epoch_csvs(tmp_path):
+    # Directory with only agents.csv must fail instead of returning empty metrics.
+    only_agents = tmp_path / "only_agents"
+    (only_agents / "csv").mkdir(parents=True)
+    (only_agents / "csv" / "simulation_agents.csv").write_text(
+        "agent_id,payoff\na1,1.0\n", encoding="utf-8"
+    )
+    with pytest.raises(FileNotFoundError, match="No history.json or epoch CSV"):
+        load_run_metrics(only_agents)
+
+    # Root-level *_epochs.csv must be picked over csv/simulation_agents.csv.
+    mixed = tmp_path / "mixed"
+    (mixed / "csv").mkdir(parents=True)
+    (mixed / "csv" / "simulation_agents.csv").write_text(
+        "agent_id,payoff\na1,1.0\n", encoding="utf-8"
+    )
+    (mixed / "simulation_epochs.csv").write_text(
+        "epoch,toxicity_rate\n0,0.25\n", encoding="utf-8"
+    )
+    assert load_run_metrics(mixed)["toxicity_rate"] == pytest.approx(0.25)
+
+
+def test_missing_accepted_interactions_does_not_fabricate_zero_rate():
+    epoch_metrics = normalize_run_metrics(
+        {"epoch_snapshots": [{"total_interactions": 10, "toxicity_rate": 0.2}]}
+    )
+    assert "acceptance_rate" not in epoch_metrics
+
+    flat_metrics = normalize_run_metrics(
+        {"final_metrics": {"total_interactions": 10, "toxicity_rate": 0.2}}
+    )
+    assert "acceptance_rate" not in flat_metrics
+
+    # Explicitly recorded zero accepted interactions must still yield 0.0.
+    zero_accepted = normalize_run_metrics(
+        {
+            "epoch_snapshots": [
+                {"total_interactions": 10, "accepted_interactions": 0}
+            ]
+        }
+    )
+    assert zero_accepted["acceptance_rate"] == pytest.approx(0.0)
+
+
 def test_swarm_diff_cli_markdown_and_json(tmp_path):
     run_a = tmp_path / "run_a"
     run_b = tmp_path / "run_b"

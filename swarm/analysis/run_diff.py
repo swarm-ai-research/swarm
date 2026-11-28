@@ -212,10 +212,8 @@ def _find_epoch_csv(run_dir: Path) -> Path | None:
     if csv_dir.exists():
         candidates.extend(sorted(csv_dir.glob("*_epochs.csv")))
         candidates.extend(sorted(csv_dir.glob("epochs.csv")))
-        candidates.extend(sorted(csv_dir.glob("*.csv")))
     candidates.extend(sorted(run_dir.glob("*_epochs.csv")))
     candidates.extend(sorted(run_dir.glob("epochs.csv")))
-    candidates.extend(sorted(run_dir.glob("*.csv")))
     return candidates[0] if candidates else None
 
 
@@ -274,10 +272,18 @@ def _aggregate_epochs(epochs: Sequence[Mapping[str, Any]]) -> dict[str, float]:
     result = {
         key: value for key, value in {**totals, **averaged}.items() if value is not None
     }
-    if totals["total_interactions"]:
+    if (
+        totals["total_interactions"] is not None
+        and totals["total_interactions"] > 0
+        and totals["accepted_interactions"] is not None
+    ):
         result["acceptance_rate"] = (
-            (totals["accepted_interactions"] or 0.0) / totals["total_interactions"]
+            totals["accepted_interactions"] / totals["total_interactions"]
         )
+    else:
+        explicit_rate = _mean_metric(epochs, "acceptance_rate")
+        if explicit_rate is not None:
+            result["acceptance_rate"] = explicit_rate
     return result
 
 
@@ -290,8 +296,13 @@ def _normalize_flat(payload: Mapping[str, Any]) -> dict[str, float]:
 
     total_interactions = _first_number(payload, ("total_interactions",))
     accepted_interactions = _first_number(payload, ("accepted_interactions",))
-    if "acceptance_rate" not in result and total_interactions:
-        result["acceptance_rate"] = (accepted_interactions or 0.0) / total_interactions
+    if (
+        "acceptance_rate" not in result
+        and total_interactions is not None
+        and total_interactions > 0
+        and accepted_interactions is not None
+    ):
+        result["acceptance_rate"] = accepted_interactions / total_interactions
     return result
 
 
